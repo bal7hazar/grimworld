@@ -119,8 +119,9 @@ for later lots: **a class that passes 50 % of a limit is split before it grows f
 their size is unknown (ARC). Running `class_sizes.py` in CI is the orchestrator's step in
 `.github/` (§11, E-10).
 
-**Two exceptions to the 50 % (CBT-05a, route (c); decided by the project manager, 2026-10-02
-(D-200)).** The rule above stays the default for every class. Two classes have their own ceiling:
+**Exceptions to the 50 % (CBT-05a, route (c); decided by the project manager, 2026-10-02
+(D-200); D-222 for CBT-05b).** The rule above stays the default for every class. These classes have
+their own ceiling:
 - **`ExecutorLibrary`** (`contracts/logic/src/systems/executor.cairo`), the executor in its own
   class, called once a carrier by `TickLibrary`'s step-1 hook: **at most 80,420 CASM felts**, the
   limit (81,920) less 1,500 of margin. Accepted at 80,122 (97.81 %, measured at CBT-05a's
@@ -128,10 +129,17 @@ their size is unknown (ARC). Running `class_sizes.py` in CI is the orchestrator'
   later design lot (CBT-05a's option (3): only the carrier's sheets across the call, the snapshot
   words split from the actors).
 - **`TickLibrary`**: **at most 75 %** (61,440 felts), to keep its room for CBT-05b's resolution
-  parts and ENG-07's act hook (45,427, 55.45 %, at `f1a33f4`).
+  parts and ENG-07's act hook (45,427, 55.45 %, at `f1a33f4`). **Raised to at most 88 %** (72,090
+  felts) for the action phase, its second entrypoint `act` (the project manager, 2026-10-07,
+  D-222): 71,839 (87.69 %) at CBT-05b's head.
+- **`TrapLibrary`** (`contracts/logic/src/systems/trap.cairo`, D-222 amended): a trap's trigger
+  in its own class, called by `library_call` once a trap triggers, its class hash `Instances`'
+  configuration (`trap_library`, constructor and `set_contracts`): **at most 78 %** (63,900 felts),
+  nothing cut; 63,151 (77.09 %) at CBT-05b's head. A later lot shrinks `TickLibrary` and
+  `TrapLibrary` together, after ENG-07 is placed (PLAN).
 
-`contracts/tools/class_sizes.py` checks each class against its threshold: these two by name, every
-other at 50 %.
+`contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
+every other at 50 %.
 
 **The tick's library class (CBT-02, M).** `TickLibrary`, in `grimworld_logic`
 (`contracts/logic/src/systems/tick.cairo`; the package's manifest declares `[lib]` and
@@ -1384,32 +1392,28 @@ less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake 
   tick when it occurs, and ENG-07 derives the batch weight from it. Combat rules are unchanged.
 - **The bomb, measured (CBT-05b)** in place of the estimate of ≈ 48.8 M: the member drinks a bomb
   (fire 30, `TILE`, `DISC_1`, `FOES`, range 6) on the ring tile whose disc holds the most goblins,
-  then the tick of the 8 goblin carriers runs. Measured in process with `TickLibrary`'s rules
-  (`Delegate`: the bomb's carrier and each goblin's through `ExecutorLibrary`), each less its
-  fixture (`test_tick::test_cost_bomb_*`, 13,847,242): **the bomb and its tick 42,510,885**; the
-  bomb alone (legality, the belt, facing, its carrier through the class) 8,525,496; the 8 goblins'
-  tick alone 33,988,889. Through `TickLibrary` add the call's own work, 3,391,670 at this head
-  (`rep_goblins` less its fixture, 37,380,559, against the same tick in process): **≈ 45.9 M
-  (derived, E)**, below the worst tick measured, which stays the member's activation with the 8
-  goblins'. D-207: 106.3 % of the 40 M batch target in process, 3.9 % of the 1.1×10⁹ cap. The
-  bomb is not measured through `TickLibrary` itself: its action phase has no entrypoint there yet
-  (the next point).
+  then the tick of the 8 goblin carriers runs. **Through `TickLibrary::act`: 45,968,815**
+  (`test_tick::test_cost_act_bomb` less its fixture; 114.9 % of 40 M, 4.18 % of 1.1×10⁹), accepted
+  as its figure (the project manager, 2026-10-07, D-222 amended). In process with the same rules
+  (`test_cost_bomb_*`): the bomb and its tick 42,510,885; the bomb alone (legality, the belt,
+  facing, its carrier through `ExecutorLibrary`) 8,525,496; the 8 goblins' tick alone 33,988,889.
+  Below the worst tick measured, which stays the member's activation with the 8 goblins'.
 - **At CBT-05b's head the worst tick measured is 46,517,111** (`rep_all` 56,227,075 less
   `rep_fixture` 9,709,964), +627,080 over CBT-05a's 45,890,031: the skill sheet carries the
   header's energy and profession across each call (+2,420 a sheet read) and step 1 places a trap.
   Sent to the project manager (D-144).
-- **The action phase's line (CBT-05b, design/19 §5.3; `types::action`)**, one action between two
-  ticks: its floor, a Wait (legality only), 40,840; a bomb 8,525,496 with its carrier (the
-  executor's own cost is the line above). Its class is the project manager's (CBT-05b's report):
-  in `TickLibrary` it measured 71,566 CASM felts (87.36 %, over D-200's 75 %), so `TickLibrary`
-  has no `act` entrypoint yet and ENG-07 calls the trait where the decision puts it.
-- **A trap's trigger replaces an application, never adds one: measured.** Snare's payload on a
-  goblin entering it (the lookup, the hit, Crippled, the used mark) costs **786,827** in process
-  (`trap::test_cost_trigger` less its fixture), against 4,090,351 for the goblin carrier it
-  replaces (a goblin that enters a trap ends its act, §5.11). It holds while the trigger runs in
-  the class of the move; through a library call of its own it would add the call (≈ 3.4 M, the
-  line above), and the sentence would need re-measuring. The in-class payload measured 37,462 CASM
-  felts in `TickLibrary` (87,409, 106.70 %): its class is the project manager's too.
+- **The action phase's line (CBT-05b, design/19 §5.3; `types::action`, `TickLibrary::act`, D-222)**,
+  one action between two ticks: its floor, a Wait (legality only), 40,840 in process; through
+  `act`, a Wait and its idle tick cost 4,211,967 against 4,291,507 for an idle tick through `run`
+  (`rep_idle`): the entrypoint costs what `run` does (fixtures slightly apart). A bomb 8,525,496
+  with its carrier (the executor's own cost is the line above).
+- **A trap's trigger replaces an application, never adds one, for a goblin: measured.** Through
+  `TrapLibrary` (D-222 amended), a terrain trap's payload (fire 80, Burning 3) on the member
+  entering it, the call carrying the entrant alone, costs **3,564,561**
+  (`test_tick::test_cost_trap_class` less its fixture); in process, Snare's payload on a goblin
+  786,827 (`trap::test_cost_trigger`). A goblin that enters a trap ends its act (§5.11), so its
+  trigger replaces the carrier of 4,090,351 it would have run. **A member's move into a trap adds
+  the trigger to that action** (a move runs no carrier): ENG-07 prices it with the move.
 - **The levers** (the project manager's option (b), 2026-10-03), measured one by one at the same
   state:
 
