@@ -655,7 +655,7 @@ fn test_create_reuses_the_slot() {
 
 #[test]
 // gas: raised, ENG-10b: a larger Instances deployed, a zone's Site two felts longer
-#[available_gas(l2_gas: 44578521)] // ceil(1.05 × 42455734 measured)
+#[available_gas(l2_gas: 44352792)] // ceil(1.05 × 42240754 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -1287,7 +1287,7 @@ fn template() -> Pack {
 // reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
 // question 6); `instance_region` tells void, not yet revealed and revealed apart.
 #[test]
-#[available_gas(l2_gas: 56203458)] // ceil(1.05 × 53527102 measured)
+#[available_gas(l2_gas: 54159866)] // ceil(1.05 × 51580824 measured)
 fn test_entry_reveal_through_the_engine() {
     let world = setup();
     let mask = zone_content(world);
@@ -1461,7 +1461,7 @@ fn reveal_rest(
 // words in every chunk, one exit, on a chunk of the farthest layer.
 #[test]
 // gas: raised, ENG-10b: A2, the stored floor against the pure draw, revealed in two orders
-#[available_gas(l2_gas: 77260722)] // ceil(1.05 × 73581640 measured)
+#[available_gas(l2_gas: 76637455)] // ceil(1.05 × 72988052 measured)
 fn test_entry_reveal_of_a_dungeon() {
     let world = setup();
     let records = IRecordsDispatcher { contract_address: world.registry };
@@ -1649,7 +1649,7 @@ fn create_gas_zone(quotas: bool) -> u128 {
 // D-210 (review note 5 at 46d7d89): `begin`'s cost with and without the zone block, on the same
 // zone; the difference also holds the collector's placement when a host is revealed.
 #[test]
-#[available_gas(l2_gas: 88296086)] // ceil(1.05 × 84091510 measured)
+#[available_gas(l2_gas: 86718894)] // ceil(1.05 × 82589422 measured)
 fn test_cost_create_zone_block() {
     println!("gas create, zone with a quota (the zone block): {}", create_gas_zone(true));
     println!("gas create, zone without a quota (no zone block): {}", create_gas_zone(false));
