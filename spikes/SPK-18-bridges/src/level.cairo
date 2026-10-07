@@ -1,3 +1,6 @@
+//! **Superseded by D-227** (one level): the two-level prototype of D-217, kept as history; its
+//! "ADR-0008 rule N" are the rules of ADR-0008 at `38cfd13`.
+//!
 //! A position's level (ADR-0008 rule 1): one bit beside the position, in the word that holds the
 //! position today, so that a level costs **no new slot** and a move writes the word it writes
 //! anyway. `GROUND` (0) is every tile's level but a deck's; `DECK` (1) only on a bridge's deck.

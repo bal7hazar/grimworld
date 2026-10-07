@@ -1,3 +1,6 @@
+//! **Superseded by D-227** (one level): the two-level prototype of D-217, kept as history; its
+//! "ADR-0008 rule N" are the rules of ADR-0008 at `38cfd13`.
+//!
 //! The movement check of one Move on the window (design/04 *Actions*: one tile, six directions),
 //! on one level and on two (ADR-0008 rules 2 and 3). Positions are the window's (`15 y + x`,
 //! `hexx`'s odd-r layout, ENG-02), bitmaps of 240 bits as `u256` (`hexx`'s `Bits`).
@@ -13,7 +16,7 @@
 //!     passed **under**;
 //!   - on the deck, a step goes to a deck tile (free aloft) or **descends** to an end (free on the
 //!     ground); nothing else (the railings).
-//!   ADR-0008's R-37 (two bridges' decks never adjacent, an end never on or next to another
+//!   ADR-0008's R-38 (two bridges' decks never adjacent, an end never on or next to another
 //!   bridge's deck) makes the masks exact: a deck tile next to an end is that end's bridge's.
 //!
 //! The window's ring is wall on both levels: the assembly clears `deck` and `ends` there as it

@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""SPK-18: the converter's reachability (P-1) with bridges, and the layout rule R-37 (ADR-0008 rules
-2 and 7). A prototype for ENG-09's converter (`tools/map-format/`, SPK-16's `convert.py`
-`pipeline`), on global tiles `(x, y)`, odd-r with `x` growing West (SPK-16's `records.neighbours`).
+"""SPK-18: the converter's reachability (P-1) with bridges on one level (D-227; ADR-0008 rules 1, 5
+and 6). A prototype for ENG-09's converter (`tools/map-format/`, SPK-16's `convert.py`), on global
+tiles `(x, y)`, odd-r with `x` growing West (SPK-16's `records.neighbours`).
 
-The graph has two levels: `(t, 0)` for every walkable tile `t`, `(d, 1)` for every deck tile `d`.
-- Ground edges: two adjacent walkable tiles, **but** an end and its own bridge's deck tile (the
-  cut: that edge is the climb's, rule 2);
-- the climb: an end `(e, 0)` and an adjacent tile of its bridge's deck `(d, 1)`;
-- the deck: two adjacent tiles of one bridge's deck, `(d, 1)` and `(d', 1)`.
-P-1: every node reachable from the entry `(entry, 0)`: every walkable tile on the ground and every
-deck tile aloft. With no bridge it is SPK-16's P-1 unchanged.
+A deck is walkable ground drawn over water: the converter writes every deck tile walkable in the
+plane (`plane`), then P-1 runs on that plane as SPK-16's does. R-37 keeps authored content off a
+bridge's deck and ends.
 
     python3 reach.py            # the unit tests (test_reach.py)
 """
@@ -29,65 +25,33 @@ def neighbours(x, y):
             (x + d + 1, y + 1)]
 
 
-def assert_layout(bridges):
-    """R-37 (the converter's `export:` code, and ENG-09's `ZoneAssert` across a chunk's bridges):
-    two bridges' decks neither share nor touch a tile; an end is on no deck and touches no other
-    bridge's deck. With it, a deck tile next to an end is that end's bridge's (the window's masks
-    are exact, `src/movement.cairo`)."""
+def plane(painted, bridges):
+    """The walkable plane the converter writes: the painted floor and every deck tile (rule 1)."""
+    return set(painted) | {d for b in bridges for d in b["deck"]}
+
+
+def assert_content(bridges, taken):
+    """R-37 (`bridge: tile taken`): no spawn point, object, candidate tile, gate anchor or entry
+    (`taken`, their tiles) on a bridge's deck or ends."""
     for i, b in enumerate(bridges):
-        near = set(b["deck"]) | {n for d in b["deck"] for n in neighbours(*d)}
-        for j, other in enumerate(bridges):
-            if any(e in other["deck"] for e in b["ends"]):
-                raise Refused("export: bridge end on a deck", f"bridge {i}")
-            if j == i:
-                continue
-            if near & set(other["deck"]):
-                raise Refused("export: decks touch", f"bridges {i} and {j}")
-            if any(e in near for e in other["ends"]):
-                raise Refused("export: end by another deck", f"bridges {j} and {i}")
+        hit = (set(b["deck"]) | set(b["ends"])) & set(taken)
+        if hit:
+            raise Refused("bridge: tile taken", f"bridge {i} at {sorted(hit)[:3]}")
 
 
-def reach(walk, bridges, entry):
-    """The nodes reachable from `(entry, 0)`."""
-    deck_of, end_of = {}, {}
-    for i, b in enumerate(bridges):
-        for d in b["deck"]:
-            deck_of[d] = i
-        for e in b["ends"]:
-            end_of.setdefault(e, set()).add(i)
-
-    def edges(node):
-        t, level = node
-        for n in neighbours(*t):
-            if level == 0:
-                if t in end_of and deck_of.get(n) in end_of[t]:
-                    yield (n, 1)  # the climb
-                    continue
-                if n in end_of and deck_of.get(t) in end_of[n]:
-                    continue  # the cut
-                if n in walk:
-                    yield (n, 0)
-            else:
-                if deck_of.get(n) == deck_of[t]:
-                    yield (n, 1)  # along the deck
-                elif deck_of[t] in end_of.get(n, ()):
-                    yield (n, 0)  # the descent
-
-    start = (entry, 0)
+def connected(tiles, start):
     seen, todo = {start}, [start]
     while todo:
-        for n in edges(todo.pop()):
-            if n not in seen:
+        for n in neighbours(*todo.pop()):
+            if n in tiles and n not in seen:
                 seen.add(n)
                 todo.append(n)
     return seen
 
 
-def p1(walk, bridges, entry):
-    """P-1 with bridges: refuses a walkable tile or a deck tile the entry cannot reach."""
-    assert_layout(bridges)
-    nodes = {(t, 0) for t in walk} | {(d, 1) for b in bridges for d in b["deck"]}
-    missing = nodes - reach(walk, bridges, entry)
+def p1(walk, entry):
+    """P-1 (SPK-16's `pipeline`): every walkable tile reachable from the entry."""
+    missing = walk - connected(walk, entry)
     if missing:
         raise Refused("pipeline: unreachable tile", f"{sorted(missing)[:3]}")
 
