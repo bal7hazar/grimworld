@@ -8,7 +8,7 @@ use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::action::Illegal;
 use crate::types::executor::{Board, Cache, Carrier};
-use crate::types::play::Classes;
+use crate::types::play::{Area, Classes, Done};
 use crate::types::reveal::outline::Outline;
 use crate::types::reveal::{Progress, Site};
 use crate::types::tick::Content;
@@ -160,6 +160,22 @@ pub trait IActionLibrary<T> {
         ground: Array<(u8, Features)>,
         action: Action,
     ) -> (Words, Array<(u8, Features)>, Result<u8, Illegal>);
+}
+
+#[starknet::interface]
+pub trait ISegmentLibrary<T> {
+    fn segment(
+        self: @T,
+        words: Words,
+        content: Content,
+        area: Area,
+        classes: Classes,
+        level: u8,
+        ground: Array<(u8, Features)>,
+        actions: Span<Action>,
+        owed: u8,
+        weight: u8,
+    ) -> (Words, Array<(u8, Features)>, Done);
 }
 
 /// The goblins' acts as their own library class (ENG-07 Open question 1, candidate C): the tick's

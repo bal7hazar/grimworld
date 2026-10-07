@@ -58,6 +58,16 @@ at 52.91 % (43,345 felts) before any content, goblin or reveal:
 | 3 | **A test runs the fast path and the `TickLibrary` path on the same ticks** and compares their state and events: identical | the project manager |
 | 4 | **On the node, six runs + 5 %, each against the same batch on main's path**: an exploration batch end to end; a fight batch end to end, carrying D-233 #4's figures (the worst-case ticks a batch, the member's activation in the same tick as 8 goblin attacks, CBT-05d's levers with figures). **A fight batch above 369 M: stop and report before any further build** (the owner, R-2) | the owner |
 
+**Amended by D-236 (the project manager, 2026-10-07)**, after `PlayLibrary` with the segment measured
+99,917 felts (121.97 %) and `Instances` 42,112 (51.41 %):
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **The split**: `PlayLibrary` keeps the batch's storage reads and writes, at most 80 %; **the segment goes into `SegmentLibrary`, called once a batch** (once a segment when a reveal splits it), its cap its measure + 5 % if at most 90 % (73,728 felts), else stop and report where to cut it | the project manager |
+| 2 | **`Instances`: the admission moves into `PlayLibrary`, the classes are set without the five-argument setter** (one `set_play_class(key, class)`); both measured together; above 50 %: stop | the project manager |
+| 3 | The call a batch to `SegmentLibrary` goes in the D-144 rows with the batch totals | the project manager |
+| 4 | A figure for the project manager, not a gate: the full call chain of a fight tick (`Instances` → `PlayLibrary` → `SegmentLibrary` → `ActionLibrary`/`TickLibrary` → `AiLibrary` → `ExecutorLibrary`) and its fixed cost before any hit. `MAX_ATTACKERS` stays 8 | the project manager |
+
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
 D-133): each action checked against the state it meets, the adventurer's moves with facing, occupancy

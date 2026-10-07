@@ -22,6 +22,8 @@ pub mod play_class {
     pub const AI: u8 = 2;
     pub const ACTION: u8 = 3;
     pub const EXECUTOR: u8 = 4;
+    /// `SegmentLibrary`: the batch's segments (D-236).
+    pub const SEGMENT: u8 = 5;
 }
 pub use errors::{NOT_ADMIN, ZERO_ADMIN};
 
@@ -223,16 +225,10 @@ pub trait IInstancesAdmin<T> {
         trap_library: ClassHash,
     );
     fn set_admin(ref self: T, admin: ContractAddress);
-    /// The classes `play` calls (ENG-07, D-233 to D-235): `PlayLibrary` (`play`'s body, by
-    /// `library_call`), `TickLibrary`, `AiLibrary`, `ActionLibrary` and `ExecutorLibrary`.
-    fn set_play_classes(
-        ref self: T,
-        play: ClassHash,
-        tick: ClassHash,
-        ai: ClassHash,
-        action: ClassHash,
-        executor: ClassHash,
-    );
+    /// One of the classes `play` calls (ENG-07, D-233 to D-236), by its key (`play_class`):
+    /// `PlayLibrary` (`play`'s body, by `library_call`), `TickLibrary`, `AiLibrary`,
+    /// `ActionLibrary`, `ExecutorLibrary`, `SegmentLibrary`.
+    fn set_play_class(ref self: T, key: u8, class: ClassHash);
     /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
@@ -262,7 +258,7 @@ pub mod Instances {
     use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
     use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
     use grimworld_logic::types::{
-        ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, Stop, instance_id, instance_parts,
+        ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
     };
     use starknet::storage::Map;
     use starknet::storage_access::StorePacking;
@@ -379,38 +375,10 @@ pub mod Instances {
             version: u32,
             actions: felt252,
         ) {
-            // The admission (D-234): the caller controls the member (a revert otherwise), then the
-            // instance's checks, a refusal a `BatchPlayed` that ran nothing; the body is
-            // `PlayLibrary`'s, in this contract's context.
-            let (slot, generation) = instance_parts(instance_id);
-            let placement = self.get_placement(adventurer_id);
-            let state = self
-                .get_controlled_state(placement.slot, placement.member, get_caller_address());
-            let header = self.get_header(slot);
-            if let Option::Some(reason) = header
-                .refusal(generation, @placement, slot, state.status, sequence) {
-                let stop = if reason == Refusal::Sequence {
-                    Stop::Sequence
-                } else {
-                    Stop::Closed
-                };
-                self
-                    .emit(
-                        BatchPlayed {
-                            instance_id,
-                            adventurer_id,
-                            from: sequence,
-                            played: 0,
-                            stop,
-                            sequence: header.sequence,
-                            clock: header.clock,
-                            version,
-                        },
-                    );
-                return;
-            }
+            // The body, the admission first, is `PlayLibrary`'s, in this contract's context
+            // (D-234, D-236).
             IPlayLibraryLibraryDispatcher { class_hash: self.get_play_class(play_class::PLAY) }
-                .play(instance_id, adventurer_id, sequence, version, actions, slot, placement.member);
+                .play(instance_id, adventurer_id, sequence, version, actions);
         }
 
         fn loot(
@@ -775,20 +743,9 @@ pub mod Instances {
             self.set_administrator(admin);
         }
 
-        fn set_play_classes(
-            ref self: ContractState,
-            play: ClassHash,
-            tick: ClassHash,
-            ai: ClassHash,
-            action: ClassHash,
-            executor: ClassHash,
-        ) {
+        fn set_play_class(ref self: ContractState, key: u8, class: ClassHash) {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
-            self.set_play_class(play_class::PLAY, play);
-            self.set_play_class(play_class::TICK, tick);
-            self.set_play_class(play_class::AI, ai);
-            self.set_play_class(play_class::ACTION, action);
-            self.set_play_class(play_class::EXECUTOR, executor);
+            self.store_play_class(key, class);
         }
 
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {

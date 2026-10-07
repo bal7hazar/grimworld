@@ -32,8 +32,7 @@ use grimworld_logic::types::InstanceId;
 
 #[starknet::interface]
 pub trait IPlayLibrary<T> {
-    /// `play`'s body for the adventurer's member `member` of the instance's `slot`, admitted by
-    /// `Instances.play` (ENG-01 §4.1).
+    /// `play`'s body, its admission first (ENG-01 §4.1; D-236), in `Instances`' context.
     fn play(
         ref self: T,
         instance_id: InstanceId,
@@ -41,8 +40,6 @@ pub trait IPlayLibrary<T> {
         sequence: u32,
         version: u32,
         actions: felt252,
-        slot: u32,
-        member: u8,
     );
 }
 
@@ -64,18 +61,13 @@ pub mod PlayLibrary {
             sequence: u32,
             version: u32,
             actions: felt252,
-            slot: u32,
-            member: u8,
         ) {
             let mut instances = Instances::unsafe_new_contract_state();
-            PlayTrait::play(
-                ref instances, instance_id, adventurer_id, sequence, version, actions, slot, member,
-            );
+            PlayTrait::play(ref instances, instance_id, adventurer_id, sequence, version, actions);
         }
     }
 }
 
-use core::num::traits::Zero;
 use grimworld_logic::actions::decode_batch;
 use grimworld_logic::content::{CASTE, ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
 use grimworld_logic::interface::{
@@ -91,8 +83,7 @@ use grimworld_logic::models::member::{MemberTrait, MemberWordsTrait};
 use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackRecord, PackTrait};
 use grimworld_logic::packing::{Bitmap, LIVE, Lanes16};
-use grimworld_logic::types::executor::{BoardTrait, Delegate};
-use grimworld_logic::types::play::{Area, Classes, SegmentTrait};
+use grimworld_logic::types::play::{Area, Classes};
 use grimworld_logic::types::reveal::ProgressTrait;
 use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
@@ -101,12 +92,14 @@ use grimworld_logic::types::tick::{
     CasteSheet, CasteSheetTrait, Content, PotionSheet, PotionSheetTrait, SkillSheet,
     SkillSheetTrait,
 };
-use grimworld_logic::types::window::WindowTrait;
-use grimworld_logic::types::world::{Words, WordsTrait, WorldStoreTrait, WorldTrait};
-use grimworld_logic::types::{MAX_WEIGHT, Stop, goblin_entity};
+use grimworld_logic::types::world::Words;
+use grimworld_logic::interface::{ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher};
+use grimworld_logic::types::{MAX_WEIGHT, Refusal, Stop, goblin_entity};
 use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
-use crate::models::instance::{Header, HeaderTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
+use crate::models::instance::{
+    Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait,
+};
 use crate::models::member::MemberState;
 use crate::helpers::stored::StoredTrait;
 use crate::store::InstancesStoreTrait;
@@ -149,10 +142,25 @@ pub impl PlayImpl of PlayTrait {
         sequence: u32,
         version: u32,
         actions: felt252,
-        slot: u32,
-        member: u8,
     ) {
+        // The admission (D-236, from `Instances`): the caller controls the member, then the
+        // instance's checks; a refusal is a `BatchPlayed` that ran nothing.
+        let (slot, generation) = grimworld_logic::types::instance_parts(instance_id);
+        let placement = self.get_placement(adventurer_id);
+        let member = placement.member;
+        let mstate = self
+            .get_controlled_state(placement.slot, placement.member, starknet::get_caller_address());
         let header = self.get_header(slot);
+        if let Option::Some(reason) = header
+            .refusal(generation, @placement, slot, mstate.status, sequence) {
+            let stop = if reason == Refusal::Sequence {
+                Stop::Sequence
+            } else {
+                Stop::Closed
+            };
+            self.played(instance_id, adventurer_id, sequence, @header, 0, stop, version);
+            return;
+        }
         let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
         // [Read] The member, the area and its goblins
         let words = self.get_member_words(slot, header.members);
@@ -407,7 +415,7 @@ pub impl PlayImpl of PlayTrait {
         read: Read,
     ) {
         let Read { mut header, location, mut area, ground, goblins, mut roster } = read;
-        let words = Words {
+        let mut words = Words {
             clock: header.clock,
             members,
             goblins: Self::copy(goblins),
@@ -415,6 +423,7 @@ pub impl PlayImpl of PlayTrait {
             defeated: false,
         };
         let initial = ground.span();
+        let mut ground = Self::copy_ground(initial);
         let classes = Classes {
             executor: self.get_play_class(play_class::EXECUTOR),
             ai: self.get_play_class(play_class::AI),
@@ -422,19 +431,8 @@ pub impl PlayImpl of PlayTrait {
             action: self.get_play_class(play_class::ACTION),
             tick: self.get_play_class(play_class::TICK),
         };
-        let (mut world, sheets, index) = words.indexed(@content);
-        let mut rules = Delegate {
-            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
-            cache: Default::default(),
-            executor: classes.executor,
-            content,
-            index,
-            placed: array![],
-            ground: ground,
-            ai: classes.ai,
-            trap: classes.trap,
-            level: location.level_min,
-            frozen: 0,
+        let segment = ISegmentLibraryLibraryDispatcher {
+            class_hash: self.get_play_class(play_class::SEGMENT),
         };
         let mut start: u32 = 0;
         let mut owed: u8 = 0;
@@ -443,16 +441,21 @@ pub impl PlayImpl of PlayTrait {
         let mut stop = Stop::None;
         let mut revealed: Array<u8> = array![];
         loop {
-            let done = SegmentTrait::run(
-                ref world,
-                @sheets,
-                ref rules,
-                @area,
-                @classes,
-                actions.slice(start, actions.len() - start),
-                owed,
-                weight,
-            );
+            // One call a segment: the words go in and come back, never loaded here (D-236)
+            let (out, next, done) = segment
+                .segment(
+                    words,
+                    content,
+                    area,
+                    classes,
+                    location.level_min,
+                    ground,
+                    actions.slice(start, actions.len() - start),
+                    owed,
+                    weight,
+                );
+            words = out;
+            ground = next;
             played += done.played;
             start += done.played.into();
             weight = done.weight;
@@ -465,7 +468,7 @@ pub impl PlayImpl of PlayTrait {
                 stop = Stop::Weight;
                 break;
             }
-            if world.defeated {
+            if words.defeated {
                 stop = Stop::Defeated;
                 break;
             }
@@ -473,8 +476,7 @@ pub impl PlayImpl of PlayTrait {
                 break;
             }
             // Between two segments: the chunks sight touches revealed, the area moved
-            let at: u32 = member.into();
-            let (x, y) = Self::place(world.member(at).words.state);
+            let (x, y) = Self::place(*words.members[member.into()].state);
             let mut chunks: Array<u8> = array![];
             for chunk in SightTrait::chunks(x, y, area.width, area.height) {
                 if Bits::has(area.known, chunk) && !Bits::has(area.revealed, chunk) {
@@ -488,31 +490,26 @@ pub impl PlayImpl of PlayTrait {
                 } else {
                     0
                 };
-                let mut ground = rules.ground;
                 self.reveal(slot, instance_id, ref header, @location, ref area, ref ground, chunks.span());
-                rules.ground = ground;
                 for chunk in chunks {
                     revealed.append(chunk);
                 }
             }
             let more = Self::ground(@self, slot, area.revealed, x, y);
-            let mut ground = rules.ground;
             for (chunk, features) in more {
                 if !Self::holds(ground.span(), chunk) {
                     ground.append((chunk, features));
                 }
             }
-            rules.ground = ground;
-            area = Self::area(@self, slot, @location, area.known, area.revealed, @rules.ground);
+            area = Self::area(@self, slot, @location, area.known, area.revealed, @ground);
         };
-        let out = world.store();
+        let out = words;
         // [Effect] The words written back
         let mut m: u8 = 0;
         for words in out.members.span() {
             self.set_member_words(slot, m, *words.state, *words.timers, *words.effects, *words.recharges);
             m += 1;
         }
-        let mut ground = rules.ground;
         let mut k: u32 = 0;
         for after in out.goblins.span() {
             let before = goblins[k];
@@ -999,6 +996,12 @@ pub impl PlayImpl of PlayTrait {
             k += 1;
         }
         value
+    }
+
+    fn copy_ground(ground: Span<(u8, Features)>) -> Array<(u8, Features)> {
+        let mut out = array![];
+        out.append_span(ground);
+        out
     }
 
     fn copy(goblins: Span<GoblinWords>) -> Array<GoblinWords> {

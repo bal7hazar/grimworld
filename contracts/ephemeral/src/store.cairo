@@ -421,7 +421,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     }
 
     #[inline(always)]
-    fn set_play_class(ref self: InstancesState, k: u8, class: ClassHash) {
+    fn store_play_class(ref self: InstancesState, k: u8, class: ClassHash) {
         self.play_classes.entry(k).write(class)
     }
 
