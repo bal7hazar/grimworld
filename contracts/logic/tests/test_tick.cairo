@@ -4353,3 +4353,35 @@ fn test_cost_segment_fight_whole() {
     );
     assert(done.played > 0, 'played');
 }
+
+// D-233 #4 (b): the member's activation (Cinder Ring, scenario 2's: fire 80 and Burning 3 on its
+// ring) lands in step 1 of the tick in which the 8 Engaged goblins, their skills recharging, attack
+// it with their weapons in step 2 (the ring's goblins at 250 health survive the ring). One tick
+// through `TickLibrary`, less the same arguments without the call.
+fn landing_words() -> Words {
+    let mut words = ai_words_of(ai::ENGAGED, false, true);
+    let mut member = *words.members[0];
+    // Its activation field (`MemberTimers`), as scenario 2 starts it: due at tick 41.
+    member.timers = (*rep_words(2).members[0]).timers;
+    words.members = array![member];
+    words
+}
+
+#[test]
+fn test_cost_landing_fixture() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let _ = classes();
+    let words = landing_words();
+    let content = rep_content();
+    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+}
+
+#[test]
+fn test_cost_landing() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let words = ticks_of(library, landing_words(), rep_content(), board(), 1);
+    println!("landing: clock {} defeated {} killed {}", words.clock, words.defeated, words.killed.len());
+    assert(words.clock == 41, 'one tick');
+}
