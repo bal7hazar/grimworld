@@ -1062,7 +1062,7 @@ mod tests {
     // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation).
     #[test]
     // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
-    #[available_gas(l2_gas: 464531905)] // ceil(1.05 × 442411338 measured)
+    #[available_gas(l2_gas: 968230791)] // ceil(1.05 × 922124562 measured)
     fn test_vectors() {
         let mut cases = edges();
         let mut seed: u64 = 1;

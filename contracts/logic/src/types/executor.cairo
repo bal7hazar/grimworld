@@ -3104,7 +3104,7 @@ pub mod tests {
     // against armor 70), then the knock-down (`D` 53) interrupts its smash (`A` 53): the field to
     // none, recharge 52 + 10 − 1 = 61. The adventurer +4 quarters, the Hobgoblin +1.
     #[test]
-    #[available_gas(l2_gas: 6815941)] // ceil(1.05 × 6491372 measured)
+    #[available_gas(l2_gas: 10989074)] // ceil(1.05 × 10465784 measured)
     fn test_example_interrupt() {
         // R3: the Hobgoblin's cap is its caste's kit: its smash (24) costs 1 strike, 4 quarters.
         let base = content(70, array![].span());
@@ -3240,7 +3240,7 @@ pub mod tests {
     // 44; Crippled from 305 to 307. The placement first: the guard held, `Place`.
     #[test]
     // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
-    #[available_gas(l2_gas: 12934340)] // ceil(1.05 × 12318419 measured)
+    #[available_gas(l2_gas: 10014018)] // ceil(1.05 × 9537160 measured)
     fn test_example_trap() {
         let sheets = sheets(40);
         let snare = at(@sheets, SNARE);

@@ -172,8 +172,7 @@ fn test_cost_reveal_three() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
-#[available_gas(l2_gas: 29436407)] // ceil(1.05 × 28034673 measured)
+#[available_gas(l2_gas: 4192351)] // ceil(1.05 × 3992715 measured)
 fn test_cost_library_baseline() {
     let _class = declare("RevealLibrary").unwrap().contract_class();
     let site = site(biome::CAVE, true);
@@ -182,8 +181,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
-#[available_gas(l2_gas: 70209197)] // ceil(1.05 × 66865901 measured)
+#[available_gas(l2_gas: 4725804)] // ceil(1.05 × 4500765 measured)
 fn test_cost_library_call() {
     let class = declare("RevealLibrary").unwrap().contract_class();
     let library = IRevealLibraryLibraryDispatcher { class_hash: *class.class_hash };

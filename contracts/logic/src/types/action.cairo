@@ -940,8 +940,7 @@ mod tests {
     // interrupted, energy stays paid, the recharge from `t₀ = 201`. The bonus is spent: the next
     // Fire spell makes `casts` 1.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
-    #[available_gas(l2_gas: 10550678)] // ceil(1.05 × 10048264 measured)
+    #[available_gas(l2_gas: 10412275)] // ceil(1.05 × 9916452 measured)
     fn test_example_fifth_cast_interrupted() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![FIRE].span());

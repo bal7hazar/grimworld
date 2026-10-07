@@ -137,6 +137,26 @@ their own ceiling:
   configuration (`trap_library`, constructor and `set_contracts`): **at most 78 %** (63,900 felts),
   nothing cut; 63,151 (77.09 %) at CBT-05b's head. A later lot shrinks `TickLibrary` and
   `TrapLibrary` together, after ENG-07 is placed (PLAN).
+- **ENG-07's classes (D-233 to D-236, the project manager, 2026-10-07)**, `play`'s path:
+  `Instances.play` → `PlayLibrary` (by `library_call`, in `Instances`' context) → `SegmentLibrary`
+  (once a segment) → `ActionLibrary` (a combat action) and `TickLibrary` (a tick with a fight) →
+  `AiLibrary` (step 2, once a tick with a goblin free) → `ExecutorLibrary` (a carrier) and
+  `TrapLibrary` (a trap entered):
+  - **`AiLibrary`** (`contracts/logic/src/systems/ai.cairo`), the goblins' acts, all of step 2 in
+    it: **at most 80 %** (65,536 felts; D-233); the size probe measured 64,683 (78.96 %), 62,808
+    (76.67 %) at ENG-07's head.
+  - **`ActionLibrary`** (`systems/action.cairo`), CBT-05b's action phase, called only for an Attack,
+    a Skill or an Item: **at most 57,476 felts** (70.16 %), its measure 54,739 + 5 % (D-234).
+  - **`SegmentLibrary`** (`systems/segment.cairo`), the batch's segments (the actions in order, the
+    moves, the window, the fast path of a tick with no goblin in the window): **at most 56,167
+    felts** (68.56 %), its measure 53,492 + 5 % (D-236).
+  - **`PlayLibrary`** (`contracts/ephemeral/src/systems/play.cairo`), `play`'s body (its admission
+    first, D-236), on `Instances`' storage and events through `Instances`' own store: **at most
+    80 %** (D-235); 58,483 (71.39 %) at ENG-07's head.
+  - **`TickLibrary`** keeps **one entrypoint, `ticks`** (D-235: the old `run` removed, `act` moved to
+    `ActionLibrary`), at most 88 %: 62,307 (76.06 %) at ENG-07's head.
+  - **`Instances`** stays under 50 % with no exception: `play` is one call (40,921, 49.95 %); the
+    classes are set by `set_play_class(key, class)` (`play_class`: `PLAY` … `SEGMENT`).
 
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
 every other at 50 %.

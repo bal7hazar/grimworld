@@ -452,3 +452,199 @@ pub impl SegmentImpl of SegmentTrait {
         false
     }
 }
+
+/// The segment's unit tests (D-167), and the movement and window table of `vectors/movement.jsonl`
+/// (ENG-07 scope 11): the client's mirror reads it (`client/sim`, track CV's).
+#[cfg(test)]
+mod tests {
+    use hexx::board::layout::LayoutTrait;
+    use hexx::finders::bfs::Bfs;
+    use hexx::finders::flood::FloodTrait;
+    use crate::helpers::tick::TickMathTrait;
+    use crate::types::executor::BoardTrait;
+    use crate::types::tick::ai;
+    use crate::types::window::{HEIGHT, WIDTH, WindowAssert};
+    use crate::types::world::fixtures::{Fixture, HOB, two};
+    use crate::types::world::{TickTrait, WorldTrait};
+    use super::{Area, SegmentTrait};
+
+    /// The area of every chunk of a 15 × 15 location, revealed and walkable.
+    fn open_area() -> Area {
+        let mut known: felt252 = 0;
+        let mut chunks: Array<(u8, felt252)> = array![];
+        let mut chunk: u8 = 0;
+        while chunk < 225 {
+            known += two(chunk.into());
+            chunks.append((chunk, two(225) - 1));
+            chunk += 1;
+        }
+        Area { width: 15, height: 15, known, revealed: known, chunks: chunks.span() }
+    }
+
+    fn hex(felts: Span<felt252>) -> ByteArray {
+        let mut out: ByteArray = "[";
+        let mut first = true;
+        for felt in felts {
+            if !first {
+                out.append(@",");
+            }
+            first = false;
+            let wide: u256 = (*felt).into();
+            out.append(@format!("\"0x{:x}\"", wide));
+        }
+        out.append(@"]");
+        out
+    }
+
+    fn emit(
+        ref digest: Array<felt252>, ref id: u32, name: ByteArray, case: Span<felt252>, ok: Span<felt252>,
+    ) {
+        println!(
+            "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok),
+        );
+        digest.append(core::poseidon::poseidon_hash_span(case));
+        digest.append(core::poseidon::poseidon_hash_span(ok));
+        id += 1;
+    }
+
+    /// The window's position `15 y + x` of `(x, y)`.
+    fn at(x: u8, y: u8) -> u8 {
+        WIDTH * y + x
+    }
+
+    #[test]
+    fn test_vectors() {
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = 0;
+        // `origin`: the board of an adventurer on `(x, y)`: its origin held plus 15 (`Board.x`,
+        // `Board.y`) and its window position, both row parities, the West and South edges
+        // (a negative origin, D-134) and the far side
+        let area = open_area();
+        let tiles: Array<(u8, u8)> = array![
+            (7, 7), (7, 8), (0, 0), (0, 1), (3, 5), (6, 6), (16, 16), (17, 17), (100, 101),
+            (224, 224), (224, 0), (0, 224), (112, 113),
+        ];
+        for (x, y) in tiles.span() {
+            let mut member = Fixture::member(Fixture::spec());
+            member.words.state += (*x).into() * two(32) + (*y).into() * two(40);
+            let world = Fixture::world(40, array![member], array![]);
+            let board = SegmentTrait::board(@area, @world);
+            let case = array![(*x).into(), (*y).into()];
+            let ok = array![board.x.into(), board.y.into(), board.position(*x, *y).into()];
+            emit(ref digest, ref id, "origin", case.span(), ok.span());
+        }
+        // `move`: the tile a Move of each direction reaches from both row parities and the edges
+        // (255: none, the window's edge)
+        let froms: Array<u8> = array![
+            at(7, 7), at(7, 8), at(0, 0), at(14, 0), at(0, 15), at(14, 15), at(0, 7), at(14, 8),
+        ];
+        for from in froms.span() {
+            let mut d: u8 = 0;
+            while d < 6 {
+                let to = match LayoutTrait::neighbor(
+                    WIDTH, HEIGHT, *from, WindowAssert::direction(d),
+                ) {
+                    Some(to) => to,
+                    None => 255,
+                };
+                emit(
+                    ref digest,
+                    ref id,
+                    "move",
+                    array![(*from).into(), d.into()].span(),
+                    array![to.into()].span(),
+                );
+                d += 1;
+            }
+        }
+        // `ticks`: a Move's ticks at `t0` with Crippled's deadline, with and without `MOVEMENT`
+        let cases: Array<(u32, u32, bool)> = array![
+            (0, 41, false), (40, 41, false), (41, 41, false), (42, 41, false), (42, 41, true),
+            (50, 51, false), (50, 50, true),
+        ];
+        for (crippled, t0, movement) in cases.span() {
+            let ticks = TickMathTrait::move_ticks(*crippled, *t0, *movement);
+            emit(
+                ref digest,
+                ref id,
+                "ticks",
+                array![(*crippled).into(), (*t0).into(), (*movement).into()].span(),
+                array![ticks.into()].span(),
+            );
+        }
+        // `flood`: a corridor of rows open at alternate ends (the interior's rows 1, 3, ..., 13
+        // open, the even rows wall but one tile), the flood from (1, 1) capped at 15 layers: each
+        // walker's step and distance (255: not reached, it holds, D-127)
+        let mut grid: felt252 = 0;
+        let mut y: u8 = 1;
+        while y < 15 {
+            let mut x: u8 = 1;
+            while x < 14 {
+                let open = y % 2 == 1 || (y % 4 == 2 && x == 13) || (y % 4 == 0 && x == 1);
+                if open {
+                    grid += two(at(x, y).into());
+                }
+                x += 1;
+            }
+            y += 1;
+        }
+        let flood = Bfs::flood(grid, WIDTH, HEIGHT, at(1, 1), 0, 15);
+        let walkers: Array<u8> = array![
+            at(2, 1), at(13, 1), at(13, 2), at(13, 3), at(3, 3), at(1, 3), at(1, 4), at(1, 5),
+            at(13, 7), at(7, 9),
+        ];
+        for walker in walkers.span() {
+            let step = match flood.next_step(*walker, 0) {
+                Some(step) => step,
+                None => 255,
+            };
+            let distance = match flood.distance(*walker) {
+                Some(d) => d,
+                None => 255,
+            };
+            emit(
+                ref digest,
+                ref id,
+                "flood",
+                array![grid, at(1, 1).into(), (*walker).into()].span(),
+                array![step.into(), distance.into()].span(),
+            );
+        }
+        // `awake`: the set among goblins of distances `d` (entity `8 + k`), the 8 nearest, ties by
+        // the lowest entity id, the asleep ones left out
+        let sets: Array<Span<u16>> = array![
+            array![1, 1, 5, 3, 3, 9, 2, 3, 4, 3, 6].span(), array![2, 2, 2, 2, 2, 2, 2, 2, 2, 2].span(),
+            array![9, 8, 7, 6, 5, 4, 3, 2, 1].span(),
+        ];
+        for distances in sets.span() {
+            let mut goblins = array![];
+            let mut k: u16 = 0;
+            for _ in *distances {
+                let mut goblin = Fixture::goblin(8 + k, HOB);
+                goblin.awake = false;
+                if k == 3 {
+                    goblin.ai = ai::ASLEEP;
+                }
+                goblins.append(goblin);
+                k += 1;
+            }
+            let mut world = Fixture::world(40, array![], goblins);
+            TickTrait::awake(ref world, *distances);
+            let mut case: Array<felt252> = array![];
+            for d in *distances {
+                case.append((*d).into());
+            }
+            let mut ok: Array<felt252> = array![];
+            for index in world.woken() {
+                ok.append((8 + *index).into());
+            }
+            emit(ref digest, ref id, "awake", case.span(), ok.span());
+        }
+        let digest = core::poseidon::poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
+        assert(digest == DIGEST, 'vectors moved: regenerate');
+    }
+
+    const DIGEST: felt252 =
+        3117980972003614113560658449658137295789433015643442081065819456923190264495;
+}

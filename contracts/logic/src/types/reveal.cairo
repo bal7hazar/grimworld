@@ -2196,7 +2196,7 @@ pub mod tests {
     /// Part 0: the word, the feed, the base, sight, a pack's member tiles (ids from 0).
     #[test]
     // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
-    #[available_gas(l2_gas: 464531905)] // ceil(1.05 × 442411338 measured)
+    #[available_gas(l2_gas: 152336967)] // ceil(1.05 × 145082825 measured)
     fn test_vectors() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
