@@ -2,18 +2,21 @@
 //! (a zone's on hosts drawn at entry, a dungeon's hit or forced), the band of a chunk, then the
 //! packs and the objects in the `Features` word.
 //!
-//! - **Quotas** (`due`). **In a zone** (D-208, D-210, the project manager): each quota's host
-//!   chunks are drawn once at `create` by `HostsLibrary` (`hosts`): its `count` members of the
-//!   zone, an exact draw without replacement from the instance's entropy, no cap on the draws; a
-//!   member the quota would push past a chunk's caps (3 objects, 2 packs, one set piece, a set
-//!   piece's own objects and packs counted) is refused and the next member drawn, its successor,
-//!   takes its place; one bitmap per quota, carried above each chunk's mask (bit `225 + i`). A
-//!   chunk holds the quota exactly when it hosts it, and nothing is ever forced on "the last
-//!   chunks": no order of moves chooses where a zone's quota lands. A quota with fewer allowed
-//!   members than its count keeps fewer hosts; a host whose chunk has no allowed tile left (the
-//!   terrain, which no draw at entry knows) does not lay it either. **In a dungeon**, whose chunks
-//!   are not known before they are revealed, each quota with a count draws `u = draw(N)` from the
-//!   chunk's own word and is due when `u < count` and something is left, and is **forced** when
+//! - **Quotas** (`due`). **In a zone** (D-208, D-210, D-220, the project manager): each quota's
+//!   host chunks are drawn once at `create` by `HostsLibrary` (`hosts`): its `count` members of
+//!   the zone among those it would not push past a chunk's caps (3 objects, 2 packs, one set
+//!   piece, a set piece's own objects and packs counted), an exact draw without replacement from
+//!   the instance's entropy, no cap on the draws (a quota stops when no allowed member is left;
+//!   above half of them, the members to leave out are drawn, `subset`); one bitmap per quota,
+//!   carried above each chunk's mask (bit `225 + i`). A chunk holds the quota exactly when it
+//!   hosts it, and nothing is ever forced on "the last chunks": no order of moves chooses where a
+//!   zone's quota lands. A quota with fewer allowed members than its count keeps fewer hosts, the
+//!   rest owed for good, never placed; a set-piece quota whose piece is not in the registry stays
+//!   owed; a host whose chunk has no allowed tile left (the terrain, which no draw at entry
+//!   knows) does not lay it. A pack, the Heart's included, holds at least one goblin. **In a
+//!   dungeon**, whose chunks are not known before they are revealed, each quota with a count draws
+//!   `u = draw(N)` from the chunk's own word and is due when `u < count` and something is left,
+//!   and is **forced** when
 //!   what is left reaches the chunks left (`left ≥ chunks left`, "chunks left" counting this one:
 //!   `N − revealed`), so the last chunks hold what is still owed; never placed with nothing left.
 //!   At most one of each quota a chunk. **A dungeon's quotas stay order-dependent** (D-208,
@@ -214,15 +217,18 @@ pub impl PlacementImpl of PlacementTrait {
 
     /// A zone's quota hosts (D-208, D-210, module doc), drawn once at `create` by `HostsLibrary`:
     /// for each quota of the plan (`plan`), in order, its `count` chunks of the zone (`zone`, its
-    /// chunk set, or 0 for its whole `width × height` rectangle), an exact draw without
-    /// replacement from `seed` (`EntropyTrait::hosts`): draw `t` reads `poseidon(seed, t)` as a
-    /// cell of the rectangle and is passed over unless it is a member not tried yet for this quota,
-    /// so each member tried is uniform over those left; no cap on the draws. A member the quota
-    /// would push past a chunk's caps (`fits`: what the quotas before it lay there, a set piece's
-    /// own objects and packs from `pieces` counted) is refused, and the next member drawn, its
-    /// successor, takes its place: every host can lay its quota, whatever the order of the reveals.
-    /// A quota with fewer allowed members than its count keeps fewer hosts (every member tried);
-    /// nothing falls on "the last chunks".
+    /// chunk set within the `width × height` rectangle, or 0 for the whole rectangle), an exact
+    /// draw without replacement from `seed` (`EntropyTrait::hosts`) over the quota's **allowed**
+    /// members: the members not yet at a cap the quota would pass (3 objects, 2 packs, one set
+    /// piece; what the quotas before it lay there, a set piece's own objects and packs from
+    /// `pieces`, counted in bitmaps of the chunks at each level). Draw `t` takes the `j`-th
+    /// allowed member left, `j` read from `poseidon(seed, t)` modulo how many are left, through
+    /// `subset` (D-220: above half the allowed members, the members to leave out are drawn
+    /// instead; a count at or above them takes them all, without drawing); no cap on the draws. A
+    /// quota stops when it has its hosts or no allowed member is left:
+    /// a determination of the caps, not a cap of the draws. Every host can lay its quota, whatever
+    /// the order of the reveals; a quota with fewer allowed members than its count keeps fewer
+    /// hosts, and the rest stays owed for good, never placed (nothing falls on "the last chunks").
     fn hosts(
         zone: felt252,
         width: u8,
@@ -231,26 +237,28 @@ pub impl PlacementImpl of PlacementTrait {
         pieces: Span<(u16, SetPiece)>,
         seed: felt252,
     ) -> Array<felt252> {
-        let wide: u128 = width.into();
-        let high: u128 = height.into();
-        let wide: NonZero<u128> = wide.try_into().unwrap();
-        let high: NonZero<u128> = high.try_into().unwrap();
-        // [Compute] The zone: its chunk set, or its rectangle's rows
-        let mut zone = zone;
-        if zone == 0 {
-            let row = BoardTrait::pow(width) - 1;
-            let mut cy: u8 = 0;
-            while cy != height {
-                zone += row * BoardTrait::pow(15 * cy);
-                cy += 1;
-            }
+        // [Compute] The zone: its rectangle's rows, and its chunk set within them
+        let row = BoardTrait::pow(width) - 1;
+        let mut rectangle: felt252 = 0;
+        let mut cy: u8 = 0;
+        while cy != height {
+            rectangle += row * BoardTrait::pow(15 * cy);
+            cy += 1;
         }
+        let zone = if zone == 0 {
+            rectangle
+        } else {
+            BoardTrait::and(zone, rectangle)
+        };
+        // The chunks at each level: 1, 2, 3 objects; 1, 2 packs; a set piece
+        let mut objects: [felt252; 3] = [0, 0, 0];
+        let mut packs: [felt252; 2] = [0, 0];
+        let mut piece: felt252 = 0;
         let (first, second) = plan;
         let mut rest: u256 = first.into();
+        let mut next: u256 = second.into();
         let mut t: felt252 = 0;
         let mut out: Array<felt252> = array![];
-        let mut needs: Array<u8> = array![];
-        let mut next: u256 = second.into();
         let mut i: u8 = 0;
         // Quota by quota, as far as any is left (a shorter list: the quotas after hold nothing)
         while rest != 0 || next != 0 {
@@ -263,44 +271,102 @@ pub impl PlacementImpl of PlacementTrait {
             rest = above;
             if entry == 0 {
                 out.append(0);
-                needs.append(0);
                 continue;
             }
             let (above, count) = DivRem::div_rem(entry, 0x100);
             let (param, kind) = DivRem::div_rem(above, 0x100);
             let count: u8 = count.try_into().unwrap();
             let need = Self::need(kind.try_into().unwrap(), param.try_into().unwrap(), pieces);
-            let mut tried: felt252 = 0;
-            let mut mask: felt252 = 0;
+            let (rest_need, n_objects) = DivRem::div_rem(need, 4);
+            let (n_pieces, n_packs) = DivRem::div_rem(rest_need, 4);
+            // [Compute] The allowed members: not at a level the quota would pass
+            let [o1, o2, o3] = objects;
+            let [p1, p2] = packs;
+            let mut blocked: felt252 = 0;
+            if n_objects == 1 {
+                blocked = o3;
+            } else if n_objects == 2 {
+                blocked = o2;
+            } else if n_objects >= 3 {
+                blocked = o1;
+            }
+            if n_packs == 1 {
+                blocked = BoardTrait::or(blocked, p2);
+            } else if n_packs >= 2 {
+                blocked = BoardTrait::or(blocked, p1);
+            }
+            if n_pieces != 0 {
+                blocked = BoardTrait::or(blocked, piece);
+            }
+            let allowed = BoardTrait::minus(zone, blocked);
+            let left: u8 = BoardTrait::count(allowed);
+            // [Compute] The indices the draw takes: as many as the subset or its complement holds
+            let wide: u16 = count.into() * 2;
+            let draws: u8 = if count >= left {
+                0
+            } else if wide > left.into() {
+                left - count
+            } else {
+                count
+            };
+            let mut indices: Array<u8> = array![];
             let mut k: u8 = 0;
-            while k != count && tried != zone {
+            while k != draws {
                 let word: u256 = poseidon_hash_span([seed, t].span()).into();
                 t += 1;
-                let (above, cy) = DivRem::div_rem(word.low, high);
-                let (_, cx) = DivRem::div_rem(above, wide);
-                let chunk: u8 = (15 * cy + cx).try_into().unwrap();
-                if BoardTrait::has(zone, chunk) && !BoardTrait::has(tried, chunk) {
-                    let bit = BoardTrait::pow(chunk);
-                    tried += bit;
-                    // [Compute] What the chunk holds from the quotas before, against the caps
-                    let mut held: u8 = 0;
-                    let mut earlier: u32 = 0;
-                    for hosts in out.span() {
-                        if BoardTrait::has(*hosts, chunk) {
-                            held += *needs[earlier];
-                        }
-                        earlier += 1;
-                    }
-                    if Self::fits(held, need) {
-                        mask += bit;
-                        k += 1;
-                    }
-                }
+                let bound: u128 = (left - k).into();
+                let (_, j) = DivRem::div_rem(word.low, bound.try_into().unwrap());
+                indices.append(j.try_into().unwrap());
+                k += 1;
+            }
+            let mask = Self::subset(allowed, left, count, indices.span());
+            // [Compute] The levels after this quota's hosts
+            let [mut o1, mut o2, mut o3] = objects;
+            for _ in 0..n_objects {
+                let at_two = BoardTrait::and(mask, o2);
+                let at_one = BoardTrait::and(mask, o1);
+                o3 = BoardTrait::or(o3, at_two);
+                o2 = BoardTrait::or(o2, at_one);
+                o1 = BoardTrait::or(o1, mask);
+            }
+            objects = [o1, o2, o3];
+            let [mut p1, mut p2] = packs;
+            for _ in 0..n_packs {
+                p2 = BoardTrait::or(p2, BoardTrait::and(mask, p1));
+                p1 = BoardTrait::or(p1, mask);
+            }
+            packs = [p1, p2];
+            if n_pieces != 0 {
+                piece = BoardTrait::or(piece, mask);
             }
             out.append(mask);
-            needs.append(need);
         }
         out
+    }
+
+    /// The `count` members of `allowed` (`left` of them) a draw takes (`hosts`, D-220): all of them
+    /// when `count ≥ left`, the draw's only outcome; else, from `indices` (index `k` below
+    /// `left − k`), the members drawn one by one, each the `j`-th left: the subset itself when
+    /// `count ≤ left / 2`, else the members to leave out (`left − count` draws, the
+    /// complement), so that a pass draws at most half the members. Either way a uniform
+    /// `count`-subset.
+    fn subset(allowed: felt252, left: u8, count: u8, indices: Span<u8>) -> felt252 {
+        if count >= left {
+            return allowed;
+        }
+        let mut pool = allowed;
+        let mut drawn: felt252 = 0;
+        for j in indices {
+            let bit = BoardTrait::pow(BoardTrait::nth(pool, *j));
+            pool -= bit;
+            drawn += bit;
+        }
+        let wide: u16 = count.into() * 2;
+        if wide > left.into() {
+            allowed - drawn
+        } else {
+            drawn
+        }
     }
 
     /// What a quota of `kind` and `param` lays in its chunk, as `hosts` counts it: objects + 4 ×
@@ -331,19 +397,6 @@ pub impl PlacementImpl of PlacementTrait {
         } else {
             1
         }
-    }
-
-    /// Whether a chunk holding `held` can take `need` (`need`'s encoding): at most
-    /// `MAX_OBJECTS_PER_CHUNK` objects, `MAX_PACKS_PER_CHUNK` packs and one set piece.
-    fn fits(held: u8, need: u8) -> bool {
-        let (h_rest, h_objects) = DivRem::div_rem(held, 4);
-        let (h_pieces, h_packs) = DivRem::div_rem(h_rest, 4);
-        let (n_rest, n_objects) = DivRem::div_rem(need, 4);
-        let (n_pieces, n_packs) = DivRem::div_rem(n_rest, 4);
-        h_objects
-            + n_objects <= MAX_OBJECTS_PER_CHUNK && h_packs
-            + n_packs <= MAX_PACKS_PER_CHUNK && h_pieces
-            + n_pieces <= 1
     }
 
     /// `mask`, a zone chunk's tile mask (0 for the whole board), with the quotas `chunk` hosts
@@ -484,7 +537,8 @@ pub impl PlacementImpl of PlacementTrait {
     }
 
     /// A pack of `template` (from the site's templates), on `at` or on a drawn tile, if there is
-    /// room: its count drawn in the template's bounds, its goblins on allowed tiles within 2.
+    /// room: its count drawn in the template's bounds, at least one, its goblins on allowed tiles
+    /// within 2.
     fn pack(ref self: Placement, ref rng: Rng, site: @Site, template: u16, at: Option<u8>) -> bool {
         if self.packs.len() >= MAX_PACKS_PER_CHUNK.into() {
             return false;
@@ -496,10 +550,14 @@ pub impl PlacementImpl of PlacementTrait {
         if high == 0 {
             return false;
         }
+        // At least one goblin (#348's re-audit at 1d1e38e, major 1): a pack drawn empty would leave
+        // a Heart to the order of the draws before it; no pack is laid empty
+        let low = if low == 0 {
+            1
+        } else {
+            low
+        };
         let size = low + rng.draw_byte((high - low + 1).try_into().unwrap());
-        if size == 0 {
-            return false;
-        }
         let tile = match at {
             Option::Some(tile) => {
                 if !self.take(tile) {

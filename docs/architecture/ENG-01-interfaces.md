@@ -221,9 +221,9 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| `RevealLibrary` | 41,131 | **50.21 %** (D-209: at most 50.5 %) |
+| `RevealLibrary` | 41,109 | **50.18 %** (D-209: at most 50.5 %) |
 | `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept) | 41,247 | **50.35 %** (D-209: at most 51 %; 29.05 % before ENG-05) |
-| `HostsLibrary` (D-210) | 5,033 | 6.14 % |
+| `HostsLibrary` (D-210, D-220) | 6,580 | 8.03 % |
 
 Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
 bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cost the library about

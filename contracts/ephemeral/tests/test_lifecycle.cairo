@@ -1284,7 +1284,7 @@ fn template() -> Pack {
 // reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
 // question 6); `instance_region` tells void, not yet revealed and revealed apart.
 #[test]
-#[available_gas(l2_gas: 58136802)] // ceil(1.05 × 55368382 measured)
+#[available_gas(l2_gas: 56358721)] // ceil(1.05 × 53674972 measured)
 fn test_entry_reveal_through_the_engine() {
     let world = setup();
     let mask = zone_content(world);
@@ -1448,13 +1448,28 @@ fn create_gas_zone(quotas: bool) -> u128 {
     let gas = get_available_gas();
     IInstanceEntryDispatcher { contract_address: world.instances }
         .create(HERO, addr(ALICE), FLOOR_TO_ZONE, snapshot().words(), tasks(0));
-    gas - get_available_gas()
+    let spent = gas - get_available_gas();
+    // The hosts written with a quota, none without (the review t-0078, note 3)
+    let mut written: u8 = 0;
+    let mut quota: felt252 = 0;
+    while quota != 14 {
+        if read(world.instances, key(selector!("hosts"), array![1, quota])) != 0 {
+            written += 1;
+        }
+        quota += 1;
+    }
+    assert(written == if quotas {
+        1
+    } else {
+        0
+    }, 'hosts written with a quota only');
+    spent
 }
 
 // D-210 (review note 5 at 46d7d89): `begin`'s cost with and without the zone block, on the same
 // zone; the difference also holds the collector's placement when a host is revealed.
 #[test]
-#[available_gas(l2_gas: 88630285)] // ceil(1.05 × 84409795 measured)
+#[available_gas(l2_gas: 88296086)] // ceil(1.05 × 84091510 measured)
 fn test_cost_create_zone_block() {
     println!("gas create, zone with a quota (the zone block): {}", create_gas_zone(true));
     println!("gas create, zone without a quota (no zone block): {}", create_gas_zone(false));

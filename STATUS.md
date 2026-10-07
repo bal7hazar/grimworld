@@ -141,6 +141,7 @@ budget that flakes in CI is recorded here with its run ids, not raised.
 | When | What | Where |
 |---|---|---|
 | 2026-09-29, CBT-08a | `set_build`'s belt case on the local node measured +160,000 on an unchanged path between two runs | [report](docs/reports/CBT-08a-set-build.md), fix loop 1 |
+| 2026-10-04, ENG-05 (PR #348) | `test_reveal_cost::test_cost_hosts_direct` and `test_cost_hosts_library_call` (`HostsLibrary`, D-210) read 210,194 / 358,834, then 210,094 / 358,734, so their budgets failed `gas_budgets.py --check` and the two were removed at `1d1e38e`. **Not a determinism fault**: the input is identical (a constant seed and plan, no address) and the figure is the same at every run of the same source; the `#[available_gas(...)]` attribute itself lowers the measure by exactly 100 (with it 210,094 / 358,734, three runs; without it 210,194 / 358,834, two runs). Set a budget from a run with the attribute in place. The same on `test_quota_order_free` (102,518,124 without, 102,518,024 with). | `snforge test --max-threads 2 test_cost_hosts` in `contracts/logic` at `ab7017a`'s test file, with and without the attribute, 2026-10-04 |
 
 ## Launcher: for its next change (not before a finding or a task needs one)
 

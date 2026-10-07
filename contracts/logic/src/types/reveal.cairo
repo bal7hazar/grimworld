@@ -1508,7 +1508,7 @@ pub mod tests {
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
     // revealed, whatever the order.
     #[test]
-    #[available_gas(l2_gas: 55536103)] // ceil(1.05 × 52891526 measured)
+    #[available_gas(l2_gas: 52552666)] // ceil(1.05 × 50050158 measured)
     fn test_zone_quotas_all_placed() {
         let quotas = QuotaSet {
             quotas: [
@@ -1747,15 +1747,16 @@ pub mod tests {
     }
 
     // D-208 (the project manager, 2026-10-03): a zone's quotas land exactly on their hosts, drawn
-    // once at `create`. A 3 × 3 zone with quotas of 3, 2 and 1, revealed forward and backward over
-    // 6 entropies: each quota has `count` hosts, and in both orders every chunk holds exactly the
-    // quotas it hosts, nothing forced, nothing owed at the end.
+    // once at `create`. A 3 × 3 zone with quotas of 6 (drawn as its complement, D-220), 2 and 1,
+    // revealed forward and backward over 6 entropies: each quota has `count` hosts, and in both
+    // orders every chunk holds exactly the quotas it hosts, nothing forced, nothing owed at the
+    // end.
     #[test]
-    #[available_gas(l2_gas: 318207046)] // ceil(1.05 × 303054329 measured)
+    #[available_gas(l2_gas: 335672705)] // ceil(1.05 × 319688290 measured)
     fn test_zone_quota_hosts_order_free() {
         let quotas = QuotaSet {
             quotas: [
-                Quota { kind: quota::COLLECTOR, param: 1, count: 3 },
+                Quota { kind: quota::COLLECTOR, param: 1, count: 6 },
                 Quota { kind: quota::LANDMARK, param: 4, count: 2 },
                 Quota { kind: quota::VEIN, param: 0, count: 1 }, Default::default(),
                 Default::default(), Default::default(),
@@ -1767,7 +1768,7 @@ pub mod tests {
         while seed != 6 {
             let mut site = zone(biome::MEADOW, 3, 3, quotas);
             let hosts = hosted(ref site, seed);
-            assert(BoardTrait::count(*hosts[0]) == 3, 'three collector hosts');
+            assert(BoardTrait::count(*hosts[0]) == 6, 'six collector hosts');
             assert(BoardTrait::count(*hosts[1]) == 2, 'two landmark hosts');
             assert(BoardTrait::count(*hosts[2]) == 1, 'one vein host');
             let (mut a, end_a) = zone_objects(@site, seed, forward);
@@ -1866,7 +1867,7 @@ pub mod tests {
     // members, no cap on the draws. A 15 × 15 rectangle whose chunk set is 16 chunks, a quota of
     // 4: every quota finds its 4 hosts, all in the set.
     #[test]
-    #[available_gas(l2_gas: 62124437)] // ceil(1.05 × 59166130 measured)
+    #[available_gas(l2_gas: 51126027)] // ceil(1.05 × 48691454 measured)
     fn test_hosts_in_a_sparse_set() {
         let quotas = QuotaSet {
             quotas: [
@@ -1888,6 +1889,214 @@ pub mod tests {
             assert(BoardTrait::count(*hosts[0]) == 4, 'four hosts');
             assert(BoardTrait::minus(*hosts[0], set) == 0, 'in the set');
             seed += 1;
+        }
+    }
+
+    // The re-audit at 1d1e38e (major 1): a Heart on a template whose castes' minimums sum to 0
+    // used to draw an empty pack from a stream the order of the draws before it moved, and was
+    // dropped. A 2 × 1 zone, a Heart (template 3: one caste, 0 to 2) and a collector of 2, so the
+    // Heart shares its host with a collector: revealed in both orders, the Heart is laid each time.
+    #[test]
+    #[available_gas(l2_gas: 58133025)] // ceil(1.05 × 55364785 measured)
+    fn test_heart_on_a_min_zero_template() {
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::COLLECTOR, param: 1, count: 2 },
+                Quota { kind: quota::HEART, param: 3, count: 1 }, Default::default(),
+                Default::default(), Default::default(), Default::default(),
+            ],
+        };
+        let empty = Pack {
+            castes: [
+                PackCaste { caste: 1, min: 0, max: 2 }, Default::default(), Default::default(),
+                Default::default(), Default::default(),
+            ],
+            level: 0,
+        };
+        let mut seed: felt252 = 0;
+        while seed != 6 {
+            let mut site = zone(biome::MEADOW, 2, 1, quotas);
+            site.packs = array![(3, empty)].span();
+            let hosts = hosted(ref site, seed);
+            assert(BoardTrait::count(*hosts[1]) == 1, 'one Heart host');
+            for order in array![array![0_u8, 1].span(), array![1_u8, 0].span()] {
+                let mut progress = ProgressTrait::new(@site, seed);
+                let mut known: Array<(u8, Terrain)> = array![];
+                let mut hearts: u8 = 0;
+                for chunk in order {
+                    let r = one(@site, ref progress, known.span(), *chunk);
+                    for pack in r.features.packs.span() {
+                        if *pack.template == 3 && *pack.count != 0 {
+                            hearts += 1;
+                        }
+                    }
+                    known.append((*chunk, r.terrain));
+                }
+                assert(hearts == 1, 'the Heart laid');
+                assert(progress.left == [0; 14], 'nothing owed');
+            }
+            seed += 1;
+        }
+    }
+
+    // The review t-0078 (minor 1) and the re-audit t-0079 (minor 2): a chunk set with a member
+    // outside the rectangle (chunk 5 of a 3 × 1 zone) and a vein of 3, above the 2 members inside:
+    // the draw ends with 2 hosts, the rest kept owed, no endless draw.
+    #[test]
+    #[available_gas(l2_gas: 592924)] // ceil(1.05 × 564689 measured)
+    fn test_hosts_above_the_members() {
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::VEIN, param: 0, count: 3 }, Default::default(),
+                Default::default(), Default::default(), Default::default(), Default::default(),
+            ],
+        };
+        let mut site = zone(biome::MEADOW, 3, 1, quotas);
+        site.chunk_set = BoardTrait::pow(0) + BoardTrait::pow(1) + BoardTrait::pow(5);
+        let hosts = hosted(ref site, 'above');
+        assert(*hosts[0] == BoardTrait::pow(0) + BoardTrait::pow(1), 'the two members');
+    }
+
+    /// A 15 × 15 zone with six collector quotas of `count` and eight landmark tasks.
+    fn crowded(count: u8) -> Array<felt252> {
+        let full = Quota { kind: quota::COLLECTOR, param: 1, count };
+        let quotas = QuotaSet { quotas: [full; 6] };
+        let mut site = zone(biome::MEADOW, 15, 15, quotas);
+        let mut tasks: Array<TaskEntry> = array![];
+        let mut k: u32 = 0;
+        while k != 8 {
+            tasks.append(TaskEntry { task: k, kind: 2, param: 1 });
+            k += 1;
+        }
+        site.tasks = tasks.span();
+        let start = ProgressTrait::new(@site, 'worst');
+        PlacementTrait::hosts(
+            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+        )
+    }
+
+    // The re-audit t-0079 (note 6) and the review t-0078 (note 4): the draw's worst plans on a
+    // 15 × 15 zone, far above its capacity (3 objects a chunk). Quotas of 255 (the registry's
+    // largest): each of the first three takes every member without drawing, the rest find none
+    // allowed. Quotas of 224, one below the members: the first three draw 224 hosts each, the
+    // most draws a legal plan asks; the rest take the few members left or find none. Their gas
+    // is the draw's worst case (ENG-05's report).
+    #[test]
+    #[available_gas(l2_gas: 2083761)] // ceil(1.05 × 1984534 measured)
+    fn test_hosts_worst_plan() {
+        let hosts = crowded(255);
+        assert(BoardTrait::count(*hosts[0]) == 225, 'every chunk');
+        assert(*hosts[3] == 0, 'no room left');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 2769522)] // ceil(1.05 × 2637640 measured)
+    fn test_hosts_worst_draws() {
+        let hosts = crowded(224);
+        assert(BoardTrait::count(*hosts[0]) == 224, 'all but one');
+        let mut objects: u32 = 0;
+        for mask in hosts.span() {
+            objects += BoardTrait::count(*mask).into();
+        }
+        assert(objects <= 3 * 225, 'within the caps');
+    }
+
+    // Every cap at once: three object quotas, two Hearts (packs) and a set piece, each of 224:
+    // six passes of 224 draws, the caps of objects, packs and set pieces being apart.
+    fn mixed(count: u8) -> Array<felt252> {
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::COLLECTOR, param: 1, count },
+                Quota { kind: quota::VEIN, param: 0, count },
+                Quota { kind: quota::EXIT, param: 1, count },
+                Quota { kind: quota::HEART, param: 1, count },
+                Quota { kind: quota::HEART, param: 2, count },
+                Quota { kind: quota::SET_PIECE, param: 9, count },
+            ],
+        };
+        let site = zone(biome::MEADOW, 15, 15, quotas);
+        let start = ProgressTrait::new(@site, 'worst');
+        PlacementTrait::hosts(
+            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+        )
+    }
+
+    // Under D-220's complement draw the most draws a pass asks is at half the members: six
+    // passes of 112 draws, the mixed plan at 112.
+    #[test]
+    #[available_gas(l2_gas: 103059657)] // ceil(1.05 × 98152054 measured)
+    fn test_hosts_worst_half() {
+        let hosts = mixed(112);
+        assert(BoardTrait::count(*hosts[5]) == 112, 'six passes');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 1978706)] // ceil(1.05 × 1884481 measured)
+    fn test_hosts_worst_mixed() {
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::COLLECTOR, param: 1, count: 224 },
+                Quota { kind: quota::VEIN, param: 0, count: 224 },
+                Quota { kind: quota::EXIT, param: 1, count: 224 },
+                Quota { kind: quota::HEART, param: 1, count: 224 },
+                Quota { kind: quota::HEART, param: 2, count: 224 },
+                Quota { kind: quota::SET_PIECE, param: 9, count: 224 },
+            ],
+        };
+        let site = zone(biome::MEADOW, 15, 15, quotas);
+        let start = ProgressTrait::new(@site, 'worst');
+        let hosts = PlacementTrait::hosts(
+            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+        );
+        assert(BoardTrait::count(*hosts[5]) == 224, 'six passes');
+    }
+
+    // D-220: `subset` gives every `count`-subset equally. Exhaustive over a set of 5 members:
+    // for each count 1 to 4 (1 and 2 drawn as the subset, 3 and 4 as the members to leave out),
+    // every index sequence the draw can read, each subset reached the same number of times.
+    #[test]
+    #[available_gas(l2_gas: 7611037)] // ceil(1.05 × 7248606 measured)
+    fn test_subset_uniform() {
+        let allowed = BoardTrait::pow(0)
+            + BoardTrait::pow(1)
+            + BoardTrait::pow(2)
+            + BoardTrait::pow(15)
+            + BoardTrait::pow(16);
+        // (count, its subsets C(5, count), the sequences: the product of 5, 4, … over the draws)
+        for case in array![(1_u8, 5_u32, 5_u32), (2, 10, 20), (3, 10, 20), (4, 5, 5)].span() {
+            let (count, subsets, sequences) = *case;
+            let draws: u8 = if count * 2 > 5 {
+                5 - count
+            } else {
+                count
+            };
+            let mut tally: Felt252Dict<u32> = Default::default();
+            let mut seen: Array<felt252> = array![];
+            let mut code: u32 = 0;
+            while code != sequences {
+                let mut rest = code;
+                let mut indices: Array<u8> = array![];
+                let mut k: u8 = 0;
+                while k != draws {
+                    let size: u32 = (5 - k).into();
+                    indices.append((rest % size).try_into().unwrap());
+                    rest /= size;
+                    k += 1;
+                }
+                let mask = PlacementTrait::subset(allowed, 5, count, indices.span());
+                assert(BoardTrait::count(mask) == count, 'a count-subset');
+                assert(BoardTrait::minus(mask, allowed) == 0, 'of the members');
+                let times = tally.get(mask);
+                if times == 0 {
+                    seen.append(mask);
+                }
+                tally.insert(mask, times + 1);
+                code += 1;
+            }
+            assert(seen.len() == subsets, 'every subset');
+            for mask in seen.span() {
+                assert(tally.get(*mask) == sequences / subsets, 'equally');
+            }
         }
     }
 
@@ -2320,5 +2529,5 @@ pub mod tests {
     const DIGEST_1: felt252 =
         499845782167855331826439961529088808781201279688007834938530756287138363393;
     const DIGEST_2: felt252 =
-        1650752973733343143218738346291621832024875186682030611912877301196377371421;
+        1776217249721864309039687226775120675190272936172595053149840570196235849095;
 }
