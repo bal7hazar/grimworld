@@ -5,10 +5,23 @@
 > clock), with the conditions SPK-7, D-134, D-145, D-172, D-207 and CBT-05a/ENG-05 put on it.
 > **Starts after ENG-10b and ENG-05b merge** (PLAN: ENG-07 "todo, after ENG-10b"; ENG-05b "runs
 > before ENG-07", D-209). Decisions: ADR-0006 §4 (D-120, D-127, D-134, D-136), D-133, D-140, D-141,
-> D-143, D-144, D-145, D-147, D-172, D-200, D-207, D-208, D-209, D-210, D-217, D-222, D-223, D-224.
+> D-143, D-144, D-145, D-147, D-172, D-200, D-207, D-208, D-209, D-210, D-217, D-222, D-223, D-224, D-225.
 > Pins and figures on Linux only (OPERATIONS.md §3). Profile: impl-opus, the VPS.
 > **Its Open questions 1 and 2 are decided before the lot starts** (D-222: "ENG-07's brief must decide
-> where the act hook lives before start").
+> where the act hook lives before start"): below.
+
+## Decided before the lot starts (the orchestrator and the project manager, 2026-10-07)
+| # | Ruling | Reversed by |
+|---|---|---|
+| Q1 | **The act hook in a new class, `AiLibrary`, called once a tick** (candidate C). The lot starts with a size probe and **stops and reports if the class would pass 50 %** (the orchestrator) | the probe showing a per-tick call cost above the per-goblin option's (candidate B) |
+| Q1, condition (**D-225**, the project manager) | A call once a tick is a fixed cost on every tick of the expedition (a library call with its loads has cost ≈ 3.4 M, D-225). **The lot measures that per-tick cost first, with the size probe**, and calls the hook **only on ticks where a goblin is in the window** if that is cheaper. The per-tick figure goes to the project manager **before the merge** (it feeds R-2): A13 and the D-144 table | the project manager |
+| Q2 | **One `TickLibrary` call per segment, the batch split at reveals.** If `TickLibrary` would pass 88 % (D-222): stop and report to the project manager | that stop's figures, ruled by the project manager |
+| Q3 | **`ground` carried across the batch's ticks**, with A6's regression test | the orchestrator |
+| Q5 (**D-225**, the project manager) | **E-12's reveal weight measured end to end** by this lot, **set to 3 if the figures say so**, the figures stated in the report | the figures |
+| Q6 | **Interact in `play` refused as illegal** until its entrypoints (`open`, `mine`, `barter`) exist | the lot that builds them |
+| Q7 (**D-225**, the project manager) | **One level and the walkable plane** until ENG-08b merges | ENG-08b's rules |
+
+Q4 stays this lot's (D-172).
 
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
@@ -161,6 +174,14 @@ Anything else is an escalation in the report.
    to take the set (one hook for the step); the `Rules` trait is internal to the logic package (no
    frozen interface), the change is in scope. Reversed by the probe (the class above 50 %, or the call
    dearer than B's total), or by the project manager.
+   **Decided by the orchestrator, 2026-10-07:** C, a new class `AiLibrary` called once a tick; the lot
+   starts with a size probe and stops and reports if the class would pass 50 %. Reversed if the probe
+   shows a per-tick call cost above the per-goblin option's (B).
+   **Condition (D-225, the project manager, 2026-10-07):** a call once a tick is a fixed cost on every
+   tick of the expedition (a library call with its loads has cost ≈ 3.4 M, D-225); the lot measures
+   that per-tick cost first, with the size probe, and calls the hook only on ticks where a goblin is
+   in the window if that is cheaper; the per-tick figure goes to the project manager before the merge
+   (it feeds R-2).
 2. **Where the batch loop and the window's assembly live.** *Decider*: the orchestrator, before the
    start (the project manager for any class exception). `play` is not built; one `TickLibrary` call
    carries the whole words (2,578,020 with no kill in, 3,323,680 at every bound, ENG-01 §1.3, M), so a
@@ -173,6 +194,8 @@ Anything else is an escalation in the report.
    assembly (251 felts of room today: likely over 88 %); over → stop and send the project manager the
    figures with the fallback measured (the moves and the assembly in C's class, or the loop in
    `Instances` with its per-action cost). Reversed by those figures.
+   **Decided by the orchestrator, 2026-10-07:** one `TickLibrary` call per segment, the batch split at
+   reveals; if `TickLibrary` would pass 88 % (D-222), stop and report to the project manager.
 3. **Traps placed inside `run`.** *Decider*: the orchestrator. A `TRAP` skill with an activation,
    started by `act`, resolves in step 1 of a later tick; if that tick runs in `run`, its `Delegate`
    has `ground: []` and the trap is dropped. *Recommendation*: whatever entrypoint runs a batch's ticks
@@ -180,6 +203,8 @@ Anything else is an escalation in the report.
    parameter, or is replaced by the segment entrypoint), with a regression test: a `TRAP` skill of
    activation ≥ 1 started in one action resolves in a later tick of the batch and its trap is on the
    tile.
+   **Decided by the orchestrator, 2026-10-07:** `ground` is carried across the batch's ticks, with
+   A6's regression test.
 4. **L1, the frozen goblins kept as words.** *Decider*: this lot, on its own count (D-172); the
    orchestrator reads it in the report.
 5. **E-12's reveal weight 2** (ENG-01 §10.1: "a reveal at weight 2 costs about 1.4 M"; ENG-05 measured
@@ -189,14 +214,20 @@ Anything else is an escalation in the report.
    hosts' masks, and the extra segment call of Open question 2) in a zone and a dungeon, and propose
    the weight that keeps the worst reveal batch under the transaction's limit with D-207's one-tick
    rule; 3 if the measure says so.
+   **Decided by the project manager, 2026-10-07 (D-225):** this lot measures the reveal weight end to
+   end, sets it to 3 if the figures say so, and states them.
 6. **Interact in `play`.** *Decider*: the orchestrator. `open`, `mine` and `barter` are their own
    entrypoints (ENG-01 §4.1), not built. *Recommendation*: an Interact in a batch is refused as
    illegal (the batch stops) until the lot that builds those entrypoints; tested.
+   **Decided by the orchestrator, 2026-10-07:** Interact in `play` is refused as illegal until its
+   entrypoints exist.
 7. **Bridges (D-217).** *Decider*: the project manager rules ENG-08b's design; until ENG-08b merges
    ENG-07 **assumes one level: movement, the flood, sight and the window read the walkable plane only,
    and a `BRIDGE` record is ignored** (as the converter's reachability P-1 does, PLAN's ENG-08b row: a
    map whose only crossing is a bridge is refused). ENG-08b's rules then change movement (a deck
    entered and left only by its ends); the report lists where they will plug in.
+   **Decided by the project manager, 2026-10-07 (D-225):** one level and the walkable plane until
+   ENG-08b merges.
 
 ## D-144: the expedition-path figures it adds, and the ceilings in force
 Every rise of an expedition-path figure, whatever its size, goes to **the project manager before the
@@ -213,7 +244,7 @@ can run it, else snforge pairs.
 | A member's move into a trap | +3,564,561 through `TrapLibrary` (accepted, D-144) | ENG-01 §9.2 | priced with the move |
 | A goblin's move into a trap | replaces its carrier, 4,090,351 | ENG-01 §9.2 | measured: the trigger through the hook's class |
 | The awake selection at step 0 | 4,663,510 over 100 candidates; L4 −1.50 M a worst tick (D-172) | ENG-01 §9.2, PLAN | measured with L4 |
-| The act hook's call (Open question 1) | none (≈ 0.5 M a tick, E) | this brief | measured as a pair |
+| The act hook's call (Open question 1), **per tick of the expedition** (D-225) | none; ≈ 0.5 M a tick (E, this brief); a library call with its loads has cost ≈ 3.4 M (D-225) | this brief, D-225 | measured first, with the size probe, on every tick and on ticks with a goblin in the window only; the cheaper kept; sent to the project manager before the merge (R-2) |
 | Step 2's pending writes (scope 10) | −650,000 a tick (E) | CBT-05a's report l.381 | measured as a pair |
 | A reveal in play, zone | none; in memory 2,830,905 typical, 3,901,320–4,067,457 worst; the library call 544,510 | ENG-01 §10 | measured end to end |
 | A reveal in play, dungeon | none ("measured by ENG-07") | ENG-10b's brief, D-144 table | measured end to end |
@@ -254,6 +285,7 @@ STATUS's S1 running estimate updated (D-158).
 | A10 | Step 2's pending-writes lever measured as a pair (kept or not, with the figure) | the report |
 | A11 | Every figure of the D-144 table measured and sent to the project manager before the merge; S1 rerun (`cost.py`) | the report, ENG-01 §10, STATUS |
 | A12 | Every class within its ceiling (`class_sizes.py`); D-143's organisation (docs/CAIRO.md §7); unit tests in their modules (D-167); every test with a gas budget; CI green; `gas_budgets.py --check` | CI, the report |
+| A13 | **`AiLibrary`'s per-tick cost (D-225)**, measured first with the size probe: the call on every tick, and only on ticks with a goblin in the window; the cheaper kept, with a test that a tick with no goblin in the window makes no call if that one is kept; the figure sent to the project manager before the merge (R-2) | the report, ENG-01 §9.2 |
 
 ## The rules this lot follows
 - **Memory.** Every Cairo build and test is capped: `prlimit --as=8589934592`, through
