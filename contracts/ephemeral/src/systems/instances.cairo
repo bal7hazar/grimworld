@@ -201,8 +201,9 @@ pub trait IInstancesAdmin<T> {
     fn version(self: @T) -> felt252;
     /// The registered contracts: the hub that may create instances and receives results, the
     /// registry, the randomness provider (configuration, ADR-0002); and the class of the chunk
-    /// reveal's library, `RevealLibrary` (ENG-01 §1.3, ENG-05), and of the hosts' library,
-    /// `HostsLibrary` (D-210), called by `library_call`.
+    /// reveal's library, `RevealLibrary` (ENG-01 §1.3, ENG-05), of the hosts' library,
+    /// `HostsLibrary` (D-210), and of the traps' library, `TrapLibrary` (CBT-05b, D-222), called by
+    /// `library_call`.
     fn set_contracts(
         ref self: T,
         hub: ContractAddress,
@@ -210,6 +211,7 @@ pub trait IInstancesAdmin<T> {
         fate: ContractAddress,
         reveal: ClassHash,
         hosts_library: ClassHash,
+        trap_library: ClassHash,
     );
     fn set_admin(ref self: T, admin: ContractAddress);
     /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
@@ -282,6 +284,8 @@ pub mod Instances {
         pub reveal: ClassHash,
         /// The library class of a zone's quota hosts (D-210; ENG-01 §1.3).
         pub hosts_library: ClassHash,
+        /// The library class of a trap's trigger (CBT-05b, D-222; ENG-01 §1.3).
+        pub trap_library: ClassHash,
         /// The next slot handed out, at an adventurer's first entry; slots are never freed.
         pub next_slot: Counter,
         pub placements: Map<u32, Placement>,
@@ -330,8 +334,9 @@ pub mod Instances {
         fate: ContractAddress,
         reveal: ClassHash,
         hosts_library: ClassHash,
+        trap_library: ClassHash,
     ) {
-        self.initialize(admin, hub, registry, fate, reveal, hosts_library);
+        self.initialize(admin, hub, registry, fate, reveal, hosts_library, trap_library);
     }
 
     #[abi(embed_v0)]
@@ -703,9 +708,10 @@ pub mod Instances {
             fate: ContractAddress,
             reveal: ClassHash,
             hosts_library: ClassHash,
+            trap_library: ClassHash,
         ) {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
-            self.set_registered(hub, registry, fate, reveal, hosts_library);
+            self.set_registered(hub, registry, fate, reveal, hosts_library, trap_library);
         }
 
         /// Hands the administrator role over; the caller loses it. Administrator only.

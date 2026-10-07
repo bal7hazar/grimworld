@@ -15,7 +15,8 @@ Two named exceptions to the 50 % (ENG-01 §1.3; decided by the project manager, 
 D-200), each its own threshold, nothing else loosened: `ExecutorLibrary` at most 80,420 CASM felts
 (the limit less 1,500 of margin), `TickLibrary` at most 75 % (61,440 felts), its room kept for
 CBT-05b's resolution parts and ENG-07's act hook; raised to 88 % (72,090 felts) for the action
-phase (the project manager, 2026-10-07, D-222). Two more for ENG-05's zone quota hosts (the project
+phase (the project manager, 2026-10-07, D-222); `TrapLibrary`, a trap's trigger, at most 78 %
+(63,900 felts; D-222 amended). Two more for ENG-05's zone quota hosts (the project
 manager, 2026-10-03, D-209), until the bit-parallel placement lot wins the room back before ENG-07:
 `RevealLibrary` at most 50.5 %, `Instances` at most 51 %.
 
@@ -34,6 +35,8 @@ EXCEPTIONS = {
     ("grimworld_logic", "ExecutorLibrary"): 100 * 80_420 / BYTECODE_LIMIT,
     # D-222 (CBT-05b): the action phase joins it.
     ("grimworld_logic", "TickLibrary"): 88.0,
+    # D-222 amended (CBT-05b): a trap's trigger in its own class, nothing cut.
+    ("grimworld_logic", "TrapLibrary"): 78.0,
     # D-209
     ("grimworld_logic", "RevealLibrary"): 50.5,
     ("grimworld_ephemeral", "Instances"): 51.0,

@@ -12,14 +12,15 @@ grimworld_logic = { path = "../logic" }
 snforge_std.workspace = true
 assert_macros.workspace = true
 
-# ENG-05 (ENG-01 §1.3): `Instances` calls `RevealLibrary` and `HostsLibrary` (D-210) by
-# `library_call`; its tests declare them.
+# ENG-05 (ENG-01 §1.3): `Instances` calls `RevealLibrary`, `HostsLibrary` (D-210) and
+# `TrapLibrary` (CBT-05b, D-222) by `library_call`; its tests declare them.
 [[target.starknet-contract]]
 sierra = true
 casm = true
 build-external-contracts = [
     "grimworld_logic::systems::hosts::HostsLibrary",
     "grimworld_logic::systems::reveal::RevealLibrary",
+    "grimworld_logic::systems::trap::TrapLibrary",
 ]
 
 [scripts]

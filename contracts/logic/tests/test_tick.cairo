@@ -14,7 +14,9 @@ use core::testing::get_available_gas;
 use grimworld_logic::actions::Action;
 use grimworld_logic::content::Record;
 use grimworld_logic::helpers::signed::SignedTrait;
-use grimworld_logic::interface::{ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher};
+use grimworld_logic::interface::{
+    ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait,
+};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::goblin::{Goblin, GoblinTickTrait, GoblinTrait, GoblinWords};
 use grimworld_logic::models::index::{Caste, Skill};
@@ -3928,4 +3930,55 @@ fn test_cost_act_wait() {
     let (words, _, illegal) = library
         .act(rep_words(0), bomb_content(), board(), executor(), array![], Action::Wait);
     assert(illegal.is_none() && words.clock == 41, 'wait, one tick');
+}
+
+// ---- A trap's trigger through `TrapLibrary` (D-222) --------------------------------------------
+// A terrain trap (kind 4) on the member's tile, its `param` the worst content's skill 2 (fire 80,
+// Burning 3): the member enters it; the call carries the member alone, the worst content and the
+// chunk's features. Less its fixture: the same arguments and class, no call.
+
+fn trap_args() -> (Words, Content, Array<(u8, grimworld_logic::models::chunk::Features)>) {
+    let words = Words {
+        clock: 40,
+        members: array![member_at(480).store()],
+        goblins: array![],
+        killed: array![],
+        defeated: false,
+    };
+    let terrain = grimworld_logic::models::chunk::Object {
+        tile: AT, kind: grimworld_logic::models::chunk::object::TRAP, state: 0, param: 2,
+    };
+    let features = grimworld_logic::models::chunk::Features {
+        objects: [terrain, Default::default(), Default::default()],
+        ..grimworld_logic::models::chunk::FeaturesTrait::empty(),
+    };
+    (words, rep_content(), array![(0, features)])
+}
+
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_trap_class_fixture() {
+    let class = declare("TrapLibrary").unwrap().contract_class();
+    let _ = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let (words, content, ground) = trap_args();
+    assert(
+        opaque(words.members.len()) == 1 && content.skills.len() == 38 && ground.len() == 1,
+        'fixture',
+    );
+}
+
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_trap_class() {
+    let class = declare("TrapLibrary").unwrap().contract_class();
+    let library = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let (words, content, ground) = trap_args();
+    let (out, ground, triggered) = library.trigger(words, content, board(), ground, 0, AT, 10);
+    let (_, features) = *ground.at(0);
+    let [used, _, _] = features.objects;
+    assert(triggered && used.state == 1 && out.members.len() == 1, 'triggered');
 }
