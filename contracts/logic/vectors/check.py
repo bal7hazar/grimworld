@@ -8,12 +8,16 @@ the committed file, line by line, so that a new digest without the regenerated f
 
     python3 contracts/logic/vectors/check.py           # exit 1 on any difference
     python3 contracts/logic/vectors/check.py --write   # regenerate the files
+    python3 contracts/logic/vectors/check.py --no-lock # snforge directly, without scripts/lock.sh
 
 snforge cannot read a JSON-lines file from a test (`read_txt` takes one felt a line, `read_json`
-one JSON document), hence a script; it runs `snforge` from the package's folder.
+one JSON document), hence a script; it runs `snforge` from the package's folder, through
+`scripts/lock.sh --heavy` as `scripts/gas_budgets.py` does (FND-22) wherever `flock` exists (the Mac has
+none and runs it directly; `--no-lock` does the same). `GRIMWORLD_LOCK_WAIT` bounds the wait for the lock.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -42,14 +46,11 @@ TABLES = {
 }
 
 
-def printed(test, write):
+def printed(test, write, locked):
     """The lines the test prints; it must pass, except when regenerating (the digest is then the
     one to set)."""
     cmd = ["snforge", "test", test, "--exact"]
-    if os.environ.get("GRIMWORLD_LOCK_WAIT"):
-        # A caller that bounds its wait for the machine's build lock (scripts/prepush.sh) gets the
-        # test through scripts/lock.sh, which reads that variable; without it (CI, by hand) the run is
-        # what it was.
+    if locked:
         cmd = [os.path.join(os.path.dirname(os.path.dirname(PACKAGE)), "scripts", "lock.sh"), "--heavy"] + cmd
     run = subprocess.run(cmd, cwd=PACKAGE, capture_output=True, text=True)
     if run.returncode == 75 and "build lock busy for" in run.stderr:
@@ -65,12 +66,13 @@ def printed(test, write):
 
 def main():
     write = "--write" in sys.argv[1:]
+    locked = "--no-lock" not in sys.argv[1:] and shutil.which("flock") is not None
     failed = False
     for name, tests in TABLES.items():
         path = os.path.join(PACKAGE, "vectors", name)
         lines = []
         for test in tests:
-            part, digest = printed(test, write)
+            part, digest = printed(test, write, locked)
             if write:
                 print(f"{test}: {len(part)} cases from id {len(lines)}, digest {digest}")
             lines += part
