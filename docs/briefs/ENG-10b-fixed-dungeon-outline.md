@@ -6,8 +6,19 @@
 > **The dungeon residue blocks any non-test deployment until this lot merges** (the Overseer,
 > 2026-10-07; D-208's record, CONTEXT, OPERATIONS). **Its merge gate is a randomness re-audit that
 > measures the residue at zero.** Decisions: ADR-0006 (D-106, D-111, D-120, amended by D-208, D-214
-> and, proposed, ENG-10a), D-134, D-136, D-140, D-144, D-200, D-208, D-209, D-210, D-220; pins on
+> and, proposed, ENG-10a), D-134, D-136, D-140, D-144, D-200, D-208, D-209, D-210, D-220, **D-223**
+> (the project manager's rulings on ENG-10a's questions, 2026-10-07, below); pins on
 > Linux only (OPERATIONS.md §3). Profile: impl-opus, the VPS (pins and measures).
+
+## Decided before the lot starts (D-223, the project manager and the orchestrator, 2026-10-07)
+| # | Ruling | By |
+|---|---|---|
+| 1 | **The winding growth is the law** (SPK-17's `draw_winding`: the member is the newest chunk with probability 1/2, else uniform). Uniform growth was measured and not kept | the project manager, D-223 |
+| 2 | **The exit and the Heart among the outline's farthest chunks, laid on the spine's core**; ENG-05's "exit on any chunk" is superseded | the project manager, D-223 |
+| 3 | **Sight reveals an outline chunk across a closed seam**, as in a zone (display only) | the project manager, D-223 |
+| 4 | **D-144 accepted in principle**: this lot measures the entry that creates a floor on the node, tries the one-Poseidon-word-a-step lever first, and brings the figure to the project manager **before its merge** | the project manager, D-223 |
+| 5 | **ENG-10b before ENG-05b**; the bound `N ≤ 12` is this lot's | the orchestrator |
+| 6 | The merge gate: the zero-residue test on the real path (A1, A2) and the randomness re-audit | the Overseer; the orchestrator |
 
 ## Goal
 After this lot a dungeon floor's chunks, the seams open between them and every quota's host chunks,
@@ -35,17 +46,18 @@ and the re-audit measures it so.
   the project manager's before the merge); D-200, D-209 (`RevealLibrary` ≤ 50.5 %, `Instances` ≤ 51 %),
   D-210 (`HostsLibrary` < 50 %). The ENG-05 ceilings of ENG-01 §10 (*The D-144 ceilings of ENG-05*).
 - **Lots nearby.** ENG-05b (bit-parallel placement, before ENG-07) also changes
-  `reveal/placement.cairo`: whichever merges second merges the other. ENG-R1c holds the content
+  `reveal/placement.cairo`: ENG-10b goes first (D-223, ruling 5); ENG-05b merges it. ENG-R1c holds the content
   bounds (a floor's `N` at most 12 is this lot's, below). ENG-11 (dungeon room kinds) may change the
-  growth law later: any law drawn at entry keeps the residue at zero.
+  winding law later: any law drawn at entry keeps the residue at zero.
 
 ## Scope
 - In:
   1. **The draw** in `grimworld_logic` (`types/reveal/outline.cairo` or the module the code layout
-     gives it, docs/CAIRO.md §7): `OutlineTrait::draw` (or `draw_winding`, as the project manager
-     rules on ENG-10a's open question 1), `far`, `distance` as SPK-17's; a lever to try first: SPK-17's
-     earlier build drew each step from one Poseidon word and measured about 2.50 M at `N` = 12 against
-     the `Rng` stream's 2.80 M (not kept, not re-measured); the seed
+     gives it, docs/CAIRO.md §7): the **winding** law (D-223, ruling 1: SPK-17's
+     `draw_winding`), `far`, `distance` as SPK-17's; **the lever to try first** (ruling 4): draw each
+     step from one Poseidon word instead of the `Rng` stream (an earlier SPK-17 build measured about
+     2.50 M at `N` = 12 that way, uniform growth, against the stream's 2.80 M; not kept, not
+     re-measured; the winding law measured 2,393,509 on the stream); the seed
      `EntropyTrait::outline(entropy, instance)` = `derive(entropy, domain(instance, 227, REVEAL), 0)`;
      the test that 227 is no other counter's word (SPK-17 `test_entropy_word_apart`).
   2. **`HostsLibrary`** gains the dungeon's call at `create` (`IHostsLibrary::floor`, as SPK-17's
@@ -66,8 +78,8 @@ and the re-audit measures it so.
      (`with_hosts`, from `get_hosts` of the current generation's quotas with a count, ENG-01 §3.2);
      `chunk_kind` and `instance_region` read a dungeon's outline (void outside it; not revealed inside);
      the `Quotas` word's open edges stay 0 in both kinds.
-  5. **The content bound** `N ≤ 12` for a dungeon floor (CM-9; the registry's `LOCATION` check), if it
-     is not there yet: the spike's layout and its tests assume it.
+  5. **The content bound** `N ≤ 12` for a dungeon floor (CM-9; the registry's `LOCATION` check;
+     D-223, ruling 5: this lot's), with its refusal test.
   6. **Tests** (docs/CAIRO.md §2, tests first): the zero-residue test (acceptance 1) at the logic
      level and through `Instances`; the dungeon tests of `types/reveal.cairo` that test the emerging
      outline (`test_dungeon_*`: enclosure, re-audit trace, sweeps, two edges, closes at N) replaced by
@@ -107,7 +119,7 @@ and the re-audit measures it so.
 | A4 | The exit and the Heart always land: over the A1 entropies, one exit and one Heart (on a last floor's content) on their host chunks; with a set piece hosted on the exit's chunk, both still land and the set piece's own elements keep their tiles; the Heart at the band's top | snforge |
 | A5 | D-140: no panic on any legal content; a rectangle smaller than `N` gives the whole rectangle, connected | snforge (SPK-17 `test_outline_small_rectangle`) |
 | A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: 39,878 felts, 48.68 %, against 41,109), `HostsLibrary` under 50 % (SPK-17: 11,372 felts, 13.88 %, against 6,580), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
-| A7 | Gas: the D-144 table below filled with node figures (`lifecycle_probe.py`, three runs each), sent to the project manager **before** the merge with the cause of each rise | the report, ENG-01 §10 |
+| A7 | Gas (D-223, ruling 4): the entry that creates a floor measured on the node (`lifecycle_probe.py`, three runs each), after the one-Poseidon-word lever is tried; the D-144 table below filled with those figures and sent to the project manager **before** the merge with the cause of each rise | the report, ENG-01 §10 |
 | A8 | The documents of scope item 7 | the PR's diff |
 
 ## The re-audit gate (the merge gate)
@@ -120,7 +132,7 @@ own chunk words; the exit's and the Heart's tiles are drawn from the chunk's wor
 the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero, stops the merge
 (the Overseer, 2026-10-07).
 
-## D-144: the rises it expects (E, from SPK-17; the node's figures replace them)
+## D-144: the rises it expects (E, from SPK-17; accepted in principle, D-223; the node's figures replace them before the merge)
 | Entrypoint | ENG-05's ceiling | What moves | Expected |
 |---|---:|---|---:|
 | `leave` to a dungeon floor | 8,276,640 | `HostsLibrary::floor` (4.10 M in snforge), the outline's 3 slots and one `hosts` slot a quota with a count (about 0.48 M each when new), the entry reveal without the guard (less) | about +7.0 M when the slots are new: ≈ 15.3 M (E) |

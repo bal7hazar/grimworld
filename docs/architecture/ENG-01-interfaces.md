@@ -1981,11 +1981,12 @@ manager under D-144 (the expedition's path).
 **Proposed by ENG-10a (SPK-17, not built; snforge M, Linux, two clean builds equal to the unit,
 each a pair of tests that differ by the measured call alone, `spikes/SPK-17-fixed-outline/pairs.txt`;
 E marks a derived figure).** A dungeon floor of `N` = 12 in a 15 × 15 rectangle, its quotas an exit,
-a vein and a Heart:
+a vein and a Heart. The rows of `create`'s floor and the library call were measured with uniform
+growth, before D-223 made the winding growth the law (0.41 M cheaper in memory at `N` = 12):
 
 | What | L2 gas | Source |
 |---|---:|---|
-| The outline drawn, in memory: `N` = 6 · `N` = 12 · the winding variant at 12 · the first law, uniform over the frontier, at 12 | 1,212,496 · **2,801,446** · 2,393,509 · 3,893,301 | `test_pair_outline_*` |
+| The outline drawn, in memory: uniform growth (measured, not kept) at `N` = 6 · at `N` = 12 · **the winding growth at 12, the law (D-223)** · the first law, uniform over the frontier, at 12 | 1,212,496 · 2,801,446 · **2,393,509** · 3,893,301 | `test_pair_outline_*` |
 | All `create` computes for the floor in memory: the outline, its farthest chunks, the three quotas' hosts, the entry chunk's mask | **3,933,528** | `test_pair_outline_floor_12` |
 | The same through the library class (`FloorLibrary::floor`, its syscall and calldata) | **4,104,498** (the call about 171,000, E) | `test_pair_library_floor_12` |
 | The slots: the outline's three felts and three hosts' bitmaps, new | **2,854,060** (about 475,700 a slot, E) | `test_pair_slots_write` |
@@ -1997,7 +1998,9 @@ At `create` a floor adds (E) the library call, 4.10 M, and its new slots, 2.85 M
 new (an overwritten slot costs less), against the entry chunk's reveal, which the guard no longer
 burdens: about +7.0 M on an entry that creates a floor before ENG-10b's own levers (the growth law,
 the number of hosts' slots). Every such rise is the project manager's under D-144; ENG-10b measures it
-on the node (`docs/briefs/ENG-10b-fixed-dungeon-outline.md`).
+on the node (`docs/briefs/ENG-10b-fixed-dungeon-outline.md`). **D-223** (the project manager,
+2026-10-07): accepted in principle; ENG-10b tries the one-Poseidon-word-a-step lever first and brings
+the node's figure before its merge.
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
