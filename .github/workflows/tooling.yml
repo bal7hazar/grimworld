@@ -317,6 +317,26 @@ jobs:
           PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb fmt --check; [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
           PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb --manifest-path x/Scarb.toml fmt --check; [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
           wait "$lk3"
+          # FND-22 (the cases FND-15's review lists): `snforge test` and `scarb test`, `check`, `lint` and `execute` take
+          # the heavy lock with no --heavy (held: 75, no run); `scarb metadata` takes none and runs under the held lock.
+          printf '#!/bin/sh\ntouch "%s/ran"\n' "$lkd" > "$lkd/bin/snforge"; chmod +x "$lkd/bin/snforge"
+          flock "$HEAVY_BUILD_LOCK" sleep 12 & lk4=$!
+          for _ in $(seq 1 50); do flock -n "$HEAVY_BUILD_LOCK" true || break; sleep 0.2; done   # held
+          for tool in "snforge test" "scarb test" "scarb check" "scarb lint" "scarb execute"; do
+            set +e; out=$(PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 $tool 2>&1); s=$?; set -e
+            [ "$s" = 75 ] || { echo "lock.sh --wait 1 $tool: exit $s, not 75" >&2; exit 1; }
+            grep -q 'build lock busy for 1 s' <<< "$out"; [ ! -e "$lkd/ran" ]
+          done
+          PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb metadata; [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
+          PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb --manifest-path x/Scarb.toml metadata; [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
+          wait "$lk4"
+          # A nested call under both locks held (an outer lock.sh sets the two markers) takes none again: it runs at
+          # once, where a second take of either lock, held by the outer command, would end in 75.
+          set +e
+          flock "$GRIMWORLD_BUILD_LOCK" flock "$HEAVY_BUILD_LOCK" env GRIMWORLD_BUILD_LOCK_HELD=1 HEAVY_BUILD_LOCK_HELD=1 \
+            env PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 snforge test
+          s=$?; set -e
+          [ "$s" = 0 ] && [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
           # Free again: the command runs under the locks.
           PATH=$lkd/bin:$PATH scripts/lock.sh --heavy --wait 5 scarb build; [ -e "$lkd/ran" ]
           for w in 0 x; do

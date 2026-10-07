@@ -30,14 +30,36 @@ cd "$root" || exit 2
 # upstream) that ALSO differ from main (origin/main...HEAD, the branch's own changes against its merge
 # base with main), plus the working tree. A file that main brought in through a merge and the branch did
 # not change is not in the set; nor is a file the push reverted to main's content (it equals main).
-# Origin/main unresolved, or with no merge base with HEAD (an orphan branch): no base, every check runs.
+# Origin/main unresolved, or with no merge base with HEAD (an orphan branch): no base, every check runs, and
+# `why` says which. FND-22: in a shallow clone the merge base may lie below the cut; the history is then
+# deepened (git fetch --deepen, at most 10 times) until the merge base appears, and if it does not (no
+# network, no origin) `why` says that the clone is shallow.
 compute_changed() {
-  local main up pushed own
+  local main up pushed own i
   main=$(git rev-parse --verify -q origin/main 2> /dev/null || true)
   up=$(git rev-parse --verify -q '@{upstream}' 2> /dev/null || true)
   base=
   pushed=
-  if [ -n "$main" ] && git merge-base "$main" HEAD > /dev/null 2>&1; then
+  why=
+  if [ -z "$main" ]; then
+    why="origin/main does not resolve"
+  elif ! git merge-base "$main" HEAD > /dev/null 2>&1; then
+    if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+      for i in 1 2 3 4 5 6 7 8 9 10; do
+        git fetch -q --deepen=100 origin > /dev/null 2>&1 || break
+        git merge-base "$main" HEAD > /dev/null 2>&1 && break
+        [ "$(git rev-parse --is-shallow-repository)" = true ] || break
+      done
+    fi
+    if git merge-base "$main" HEAD > /dev/null 2>&1; then
+      :
+    elif [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+      why="the clone is shallow and deepening it from origin did not reach the merge base with origin/main"
+    else
+      why="HEAD has no merge base with origin/main"
+    fi
+  fi
+  if [ -z "$why" ]; then
     base=$(git merge-base "${up:-$main}" HEAD 2> /dev/null || echo "${up:-$main}")
     own=$(git diff --no-renames --name-only "$main"...HEAD)
     pushed=$(git diff --no-renames --name-only "$base" HEAD)
@@ -77,8 +99,17 @@ self_test() {
     fi
     echo "self-test ok: $1 (no base: every check runs)"
   }
+  expect_why() { # <label> <text the reason must contain>
+    if ! grep -qF -- "$2" <<< "$why"; then
+      echo "self-test FAILED: $1: expected a reason with [$2], got [$why]" >&2
+      return 1
+    fi
+    echo "self-test ok: $1 (reason: $why)"
+  }
   (
     set -e
+    # FND-22: the scratch repositories ignore the user's and the system's git configuration.
+    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
     git init -q --bare "$work/remote.git"
     git init -q -b main "$work/r"
     cd "$work/r"
@@ -111,6 +142,15 @@ self_test() {
     compute_changed; expect "a deleted file" "a.txt d.txt doc.md own1.txt own2.txt"
     g mv e.txt e2.txt; g commit -q -m "mv e"
     compute_changed; expect "a rename counts as a delete and an add" "a.txt d.txt doc.md e.txt e2.txt own1.txt own2.txt"
+    # a revert with an upstream set: the push brings the revert, which equals main, so it is left out
+    git push -q origin feature; git branch -q -u origin/feature
+    echo c2 > c.txt; g commit -q -am "c changed"; git push -q origin feature
+    echo c > c.txt; g commit -q -am "c reverted again"
+    compute_changed; expect "a revert to main's content with an upstream set" ""
+    echo c3 > c.txt; g commit -q -am "c changed again"
+    compute_changed; expect "a change after the upstream, c not yet reverted" "c.txt"
+    echo c > c.txt; g commit -q -am "c reverted a third time"
+    git branch -q --unset-upstream
     g checkout -q --detach
     compute_changed; expect "detached HEAD" "a.txt d.txt doc.md e.txt e2.txt own1.txt own2.txt"
     g checkout -q feature
@@ -118,10 +158,29 @@ self_test() {
     compute_changed; expect "working tree added" "a.txt d.txt doc.md e.txt e2.txt own1.txt own2.txt untracked.txt"
     g stash -q -u
     g checkout -q --orphan orph; g rm -rfq .; echo o > o.txt; g add -A; g commit -q -m orphan
-    compute_changed; expect_no_base "orphan branch"
+    compute_changed; expect_no_base "orphan branch"; expect_why "orphan branch" "no merge base"
     g checkout -q feature
+    # FND-22: a shallow clone (depth 1, every branch) has no merge base until it is deepened
+    git clone -q --depth 1 --no-single-branch -b feature "file://$work/remote.git" "$work/shallow"
+    cd "$work/shallow"
+    git branch -q --unset-upstream
+    [ "$(git rev-parse --is-shallow-repository)" = true ]
+    ! git merge-base origin/main HEAD > /dev/null 2>&1
+    compute_changed
+    if [ -z "$base" ] || ! grep -qx own1.txt <<< "$changed"; then
+      echo "self-test FAILED: a shallow clone is deepened to its base: base [$base], changed [$changed]" >&2
+      false
+    fi
+    echo "self-test ok: a shallow clone is deepened to its base"
+    # the same clone with origin out of reach: no base, and the reason says the clone is shallow
+    cd "$work/r"; rm -rf "$work/shallow"
+    git clone -q --depth 1 --no-single-branch -b feature "file://$work/remote.git" "$work/shallow"
+    cd "$work/shallow"
+    git remote set-url origin "$work/nowhere.git"
+    compute_changed; expect_no_base "shallow clone, origin out of reach"; expect_why "shallow clone, origin out of reach" "shallow"
+    cd "$work/r"
     git remote remove origin
-    compute_changed; expect_no_base "no origin/main"
+    compute_changed; expect_no_base "no origin/main"; expect_why "no origin/main" "does not resolve"
   )
   rc=$?
   rm -rf "$work"
@@ -141,7 +200,7 @@ esac
 
 compute_changed
 if [ -z "$base" ]; then
-  echo "prepush: no origin/main: running every check" >&2
+  echo "prepush: no diff base ($why): running every check" >&2
   all=1
 fi
 echo "prepush: base ${base:-none}; $(grep -c . <<< "$changed" || true) changed file(s)"
