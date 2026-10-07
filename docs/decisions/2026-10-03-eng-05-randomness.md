@@ -13,6 +13,10 @@
 - The re-audit states the dungeon residue with a figure.
 - A dungeon outline fixed at entry is the PLAN item that removes the residue.
 
+## Measured residue (2026-10-07)
+
+Until the lot that fixes a dungeon's outline at entry merges, a modified client can force a dungeon floor's exit 1 chunk from the entry: up to N − 2 chunks shorter (10 at N = 12), bounded only by N. Measured by ENG-05's randomness re-audit (#348, merged 9ffd4ff). This residue blocks any deployment to a non-test network until that lot removes it; its re-audit must measure the residue to zero.
+
 ## What would reverse it
 
 The owner, or a re-audit figure for the dungeon residue that D-111 does not accept.
