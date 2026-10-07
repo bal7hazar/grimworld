@@ -9,10 +9,11 @@
 //! floors whose farthest layer is one chunk, with a set piece of 2 packs and 3 objects listed
 //! before the exit and the Heart.
 //!
-//! **The tiles** (review t-0088, minor 2): the walked distance in tiles from the entry tile to the
-//! exit's tile is measured in every order, not compared: the openings' tiles on a seam are drawn by
-//! whichever of its two chunks is revealed first. Each test prints its largest spread over the
-//! orders of one floor.
+//! **The tiles** (review t-0088, minor 2; D-224): the walked distance in tiles from the entry tile
+//! to the exit's tile is compared too: a seam's openings are drawn from the seam's own stream
+//! (D-224), so no order moves them. Before D-224 (the openings drawn by whichever of a seam's
+//! chunks was revealed first) it moved by up to 24 tiles over the orders of one floor (`a2d740b`'s
+//! run).
 //!
 //! **The same assertions on ENG-05's engine** (`test_zero_residue_on_eng05_*`, a floor a test): the
 //! seven orders as strategies over what ENG-05 makes revealable, the comparison of `zero_residue`
@@ -28,7 +29,7 @@ use hexx::board::rng::RngTrait;
 use spk17::outline::OutlineTrait;
 use crate::fixtures::{
     ENTRY, INSTANCE, Outcome, chunks, create_with, eng05_outcome, eng05_site, fixed_outcome,
-    reveal_in_order, shuffled,
+    hosts_old, reveal_in_order, shuffled,
 };
 
 /// The required orders of one floor, the entry first in each, as `create` reveals it.
@@ -108,6 +109,16 @@ fn zero_residue(n: u8, first: u32, floors: u32, piece: bool) -> u32 {
             continue;
         }
         done += 1;
+        if piece {
+            // Review t-0089, note 2: where the set piece went (quota 0), never on the farthest
+            // chunk, which the exit and the Heart took first
+            let at = *floor.hosts[0];
+            assert(at != 0, 'the set piece hosted');
+            assert(BoardTrait::and(at, floor.far) == 0, 'the set piece off the far chunk');
+            println!(
+                "floor {} (N = {}): the set piece on chunk {}", i - 1, n, BoardTrait::nth(at, 0),
+            );
+        }
         let mut reference: Option<Outcome> = Option::None;
         let mut low: u32 = 65535;
         let mut high: u32 = 0;
@@ -122,6 +133,10 @@ fn zero_residue(n: u8, first: u32, floors: u32, piece: bool) -> u32 {
             assert(BoardTrait::has(floor.far, got.heart), 'the Heart at the farthest');
             assert(got.distance == floor.depth, 'its distance the depth');
             assert(tiles != 65535, 'the exit reached');
+            // D-224: the walk in tiles too, the openings drawn by their seam
+            if low != 65535 {
+                assert(tiles == low, 'the same walk in tiles');
+            }
             match reference {
                 Option::None => { reference = Option::Some(got); },
                 Option::Some(first) => { assert(got == first, 'the same in every order'); },
@@ -182,6 +197,39 @@ fn test_zero_residue_piece_n6() {
 #[test]
 fn test_zero_residue_piece_n12() {
     zero_residue(12, 100, 2, true);
+}
+
+/// Review t-0089, note 2: the set-piece fixture with c240f76's order (the list's, the farthest
+/// layer only): over the floors of 6 chunks whose farthest layer is one chunk, from entropy 100,
+/// some leave the exit or the Heart with no host there; the new order hosts both on every one of
+/// them.
+#[test]
+fn test_piece_old_order() {
+    let mut floors: u32 = 0;
+    let mut failing: u32 = 0;
+    let mut i: u32 = 100;
+    while floors != 32 {
+        let entropy = poseidon_hash_span(['spk17 residue', i.into()].span());
+        i += 1;
+        let (old, far) = hosts_old(entropy, 6);
+        if BoardTrait::count(far) != 1 {
+            continue;
+        }
+        floors += 1;
+        let new = create_with(entropy, 6, true);
+        assert(*new.hosts[1] != 0 && *new.hosts[2] != 0, 'the new order hosts both');
+        if *old[1] == 0 || *old[2] == 0 {
+            failing += 1;
+            println!(
+                "floor {}: the old order leaves the exit {} and the Heart {} (0: no host)",
+                i - 1,
+                *old[1],
+                *old[2],
+            );
+        }
+    }
+    println!("the old order fails on {} of {} floors; the new one on none", failing, floors);
+    assert(failing != 0, 'the old order fails');
 }
 
 /// The revealable chunks of ENG-05's floor now, by index, `but` left out.

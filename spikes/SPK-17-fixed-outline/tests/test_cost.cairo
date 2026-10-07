@@ -85,6 +85,52 @@ fn test_pair_outline_floor_12() {
     assert(mask != 0, 'drawn');
 }
 
+// ---- A zone's hosts: origin/main's `PlacementTrait::hosts` against the spike's (review t-0089)
+// ----
+
+/// A zone's plan: 15 × 15, a vein (3), a collector (2), a Heart (1).
+fn zone_plan() -> (felt252, felt252) {
+    let vein: felt252 = 3 + 0x100 * 3;
+    let collector: felt252 = 2 + 0x100 * 4 + 0x10000 * 1;
+    let heart: felt252 = 1 + 0x100 * 2 + 0x10000 * 3;
+    (vein + collector * 0x100000000 + heart * 0x10000000000000000, 0)
+}
+
+#[test]
+fn test_base_hosts_zone() {
+    let plan = zone_plan();
+    let seed = EntropyTrait::hosts(ENTROPY, INSTANCE);
+    assert(plan != (0, 0) && seed != 0, 'inputs');
+}
+
+#[test]
+fn test_pair_hosts_zone_main() {
+    let plan = zone_plan();
+    let seed = EntropyTrait::hosts(ENTROPY, INSTANCE);
+    assert(plan != (0, 0) && seed != 0, 'inputs');
+    let hosts = eng05::placement::PlacementTrait::hosts(0, 15, 15, plan, array![].span(), seed);
+    assert(hosts.len() == 3, 'drawn');
+}
+
+#[test]
+fn test_pair_hosts_zone_spike() {
+    let plan = zone_plan();
+    let seed = EntropyTrait::hosts(ENTROPY, INSTANCE);
+    assert(plan != (0, 0) && seed != 0, 'inputs');
+    let hosts = PlacementTrait::hosts(0, 15, 15, plan, array![].span(), seed, array![].span());
+    assert(hosts.len() == 3, 'drawn');
+}
+
+/// The same masks for a zone, both copies.
+#[test]
+fn test_hosts_zone_unchanged() {
+    let plan = zone_plan();
+    let seed = EntropyTrait::hosts(ENTROPY, INSTANCE);
+    let main = eng05::placement::PlacementTrait::hosts(0, 15, 15, plan, array![].span(), seed);
+    let spike = PlacementTrait::hosts(0, 15, 15, plan, array![].span(), seed, array![].span());
+    assert(main == spike, 'a zone unchanged');
+}
+
 // ---- At `create`, the library call ----
 
 #[test]

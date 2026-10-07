@@ -62,6 +62,7 @@
 //! the caller's error (asserted).
 
 pub mod placement;
+use core::poseidon::poseidon_hash_span;
 use grimworld_logic::fate::EntropyTrait;
 use grimworld_logic::models::chunk::{Features, Object, PackPlacement, Terrain};
 use grimworld_logic::models::pack::Pack;
@@ -74,6 +75,7 @@ use grimworld_logic::types::reveal::board::{BOARD, BoardTrait, CENTRE, INTERIOR}
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
 use crate::engine::placement::PlacementTrait;
+use crate::outline::OutlineTrait;
 
 /// The sides of a chunk, in ENG-01's order of the edges (`Terrain.edges` bit `side`).
 pub mod side {
@@ -345,7 +347,7 @@ pub impl RevealImpl of RevealTrait {
         // [Compute] 3. The ring: each side copied, closed or drawn; the anchors opened
         let mut draws = RngTrait::new(RngTrait::mix(word, 4));
         let (ring, edges, open_edges) = Self::decide(
-            site, @progress, known, chunk, mask, ref draws,
+            site, @progress, instance_id, known, chunk, mask, ref draws,
         );
         let mut anchors: Array<u8> = array![];
         let mut ring = ring;
@@ -408,6 +410,7 @@ pub impl RevealImpl of RevealTrait {
     fn decide(
         site: @Site,
         progress: @Progress,
+        instance_id: felt252,
         known: Span<(u8, Terrain)>,
         chunk: u8,
         mask: felt252,
@@ -446,7 +449,15 @@ pub impl RevealImpl of RevealTrait {
             side += 1;
             bit *= 2;
         }
-        // [Compute] The openings of the sides drawn open, 1 or 2 each, inside the mask
+        // [Compute] The openings of the sides drawn open, 1 or 2 each, inside the mask. D-224: a
+        // dungeon's from its seam's own stream, keyed by the seam (its lower chunk, its axis) and
+        // the outline's seed, so that both chunks of a seam draw the same tiles, whichever is
+        // revealed first; a zone's from the chunk's stream, as before
+        let seams = if emerging {
+            OutlineTrait::seed(*progress.entropy, instance_id)
+        } else {
+            0
+        };
         let mut side: u8 = zero;
         let mut rest = open;
         while side != 4 {
@@ -454,20 +465,47 @@ pub impl RevealImpl of RevealTrait {
             rest = above;
             if here == 1 {
                 let allowed = BoardTrait::and(BoardTrait::side(side), mask);
-                let two = draws.draw_byte(2) == 1;
-                if allowed != 0 {
-                    let first = Self::opening(allowed, side, ref draws);
-                    ring = BoardTrait::or(ring, BoardTrait::pow(first));
-                    if two {
-                        let second = Self::opening(allowed, side, ref draws);
-                        ring = BoardTrait::or(ring, BoardTrait::pow(second));
-                    }
+                let drawn = if emerging {
+                    let (low, axis): (u8, u8) = if side == side::WEST {
+                        (chunk, 0)
+                    } else if side == side::EAST {
+                        (chunk - 1, 0)
+                    } else if side == side::SOUTH {
+                        (chunk - 15, 1)
+                    } else {
+                        (chunk, 1)
+                    };
+                    let mut seam = RngTrait::new(
+                        poseidon_hash_span([seams, low.into(), axis.into()].span()),
+                    );
+                    Self::openings(allowed, side, ref seam)
+                } else {
+                    Self::openings(allowed, side, ref draws)
+                };
+                if drawn != 0 {
+                    ring = BoardTrait::or(ring, drawn);
                     edges += Self::pow2(side);
                 }
             }
             side += 1;
         }
         (ring, edges, zero)
+    }
+
+    /// A side's openings among its `allowed` tiles, 1 or 2 drawn from `draws` (0 when none is
+    /// allowed; the draw of the count made either way, as before).
+    fn openings(allowed: felt252, side: u8, ref draws: Rng) -> felt252 {
+        let two = draws.draw_byte(2) == 1;
+        if allowed == 0 {
+            return 0;
+        }
+        let first = Self::opening(allowed, side, ref draws);
+        let mut ring = BoardTrait::pow(first);
+        if two {
+            let second = Self::opening(allowed, side, ref draws);
+            ring = BoardTrait::or(ring, BoardTrait::pow(second));
+        }
+        ring
     }
 
     /// An opening on `side` among its `allowed` tiles (not empty): one of the side's 13 tiles drawn

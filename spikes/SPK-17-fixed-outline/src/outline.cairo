@@ -316,11 +316,13 @@ pub impl OutlineImpl of OutlineTrait {
     }
 
     /// The chunks by distance from `entry` through the open seams, the farthest layer first, the
-    /// entry's last (where a dungeon's exit and Heart are drawn, `PlacementTrait::hosts`).
+    /// entry's left out (where a dungeon's exit and Heart are drawn, `PlacementTrait::hosts`: never
+    /// on the entry's chunk, whose anchor is on the spine's core; review t-0089, note 4).
     fn layers(self: @Outline, entry: u8) -> Array<felt252> {
         let mut near: Array<felt252> = array![];
-        let mut layer = BoardTrait::pow(entry);
-        let mut seen = layer;
+        let mut seen = BoardTrait::pow(entry);
+        let mut layer = BoardTrait::minus(self.step(seen), seen);
+        seen = BoardTrait::or(seen, layer);
         while layer != 0 {
             near.append(layer);
             layer = BoardTrait::minus(self.step(layer), seen);

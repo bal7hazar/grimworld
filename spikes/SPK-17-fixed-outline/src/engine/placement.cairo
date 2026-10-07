@@ -246,6 +246,22 @@ pub impl PlacementImpl of PlacementTrait {
         seed: felt252,
         layers: Span<felt252>,
     ) -> Array<felt252> {
+        Self::hosts_with(zone, width, height, plan, pieces, seed, layers, true)
+    }
+
+    /// `hosts`, with `exit_first` false the order of `a2d740b`'s predecessor (c240f76, review t-0088's
+    /// major 1): the exit and the Heart in the list's order. Kept to show the fixture fails there
+    /// (SPK-17's `test_piece_old_order`); not ENG-10b's.
+    fn hosts_with(
+        zone: felt252,
+        width: u8,
+        height: u8,
+        plan: (felt252, felt252),
+        pieces: Span<(u16, SetPiece)>,
+        seed: felt252,
+        layers: Span<felt252>,
+        exit_first: bool,
+    ) -> Array<felt252> {
         // [Compute] The zone: its rectangle's rows, and its chunk set within them
         let row = BoardTrait::pow(width) - 1;
         let mut rectangle: felt252 = 0;
@@ -292,7 +308,8 @@ pub impl PlacementImpl of PlacementTrait {
                 let (above, count) = DivRem::div_rem(entry, 0x100);
                 let (param, kind) = DivRem::div_rem(above, 0x100);
                 let kind: u8 = kind.try_into().unwrap();
-                let early = dungeon && (kind == quota::EXIT || kind == quota::HEART);
+                let restricted = dungeon && (kind == quota::EXIT || kind == quota::HEART);
+                let early = restricted && exit_first;
                 if entry != 0 && (pass == 0) == early {
                     let count: u8 = count.try_into().unwrap();
                     let need = Self::need(kind, param.try_into().unwrap(), pieces);
@@ -318,8 +335,9 @@ pub impl PlacementImpl of PlacementTrait {
                         blocked = BoardTrait::or(blocked, piece);
                     }
                     // ENG-10a: a dungeon's exit and Heart in the outline's farthest layer that has
-                    // an allowed chunk (`layers`, farthest first, the entry's last): never owed
-                    let allowed = if early {
+                    // an allowed chunk (`layers`, farthest first, the entry's left out): never
+                    // owed for a count of 1
+                    let allowed = if restricted {
                         let mut found: felt252 = 0;
                         for layer in layers {
                             if found == 0 {

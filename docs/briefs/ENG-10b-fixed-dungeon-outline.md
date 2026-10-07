@@ -19,6 +19,7 @@
 | 4 | **D-144 accepted in principle**: this lot measures the entry that creates a floor on the node, tries the one-Poseidon-word-a-step lever first, and brings the figure to the project manager **before its merge** | the project manager, D-223 |
 | 5 | **ENG-10b before ENG-05b**; the bound `N ≤ 12` is this lot's | the orchestrator |
 | 6 | The merge gate: the zero-residue test on the real path (A1, A2) and the randomness re-audit | the Overseer; the orchestrator |
+| 7 | **D-224**: each open seam's opening tiles drawn at create, kept with the outline: a reveal copies them in any order, **the residue zero in tiles as in chunks**; the zero-residue test asserts the walk in tiles; their storage and the create cost measured and sent to the project manager under D-144 before the merge | the project manager, D-224 |
 
 ## Goal
 After this lot a dungeon floor's chunks, the seams open between them and every quota's host chunks,
@@ -70,7 +71,11 @@ and the re-audit measures it so.
      not revealed open exactly when its seam is; no border drawn (ENG-05's draw kept, unread, so a
      zone's streams do not move), no guard (`grows`, `opens_growth`, `widen`, `faced_open` removed),
      open edges 0; `due` on hosts for both kinds; `place` lays a dungeon's exit, then its Heart, first,
-     on `CORE` less the set piece's own tiles.
+     on `CORE` less the set piece's own tiles; **D-224**: a dungeon side's openings (the count, the
+     tiles) from the seam's own stream, `RngTrait::new(poseidon(outline seed, the seam's lower chunk,
+     its axis))`, not the chunk's (SPK-17 `engine.cairo` `decide`, `openings`). SPK-17 derives them at
+     each reveal; D-224 says stored with the outline: build what the project manager keeps (ENG-10a's
+     open question), and measure both if the choice is still open.
   4. **`Instances`**: `begin` calls `HostsLibrary::floor` in a dungeon (one call, as the zone block)
      and writes the outline's three felts (`outline`, `(slot, 0–2)`, ENG-01 §3.2 as proposed) and the
      hosts (`hosts`, as a zone's: a quota with a count only); every invocation that reveals in a
@@ -113,42 +118,41 @@ and the re-audit measures it so.
 ## Acceptance criteria
 | # | Criterion | Shown by |
 |---|---|---|
-| A1 | **The zero-residue test**, named `test_zero_residue` (split by `N` and by seeds as the build's memory needs, FND-23): for at least 8 entropies at `N` = 6 and at least 8 at `N` = 12, every order of the reveals among at least seven (by index, backward, nearest first, farthest first, two drawn, and **t-0077's forcing order**: the entry's first neighbour kept for the last reveal; review t-0088, minor 3), the entry first, gives **the same chunk set (the outline), the same exit chunk (exactly one exit, among the farthest), the same exit-to-entry distance through the revealed edges (the farthest distance), and the same edges in every chunk**; the walked distance in tiles from the entry tile to the exit's tile printed for every order (not compared: see the gate). On `RevealTrait` with the `Site` that `Instances` builds (its hosts from `HostsLibrary::floor`), not on a fixture that bypasses them | snforge, the test's output |
+| A1 | **The zero-residue test**, named `test_zero_residue` (split by `N` and by seeds as the build's memory needs, FND-23): for at least 8 entropies at `N` = 6 and at least 8 at `N` = 12, every order of the reveals among at least seven (by index, backward, nearest first, farthest first, two drawn, and **t-0077's forcing order**: the entry's first neighbour kept for the last reveal; review t-0088, minor 3), the entry first, gives **the same chunk set (the outline), the same exit chunk (exactly one exit, among the farthest), the same exit-to-entry distance through the revealed edges (the farthest distance), and the same edges in every chunk**, **and the same walked distance in tiles from the entry tile to the exit's tile** (D-224; SPK-17's bit-parallel walk, `fixtures::walk`). On `RevealTrait` with the `Site` that `Instances` builds (its hosts from `HostsLibrary::floor`), not on a fixture that bypasses them | snforge, the test's output |
 | A2 | The same through `Instances`: a dungeon instance created (`leave` to a floor, or the entry that creates one), its stored outline and hosts equal to the pure draw from its entry draw; its chunks revealed in two orders give A1's outcome | `contracts/ephemeral/tests/`, snforge |
 | A3 | A zone is unchanged: every zone vector's output and every zone test's assertion unchanged; a zone's reveal gas within ±1 % (the kept draws) | `vectors/check.py`, the zone tests, GAS.md diff |
-| A4 | The exit and the Heart always land (review t-0088, major 1; the orchestrator: their hosts drawn **first**, before every other quota, in the farthest layer with an allowed chunk, never owed): over the A1 entropies, one exit and one Heart on their host chunks, in the farthest layer; **and a fixture of its own in the zero-residue test: floors whose farthest layer is a single chunk, with a set piece (2 packs, 3 objects) listed before the exit and the Heart, both placed in every order** (SPK-17 `test_zero_residue_piece_*`); with a set piece hosted on the exit's chunk, the set piece's own elements keep their tiles; the Heart at the band's top | snforge |
+| A4 | The exit and the Heart always land (review t-0088, major 1; the orchestrator: their hosts drawn **first**, before every other quota, in the farthest layer with an allowed chunk, the entry's layer left out, never owed for a count of 1: t-0089, note 4): over the A1 entropies, one exit and one Heart on their host chunks, in the farthest layer; **and a fixture of its own in the zero-residue test: floors whose farthest layer is a single chunk, with a set piece (2 packs, 3 objects) listed before the exit and the Heart, both placed in every order** (SPK-17 `test_zero_residue_piece_*`); with a set piece hosted on the exit's chunk, the set piece's own elements keep their tiles; the Heart at the band's top | snforge |
 | A5 | D-140: no panic on any legal content; a rectangle smaller than `N` gives the whole rectangle, connected | snforge (SPK-17 `test_outline_small_rectangle`) |
-| A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: 39,878 felts, 48.68 %, against 41,109), `HostsLibrary` under 50 % (SPK-17: 12,346 felts, 15.07 %, against 6,580), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
-| A7 | Gas (D-223, ruling 4): the entry that creates a floor measured on the node (`lifecycle_probe.py`, three runs each), after the one-Poseidon-word lever is tried; the D-144 table below filled with those figures and sent to the project manager **before** the merge with the cause of each rise | the report, ENG-01 §10 |
+| A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: 40,220 felts, 49.10 %, against 41,109), `HostsLibrary` under 50 % (SPK-17: 12,436 felts, 15.18 %, against 6,580), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
+| A7 | Gas (D-223, ruling 4; D-224): the entry that creates a floor and a zone's entry with a quota (the restructured `hosts`, review t-0089) measured on the node, the openings' storage and create cost with it (or their derivation's reveal cost; `lifecycle_probe.py`, three runs each), after the one-Poseidon-word lever is tried; the D-144 table below filled with those figures and sent to the project manager **before** the merge with the cause of each rise | the report, ENG-01 §10 |
 | A8 | The documents of scope item 7 | the PR's diff |
 
 ## The re-audit gate (the merge gate)
 A **randomness re-audit** (lens: randomness and determinism, Opus) of the PR's head, before the merge,
 whose report states **in one sentence with a figure what a modified client can still gain in a
-dungeon**: **zero in chunks** (no chunk, seam, host, exit chunk or exit-to-entry distance in chunks
-that an order of moves changes) **and, in tiles, at most the measured bound** (review t-0088, minor
-2: the openings' tiles on a seam are drawn by whichever of its chunks is revealed first, so the walked
-distance from the entry tile to the exit's tile moves with the order: SPK-17 measured at most
-**24 tiles** (the largest spread over the seven orders of one floor, 22 floors); the re-audit re-measures it on the real path and states it
-as such, never as zero). A residue above zero in chunks stops the merge; the tile figure goes to
-the project manager, who takes it to the Overseer. It checks: the seeds (227 for the outline, 225 for the hosts) read the entry
+dungeon**, and finds it **zero in chunks and in tiles (D-224)**: no chunk, seam, host, exit chunk,
+exit-to-entry distance in chunks, opening tile or walked distance in tiles from the entry tile to the
+exit's tile that an order of moves changes. (Measured without D-224, SPK-17 at `a2d740b`: at most 24
+tiles over 22 floors and 7 orders, a sample, not a bound; with D-224 prototyped, 0 on the same
+floors.) A residue above zero, in chunks or in tiles, stops the merge. It checks: the seeds (227 for the outline, 225 for the hosts) read the entry
 draw only and are computed once; nothing a reveal reads is written after `create` but by the reveal's
-own chunk words; the exit's and the Heart's tiles are drawn from the chunk's word on `CORE` whatever
-the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero in chunks, stops the merge
+own chunk words; a seam's openings come from the seam's stream, never a chunk's; the exit's and the Heart's tiles are drawn from the chunk's word on `CORE` whatever
+the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero, stops the merge
 (the Overseer, 2026-10-07).
 
 ## D-144: the rises it expects (E, from SPK-17; accepted in principle, D-223; the node's figures replace them before the merge)
 | Entrypoint | ENG-05's ceiling | What moves | Expected |
 |---|---:|---|---:|
-| `leave` to a dungeon floor | 8,276,640 | `HostsLibrary::floor` (4.07 M in snforge), the outline's 3 slots and one `hosts` slot a quota with a count (about 0.48 M each when new), the entry reveal without the guard (less) | about +7.0 M when the slots are new: ≈ 15.3 M (E) |
+| `leave` to a dungeon floor | 8,276,640 | `HostsLibrary::floor` (4.06 M in snforge), the outline's 3 slots and one `hosts` slot a quota with a count (about 0.48 M each when new), the entry reveal without the guard (less) | about +7.0 M when the slots are new: ≈ 15.3 M (E) |
 | `enter` or `enter_rift` into a dungeon floor (a gate whose destination has `N`) | no dungeon figure (the probe's `enter` is the zone's) | the same | the same rise over its own figure, measured first |
 | A reveal in play (ENG-07) in a dungeon | none yet | three slots read, the hosts' masks set; no guard | measured by ENG-07 |
-| A zone's `create`, `enter`, `leave` | ENG-05's | nothing (the kept draws) | 0 (A3) |
+| A zone's `create`, `enter`, `leave` with a quota | ENG-05's | `HostsLibrary::hosts` restructured (two passes, a dictionary of masks; the same masks): SPK-17 `test_pair_hosts_zone_*`, 1,403,404 on `origin/main`'s copy against 1,547,934 (review t-0089, minor 1) | **+144,530** in snforge (+10.3 % of the draw), measured on the node by A7 |
+| A reveal in a dungeon (D-224 derived) | none | one `Rng` a dungeon side opened, from the seam's seed | +88,772 on SPK-17's one chunk (E) |
 
 ## Measure first
 Cairo builds and tests go through `scripts/lock.sh`, capped (`prlimit --as=8589934592`), with
 `--max-threads 2` (SPK-17 aborted on an 8 GiB allocation without it); SPK-17's whole suite peaked at
-2.42–2.64 GB resident (`/usr/bin/time -v`, two clean runs), about 1.5 minutes. Keep generated tests small (FND-23): a zero-residue test of two floors of 12 with the tile walk is about 1.5 × 10⁹ L2 gas in SPK-17, and a dictionary walk of tiles took one such test to 3.4 × 10⁹ and the capped suite to a refused 1 GiB allocation; split by seeds and walk bit-parallel.
+2.83–2.92 GB resident (`/usr/bin/time -v`, two clean runs). Keep generated tests small (FND-23): a zero-residue test of two floors of 12 with the tile walk is about 1.5 × 10⁹ L2 gas in SPK-17, and a dictionary walk of tiles took one such test to 3.4 × 10⁹ and the capped suite to a refused 1 GiB allocation; split by seeds and walk bit-parallel.
 
 ## Report
 The repository's thread report, with: each acceptance criterion and its evidence; the class sizes;

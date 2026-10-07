@@ -214,6 +214,29 @@ pub fn create_with(entropy: felt252, n: u8, with_piece: bool) -> Floor {
     }
 }
 
+/// The hosts of review t-0088's set-piece floor in the order of c240f76 (the list's order, the
+/// farthest layer only, no fallback), and its farthest layer.
+pub fn hosts_old(entropy: felt252, n: u8) -> (Span<felt252>, felt252) {
+    let outline = OutlineTrait::draw_winding(
+        ENTRY, n, 15, 15, OutlineTrait::seed(entropy, INSTANCE),
+    );
+    let (far, _) = outline.far(ENTRY);
+    let bare = floor_site_with(n, outline, array![].span(), true);
+    let progress = ProgressTrait::new(@bare, entropy);
+    let plan = PlacementTrait::plan(@bare, progress.left.span());
+    let hosts = PlacementTrait::hosts_with(
+        outline.chunks,
+        15,
+        15,
+        plan,
+        bare.pieces,
+        EntropyTrait::hosts(entropy, INSTANCE),
+        array![far].span(),
+        false,
+    );
+    (hosts.span(), far)
+}
+
 /// The chunks of `set`, by index.
 pub fn chunks(set: felt252) -> Array<u8> {
     let mut out: Array<u8> = array![];

@@ -28,10 +28,10 @@ python3 pairs.py snforge-test-output-1.txt snforge-test-output-2.txt > pairs.txt
 
 `--max-threads 2` is needed, and each test kept small: without the flag a capped run aborted on a 512 MB allocation (`memory
 allocation of 536870912 bytes failed`, the 8 GiB address-space cap). Output, on the VPS (Linux, Scarb
-2.20.1, snforge 0.64.0), 2026-10-07: both clean runs `Tests: 43 passed, 0 failed`, peak resident
-memory 2,636,248 kB and 2,416,780 kB, 1:32 and 1:29; every one of the 14 pairs equal to the unit in
-both (`pairs.txt`). `sizes.py` on the same tree's build: `FixedRevealLibrary` 39,878 CASM felts
-(48.68 %), `FloorLibrary` 12,346 (15.07 %), `Slots` 1,563; ENG-05's `RevealLibrary` 41,109 (50.18 %)
+2.20.1, snforge 0.64.0), 2026-10-07: both clean runs `Tests: 48 passed, 0 failed`, peak resident
+memory 2,921,368 kB and 2,826,584 kB; every one of the 16 pairs equal to the unit in
+both (`pairs.txt`). `sizes.py` on the same tree's build: `FixedRevealLibrary` 40,220 CASM felts
+(49.10 %), `FloorLibrary` 12,436 (15.18 %), `Slots` 1,563; ENG-05's `RevealLibrary` 41,109 (50.18 %)
 and `HostsLibrary` 6,580 (8.03 %), equal to ENG-01 §1.3.
 
 ## The zero-residue test (deliverable 2)
@@ -49,10 +49,22 @@ orders. The test calls the engine and the draw as pure functions, so it proves t
 ENG-10b's wiring: ENG-10b's `test_zero_residue` runs the same comparison on the real path (its brief,
 A1, A2).
 
-**In tiles** (review t-0088, minor 2): each order's walked distance from the entry tile to the exit's
-tile (a bit-parallel breadth-first walk on the revealed floor, `fixtures::walk`) is printed, not
-compared. The largest spread over the orders of one floor: **24 tiles** (73 to 97, an `N` = 12 floor);
-the spreads run from 1 to 24 over the 22 floors, the distances from 29 to 124 tiles.
+**In tiles** (review t-0088, minor 2; **D-224**): each order's walked distance from the entry tile
+to the exit's tile (a bit-parallel breadth-first walk on the revealed floor, `fixtures::walk`) is
+asserted equal too. With D-224 prototyped (a seam's openings from the seam's own stream,
+`engine.cairo` `decide`, `openings`), it is equal in every order on the 22 floors. **Without D-224**
+(`a2d740b`, the openings drawn by the chunk revealed first): measured at most 24 tiles over 22 floors
+and 7 orders (73 to 97 on one floor of 12), the spreads 1 to 24, the walks 29 to 124 tiles.
+
+**The set-piece fixture** (review t-0089, note 2): each floor asserts where the set piece went
+(quota 0, never on the farthest chunk; printed: chunks 111, 112, 63, 96, 112, 111).
+`test_piece_old_order` runs the same quotas in c240f76's order (the list's, the farthest layer only):
+3 of 32 floors of 6 whose farthest layer is one chunk leave the exit and the Heart with no host; the
+new order hosts both on all 32.
+
+**A zone's hosts** (review t-0089, minor 1): `test_pair_hosts_zone_*`, the same plan on
+`origin/main`'s `PlacementTrait::hosts` and the spike's: 1,403,404 against 1,547,934 (+144,530), the
+same masks (`test_hosts_zone_unchanged`).
 
 **On ENG-05's merged engine** (`test_zero_residue_on_eng05_*`, a floor a test): the seven orders as
 strategies over what ENG-05 makes revealable, the same comparison: it fails on 4 of 4 floors at `N` =
@@ -67,11 +79,11 @@ re-audits' figure was a hand trace).
 | What | L2 gas (M) |
 |---|---:|
 | The outline, uniform growth (not kept) at `N` = 6 · at 12 · **winding at 12, the law (D-223)** · uniform over the frontier at 12 | 1,212,496 · 2,801,446 · 2,393,509 · 3,893,301 |
-| `create`'s floor in memory (winding outline, layers, three hosts, the exit's and the Heart's first, a mask) · through `FloorLibrary` | 3,906,826 · 4,072,056 |
+| `create`'s floor in memory (winding outline, layers, three hosts, the exit's and the Heart's first, a mask) · through `FloorLibrary` | 3,896,696 · 4,062,126 |
 | Three outline felts and three hosts' bitmaps written new | 2,854,060 |
 | Rejected: two felts written · packed · unpacked | 948,660 · 3,307,641 · 5,367,187 |
-| One chunk next to the entry: ENG-05 · changed engine | 3,804,989 · 2,115,878 |
-| The other 11 chunks: ENG-05 (with the test's search) · changed engine | 65,643,780 · 37,807,769 |
+| One chunk next to the entry: ENG-05 · changed engine | 3,804,989 · 2,204,650 |
+| The other 11 chunks: ENG-05 (with the test's search) · changed engine | 65,643,780 · 37,230,390 |
 
 The outline's shape, 64 entropies a size (`test_outline_*`): the farthest distance 2–5 at `N` = 6
 (mean 2.81), 2–6 at 9 (3.56), 3–6 at 12 (4.20); winding 2–5 at 6 (3.38), 3–9 at 12 (5.16).
