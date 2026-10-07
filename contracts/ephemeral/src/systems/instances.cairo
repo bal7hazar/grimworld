@@ -748,6 +748,7 @@ pub mod Instances {
             }
         }
 
+        #[inline(never)]
         fn refuse(
             ref self: ContractState,
             instance_id: InstanceId,

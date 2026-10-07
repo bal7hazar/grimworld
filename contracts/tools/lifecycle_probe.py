@@ -431,6 +431,11 @@ records = [(REGION, 1, region(1, 0, 1, "Test Region")),
 # that `create` draws and writes a host; a measure, not the recorded streams (which run without).
 if OPTIONS.get("--quotas") == "on":
     records.append((QUOTAS, 2, [LIVE + 4 + 1 * 2 ** 8 + 1 * 2 ** 24]))
+# ENG-05b (the orchestrator, 2026-10-07): with `--floor on`, gate 7, a link from the start hub into
+# the dungeon's first floor (location 3), and one `enter` through it before the accounts change
+# owner; a measure, not the recorded streams (which run without).
+if OPTIONS.get("--floor") == "on":
+    records.append((GATE, 7, gate(1, 3, (0, 0), (112, 112), LINK)))
 # Items 1 to 22 (sequential ids): potions 1, 8, 15, 22, one per pack page; the others ingredients.
 records += [(ITEM, i, item(POTION if i in POTIONS else INGREDIENT)) for i in range(1, 23)]
 for kind, rid, parts in records:
@@ -487,6 +492,14 @@ belted = entered(invoke("enter, later entry, the belt's worst case (4 pages, eac
 invoke("leave to a hub, the belt credited back (4 pages)", instances, "leave", belted, 2, 0, 2)
 belted = entered(invoke("enter, later entry, the belt's worst case (again)", hub, "enter", 2, 1))
 invoke("travel_back, the belt credited back (4 pages)", instances, "travel_back", belted, 2, 0)
+
+# ENG-05b: `enter` into a dungeon floor (`--floor on`), adventurer 1's later entry (its slot
+# reused): `create` draws the floor's outline and hosts (`HostsLibrary::floor`), writes its three
+# slots, and reveals the chunks sight touches.
+if OPTIONS.get("--floor") == "on":
+    invoke("travel_back", instances, "travel_back", fifth, 1, 0, record=False)
+    invoke("enter, later entry, into a dungeon floor (gate 7: the outline and its hosts drawn)",
+           hub, "enter", 1, 7)
 
 # CBT-02e fix loop 1 (AC-5): a snapshot word's overwrite on the node. Three `set_build` of
 # adventurer 2 with the same reads and the same computation (two potions, pages 0 and 1): the

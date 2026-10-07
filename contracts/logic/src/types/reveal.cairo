@@ -125,7 +125,7 @@ pub struct Site {
 
 /// What a reveal reads and writes of an instance: the revealed set and count, a dungeon's open
 /// edges, what each quota has left to place, and the entropy.
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+#[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Progress {
     /// Bit `15 cy + cx`.
     pub revealed: felt252,
@@ -136,6 +136,57 @@ pub struct Progress {
     /// Left to place of quota `i`: the location's 6, then the tasks' 8.
     pub left: [u8; 14],
     pub entropy: felt252,
+}
+
+/// `Progress`' Serde, the derived one's encoding (`left`'s 14 values one felt each, no length),
+/// its 14 values taken in one `multi_pop_front`: the derived `[u8; 14]` went through one generic
+/// function a remaining length, ~1,100 CASM felts of `Instances` (ENG-05b, D-209).
+pub impl ProgressSerde of Serde<Progress> {
+    fn serialize(self: @Progress, ref output: Array<felt252>) {
+        output.append(*self.revealed);
+        output.append((*self.count).into());
+        output.append((*self.open_edges).into());
+        let [l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13] = *self.left;
+        output.append(l0.into());
+        output.append(l1.into());
+        output.append(l2.into());
+        output.append(l3.into());
+        output.append(l4.into());
+        output.append(l5.into());
+        output.append(l6.into());
+        output.append(l7.into());
+        output.append(l8.into());
+        output.append(l9.into());
+        output.append(l10.into());
+        output.append(l11.into());
+        output.append(l12.into());
+        output.append(l13.into());
+        output.append(*self.entropy);
+    }
+
+    fn deserialize(ref serialized: Span<felt252>) -> Option<Progress> {
+        let revealed = Serde::deserialize(ref serialized)?;
+        let count = Serde::deserialize(ref serialized)?;
+        let open_edges = Serde::deserialize(ref serialized)?;
+        let [l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13] = *serialized
+            .multi_pop_front::<14>()?
+            .as_snapshot()
+            .unbox();
+        let entropy = Serde::deserialize(ref serialized)?;
+        Option::Some(
+            Progress {
+                revealed,
+                count,
+                open_edges,
+                left: [
+                    l0.try_into()?, l1.try_into()?, l2.try_into()?, l3.try_into()?, l4.try_into()?,
+                    l5.try_into()?, l6.try_into()?, l7.try_into()?, l8.try_into()?, l9.try_into()?,
+                    l10.try_into()?, l11.try_into()?, l12.try_into()?, l13.try_into()?,
+                ],
+                entropy,
+            },
+        )
+    }
 }
 
 /// A chunk revealed: its two words.
@@ -955,7 +1006,7 @@ pub mod tests {
     // chunk's edge bit `s` is open exactly when side `s` of its ring holds an opening.
     #[test]
     // gas: raised, ENG-10b: each floor built as create makes it, its outline and hosts first
-    #[available_gas(l2_gas: 109963038)] // ceil(1.05 × 104726702 measured)
+    #[available_gas(l2_gas: 104344181)] // ceil(1.05 × 99375410 measured)
     fn test_edges_against_hexx_sides() {
         let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed: felt252 = 0;
@@ -1036,32 +1087,32 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 181878289)] // ceil(1.05 × 173217418 measured)
+    #[available_gas(l2_gas: 174093178)] // ceil(1.05 × 165803026 measured)
     fn test_invariants_meadow() {
         check_zone_words(biome::MEADOW, 0, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 186463802)] // ceil(1.05 × 177584573 measured)
+    #[available_gas(l2_gas: 178061873)] // ceil(1.05 × 169582736 measured)
     fn test_invariants_forest() {
         check_zone_words(biome::FOREST, 100, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 188891351)] // ceil(1.05 × 179896524 measured)
+    #[available_gas(l2_gas: 179421533)] // ceil(1.05 × 170877650 measured)
     fn test_invariants_cave() {
         check_zone_words(biome::CAVE, 200, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 191597372)] // ceil(1.05 × 182473687 measured)
+    #[available_gas(l2_gas: 182237334)] // ceil(1.05 × 173559365 measured)
     fn test_invariants_ruin() {
         check_zone_words(biome::RUIN, 300, 6);
     }
 
     // The location's border and a void chunk close a side (D-134); an anchor on it stays open.
     #[test]
-    #[available_gas(l2_gas: 60921420)] // ceil(1.05 × 58020400 measured)
+    #[available_gas(l2_gas: 58153261)] // ceil(1.05 × 55384058 measured)
     fn test_border_and_void_closed_but_anchors() {
         // Chunks (0, 0), (1, 0) and (0, 1) of a 2 × 2 zone; (1, 1) is outside the outline.
         let mut site = zone(biome::FOREST, 2, 2, no_quotas());
@@ -1100,7 +1151,7 @@ pub mod tests {
     // A border chunk is cut by its tile mask after its edges are opened (N-4): nothing outside the
     // mask is floor, the ring included; a chunk of the set without a mask is whole.
     #[test]
-    #[available_gas(l2_gas: 46300917)] // ceil(1.05 × 44096111 measured)
+    #[available_gas(l2_gas: 43915968)] // ceil(1.05 × 41824731 measured)
     fn test_cut_by_the_outline() {
         // Columns 0 to 11 of the chunk, as the test region's chunk (2, 0).
         let mut mask: felt252 = 0;
@@ -1223,13 +1274,13 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 348332855)] // ceil(1.05 × 331745576 measured)
+    #[available_gas(l2_gas: 340200851)] // ceil(1.05 × 324000810 measured)
     fn test_dungeon_revealed_whole_n_6() {
         check_dungeon(6, 0, 4);
     }
 
     #[test]
-    #[available_gas(l2_gas: 286317413)] // ceil(1.05 × 272683250 measured)
+    #[available_gas(l2_gas: 276870983)] // ceil(1.05 × 263686650 measured)
     fn test_dungeon_revealed_whole_n_12() {
         check_dungeon(12, 50, 2);
     }
@@ -1238,7 +1289,7 @@ pub mod tests {
     // the outline that no open seam joins to a revealed chunk (beyond a closed seam) is revealable,
     // as a zone's chunk is when sight touches it (D-223, ruling 3); a chunk outside it is void.
     #[test]
-    #[available_gas(l2_gas: 228852147)] // ceil(1.05 × 217954425 measured)
+    #[available_gas(l2_gas: 228650379)] // ceil(1.05 × 217762265 measured)
     fn test_dungeon_revealable_is_the_outline() {
         let mut seed: felt252 = 0;
         while seed != 8 {
@@ -1296,7 +1347,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 9400985)] // ceil(1.05 × 8953319 measured)
+    #[available_gas(l2_gas: 9388375)] // ceil(1.05 × 8941309 measured)
     fn test_cost_seams_derived_n12() {
         let site = dungeon(12, no_quotas(), 'seams');
         seams_life(@site, 'seams');
@@ -1309,7 +1360,7 @@ pub mod tests {
 
     // The derivation's part that storing would save: the outline's seed, once a chunk revealed.
     #[test]
-    #[available_gas(l2_gas: 5893393)] // ceil(1.05 × 5612755 measured)
+    #[available_gas(l2_gas: 5880783)] // ceil(1.05 × 5600745 measured)
     fn test_cost_seams_seeds_n12() {
         let site = dungeon(12, no_quotas(), 'seams');
         let count = BoardTrait::count(site.chunk_set);
@@ -1321,7 +1372,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5641261)] // ceil(1.05 × 5372629 measured)
+    #[available_gas(l2_gas: 5628650)] // ceil(1.05 × 5360619 measured)
     fn test_cost_seams_baseline_n12() {
         let _site = dungeon(12, no_quotas(), 'seams');
     }
@@ -1329,7 +1380,7 @@ pub mod tests {
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
     // revealed, whatever the order.
     #[test]
-    #[available_gas(l2_gas: 52421643)] // ceil(1.05 × 49925374 measured)
+    #[available_gas(l2_gas: 45668733)] // ceil(1.05 × 43494031 measured)
     fn test_zone_quotas_all_placed() {
         let quotas = QuotaSet {
             quotas: [
@@ -1369,7 +1420,7 @@ pub mod tests {
     // A task to reach a landmark adds its quota after the location's (Open question 7); a caste
     // to kill names no template, so it adds nothing.
     #[test]
-    #[available_gas(l2_gas: 208289)] // ceil(1.05 × 198370 measured)
+    #[available_gas(l2_gas: 199668)] // ceil(1.05 × 190160 measured)
     fn test_task_quotas() {
         let mut site = zone(biome::MEADOW, 3, 2, no_quotas());
         site
@@ -1386,7 +1437,7 @@ pub mod tests {
     // A set piece's quota lays the authored chunk: its interior kept but for the openings' lines,
     // its placements kept, its edges joined.
     #[test]
-    #[available_gas(l2_gas: 7804984)] // ceil(1.05 × 7433318 measured)
+    #[available_gas(l2_gas: 7298373)] // ceil(1.05 × 6950831 measured)
     fn test_set_piece_laid() {
         // An authored arena: the interior open but a wall block at rows 2–4, columns 2–4.
         let mut walls = BOARD - INTERIOR;
@@ -1425,7 +1476,7 @@ pub mod tests {
 
     // D-140: no word panics, with any mask on any chunk.
     #[test]
-    #[available_gas(l2_gas: 73572985)] // ceil(1.05 × 70069509 measured)
+    #[available_gas(l2_gas: 70951683)] // ceil(1.05 × 67573031 measured)
     fn test_no_panic_any_mask() {
         let mut seed: felt252 = 0;
         while seed != 12 {
@@ -1450,7 +1501,7 @@ pub mod tests {
     // AC-4: the same chunk under the same entropy gives the same words; the feed is a set; a
     // reveal's word is under its own domain (never the entry draw's, never another chunk's).
     #[test]
-    #[available_gas(l2_gas: 9491645)] // ceil(1.05 × 9039661 measured)
+    #[available_gas(l2_gas: 8008222)] // ceil(1.05 × 7626878 measured)
     fn test_word_and_feed() {
         let site = zone(biome::FOREST, 3, 2, no_quotas());
         let mut first = ProgressTrait::new(@site, 'entropy');
@@ -1490,7 +1541,7 @@ pub mod tests {
     // and 2 revealed in either order, then chunk 1 between them (the same neighbours known), give
     // the same words for every chunk.
     #[test]
-    #[available_gas(l2_gas: 14076947)] // ceil(1.05 × 13406616 measured)
+    #[available_gas(l2_gas: 13833381)] // ceil(1.05 × 13174648 measured)
     fn test_reveal_order_free() {
         let site = zone(biome::CAVE, 3, 1, no_quotas());
         let mut ab = ProgressTrait::new(@site, 'order');
@@ -1573,7 +1624,7 @@ pub mod tests {
     // orders every chunk holds exactly the quotas it hosts, nothing forced, nothing owed at the
     // end.
     #[test]
-    #[available_gas(l2_gas: 334452089)] // ceil(1.05 × 318525799 measured)
+    #[available_gas(l2_gas: 285487039)] // ceil(1.05 × 271892418 measured)
     fn test_zone_quota_hosts_order_free() {
         let quotas = QuotaSet {
             quotas: [
@@ -1619,7 +1670,7 @@ pub mod tests {
     // never drawn onto the set piece's chunk (refused, its successor taken), and lands on the
     // other chunk in both orders, nothing owed.
     #[test]
-    #[available_gas(l2_gas: 89715796)] // ceil(1.05 × 85443615 measured)
+    #[available_gas(l2_gas: 80948486)] // ceil(1.05 × 77093796 measured)
     fn test_hosts_respect_the_caps() {
         let mut walls = BOARD - INTERIOR;
         walls += Bits::pow(2 * 15 + 2) * 7;
@@ -1688,7 +1739,7 @@ pub mod tests {
     // members, no cap on the draws. A 15 × 15 rectangle whose chunk set is 16 chunks, a quota of
     // 4: every quota finds its 4 hosts, all in the set.
     #[test]
-    #[available_gas(l2_gas: 51126027)] // ceil(1.05 × 48691454 measured)
+    #[available_gas(l2_gas: 51060423)] // ceil(1.05 × 48628974 measured)
     fn test_hosts_in_a_sparse_set() {
         let quotas = QuotaSet {
             quotas: [
@@ -1718,7 +1769,7 @@ pub mod tests {
     // dropped. A 2 × 1 zone, a Heart (template 3: one caste, 0 to 2) and a collector of 2, so the
     // Heart shares its host with a collector: revealed in both orders, the Heart is laid each time.
     #[test]
-    #[available_gas(l2_gas: 58031639)] // ceil(1.05 × 55268227 measured)
+    #[available_gas(l2_gas: 51831086)] // ceil(1.05 × 49362939 measured)
     fn test_heart_on_a_min_zero_template() {
         let quotas = QuotaSet {
             quotas: [
@@ -1764,7 +1815,7 @@ pub mod tests {
     // outside the rectangle (chunk 5 of a 3 × 1 zone) and a vein of 3, above the 2 members inside:
     // the draw ends with 2 hosts, the rest kept owed, no endless draw.
     #[test]
-    #[available_gas(l2_gas: 592924)] // ceil(1.05 × 564689 measured)
+    #[available_gas(l2_gas: 584723)] // ceil(1.05 × 556879 measured)
     fn test_hosts_above_the_members() {
         let quotas = QuotaSet {
             quotas: [
@@ -1803,7 +1854,7 @@ pub mod tests {
     // most draws a legal plan asks; the rest take the few members left or find none. Their gas
     // is the draw's worst case (ENG-05's report).
     #[test]
-    #[available_gas(l2_gas: 2083761)] // ceil(1.05 × 1984534 measured)
+    #[available_gas(l2_gas: 2075561)] // ceil(1.05 × 1976724 measured)
     fn test_hosts_worst_plan() {
         let hosts = crowded(255);
         assert(BoardTrait::count(*hosts[0]) == 225, 'every chunk');
@@ -1811,7 +1862,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 2769522)] // ceil(1.05 × 2637640 measured)
+    #[available_gas(l2_gas: 2761322)] // ceil(1.05 × 2629830 measured)
     fn test_hosts_worst_draws() {
         let hosts = crowded(224);
         assert(BoardTrait::count(*hosts[0]) == 224, 'all but one');
@@ -1845,14 +1896,14 @@ pub mod tests {
     // Under D-220's complement draw the most draws a pass asks is at half the members: six
     // passes of 112 draws, the mixed plan at 112.
     #[test]
-    #[available_gas(l2_gas: 103059657)] // ceil(1.05 × 98152054); 98153254 measured since
+    #[available_gas(l2_gas: 103052507)] // ceil(1.05 × 98145244 measured)
     fn test_hosts_worst_half() {
         let hosts = mixed(112);
         assert(BoardTrait::count(*hosts[5]) == 112, 'six passes');
     }
 
     #[test]
-    #[available_gas(l2_gas: 1978706)] // ceil(1.05 × 1884481 measured)
+    #[available_gas(l2_gas: 1970295)] // ceil(1.05 × 1876471 measured)
     fn test_hosts_worst_mixed() {
         let quotas = QuotaSet {
             quotas: [
@@ -1926,7 +1977,7 @@ pub mod tests {
     // that chunk's first pack is the Heart (template 2, which the spawn table names too).
     #[test]
     // gas: raised, ENG-10b: the floor revealed whole, the Heart hosted at the farthest
-    #[available_gas(l2_gas: 130924552)] // ceil(1.05 × 124690049 measured)
+    #[available_gas(l2_gas: 121898073)] // ceil(1.05 × 116093402 measured)
     fn test_heart_at_the_band_top() {
         let quotas = QuotaSet {
             quotas: [
@@ -1990,7 +2041,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 154705958)] // ceil(1.05 × 147339007 measured)
+    #[available_gas(l2_gas: 138279157)] // ceil(1.05 × 131694435 measured)
     fn test_biome_shares_meadow_forest() {
         let meadow = share(biome::MEADOW, 24);
         println!("meadow {}", meadow);
@@ -2001,7 +2052,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 157579021)] // ceil(1.05 × 150075258 measured)
+    #[available_gas(l2_gas: 140905480)] // ceil(1.05 × 134195695 measured)
     fn test_biome_shares_cave_ruin() {
         let cave = share(biome::CAVE, 24);
         println!("cave {}", cave);
@@ -2292,7 +2343,7 @@ pub mod tests {
     /// Part 2: a dungeon floor of `N` 6, its outline drawn at `create` (ENG-10b), revealed whole
     /// by index; a zone's quotas on their hosts (D-208), a set piece, a task's landmark.
     #[test]
-    #[available_gas(l2_gas: 315472759)] // ceil(1.05 × 300450246 measured)
+    #[available_gas(l2_gas: 311827906)] // ceil(1.05 × 296978958 measured)
     fn test_vectors_2() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_2;
@@ -2371,6 +2422,34 @@ pub mod tests {
     const PART_2: u32 = 186;
     const DIGEST_0: felt252 =
         1099007504077458561703646988744304604964174275844371738808055141155867483297;
+    // ENG-05b: `Progress`' hand-written Serde keeps the derived encoding, `left` one felt a value
+    // with no length, and refuses a value above a byte.
+    #[test]
+    #[available_gas(l2_gas: 118314)] // ceil(1.05 × 112680 measured)
+    fn test_progress_serde() {
+        let progress = Progress {
+            revealed: 0x10001,
+            count: 2,
+            open_edges: 0,
+            left: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 255],
+            entropy: 'entropy',
+        };
+        let mut out: Array<felt252> = array![];
+        progress.serialize(ref out);
+        let expected = array![
+            0x10001, 2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 255, 'entropy',
+        ];
+        assert(out == expected, 'encoding');
+        let mut words = out.span();
+        assert(Serde::<Progress>::deserialize(ref words) == Option::Some(progress), 'decoded');
+        assert(words.len() == 0, 'consumed');
+        let mut wrong = array![0x10001, 2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 256, 'e']
+            .span();
+        assert(Serde::<Progress>::deserialize(ref wrong).is_none(), 'byte');
+        let mut short = array![0x10001, 2, 0, 1, 2].span();
+        assert(Serde::<Progress>::deserialize(ref short).is_none(), 'short');
+    }
+
     const DIGEST_1: felt252 =
         3406219353955151080332403134172067514426351653970253477291706690989101018180;
     const DIGEST_2: felt252 =
