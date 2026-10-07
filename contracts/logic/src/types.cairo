@@ -2,13 +2,11 @@
 //! (docs/architecture/ENG-01-interfaces.md). The order of every enum's variants is frozen: it is
 //! their encoding in calldata and events.
 
-/// The goblins' acts: step 2 of the tick, one hook for the step (ENG-07).
-pub mod ai;
-/// A segment of a played batch: the actions in order, the moves, the window (ENG-07).
-pub mod play;
 /// The adventurer's action between two ticks: legality, costs, facing, resolution (design/19 §5.3,
 /// CBT-05b).
 pub mod action;
+/// The goblins' acts: step 2 of the tick, one hook for the step (ENG-07).
+pub mod ai;
 /// The enumerations of combat that are not an entry's own fields (design/19, CBT-01).
 pub mod combat;
 /// The effect entry and its enumerations (design/19 §2, §3, CBT-01).
@@ -21,6 +19,8 @@ pub mod hit;
 pub mod infliction;
 /// Passive effects (design/19 §4, CBT-01).
 pub mod passive;
+/// A segment of a played batch: the actions in order, the moves, the window (ENG-07).
+pub mod play;
 /// The chunk reveal engine: generation with margins, edges, the cut, quotas and placement
 /// (ENG-05, ADR-0006).
 pub mod reveal;

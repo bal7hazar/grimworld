@@ -597,7 +597,8 @@ mod tests {
     // Wait costs 1 and writes nothing; Turn costs 0, sets the facing, and only once between two
     // ticks (design/04); a knocked-down adventurer may only Wait (FX-7).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 10564147)] // ceil(1.05 × 10061092 measured)
     fn test_wait_turn_knocked() {
         let sheets = bench().sheets();
@@ -622,7 +623,8 @@ mod tests {
     // The clock past `LAST_TICK` refuses any action (E-4); an adventurer at 0 acts no more; Move
     // and Interact are ENG-07's.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 10360140)] // ceil(1.05 × 9866800 measured)
     fn test_clock_absent_kind() {
         let sheets = bench().sheets();
@@ -643,7 +645,8 @@ mod tests {
     // A weapon attack lands now and costs the weapon's `k` (1 here): the goblin hit, the member
     // turned toward it. Refused: no such entity, a member, a dead goblin, one out of reach.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 13418201)] // ceil(1.05 × 12779239 measured)
     fn test_attack() {
         let sheets = bench().sheets();
@@ -716,7 +719,8 @@ mod tests {
     // and the flag: a second instant skill between two ticks is refused. An attack skill of 2
     // adrenaline: refused short, else lands now for its weapon's `k` (FX-5).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 14293085)] // ceil(1.05 × 13612461 measured)
     fn test_instant_and_attack_skill() {
         let sheets = bench().sheets();
@@ -792,7 +796,8 @@ mod tests {
     // An ally skill reaches a living member, not a goblin; a `SELF` one leaves the facing alone
     // (the same tile, D-174).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 12936453)] // ceil(1.05 × 12320431 measured)
     fn test_ally_and_self() {
         let sheets = bench().sheets();
@@ -817,7 +822,8 @@ mod tests {
     // 1 tick, the goblins of its `DISC_1` hit now. Refused: an empty count, an item the content
     // lacks, out of reach.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 12812935)] // ceil(1.05 × 12202795 measured)
     fn test_item_bomb() {
         let sheets = bench().sheets();
@@ -850,7 +856,8 @@ mod tests {
     // (§10.10: 10 / 2 /
     // 20 at clock 300, `A = 302`).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 12440172)] // ceil(1.05 × 11847782 measured)
     fn test_trap_tile() {
         let sheets = bench().sheets();

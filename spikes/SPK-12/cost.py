@@ -163,7 +163,8 @@ def phone() -> None:
 # fight (`test_tick::test_cost_segment_fight*` less their fixtures, the segment in process: its call,
 # 1,409,090 M, added), ENG-05's accepted rises on `enter` and `leave` (PLAN's ENG-05 row).
 EXPLORATION_BATCH = 18_992_640  # 10 Moves, every tick on the fast path (node, M)
-REVEAL_IN_PLAY = 8_025_600  # one chunk revealed by a Move, end to end (node, M: 14,818,240 - 6,792,640)
+# One chunk revealed by a Move, end to end (node, M: 14,898,240 - 6,792,640, the max of seven runs).
+REVEAL_IN_PLAY = 8_105_600
 FIGHT_BATCH_REAL = 189_431_756 + 1_409_090  # 8 goblins attacking a tick, the member at 480: 4 ticks (M)
 FIGHT_BATCH_WHOLE = 483_793_084 + 1_409_090  # the same, the member standing 10 ticks (M)
 FIGHT_BATCH_CAP4 = 366_384_550 + 1_409_090  # lever 1, at most 4 attacking (M, the cap stood in for)

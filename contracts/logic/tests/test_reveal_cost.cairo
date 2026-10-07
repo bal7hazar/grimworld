@@ -141,7 +141,8 @@ fn test_cost_reveal_worst_ruin() {
 
 // The typical case's baseline: its known sides revealed, nothing more.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 4983606)] // ceil(1.05 × 4746291 measured)
 fn test_cost_reveal_typical_baseline() {
     let site = site(biome::FOREST, false);

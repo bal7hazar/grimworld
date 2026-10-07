@@ -27,7 +27,8 @@
 //! - **Fleeing**: a step away; cornered (no step), it is Engaged again (design/04).
 //! - **Asleep, on watch, returning**: nothing.
 //! A step sets the facing toward the tile entered (design/04: a move sets facing); a crippled step
-//! costs 2 and recovers until `B = T + 1` (§5.2, FX-15, unless a `MOVEMENT` effect is held, FX-18);
+//! costs 2 and recovers until `B = T + 1` (§5.2, FX-15, unless a `MOVEMENT` effect is held,
+//! FX-18);
 //! entering a tile that holds an unused trap triggers it (`Enter`, §5.11), which ends the act.
 //!
 //! **The attackers' cap** (`MAX_ATTACKERS`, CBT-05d's lever 1): at most that many goblins attack
@@ -45,21 +46,20 @@
 
 use hexx::finders::bfs::Bfs;
 use hexx::finders::flood::{Flood, FloodTrait};
-use crate::models::goblin::{
-    Goblin, GoblinPlaceTrait, GoblinTickTrait, GoblinTrait, GoblinConditionTrait,
-};
-use crate::models::member::MemberSnapshotTrait;
-use crate::types::action::Carry;
+use crate::interface::{ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
 use crate::models::chunk::object;
+use crate::models::goblin::{
+    Goblin, GoblinConditionTrait, GoblinPlaceTrait, GoblinTickTrait, GoblinTrait,
+};
+use crate::models::member::{MemberSnapshotTrait, MemberTrait};
+use crate::types::action::Carry;
 use crate::types::combat::{Placer, PlacerTrait, activation, skill_kind};
 use crate::types::effect::{kind, target};
-use crate::interface::{ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
-use crate::models::member::MemberTrait;
 use crate::types::executor::{
     Board, BoardTrait, Carrier, Delegate, Executor, ExecutorTrait, Levered, Levers, ORIGIN,
 };
-use crate::types::trap::{Ground, TrapTrait};
 use crate::types::tick::{ABSENT, Sheets, ai};
+use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowTrait};
 use crate::types::world::{Actor, Words, World, WorldTrait};
 
@@ -187,7 +187,15 @@ pub impl AiImpl of AiTrait {
                 && goblin.is_alive()
                 && resolved & bit == 0 {
                 if Self::act(
-                    ref world, sheets, ref rules, @board, ref flood, index, goblin, attacks < cap, t,
+                    ref world,
+                    sheets,
+                    ref rules,
+                    @board,
+                    ref flood,
+                    index,
+                    goblin,
+                    attacks < cap,
+                    t,
                 ) {
                     attacks += 1;
                 }
@@ -227,7 +235,9 @@ pub impl AiImpl of AiTrait {
             if !attack {
                 return false;
             }
-            if Self::skill(ref world, sheets, ref rules, board, source, goblin, target, target_at, t) {
+            if Self::skill(
+                ref world, sheets, ref rules, board, source, goblin, target, target_at, t,
+            ) {
                 return true;
             }
             let carrier = Carrier::Weapon;
@@ -283,7 +293,9 @@ pub impl AiImpl of AiTrait {
                     let (address, to) = Self::address(
                         @world, goblin, first.target, sheet.kind, target, target_at,
                     );
-                    if ExecutorTrait::legal(@lever, @world, sheets, board, source, carrier, address) {
+                    if ExecutorTrait::legal(
+                        @lever, @world, sheets, board, source, carrier, address,
+                    ) {
                         Self::use_skill(
                             ref world,
                             sheets,
@@ -309,8 +321,8 @@ pub impl AiImpl of AiTrait {
     }
 
     /// What the goblin's skill addresses (§2.3): an attack skill or a `FOE` entry the target, a
-    /// `TILE` one the target's tile (`x + 256 y`), `SELF` and `ALLY` itself (a heal of the pack is a
-    /// profile's choice, `support`: not encoded, the module's readings).
+    /// `TILE` one the target's tile (`x + 256 y`), `SELF` and `ALLY` itself (a heal of the pack is
+    /// a profile's choice, `support`: not encoded, the module's readings).
     /// Returns the address and its position in the window.
     fn address(
         world: @World, goblin: Goblin, addressing: u8, kind: u8, target: u16, target_at: u8,
@@ -410,7 +422,9 @@ pub impl AiImpl of AiTrait {
         // A step is a walkable tile, inside the location: its origin less `ORIGIN` is not negative.
         goblin
             .set_place(
-                *board.x + dx - ORIGIN, *board.y + dy - ORIGIN, WindowTrait::facing(from, to, facing),
+                *board.x + dx - ORIGIN,
+                *board.y + dy - ORIGIN,
+                WindowTrait::facing(from, to, facing),
             );
         let cost = goblin.move_ticks(t, Self::movement(@goblin, sheets, t));
         goblin.recover(cost, t);

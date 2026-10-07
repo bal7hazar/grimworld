@@ -48,7 +48,7 @@ Batches: D-172 stops a batch before a tick that would pass the limit, so each wo
 
 | batches | L2 gas | S1 | against 663 M |
 |---|--:|--:|--:|
-| 30 exploration batches, 4 reveals (E: the mix) | 618,994,859 | $0.545 | 0.93x |
-| 27 exploration + 3 fights at real health (4 ticks each) (E: the mix) | 1,134,539,477 | $1.000 | 1.71x |
-| 27 exploration + 3 whole fights (10 ticks of 8 attackers) (E: the mix) | 2,017,623,461 | $1.778 | 3.04x |
-| 27 exploration + 3 whole fights, lever 1 (at most 4 attackers) (E: the mix) | 1,665,397,859 | $1.467 | 2.51x |
+| 30 exploration batches, 4 reveals (E: the mix) | 619,314,859 | $0.546 | 0.93x |
+| 27 exploration + 3 fights at real health (4 ticks each) (E: the mix) | 1,134,859,477 | $1.000 | 1.71x |
+| 27 exploration + 3 whole fights (10 ticks of 8 attackers) (E: the mix) | 2,017,943,461 | $1.778 | 3.04x |
+| 27 exploration + 3 whole fights, lever 1 (at most 4 attackers) (E: the mix) | 1,665,717,859 | $1.467 | 2.51x |

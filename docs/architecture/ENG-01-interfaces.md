@@ -1658,14 +1658,14 @@ the node the maximum of six runs of `lifecycle_probe.py --play on`).** The chain
 | Lever 1 (at most 4 attackers, the cap stood in for): a tick; the batch at real health; whole | 26,435,796; 253,005,613; 366,384,550 | `test_cost_lever_*` |
 | The exploration batch, 10 Moves, every tick on the fast path (node) | 18,992,640 (+ 5 %: 19,942,272) | `lifecycle_probe.py --play on` |
 | One Move, legal; refused (a wall) (node) | 6,792,640; 5,392,640 | the same |
-| A reveal in play, one chunk, end to end (node: a 1-Move walk revealing less a 1-Move batch) | 8,025,600 | the same |
+| A reveal in play, one chunk, end to end (node: a 1-Move walk revealing less a 1-Move batch) | 8,105,600 | the same |
 
 The fixed cost of a fight tick's chain before any hit (D-236 #4), from the calls measured: the
 `ActionLibrary` call with the whole words (2,578,020 to 3,323,680, this section's library call) +
 the `TickLibrary` call (≈ 4.17 M with 8 goblins, `rep_idle` − `rep_fixture` at CBT-05b's head) +
 `AiLibrary`'s 4,559,107: **≈ 11.3 M to 12.1 M a tick**; once a batch, `SegmentLibrary`'s ≈ 1.4 M and
 `PlayLibrary`'s reads and writes (the node's refused Move, 5,392,640, holds them with the
-transaction's base). **E-12's weight stays 2** (D-225: measured end to end): a reveal, 8,025,600,
+transaction's base). **E-12's weight stays 2** (D-225: measured end to end): a reveal, 8,105,600,
 is about a sixth of a representative fight tick (≈ 47.4 M at real health).
 
 ### 9.3 Every public entrypoint: its complete write set

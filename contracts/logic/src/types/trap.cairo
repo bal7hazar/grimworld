@@ -427,7 +427,8 @@ mod tests {
     // moves onto it: strength 3 × 20 = 60, rank 12; the hit 100 → 44, Crippled `D = 307`; the
     // object used.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 12934340)] // ceil(1.05 × 12318419 measured)
     fn test_example_trap() {
         let sheets = sheets();
@@ -463,7 +464,8 @@ mod tests {
 
     // A placed trap never triggers on its own side: the member on its own trap.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 9315201)] // ceil(1.05 × 8871620 measured)
     fn test_own_side() {
         let sheets = sheets();
@@ -517,7 +519,8 @@ mod tests {
     // `place` writes the object at the free index and leaves the others; an actor on the tile
     // refuses it (a dead goblin's remains do not).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 16209541)] // ceil(1.05 × 15437658 measured)
     fn test_place() {
         let sheets = sheets();
@@ -564,7 +567,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 10404668)] // ceil(1.05 × 9909207 measured)
     fn test_cost_trigger() {
         let (mut world, sheets, mut ground) = trigger_state();
@@ -574,7 +578,8 @@ mod tests {
 
     // A window position's chunk and tile, the board's origin added; outside the window, none.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
+    // (D-233 to D-236)
     #[available_gas(l2_gas: 12380)] // ceil(1.05 × 11790 measured)
     fn test_locate() {
         let board = board();

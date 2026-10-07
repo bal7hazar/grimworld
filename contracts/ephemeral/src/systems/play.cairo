@@ -1,5 +1,6 @@
 //! `play`'s body as a library class of this package (ENG-07; D-234, D-235): `Instances.play` makes
-//! its admission checks and calls `PlayLibrary` by `library_call`, so this code runs in `Instances`'
+//! its admission checks and calls `PlayLibrary` by `library_call`, so this code runs in
+//! `Instances`'
 //! context: its storage, through `Instances`' own store (`InstancesStoreTrait`, on the state
 //! `Instances::unsafe_new_contract_state` gives), and its events, emitted from its address. The
 //! layout and the events are `Instances`' (ENG-01 §3.2, §5), unchanged.
@@ -67,12 +68,12 @@ pub mod PlayLibrary {
         }
     }
 }
-
 use grimworld_logic::actions::decode_batch;
 use grimworld_logic::content::{CASTE, ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRevealLibraryDispatcherTrait,
-    IRevealLibraryLibraryDispatcher,
+    IRevealLibraryLibraryDispatcher, ISegmentLibraryDispatcherTrait,
+    ISegmentLibraryLibraryDispatcher,
 };
 use grimworld_logic::models::chunk::{
     Features, FeaturesStorePacking, PackPlacementTrait, Terrain, TerrainStorePacking,
@@ -84,26 +85,22 @@ use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackRecord, PackTrait};
 use grimworld_logic::packing::{Bitmap, LIVE, Lanes16};
 use grimworld_logic::types::play::{Area, Classes};
-use grimworld_logic::types::reveal::ProgressTrait;
-use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
 use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
+use grimworld_logic::types::reveal::{ProgressTrait, SightTrait};
 use grimworld_logic::types::tick::{
     CasteSheet, CasteSheetTrait, Content, PotionSheet, PotionSheetTrait, SkillSheet,
     SkillSheetTrait,
 };
 use grimworld_logic::types::world::Words;
-use grimworld_logic::interface::{ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher};
 use grimworld_logic::types::{MAX_WEIGHT, Refusal, Stop, goblin_entity};
+use starknet::event::EventEmitter;
 use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
-use crate::models::instance::{
-    Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait,
-};
-use crate::models::member::MemberState;
 use crate::helpers::stored::StoredTrait;
+use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
+use crate::models::member::MemberState;
 use crate::store::InstancesStoreTrait;
-use starknet::event::EventEmitter;
 use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
 use crate::systems::instances::play_class;
 
@@ -395,15 +392,28 @@ pub impl PlayImpl of PlayTrait {
         let actions = match decode_batch(actions) {
             Some(actions) => actions,
             None => {
-                self.played(instance_id, adventurer_id, sequence, @header, 0, Stop::Invalid, version);
+                self
+                    .played(
+                        instance_id, adventurer_id, sequence, @header, 0, Stop::Invalid, version,
+                    );
                 return;
             },
         };
         let area = Self::area(@self, slot, @location, set, revealed, @ground);
-        let read = Read {
-            header, location, area, ground, goblins: goblins.span(), roster,
-        };
-        self.run(instance_id, adventurer_id, sequence, version, slot, member, members, content, actions.span(), read);
+        let read = Read { header, location, area, ground, goblins: goblins.span(), roster };
+        self
+            .run(
+                instance_id,
+                adventurer_id,
+                sequence,
+                version,
+                slot,
+                member,
+                members,
+                content,
+                actions.span(),
+                read,
+            );
     }
 
     /// The segments, the reveals between them, the write-back and the events.
@@ -496,7 +506,16 @@ pub impl PlayImpl of PlayTrait {
                 } else {
                     0
                 };
-                self.reveal(slot, instance_id, ref header, @location, ref area, ref ground, chunks.span());
+                self
+                    .reveal(
+                        slot,
+                        instance_id,
+                        ref header,
+                        @location,
+                        ref area,
+                        ref ground,
+                        chunks.span(),
+                    );
                 for chunk in chunks {
                     revealed.append(chunk);
                 }
@@ -508,12 +527,15 @@ pub impl PlayImpl of PlayTrait {
                 }
             }
             area = Self::area(@self, slot, @location, area.known, area.revealed, @ground);
-        };
+        }
         let out = words;
         // [Effect] The words written back
         let mut m: u8 = 0;
         for words in out.members.span() {
-            self.set_member_words(slot, m, *words.state, *words.timers, *words.effects, *words.recharges);
+            self
+                .set_member_words(
+                    slot, m, *words.state, *words.timers, *words.effects, *words.recharges,
+                );
             m += 1;
         }
         let mut k: u32 = 0;
@@ -552,7 +574,7 @@ pub impl PlayImpl of PlayTrait {
             sequence: header.sequence + played.into(),
             clock: out.clock,
             roster_count: roster.len().try_into().unwrap(),
-            ..header
+            ..header,
         };
         self.set_header(slot, header);
         // [Interaction] The events
@@ -690,7 +712,9 @@ pub impl PlayImpl of PlayTrait {
     }
 
     /// The `Features` of the revealed chunks of the 3 × 3 around the tile `(x, y)`'s chunk.
-    fn ground(self: @InstancesState, slot: u32, revealed: felt252, x: u8, y: u8) -> Array<(u8, Features)> {
+    fn ground(
+        self: @InstancesState, slot: u32, revealed: felt252, x: u8, y: u8,
+    ) -> Array<(u8, Features)> {
         let mut ground: Array<(u8, Features)> = array![];
         for chunk in Self::around(x, y) {
             if Bits::has(revealed, chunk) {
@@ -809,7 +833,9 @@ pub impl PlayImpl of PlayTrait {
     }
 
     /// Sets the `touched` bit `k` of `chunk` (in the ground, else in storage).
-    fn touch(ref self: InstancesState, slot: u32, ref ground: Array<(u8, Features)>, chunk: u8, k: u8) {
+    fn touch(
+        ref self: InstancesState, slot: u32, ref ground: Array<(u8, Features)>, chunk: u8, k: u8,
+    ) {
         let bit: u16 = Self::pow16(k);
         let mut next: Array<(u8, Features)> = array![];
         let mut found = false;
@@ -1052,6 +1078,5 @@ pub impl PlayImpl of PlayTrait {
         value
     }
 }
-
 use grimworld_logic::actions::Action;
 use grimworld_logic::types::Outcome;

@@ -26,11 +26,11 @@
 //! rules call nothing either (no carrier resolves, no goblin is awake): the two paths agree,
 //! which a test holds.
 
+use core::num::traits::Zero;
 use hexx::board::assembly::AssemblyTrait;
 use hexx::board::layout::LayoutTrait;
 use starknet::ClassHash;
 use crate::actions::Action;
-use core::num::traits::Zero;
 use crate::interface::{
     IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher, ITickLibraryDispatcherTrait,
     ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher,
@@ -131,11 +131,15 @@ pub impl SegmentImpl of SegmentTrait {
                 break;
             }
             let ran = match *next {
-                Action::Move(direction) => Self::step(ref world, sheets, ref rules, direction, weight),
+                Action::Move(direction) => Self::step(
+                    ref world, sheets, ref rules, direction, weight,
+                ),
                 Action::Turn(direction) => Self::turn(ref world, direction),
                 Action::Wait => Self::wait(@world),
                 Action::Interact(_) => Err(Halt::Illegal(Illegal::Kind)),
-                _ => Self::combat(ref world, sheets, ref rules, *classes.action, *next, done.weight),
+                _ => Self::combat(
+                    ref world, sheets, ref rules, *classes.action, *next, done.weight,
+                ),
             };
             let ticks = match ran {
                 Ok(ticks) => ticks,
@@ -154,8 +158,9 @@ pub impl SegmentImpl of SegmentTrait {
                 ticks
             };
             if cost > done.weight {
-                // Only an in-process action reaches here: nothing of it was kept but a Turn's facing,
-                // which costs 0 ticks and so 1 of weight; a Move's ticks are checked before it moves.
+                // Only an in-process action reaches here: nothing of it was kept but a Turn's
+                // facing, which costs 0 ticks and so 1 of weight; a Move's ticks are checked before
+                // it moves.
                 done.heavy = true;
                 break;
             }
@@ -237,9 +242,8 @@ pub impl SegmentImpl of SegmentTrait {
         let board = rules.board;
         let (x, y, _) = member.place();
         let from = board.position(x, y);
-        let to = match LayoutTrait::neighbor(
-            WIDTH, HEIGHT, from, WindowAssert::direction(direction),
-        ) {
+        let to =
+            match LayoutTrait::neighbor(WIDTH, HEIGHT, from, WindowAssert::direction(direction)) {
             Some(to) => to,
             None => { return Err(Halt::Illegal(Illegal::Blocked)); },
         };
@@ -250,10 +254,7 @@ pub impl SegmentImpl of SegmentTrait {
         if ticks > weight {
             return Err(Halt::Heavy);
         }
-        member
-            .set_place(
-                board.x + to % WIDTH - ORIGIN, board.y + to / WIDTH - ORIGIN, direction,
-            );
+        member.set_place(board.x + to % WIDTH - ORIGIN, board.y + to / WIDTH - ORIGIN, direction);
         world.set_member(0, member);
         Self::trap(ref world, sheets, ref rules, to);
         Ok(ticks)
@@ -497,11 +498,13 @@ mod tests {
     }
 
     fn emit(
-        ref digest: Array<felt252>, ref id: u32, name: ByteArray, case: Span<felt252>, ok: Span<felt252>,
+        ref digest: Array<felt252>,
+        ref id: u32,
+        name: ByteArray,
+        case: Span<felt252>,
+        ok: Span<felt252>,
     ) {
-        println!(
-            "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok),
-        );
+        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
         digest.append(core::poseidon::poseidon_hash_span(case));
         digest.append(core::poseidon::poseidon_hash_span(ok));
         id += 1;
@@ -542,9 +545,8 @@ mod tests {
         for from in froms.span() {
             let mut d: u8 = 0;
             while d < 6 {
-                let to = match LayoutTrait::neighbor(
-                    WIDTH, HEIGHT, *from, WindowAssert::direction(d),
-                ) {
+                let to =
+                    match LayoutTrait::neighbor(WIDTH, HEIGHT, *from, WindowAssert::direction(d)) {
                     Some(to) => to,
                     None => 255,
                 };
@@ -614,8 +616,8 @@ mod tests {
         // `awake`: the set among goblins of distances `d` (entity `8 + k`), the 8 nearest, ties by
         // the lowest entity id, the asleep ones left out
         let sets: Array<Span<u16>> = array![
-            array![1, 1, 5, 3, 3, 9, 2, 3, 4, 3, 6].span(), array![2, 2, 2, 2, 2, 2, 2, 2, 2, 2].span(),
-            array![9, 8, 7, 6, 5, 4, 3, 2, 1].span(),
+            array![1, 1, 5, 3, 3, 9, 2, 3, 4, 3, 6].span(),
+            array![2, 2, 2, 2, 2, 2, 2, 2, 2, 2].span(), array![9, 8, 7, 6, 5, 4, 3, 2, 1].span(),
         ];
         for distances in sets.span() {
             let mut goblins = array![];

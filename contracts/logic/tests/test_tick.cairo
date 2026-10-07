@@ -484,7 +484,8 @@ fn representative() -> (World, Sheets) {
 
 // Determinism (AC-2): the same state gives the same world, over 10 busy ticks.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 63378725)] // ceil(1.05 × 60360690 measured)
 fn test_deterministic() {
     let (mut a, content) = worst_state(false, 1);
@@ -498,7 +499,8 @@ fn test_deterministic() {
 
 // The fixtures' own cost, subtracted from the benchmarks below.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14702142)] // ceil(1.05 × 14002040 measured)
 fn test_cost_fixture_worst() {
     let (world, content) = worst_state(true, 3);
@@ -506,7 +508,8 @@ fn test_cost_fixture_worst() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14703927)] // ceil(1.05 × 14003740 measured)
 fn test_cost_fixture_worst_batch() {
     let (world, content) = worst_state(false, 1);
@@ -514,7 +517,8 @@ fn test_cost_fixture_worst_batch() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16970258)] // ceil(1.05 × 16162150 measured)
 fn test_cost_fixture_worst_words() {
     let (words, content) = worst_words();
@@ -522,7 +526,8 @@ fn test_cost_fixture_worst_words() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 7757946)] // ceil(1.05 × 7388520 measured)
 fn test_cost_fixture_representative() {
     let (world, content) = representative();
@@ -531,7 +536,8 @@ fn test_cost_fixture_representative() {
 
 // Cost: one representative tick, the pipeline alone (Idle rules).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8495421)] // ceil(1.05 × 8090877 measured)
 fn test_cost_tick_representative() {
     let (mut world, content) = representative();
@@ -542,7 +548,8 @@ fn test_cost_tick_representative() {
 
 // Cost: a batch's 10 representative ticks, the pipeline alone: a trace, not a bound.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15178548)] // ceil(1.05 × 14455760 measured)
 fn test_cost_batch_representative() {
     let (mut world, content) = representative();
@@ -552,7 +559,8 @@ fn test_cost_batch_representative() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8003846)] // ceil(1.05 × 7622710 measured)
 fn test_cost_fixture_representative_words() {
     let (world, content) = representative();
@@ -562,7 +570,8 @@ fn test_cost_fixture_representative_words() {
 
 // A batch's 10 representative ticks through one library call: load, ticks, store, the call.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 180302439)] // ceil(1.05 × 171716608 measured)
 fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -573,7 +582,8 @@ fn test_cost_library_call_batch_representative() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8014251)] // ceil(1.05 × 7632620 measured)
 fn test_cost_library_baseline_representative() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -586,7 +596,8 @@ fn test_cost_library_baseline_representative() {
 // bound (CBT-02b, below), not the bound. CBT-02d prints the tick measured alone ("gas heavy tick"):
 // the difference with the fixture also counts the checks below.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16338361)] // ceil(1.05 × 15560343 measured)
 fn test_cost_tick_worst() {
     let (mut world, content) = worst_state(true, 3);
@@ -603,7 +614,8 @@ fn test_cost_tick_worst() {
 // The same construction with only the 8 awake goblins in the array (no frozen candidate): what
 // the array's bound adds is the difference with `test_cost_tick_worst`.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 7075362)] // ceil(1.05 × 6738440 measured)
 fn test_cost_fixture_worst_8() {
     let (world, _) = worst_of(true, 3, 8);
@@ -611,7 +623,8 @@ fn test_cost_fixture_worst_8() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8611610)] // ceil(1.05 × 8201533 measured)
 fn test_cost_tick_worst_8() {
     let (mut world, content) = worst_of(true, 3, 8);
@@ -625,7 +638,8 @@ fn test_cost_tick_worst_8() {
 // "gas busy tick"): the ticks alternate between 8 conclusions and 8 acts, and in the latter each of
 // `Busy`'s act hooks writes its goblin (its own work, the AI's in ENG-07, not the pipeline's).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 31927896)] // ceil(1.05 × 30407520 measured)
 fn test_cost_batch_worst() {
     let (mut world, content) = worst_state(false, 1);
@@ -645,7 +659,8 @@ fn test_cost_batch_worst() {
 // The round trip returns exactly the words it was given (quality 4): every member and goblin word,
 // the clock, the kills. Its baseline builds the same two fixtures.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 45245141)] // ceil(1.05 × 43090610 measured)
 fn test_cost_load_store_worst() {
     let (words, content) = worst_words();
@@ -656,7 +671,8 @@ fn test_cost_load_store_worst() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 33935885)] // ceil(1.05 × 32319890 measured)
 fn test_cost_fixture_worst_words_twice() {
     let (words, content) = worst_words();
@@ -683,7 +699,8 @@ fn candidates() -> (World, Span<u16>) {
 // COST-1: the awake set's selection (§5.2) at the candidate bound, `MAX_GOBLINS` = 100: the 8
 // nearest are the array's last 8.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 13311743)] // ceil(1.05 × 12677850 measured)
 fn test_cost_awake_100() {
     let (mut world, distances) = candidates();
@@ -692,7 +709,8 @@ fn test_cost_awake_100() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8553185)] // ceil(1.05 × 8145890 measured)
 fn test_cost_fixture_candidates() {
     let (world, distances) = candidates();
@@ -750,7 +768,8 @@ fn awake_tick(prior: Span<u16>, order: u8, expected: Span<u16>) {
 
 // No prior set: the scans' costliest order (`test_cost_awake_100`'s state, measured alone).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 13843851)] // ceil(1.05 × 13184620 measured)
 fn test_cost_awake_none() {
     awake_tick(array![].span(), 0, at_end(8));
@@ -758,7 +777,8 @@ fn test_cost_awake_none() {
 
 // The prior set at the array's end, kept.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15597551)] // ceil(1.05 × 14854810 measured)
 fn test_cost_awake_end_kept() {
     awake_tick(at_end(8), 0, at_end(8));
@@ -766,7 +786,8 @@ fn test_cost_awake_end_kept() {
 
 // The prior set at the array's start, replaced by the last 8.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15596627)] // ceil(1.05 × 14853930 measured)
 fn test_cost_awake_start_replaced() {
     awake_tick(at_start(8), 0, at_end(8));
@@ -774,7 +795,8 @@ fn test_cost_awake_start_replaced() {
 
 // The prior set spread across the array, replaced by the last 8.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15579627)] // ceil(1.05 × 14837740 measured)
 fn test_cost_awake_spread_replaced() {
     awake_tick(at_spread(), 0, at_end(8));
@@ -782,7 +804,8 @@ fn test_cost_awake_spread_replaced() {
 
 // The prior set at the array's start, kept (the distances rising).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15544683)] // ceil(1.05 × 14804460 measured)
 fn test_cost_awake_start_kept() {
     awake_tick(at_start(8), 1, at_start(8));
@@ -790,7 +813,8 @@ fn test_cost_awake_start_kept() {
 
 // The prior set at the array's end, replaced by the first 8 (the distances rising).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15543759)] // ceil(1.05 × 14803580 measured)
 fn test_cost_awake_end_replaced() {
     awake_tick(at_end(8), 1, at_start(8));
@@ -798,7 +822,8 @@ fn test_cost_awake_end_replaced() {
 
 // The prior set spread across the array, kept (nearest).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15575291)] // ceil(1.05 × 14833610 measured)
 fn test_cost_awake_spread_kept() {
     awake_tick(at_spread(), 2, at_spread());
@@ -822,7 +847,8 @@ fn test_cost_awake_spread_kept() {
 
 // The costliest state of the bound, its fixture alone.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 18911792)] // ceil(1.05 × 18011230 measured)
 fn test_cost_pair_term_fixture() {
     let (_world, _sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
@@ -830,7 +856,8 @@ fn test_cost_pair_term_fixture() {
 
 // The same, and its tick with the bound's rules.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20490306)] // ceil(1.05 × 19514577 measured)
 fn test_cost_pair_term_tick() {
     let (mut world, sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
@@ -840,7 +867,8 @@ fn test_cost_pair_term_tick() {
 
 // The state of 8 activating goblins, its fixture alone.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 18913230)] // ceil(1.05 × 18012600 measured)
 fn test_cost_pair_activating_fixture() {
     let (_world, _sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
@@ -848,7 +876,8 @@ fn test_cost_pair_activating_fixture() {
 
 // The same, and its tick with the bound's rules.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 19734407)] // ceil(1.05 × 18794673 measured)
 fn test_cost_pair_activating_tick() {
     let (mut world, sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
@@ -858,7 +887,8 @@ fn test_cost_pair_activating_tick() {
 
 // The representative state, its fixture alone.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 7756896)] // ceil(1.05 × 7387520 measured)
 fn test_cost_pair_representative_fixture() {
     let (_world, _sheets) = representative();
@@ -866,7 +896,8 @@ fn test_cost_pair_representative_fixture() {
 
 // The same, and one tick with the lot's rules.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8493741)] // ceil(1.05 × 8089277 measured)
 fn test_cost_pair_representative_tick() {
     let (mut world, sheets) = representative();
@@ -876,7 +907,8 @@ fn test_cost_pair_representative_tick() {
 
 // The same, and one tick through `run`.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8505333)] // ceil(1.05 × 8100317 measured)
 fn test_cost_pair_representative_run_one() {
     let (mut world, sheets) = representative();
@@ -886,7 +918,8 @@ fn test_cost_pair_representative_run_one() {
 
 // The same, and ten ticks through `run`.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15176868)] // ceil(1.05 × 14454160 measured)
 fn test_cost_pair_representative_run_ten() {
     let (mut world, sheets) = representative();
@@ -897,14 +930,16 @@ fn test_cost_pair_representative_run_ten() {
 // The awake selection's straight-line part, the same way: the costliest prior set (at the array's
 // start, kept) and none.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 10619448)] // ceil(1.05 × 10113760 measured)
 fn test_cost_pair_awake_start_kept_fixture() {
     let (_world, _distances) = awake_state(at_start(8), 1);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15414861)] // ceil(1.05 × 14680820 measured)
 fn test_cost_pair_awake_start_kept() {
     let (mut world, distances) = awake_state(at_start(8), 1);
@@ -912,14 +947,16 @@ fn test_cost_pair_awake_start_kept() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 8989533)] // ceil(1.05 × 8561460 measured)
 fn test_cost_pair_awake_none_fixture() {
     let (_world, _distances) = awake_state(array![].span(), 0);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 13713189)] // ceil(1.05 × 13060180 measured)
 fn test_cost_pair_awake_none() {
     let (mut world, distances) = awake_state(array![].span(), 0);
@@ -928,14 +965,16 @@ fn test_cost_pair_awake_none() {
 
 // `Busy`'s first tick (8 conclusions and the member's), for `tick<Busy>`'s straight-line part.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14701302)] // ceil(1.05 × 14001240 measured)
 fn test_cost_pair_busy_fixture() {
     let (_world, _sheets) = worst_state(false, 1);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16270073)] // ceil(1.05 × 15495307 measured)
 fn test_cost_pair_busy_tick() {
     let (mut world, sheets) = worst_state(false, 1);
@@ -945,7 +984,8 @@ fn test_cost_pair_busy_tick() {
 
 // The ten ticks of the run above, each measured alone ("gas representative tick").
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16117290)] // ceil(1.05 × 15349800 measured)
 fn test_cost_run_ticks_alone() {
     let (mut world, sheets) = representative();
@@ -965,7 +1005,8 @@ fn test_cost_run_ticks_alone() {
 // through `library_call`.
 // The difference is the call: its syscall and the words and content through calldata and back.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 29436407)] // ceil(1.05 × 28034673 measured)
 fn test_cost_library_baseline() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -981,7 +1022,8 @@ fn test_cost_library_baseline() {
 // ExecutorLibrary (one goblin a tile since F-2; the figures before were fixture artefacts). The
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 70209197)] // ceil(1.05 × 66865901 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -998,7 +1040,8 @@ fn test_cost_library_call() {
 // ExecutorLibrary (one goblin a tile since F-2; the figures before were fixture artefacts). The
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 367013087)] // ceil(1.05 × 349536273 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -1009,7 +1052,8 @@ fn test_cost_library_call_batch() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16978563)] // ceil(1.05 × 16170060 measured)
 fn test_cost_library_baseline_batch() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -1023,7 +1067,8 @@ fn test_cost_library_baseline_batch() {
 // ExecutorLibrary (one goblin a tile since F-2; the figures before were fixture artefacts). The
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 389007912)] // ceil(1.05 × 370483725 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -1047,7 +1092,8 @@ fn test_cost_sheets_baseline() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 433839)] // ceil(1.05 × 413180 measured)
 fn test_cost_sheets() {
     let (skill, caste) = records();
@@ -1058,7 +1104,8 @@ fn test_cost_sheets() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 757932)] // ceil(1.05 × 721840 measured)
 fn test_cost_sheets_unpacked() {
     let (skill, caste) = records();
@@ -1221,7 +1268,8 @@ fn branch_fixture(branch: u8, dying: bool, member_dying: bool) {
 
 // Each branch is the one named (not a cost test).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 78324996)] // ceil(1.05 × 74595234 measured)
 fn test_branch_worlds_take_their_branch() {
     let content = branch_content(3).sheets();
@@ -1247,7 +1295,8 @@ fn test_branch_worlds_take_their_branch() {
 
 // 8 goblins all lapsing, dying: a lapse's term with eight goblins (CBT-02b's per-goblin terms).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16060409)] // ceil(1.05 × 15295627 measured)
 fn test_cost_bound_eight_lapses() {
     let (mut world, content) = branch_world_n(B_LAPSE, true, true, 8);
@@ -1257,7 +1306,8 @@ fn test_cost_bound_eight_lapses() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14756816)] // ceil(1.05 × 14054110 measured)
 fn test_cost_bound_eight_lapses_fixture() {
     let (world, content) = branch_world_n(B_LAPSE, true, true, 8);
@@ -1265,126 +1315,144 @@ fn test_cost_bound_eight_lapses_fixture() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14972195)] // ceil(1.05 × 14259233 measured)
 fn test_cost_bound_base() {
     branch_tick(B_NONE, false, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14733831)] // ceil(1.05 × 14032220 measured)
 fn test_cost_bound_base_fixture() {
     branch_fixture(B_NONE, false, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14950303)] // ceil(1.05 × 14238383 measured)
 fn test_cost_bound_base_member_alive() {
     branch_tick(B_NONE, false, false);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14733936)] // ceil(1.05 × 14032320 measured)
 fn test_cost_bound_base_member_alive_fixture() {
     branch_fixture(B_NONE, false, false);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15096862)] // ceil(1.05 × 14377963 measured)
 fn test_cost_bound_conclude_recover() {
     branch_tick(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14737212)] // ceil(1.05 × 14035440 measured)
 fn test_cost_bound_conclude_recover_fixture() {
     branch_fixture(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15096757)] // ceil(1.05 × 14377863 measured)
 fn test_cost_bound_conclude_recover_alive() {
     branch_tick(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14737317)] // ceil(1.05 × 14035540 measured)
 fn test_cost_bound_conclude_recover_alive_fixture() {
     branch_fixture(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15098870)] // ceil(1.05 × 14379876 measured)
 fn test_cost_bound_conclude_clear() {
     branch_tick(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14737517)] // ceil(1.05 × 14035730 measured)
 fn test_cost_bound_conclude_clear_fixture() {
     branch_fixture(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15118379)] // ceil(1.05 × 14398456 measured)
 fn test_cost_bound_lapse() {
     branch_tick(B_LAPSE, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14738220)] // ceil(1.05 × 14036400 measured)
 fn test_cost_bound_lapse_fixture() {
     branch_fixture(B_LAPSE, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15077492)] // ceil(1.05 × 14359516 measured)
 fn test_cost_bound_recovery_end() {
     branch_tick(B_RECOVERY_END, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14738924)] // ceil(1.05 × 14037070 measured)
 fn test_cost_bound_recovery_end_fixture() {
     branch_fixture(B_RECOVERY_END, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15051775)] // ceil(1.05 × 14335023 measured)
 fn test_cost_bound_activating() {
     branch_tick(B_ACTIVATING, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14739522)] // ceil(1.05 × 14037640 measured)
 fn test_cost_bound_activating_fixture() {
     branch_fixture(B_ACTIVATING, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15056072)] // ceil(1.05 × 14339116 measured)
 fn test_cost_bound_free() {
     branch_tick(B_FREE, true, true);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14739627)] // ceil(1.05 × 14037740 measured)
 fn test_cost_bound_free_fixture() {
     branch_fixture(B_FREE, true, true);
@@ -1394,7 +1462,8 @@ fn test_cost_bound_free_fixture() {
 // CBT-02d: a read through the index costs the same wherever the record lies: the first skill and
 // the last, the first caste and the last, in the same content. The fixture builds the index.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 1388919)] // ceil(1.05 × 1322780 measured)
 fn test_cost_index_skill_first() {
     let (_, mut index) = branch_content(3).index();
@@ -1402,7 +1471,8 @@ fn test_cost_index_skill_first() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 1389129)] // ceil(1.05 × 1322980 measured)
 fn test_cost_index_skill_last() {
     let (_, mut index) = branch_content(3).index();
@@ -1410,7 +1480,8 @@ fn test_cost_index_skill_last() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 1388919)] // ceil(1.05 × 1322780 measured)
 fn test_cost_index_caste_first() {
     let (_, mut index) = branch_content(3).index();
@@ -1418,7 +1489,8 @@ fn test_cost_index_caste_first() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 1389129)] // ceil(1.05 × 1322980 measured)
 fn test_cost_index_caste_last() {
     let (_, mut index) = branch_content(3).index();
@@ -1426,7 +1498,8 @@ fn test_cost_index_caste_last() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 1388804)] // ceil(1.05 × 1322670 measured)
 fn test_cost_index_fixture() {
     let (sheets, _) = branch_content(3).index();
@@ -1449,7 +1522,8 @@ fn member_effect_words(potions: bool) -> MemberWords {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 6557250)] // ceil(1.05 × 6245000 measured)
 fn test_cost_load_member_skills() {
     let (sheets, mut index) = branch_content(3).index();
@@ -1460,7 +1534,8 @@ fn test_cost_load_member_skills() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 6548535)] // ceil(1.05 × 6236700 measured)
 fn test_cost_load_member_potions() {
     let (sheets, mut index) = branch_content(3).index();
@@ -1471,7 +1546,8 @@ fn test_cost_load_member_potions() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 6250283)] // ceil(1.05 × 5952650 measured)
 fn test_cost_load_member_skills_fixture() {
     let (sheets, _) = branch_content(3).index();
@@ -1480,7 +1556,8 @@ fn test_cost_load_member_skills_fixture() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 6249548)] // ceil(1.05 × 5951950 measured)
 fn test_cost_load_member_potions_fixture() {
     let (sheets, _) = branch_content(3).index();
@@ -1515,7 +1592,8 @@ fn permuted(content: Content) -> Content {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 17965861)] // ceil(1.05 × 17110343 measured)
 fn test_cost_tick_worst_permuted() {
     let (mut world, sheets) = worst_state(true, 3);
@@ -1526,7 +1604,8 @@ fn test_cost_tick_worst_permuted() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16431293)] // ceil(1.05 × 15648850 measured)
 fn test_cost_fixture_worst_permuted() {
     let (world, sheets) = worst_state(true, 3);
@@ -1626,7 +1705,8 @@ fn regenerate_member(
 
 // A goblin's step 3, the pips below −10 (clamped), health lost.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_below() {
     assert(regenerate_goblin(99, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1634,7 +1714,8 @@ fn test_cost_path_goblin_below() {
 
 // A goblin's step 3, the same, health to 0.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_below_dead() {
     assert(regenerate_goblin(99, 2, 99, 0, 15, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1642,7 +1723,8 @@ fn test_cost_path_goblin_below_dead() {
 
 // A goblin's step 3, the pips in −10…−1.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_down() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1650,7 +1732,8 @@ fn test_cost_path_goblin_down() {
 
 // A goblin's step 3, the same, health to 0.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_down_dead() {
     assert(regenerate_goblin(99, 2, 99, 5, 10, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1658,7 +1741,8 @@ fn test_cost_path_goblin_down_dead() {
 
 // A goblin's step 3, the pips in 0…10.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_up() {
     assert(regenerate_goblin(0, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1666,7 +1750,8 @@ fn test_cost_path_goblin_up() {
 
 // A goblin's step 3, the same, health to its max.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_up_full() {
     assert(regenerate_goblin(0, 2, 99, 0, 278, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1674,7 +1759,8 @@ fn test_cost_path_goblin_up_full() {
 
 // A goblin's step 3, the pips above 10 (clamped).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_above() {
     assert(regenerate_goblin(0, 10, 99, 10, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1682,7 +1768,8 @@ fn test_cost_path_goblin_above() {
 
 // A goblin's step 3, the same, health to its max.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_above_full() {
     assert(regenerate_goblin(0, 10, 99, 10, 270, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1690,7 +1777,8 @@ fn test_cost_path_goblin_above_full() {
 
 // A goblin's step 3, no effect pips.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_effect_zero() {
     assert(regenerate_goblin(99, 0, 99, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1698,7 +1786,8 @@ fn test_cost_path_goblin_effect_zero() {
 
 // A goblin's step 3, an effect over.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_effect_over() {
     assert(regenerate_goblin(99, 2, 40, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1706,7 +1795,8 @@ fn test_cost_path_goblin_effect_over() {
 
 // A goblin's step 3, energy to its max.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_energy_capped() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 30, ai::ALERTED, 5) <= 280, 'health');
@@ -1714,7 +1804,8 @@ fn test_cost_path_goblin_energy_capped() {
 
 // A goblin's step 3, no adrenaline to decay.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_adrenaline_zero() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 0) <= 280, 'health');
@@ -1722,7 +1813,8 @@ fn test_cost_path_goblin_adrenaline_zero() {
 
 // A goblin's step 3, Engaged: no decay.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_engaged() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ENGAGED, 5) <= 280, 'health');
@@ -2143,7 +2235,8 @@ impl ActsRules of Rules<Acts> {
 
 // No goblin awake: the base (the member concluding and dying; the array not read).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15406108)] // ceil(1.05 × 14672483 measured)
 fn test_cost_term_none() {
     term_tick(array![].span(), array![].span(), false, 1, 1);
@@ -2151,7 +2244,8 @@ fn test_cost_term_none() {
 
 // The same with the content of a conclusion into a recovery: `k` changes nothing else.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15406108)] // ceil(1.05 × 14672483 measured)
 fn test_cost_term_none_k3() {
     term_tick(array![].span(), array![].span(), false, 3, 1);
@@ -2159,7 +2253,8 @@ fn test_cost_term_none_k3() {
 
 // The base with two members (M-3): what the second member adds.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15600308)] // ceil(1.05 × 14857436 measured)
 fn test_cost_term_none_two_members() {
     term_tick(array![].span(), array![].span(), false, 1, 2);
@@ -2168,14 +2263,16 @@ fn test_cost_term_none_two_members() {
 // CBT-02d fix loop 1 (COST-3): the base with four and eight members (M-3 allows 8). Each member's
 // conclusion rebuilds the members' array, so a member adds more the more there are.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16041441)] // ceil(1.05 × 15277562 measured)
 fn test_cost_term_none_four_members() {
     term_tick(array![].span(), array![].span(), false, 1, 4);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 17141622)] // ceil(1.05 × 16325354 measured)
 fn test_cost_term_none_eight_members() {
     term_tick(array![].span(), array![].span(), false, 1, 8);
@@ -2183,7 +2280,8 @@ fn test_cost_term_none_eight_members() {
 
 // One goblin: concluding into a recovery.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16043416)] // ceil(1.05 × 15279443 measured)
 fn test_cost_term_one_conclude_recover() {
     term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), false, 3, 1);
@@ -2191,7 +2289,8 @@ fn test_cost_term_one_conclude_recover() {
 
 // Eight goblins: concluding into a recovery.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20852678)] // ceil(1.05 × 19859693 measured)
 fn test_cost_term_eight_conclude_recover() {
     term_tick(all_of(B_CONCLUDE_RECOVER, 8), at_end(8), false, 3, 1);
@@ -2199,7 +2298,8 @@ fn test_cost_term_eight_conclude_recover() {
 
 // One goblin: concluding, the field cleared.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16045424)] // ceil(1.05 × 15281356 measured)
 fn test_cost_term_one_conclude_clear() {
     term_tick(all_of(B_CONCLUDE_CLEAR, 1), at_end(1), false, 1, 1);
@@ -2207,7 +2307,8 @@ fn test_cost_term_one_conclude_clear() {
 
 // Eight goblins: concluding, the field cleared.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20868747)] // ceil(1.05 × 19874997 measured)
 fn test_cost_term_eight_conclude_clear() {
     term_tick(all_of(B_CONCLUDE_CLEAR, 8), at_end(8), false, 1, 1);
@@ -2215,7 +2316,8 @@ fn test_cost_term_eight_conclude_clear() {
 
 // One goblin: a lapse.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16065794)] // ceil(1.05 × 15300756 measured)
 fn test_cost_term_one_lapse() {
     term_tick(all_of(B_LAPSE, 1), at_end(1), false, 1, 1);
@@ -2223,7 +2325,8 @@ fn test_cost_term_one_lapse() {
 
 // Eight goblins: a lapse.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20635395)] // ceil(1.05 × 19652757 measured)
 fn test_cost_term_eight_lapse() {
     term_tick(all_of(B_LAPSE, 8), at_end(8), false, 1, 1);
@@ -2231,7 +2334,8 @@ fn test_cost_term_eight_lapse() {
 
 // One goblin: a lapse, the later recharge kept.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16066193)] // ceil(1.05 × 15301136 measured)
 fn test_cost_term_one_lapse_keep() {
     term_tick(all_of(B_LAPSE_KEEP, 1), at_end(1), false, 1, 1);
@@ -2239,7 +2343,8 @@ fn test_cost_term_one_lapse_keep() {
 
 // Eight goblins: a lapse, the later recharge kept.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20638587)] // ceil(1.05 × 19655797 measured)
 fn test_cost_term_eight_lapse_keep() {
     term_tick(all_of(B_LAPSE_KEEP, 8), at_end(8), false, 1, 1);
@@ -2247,7 +2352,8 @@ fn test_cost_term_eight_lapse_keep() {
 
 // One goblin: a recovery over.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16024886)] // ceil(1.05 × 15261796 measured)
 fn test_cost_term_one_recovery_end() {
     term_tick(all_of(B_RECOVERY_END, 1), at_end(1), false, 1, 1);
@@ -2255,7 +2361,8 @@ fn test_cost_term_one_recovery_end() {
 
 // Eight goblins: a recovery over.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20301138)] // ceil(1.05 × 19334417 measured)
 fn test_cost_term_eight_recovery_end() {
     term_tick(all_of(B_RECOVERY_END, 8), at_end(8), false, 1, 1);
@@ -2263,7 +2370,8 @@ fn test_cost_term_eight_recovery_end() {
 
 // One goblin: activating, busy.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15996922)] // ceil(1.05 × 15235163 measured)
 fn test_cost_term_one_activating() {
     term_tick(all_of(B_ACTIVATING, 1), at_end(1), false, 1, 1);
@@ -2271,7 +2379,8 @@ fn test_cost_term_one_activating() {
 
 // Eight goblins: activating, busy.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20125343)] // ceil(1.05 × 19166993 measured)
 fn test_cost_term_eight_activating() {
     term_tick(all_of(B_ACTIVATING, 8), at_end(8), false, 1, 1);
@@ -2279,7 +2388,8 @@ fn test_cost_term_eight_activating() {
 
 // One goblin: a recovery running on.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15997331)] // ceil(1.05 × 15235553 measured)
 fn test_cost_term_one_recovering() {
     term_tick(all_of(B_RECOVERING, 1), at_end(1), false, 1, 1);
@@ -2287,7 +2397,8 @@ fn test_cost_term_one_recovering() {
 
 // Eight goblins: a recovery running on.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20128619)] // ceil(1.05 × 19170113 measured)
 fn test_cost_term_eight_recovering() {
     term_tick(all_of(B_RECOVERING, 8), at_end(8), false, 1, 1);
@@ -2295,7 +2406,8 @@ fn test_cost_term_eight_recovering() {
 
 // One goblin: free, acting in step 2.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16002164)] // ceil(1.05 × 15240156 measured)
 fn test_cost_term_one_free() {
     term_tick(all_of(B_FREE, 1), at_end(1), false, 1, 1);
@@ -2303,7 +2415,8 @@ fn test_cost_term_one_free() {
 
 // Eight goblins: free, acting in step 2.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20167284)] // ceil(1.05 × 19206937 measured)
 fn test_cost_term_eight_free() {
     term_tick(all_of(B_FREE, 8), at_end(8), false, 1, 1);
@@ -2311,7 +2424,8 @@ fn test_cost_term_eight_free() {
 
 // One goblin: free but knocked down.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15997531)] // ceil(1.05 × 15235743 measured)
 fn test_cost_term_one_knocked() {
     term_tick(all_of(B_KNOCKED, 1), at_end(1), false, 1, 1);
@@ -2319,7 +2433,8 @@ fn test_cost_term_one_knocked() {
 
 // Eight goblins: free but knocked down.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20130215)] // ceil(1.05 × 19171633 measured)
 fn test_cost_term_eight_knocked() {
     term_tick(all_of(B_KNOCKED, 8), at_end(8), false, 1, 1);
@@ -2327,7 +2442,8 @@ fn test_cost_term_eight_knocked() {
 
 // One goblin: awake and already dead.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 15970504)] // ceil(1.05 × 15210003 measured)
 fn test_cost_term_one_dead() {
     term_tick(all_of(B_DEAD, 1), at_end(1), false, 1, 1);
@@ -2335,7 +2451,8 @@ fn test_cost_term_one_dead() {
 
 // Eight goblins: awake and already dead.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 19913999)] // ceil(1.05 × 18965713 measured)
 fn test_cost_term_eight_dead() {
     term_tick(all_of(B_DEAD, 8), at_end(8), false, 1, 1);
@@ -2343,7 +2460,8 @@ fn test_cost_term_eight_dead() {
 
 // One goblin concluding into a recovery, surviving step 3.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16043710)] // ceil(1.05 × 15279723 measured)
 fn test_cost_term_one_conclude_recover_surviving() {
     term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), true, 3, 1);
@@ -2351,7 +2469,8 @@ fn test_cost_term_one_conclude_recover_surviving() {
 
 // The costliest mix: 7 conclusions, then a lapse whose write the end of step 1 rebuilds.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20884697)] // ceil(1.05 × 19890187 measured)
 fn test_cost_term_mix_clear_lapse() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_end(8), false, 1, 1);
@@ -2359,7 +2478,8 @@ fn test_cost_term_mix_clear_lapse() {
 
 // The same, the awake goblins at the array's start.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20879919)] // ceil(1.05 × 19885637 measured)
 fn test_cost_term_mix_clear_lapse_start() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_start(8), false, 1, 1);
@@ -2367,7 +2487,8 @@ fn test_cost_term_mix_clear_lapse_start() {
 
 // The same, the awake goblins spread across the array.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20867487)] // ceil(1.05 × 19873797 measured)
 fn test_cost_term_mix_clear_lapse_spread() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_spread(), false, 1, 1);
@@ -2375,7 +2496,8 @@ fn test_cost_term_mix_clear_lapse_spread() {
 
 // Swap: 7 conclusions, then an activating goblin.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20774885)] // ceil(1.05 × 19785604 measured)
 fn test_cost_term_mix_clear_activating() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), at_end(8), false, 1, 1);
@@ -2383,7 +2505,8 @@ fn test_cost_term_mix_clear_activating() {
 
 // Swap: 7 conclusions, then a recovery over.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20843789)] // ceil(1.05 × 19851227 measured)
 fn test_cost_term_mix_clear_recovery_end() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END), at_end(8), false, 1, 1);
@@ -2391,7 +2514,8 @@ fn test_cost_term_mix_clear_recovery_end() {
 
 // Swap: 7 activating goblins, then a lapse.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20233717)] // ceil(1.05 × 19270206 measured)
 fn test_cost_term_mix_activating_lapse() {
     term_tick(seven_then(B_ACTIVATING, B_LAPSE), at_end(8), false, 1, 1);
@@ -2399,7 +2523,8 @@ fn test_cost_term_mix_activating_lapse() {
 
 // A lapse first, then 7 conclusions: its write goes with the first conclusion's rebuild.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20832900)] // ceil(1.05 × 19840857 measured)
 fn test_cost_term_mix_lapse_first() {
     term_tick(
@@ -2429,7 +2554,8 @@ const R: u8 = B_RECOVERY_END;
 
 // A conclusion first in the set, the others activating.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20199550)] // ceil(1.05 × 19237666 measured)
 fn test_cost_term_set_c_first() {
     term_mix(array![C, A, A, A, A, A, A, A]);
@@ -2437,7 +2563,8 @@ fn test_cost_term_set_c_first() {
 
 // A conclusion in the middle of the set.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20202532)] // ceil(1.05 × 19240506 measured)
 fn test_cost_term_set_c_middle() {
     term_mix(array![A, A, A, C, A, A, A, A]);
@@ -2445,7 +2572,8 @@ fn test_cost_term_set_c_middle() {
 
 // A conclusion last in the set.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20202532)] // ceil(1.05 × 19240506 measured)
 fn test_cost_term_set_c_last() {
     term_mix(array![A, A, A, A, A, A, A, C]);
@@ -2453,7 +2581,8 @@ fn test_cost_term_set_c_last() {
 
 // An activating goblin first, 7 conclusions after it.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20764070)] // ceil(1.05 × 19775304 measured)
 fn test_cost_term_set_a_then_c() {
     term_mix(array![A, C, C, C, C, C, C, C]);
@@ -2461,7 +2590,8 @@ fn test_cost_term_set_a_then_c() {
 
 // Two conclusions, then activating goblins.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20291974)] // ceil(1.05 × 19325689 measured)
 fn test_cost_term_set_cc_first() {
     term_mix(array![C, C, A, A, A, A, A, A]);
@@ -2469,7 +2599,8 @@ fn test_cost_term_set_cc_first() {
 
 // Six conclusions, then two lapses (two writes left for the end of step 1).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20834654)] // ceil(1.05 × 19842527 measured)
 fn test_cost_term_set_c6_ll() {
     term_mix(array![C, C, C, C, C, C, L, L]);
@@ -2477,7 +2608,8 @@ fn test_cost_term_set_c6_ll() {
 
 // Six conclusions, an activating goblin, a lapse.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20778476)] // ceil(1.05 × 19789024 measured)
 fn test_cost_term_set_c6_al() {
     term_mix(array![C, C, C, C, C, C, A, L]);
@@ -2485,7 +2617,8 @@ fn test_cost_term_set_c6_al() {
 
 // Six conclusions, a lapse, an activating goblin.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20778476)] // ceil(1.05 × 19789024 measured)
 fn test_cost_term_set_c6_la() {
     term_mix(array![C, C, C, C, C, C, L, A]);
@@ -2493,7 +2626,8 @@ fn test_cost_term_set_c6_la() {
 
 // Six conclusions, a recovery over, a lapse.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20793746)] // ceil(1.05 × 19803567 measured)
 fn test_cost_term_set_c6_rl() {
     term_mix(array![C, C, C, C, C, C, R, L]);
@@ -2501,7 +2635,8 @@ fn test_cost_term_set_c6_rl() {
 
 // A lapse between two conclusions: its write goes with the next conclusion's.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20829918)] // ceil(1.05 × 19838017 measured)
 fn test_cost_term_set_c_l_c6() {
     term_mix(array![C, L, C, C, C, C, C, C]);
@@ -2509,7 +2644,8 @@ fn test_cost_term_set_c_l_c6() {
 
 // A recovery over between two conclusions.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20789010)] // ceil(1.05 × 19799057 measured)
 fn test_cost_term_set_c_r_c6() {
     term_mix(array![C, R, C, C, C, C, C, C]);
@@ -2517,7 +2653,8 @@ fn test_cost_term_set_c_r_c6() {
 
 // Two lapses between two conclusions: both writes go with the next conclusion's.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20793672)] // ceil(1.05 × 19803497 measured)
 fn test_cost_term_set_c_ll_c5() {
     term_mix(array![C, L, L, C, C, C, C, C]);
@@ -2525,7 +2662,8 @@ fn test_cost_term_set_c_ll_c5() {
 
 // A lapse first, the others activating.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20219920)] // ceil(1.05 × 19257066 measured)
 fn test_cost_term_set_l_first() {
     term_mix(array![L, A, A, A, A, A, A, A]);
@@ -2533,7 +2671,8 @@ fn test_cost_term_set_l_first() {
 
 // A lapse in the middle, the others activating.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20219920)] // ceil(1.05 × 19257066 measured)
 fn test_cost_term_set_l_middle() {
     term_mix(array![A, A, A, L, A, A, A, A]);
@@ -2541,7 +2680,8 @@ fn test_cost_term_set_l_middle() {
 
 // Two lapses last, the others activating.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20276098)] // ceil(1.05 × 19310569 measured)
 fn test_cost_term_set_a6_ll() {
     term_mix(array![A, A, A, A, A, A, L, L]);
@@ -2595,7 +2735,8 @@ fn load_words(members: u32) -> (Words, Content) {
 
 // Load and store of the costliest words, the round trip checked.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 24011568)] // ceil(1.05 × 22868160 measured)
 fn test_cost_load_bound() {
     let (words, content) = load_words(1);
@@ -2605,7 +2746,8 @@ fn test_cost_load_bound() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 12699026)] // ceil(1.05 × 12094310 measured)
 fn test_cost_load_bound_fixture() {
     let (words, content) = load_words(1);
@@ -2615,7 +2757,8 @@ fn test_cost_load_bound_fixture() {
 
 // The same with two members (M-3): what each member adds.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 34081404)] // ceil(1.05 × 32458480 measured)
 fn test_cost_load_bound_two_members() {
     let (words, content) = load_words(2);
@@ -2625,7 +2768,8 @@ fn test_cost_load_bound_two_members() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 22425911)] // ceil(1.05 × 21358010 measured)
 fn test_cost_load_bound_two_members_fixture() {
     let (words, content) = load_words(2);
@@ -2660,7 +2804,8 @@ fn read_skill(kinds: [u8; 3], v0: i16, v12: i16) -> i16 {
 
 // A skill's sheet, its `REGENERATION`: the first entry.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 56060)] // ceil(1.05 × 53390 measured)
 fn test_cost_sheet_skill_regen_first() {
     assert(read_skill([kind::REGENERATION, kind::DAMAGE, kind::DAMAGE], 2, 6) == 2, 'regen');
@@ -2668,7 +2813,8 @@ fn test_cost_sheet_skill_regen_first() {
 
 // A skill's sheet, its `REGENERATION`: the second.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 59472)] // ceil(1.05 × 56640 measured)
 fn test_cost_sheet_skill_regen_second() {
     assert(read_skill([kind::DAMAGE, kind::REGENERATION, kind::DAMAGE], 2, 6) == 2, 'regen');
@@ -2676,7 +2822,8 @@ fn test_cost_sheet_skill_regen_second() {
 
 // A skill's sheet, its `REGENERATION`: the third.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 62885)] // ceil(1.05 × 59890 measured)
 fn test_cost_sheet_skill_regen_third() {
     assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6) == 2, 'regen');
@@ -2684,7 +2831,8 @@ fn test_cost_sheet_skill_regen_third() {
 
 // A skill's sheet, its `REGENERATION`: the third, negative.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 64145)] // ceil(1.05 × 61090 measured)
 fn test_cost_sheet_skill_regen_third_negative() {
     assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], -3, -10) == -3, 'regen');
@@ -2692,7 +2840,8 @@ fn test_cost_sheet_skill_regen_third_negative() {
 
 // A skill's sheet, its `REGENERATION`: none of three entries.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 54894)] // ceil(1.05 × 52280 measured)
 fn test_cost_sheet_skill_none() {
     assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::DAMAGE], 2, 6) == 0, 'regen');
@@ -2801,7 +2950,8 @@ fn worst_words_kills() -> (Words, Content) {
 // ExecutorLibrary (one goblin a tile since F-2; the figures before were fixture artefacts). The
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 49875059)] // ceil(1.05 × 47500056 measured)
 fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -2812,7 +2962,8 @@ fn test_cost_library_call_kills() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 29795665)] // ceil(1.05 × 28376823 measured)
 fn test_cost_library_baseline_kills() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -2835,7 +2986,8 @@ fn worst_words_two() -> (Words, Content) {
 // ExecutorLibrary (one goblin a tile since F-2; the figures before were fixture artefacts). The
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 83041881)] // ceil(1.05 × 79087505 measured)
 fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -2846,7 +2998,8 @@ fn test_cost_library_call_two_members() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 29955383)] // ceil(1.05 × 28528936 measured)
 fn test_cost_library_baseline_two_members() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -2874,7 +3027,8 @@ fn worst_words_all_dead() -> (Words, Content) {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 44230910)] // ceil(1.05 × 42124676 measured)
 fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -2885,7 +3039,8 @@ fn test_cost_library_call_all_dead() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 28780735)] // ceil(1.05 × 27410223 measured)
 fn test_cost_library_baseline_all_dead() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -3215,7 +3370,8 @@ fn check(digests: Span<felt252>, expected: Span<felt252>) {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 138649976)] // ceil(1.05 × 132047596 measured)
 fn test_parity_examples() {
     let expected = array![
@@ -3246,7 +3402,8 @@ fn test_parity_examples() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 183606176)] // ceil(1.05 × 174863024 measured)
 fn test_parity_states() {
     let expected = array![
@@ -3263,7 +3420,8 @@ fn test_parity_states() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 249572466)] // ceil(1.05 × 237688062 measured)
 fn test_parity_terms_one() {
     let expected = array![
@@ -3285,7 +3443,8 @@ fn test_parity_terms_one() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 235258884)] // ceil(1.05 × 224056080 measured)
 fn test_parity_terms_eight() {
     let expected = array![
@@ -3304,7 +3463,8 @@ fn test_parity_terms_eight() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 167457269)] // ceil(1.05 × 159483113 measured)
 fn test_parity_terms_mixed() {
     let expected = array![
@@ -3454,7 +3614,8 @@ fn agree(words: Words, content: Content) -> Words {
 // 80 at x = 60 is 226), in tile order, which the sub-world reaches; goblins 8 and 11 are far and
 // stay out of the call. The library's words equal the in-process executor's.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 25283808)] // ceil(1.05 × 24079817 measured)
 fn test_route_c_kills_in_order() {
     let tiles = ring(AT);
@@ -3474,7 +3635,8 @@ fn test_route_c_kills_in_order() {
 // tick 41: its sub-index in the call is 1, not 2. Its weapon hit (255 at rank 15, strength 75)
 // downs the member at 10 health: the tick stops, defeated. The words agree.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 16326406)] // ceil(1.05 × 15548958 measured)
 fn test_route_c_source_sub_index_and_defeat() {
     let tiles = ring(AT);
@@ -3492,7 +3654,8 @@ fn test_route_c_source_sub_index_and_defeat() {
 // call's trimmed content keeps 101 alone, at another position. Goblin 9 concludes its attack skill
 // on the member at tick 41; the member's regeneration reads the potion. The words agree.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 20223854)] // ceil(1.05 × 19260813 measured)
 fn test_route_c_potion_effect() {
     let tiles = ring(AT);
@@ -3559,7 +3722,8 @@ fn worst_tick() -> (World, Sheets, grimworld_logic::types::tick::Index) {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 13275816)] // ceil(1.05 × 12643634 measured)
 fn test_cost_route_c_tick_fixture() {
     let (world, sheets, _) = worst_tick();
@@ -3568,7 +3732,8 @@ fn test_cost_route_c_tick_fixture() {
 
 // The worst tick in process with the in-class executor (route (a)'s shape): the pair's base.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 26209348)] // ceil(1.05 × 24961283 measured)
 fn test_cost_route_c_tick_in_class() {
     let (mut world, sheets, _) = worst_tick();
@@ -3580,7 +3745,8 @@ fn test_cost_route_c_tick_in_class() {
 // The same tick through route (c): `TickLibrary`'s hook builds each sub-world, calls
 // `ExecutorLibrary` and loads back what returns, 8 times.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 50625470)] // ceil(1.05 × 48214733 measured)
 fn test_cost_route_c_tick() {
     let (mut world, sheets, index) = worst_tick();
@@ -3738,21 +3904,24 @@ fn rep_fixture(scenario: u8) {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 10195463)] // ceil(1.05 × 9709964 measured)
 fn test_cost_rep_fixture() {
     rep_fixture(0);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 11090760)] // ceil(1.05 × 10562628 measured)
 fn test_cost_rep_far_fixture() {
     rep_fixture(4);
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 24361326)] // ceil(1.05 × 23201262 measured)
 fn test_cost_rep_idle() {
     let words = rep_run(0, 1);
@@ -3760,7 +3929,8 @@ fn test_cost_rep_idle() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 51017698)] // ceil(1.05 × 48588283 measured)
 fn test_cost_rep_goblins() {
     let words = rep_run(1, 1);
@@ -3768,7 +3938,8 @@ fn test_cost_rep_goblins() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 33986741)] // ceil(1.05 × 32368324 measured)
 fn test_cost_rep_member() {
     let words = rep_run(2, 1);
@@ -3776,7 +3947,8 @@ fn test_cost_rep_member() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 60645433)] // ceil(1.05 × 57757555 measured)
 fn test_cost_rep_all() {
     let words = rep_run(5, 1);
@@ -3784,7 +3956,8 @@ fn test_cost_rep_all() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 26565595)] // ceil(1.05 × 25300566 measured)
 fn test_cost_rep_far() {
     let words = rep_run(3, 1);
@@ -3792,7 +3965,8 @@ fn test_cost_rep_far() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 26565794)] // ceil(1.05 × 25300756 measured)
 fn test_cost_rep_far_idle() {
     let words = rep_run(4, 1);
@@ -3800,7 +3974,8 @@ fn test_cost_rep_far_idle() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 185978910)] // ceil(1.05 × 177122771 measured)
 fn test_cost_rep_batch() {
     let words = rep_run(1, 10);
@@ -3886,7 +4061,8 @@ fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14567136)] // ceil(1.05 × 13873462 measured)
 fn test_cost_bomb_fixture() {
     let (world, sheets, rules) = bomb_state();
@@ -3897,7 +4073,8 @@ fn test_cost_bomb_fixture() {
 
 // The action phase's floor: a Wait (legality only).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 14614785)] // ceil(1.05 × 13918842 measured)
 fn test_cost_bomb_wait() {
     let (mut world, sheets, mut rules) = bomb_state();
@@ -3908,7 +4085,8 @@ fn test_cost_bomb_wait() {
 
 // The bomb alone: legality, the belt, facing, its carrier through `ExecutorLibrary`.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 23584972)] // ceil(1.05 × 22461878 measured)
 fn test_cost_bomb_action() {
     let (mut world, sheets, mut rules) = bomb_state();
@@ -3919,7 +4097,8 @@ fn test_cost_bomb_action() {
 
 // The 8 goblins' tick alone, the same state (its pair).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 51734111)] // ceil(1.05 × 49270581 measured)
 fn test_cost_bomb_goblins() {
     let (mut world, sheets, mut rules) = bomb_state();
@@ -3930,7 +4109,8 @@ fn test_cost_bomb_goblins() {
 
 // The bomb and its tick: the action phase, then the 8 goblin carriers (the task's measure, D-207).
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 60747852)] // ceil(1.05 × 57855097 measured)
 fn test_cost_bomb_tick() {
     let (mut world, sheets, mut rules) = bomb_state();
@@ -3965,7 +4145,8 @@ fn test_cost_act_fixture() {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 66164508)] // ceil(1.05 × 63013817 measured)
 fn test_cost_act_bomb() {
     let (tile, _) = bomb_tile();
@@ -3994,7 +4175,8 @@ fn act_then_ticks(words: Words, action: Action) -> Words {
 }
 
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
+// to D-236)
 #[available_gas(l2_gas: 30345546)] // ceil(1.05 × 28900520 measured)
 fn test_cost_act_wait() {
     let (tile, _) = bomb_tile();
@@ -4093,24 +4275,13 @@ fn ai_call_of(words: Words) -> Words {
         class_hash: *class.class_hash,
     };
     let (out, _) = grimworld_logic::interface::IAiLibraryDispatcherTrait::act(
-        library,
-        words,
-        rep_content(),
-        board(),
-        executor(),
-        trap(),
-        array![],
-        10,
-        0,
-        0,
+        library, words, rep_content(), board(), executor(), trap(), array![], 10, 0, 0,
     );
     out
 }
 
 #[test]
-
 #[available_gas(l2_gas: 10460084)] // ceil(1.05 × 9961984 measured)
-
 fn test_cost_ai_fixture() {
     let class = declare("AiLibrary").unwrap().contract_class();
     let _ = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
@@ -4124,18 +4295,14 @@ fn test_cost_ai_fixture() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 14643676)] // ceil(1.05 × 13946358 measured)
-
 fn test_cost_ai_call_returning() {
     let out = ai_call(5);
     assert(out.goblins.len() == 8, 'eight');
 }
 
 #[test]
-
 #[available_gas(l2_gas: 17987137)] // ceil(1.05 × 17130606 measured)
-
 fn test_cost_ai_call_engaged() {
     let out = ai_call(ai::ENGAGED);
     assert(out.goblins.len() == 8 && !out.defeated, 'eight attacks');
@@ -4148,27 +4315,21 @@ fn ai_tick(state: u8, busy: bool) -> Words {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 16470833)] // ceil(1.05 × 15686507 measured)
-
 fn test_cost_ai_tick_busy() {
     let words = ai_tick(5, true);
     assert(words.clock == 41, 'one tick');
 }
 
 #[test]
-
 #[available_gas(l2_gas: 21274317)] // ceil(1.05 × 20261254 measured)
-
 fn test_cost_ai_tick_returning() {
     let words = ai_tick(5, false);
     assert(words.clock == 41, 'one tick');
 }
 
 #[test]
-
 #[available_gas(l2_gas: 24609630)] // ceil(1.05 × 23437742 measured)
-
 fn test_cost_ai_tick_engaged() {
     let words = ai_tick(ai::ENGAGED, false);
     assert(words.clock == 41, 'one tick');
@@ -4176,11 +4337,7 @@ fn test_cost_ai_tick_engaged() {
 
 
 #[test]
-
-
 #[available_gas(l2_gas: 58364292)] // ceil(1.05 × 55585040 measured)
-
-
 fn test_cost_ai_call_attacks() {
     let before = ai_words_of(ai::ENGAGED, false, true);
     let state = (*before.members[0]).state;
@@ -4189,9 +4346,7 @@ fn test_cost_ai_call_attacks() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 17820300)] // ceil(1.05 × 16971714 measured)
-
 fn test_cost_ai_fixture_attacks() {
     let class = declare("AiLibrary").unwrap().contract_class();
     let _ = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
@@ -4205,15 +4360,11 @@ fn test_cost_ai_fixture_attacks() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 62498506)] // ceil(1.05 × 59522386 measured)
-
 fn test_cost_ai_tick_attacks() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let words = ticks_of(library, ai_words_of(ai::ENGAGED, false, true),
-            rep_content(),
-            board(), 1);
+    let words = ticks_of(library, ai_words_of(ai::ENGAGED, false, true), rep_content(), board(), 1);
     assert(words.clock == 41, 'one tick');
 }
 
@@ -4236,9 +4387,7 @@ fn open_area() -> grimworld_logic::types::play::Area {
     }
 }
 
-fn segment_of(
-    words: Words, actions: Span<Action>,
-) -> (Words, grimworld_logic::types::play::Done) {
+fn segment_of(words: Words, actions: Span<Action>) -> (Words, grimworld_logic::types::play::Done) {
     let content = rep_content();
     let classes = classes();
     let area = open_area();
@@ -4278,8 +4427,8 @@ fn exploration() -> (Words, Span<Action>) {
     (words, actions.span())
 }
 
-/// Ten weapon attacks of the member on goblins 10, 11 and 12 (on its ring), the 8 goblins Engaged around it, each attacking
-/// with its weapon (its skills recharging): every tick has a fight.
+/// Ten weapon attacks of the member on goblins 10, 11 and 12 (on its ring), the 8 goblins Engaged
+/// around it, each attacking with its weapon (its skills recharging): every tick has a fight.
 fn fight() -> (Words, Span<Action>) {
     let mut words = ai_words_of(ai::ENGAGED, false, true);
     // The member's weapon (the executor's tests' melee one): class 1, damage 27, range 1,
@@ -4318,25 +4467,23 @@ fn segment_fixture(words: Words, actions: Span<Action>) {
     let area = open_area();
     let content = rep_content();
     assert(
-        opaque(words.members.len()) == 1 && actions.len() == 10 && area.chunks.len() == 9
+        opaque(words.members.len()) == 1
+            && actions.len() == 10
+            && area.chunks.len() == 9
             && content.skills.len() == 38,
         'fixture',
     );
 }
 
 #[test]
-
 #[available_gas(l2_gas: 6491772)] // ceil(1.05 × 6182640 measured)
-
 fn test_cost_segment_exploration_fixture() {
     let (words, actions) = exploration();
     segment_fixture(words, actions);
 }
 
 #[test]
-
 #[available_gas(l2_gas: 17515590)] // ceil(1.05 × 16681514 measured)
-
 fn test_cost_segment_exploration() {
     let (words, actions) = exploration();
     let (out, done) = segment_of(words, actions);
@@ -4345,18 +4492,14 @@ fn test_cost_segment_exploration() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 19468958)] // ceil(1.05 × 18541864 measured)
-
 fn test_cost_segment_fight_fixture() {
     let (words, actions) = fight();
     segment_fixture(words, actions);
 }
 
 #[test]
-
 #[available_gas(l2_gas: 217826994)] // ceil(1.05 × 207454280 measured)
-
 fn test_cost_segment_fight() {
     let (words, actions) = fight();
     let (out, done) = segment_of(words, actions);
@@ -4373,8 +4516,8 @@ fn test_cost_segment_fight() {
 }
 
 // D-235: the fast path and `TickLibrary` on the same ticks give the same words (the events a batch
-// emits are read from them: the kills, the defeat). The member bleeding, a goblin frozen outside the
-// window; three ticks each way.
+// emits are read from them: the kills, the defeat). The member bleeding, a goblin frozen outside
+// the window; three ticks each way.
 #[test]
 #[available_gas(l2_gas: 12284284)] // ceil(1.05 × 11699318 measured)
 fn test_segment_fast_path_equals_tick_library() {
@@ -4397,18 +4540,14 @@ fn test_segment_fast_path_equals_tick_library() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 19562954)] // ceil(1.05 × 18631384 measured)
-
 fn test_cost_segment_fight_whole_fixture() {
     let (words, actions) = fight_whole();
     segment_fixture(words, actions);
 }
 
 #[test]
-
 #[available_gas(l2_gas: 527545587)] // ceil(1.05 × 502424368 measured)
-
 fn test_cost_segment_fight_whole() {
     let (words, actions) = fight_whole();
     let (out, done) = segment_of(words, actions);
@@ -4438,9 +4577,7 @@ fn landing_words() -> Words {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 27245598)] // ceil(1.05 × 25948188 measured)
-
 fn test_cost_landing_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4451,14 +4588,14 @@ fn test_cost_landing_fixture() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 81594778)] // ceil(1.05 × 77709312 measured)
-
 fn test_cost_landing() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let words = ticks_of(library, landing_words(), rep_content(), board(), 1);
-    println!("landing: clock {} defeated {} killed {}", words.clock, words.defeated, words.killed.len());
+    println!(
+        "landing: clock {} defeated {} killed {}", words.clock, words.defeated, words.killed.len(),
+    );
     assert(words.clock == 41, 'one tick');
 }
 
@@ -4499,43 +4636,43 @@ fn lever_actions() -> Span<Action> {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 19695201)] // ceil(1.05 × 18757334 measured)
-
 fn test_cost_lever_fixture() {
     segment_fixture(lever_words(480), lever_actions());
 }
 
 #[test]
-
 #[available_gas(l2_gas: 19784472)] // ceil(1.05 × 18842354 measured)
-
 fn test_cost_lever_fixture_whole() {
     segment_fixture(lever_words(20000), lever_actions());
 }
 
 #[test]
-
 #[available_gas(l2_gas: 284662893)] // ceil(1.05 × 271107517 measured)
-
 fn test_cost_lever_batch_real() {
     let (out, done) = segment_of(lever_words(480), lever_actions());
     println!(
         "lever real: played {} clock {} defeated {} killed {} illegal {:?}",
-        done.played, out.clock, out.defeated, out.killed.len(), done.illegal,
+        done.played,
+        out.clock,
+        out.defeated,
+        out.killed.len(),
+        done.illegal,
     );
     assert(done.played > 0, 'played');
 }
 
 #[test]
-
 #[available_gas(l2_gas: 403496105)] // ceil(1.05 × 384282004 measured)
-
 fn test_cost_lever_batch_whole() {
     let (out, done) = segment_of(lever_words(20000), lever_actions());
     println!(
         "lever whole: played {} clock {} defeated {} killed {} illegal {:?}",
-        done.played, out.clock, out.defeated, out.killed.len(), done.illegal,
+        done.played,
+        out.clock,
+        out.defeated,
+        out.killed.len(),
+        done.illegal,
     );
     assert(done.played > 0, 'played');
 }
@@ -4553,9 +4690,7 @@ fn test_cost_lever_tick_fixture() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 46814765)] // ceil(1.05 × 44585490 measured)
-
 fn test_cost_lever_tick() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4576,9 +4711,7 @@ fn test_cost_lever_tick_uncapped_fixture() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 63588647)] // ceil(1.05 × 60560616 measured)
-
 fn test_cost_lever_tick_uncapped() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4616,9 +4749,7 @@ fn cap_step(cap: u8) -> u8 {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 123735656)] // ceil(1.05 × 117843481 measured)
-
 fn test_attackers_cap() {
     assert(cap_step(4) == 4, 'four attack');
     assert(cap_step(1) == 1, 'one attacks');
@@ -4626,8 +4757,8 @@ fn test_attackers_cap() {
     assert(all <= grimworld_logic::types::ai::MAX_ATTACKERS && all == 8, 'eight attack');
 }
 
-// The window of the segment (ADR-0006 §4): the adventurer at (16, 16), on chunks every one walkable,
-// stands on local (7, 8) (an even row) and its six neighbours are open.
+// The window of the segment (ADR-0006 §4): the adventurer at (16, 16), on chunks every one
+// walkable, stands on local (7, 8) (an even row) and its six neighbours are open.
 #[test]
 #[available_gas(l2_gas: 11950292)] // ceil(1.05 × 11381230 measured)
 fn test_segment_window_open() {
@@ -4657,7 +4788,9 @@ fn test_segment_window_open() {
 
 // D-236 #3: the batch's call to `SegmentLibrary`, with the whole words, against the same segment in
 // process (`segment_of`): the exploration batch and the whole fight batch, each less its fixture.
-fn segment_call(words: Words, actions: Span<Action>) -> (Words, grimworld_logic::types::play::Done) {
+fn segment_call(
+    words: Words, actions: Span<Action>,
+) -> (Words, grimworld_logic::types::play::Done) {
     let class = declare("SegmentLibrary").unwrap().contract_class();
     let library = grimworld_logic::interface::ISegmentLibraryLibraryDispatcher {
         class_hash: *class.class_hash,
@@ -4669,9 +4802,7 @@ fn segment_call(words: Words, actions: Span<Action>) -> (Words, grimworld_logic:
 }
 
 #[test]
-
 #[available_gas(l2_gas: 6504068)] // ceil(1.05 × 6194350 measured)
-
 fn test_cost_segment_call_exploration_fixture() {
     let _ = declare("SegmentLibrary").unwrap().contract_class();
     let (words, actions) = exploration();
@@ -4679,9 +4810,7 @@ fn test_cost_segment_call_exploration_fixture() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 18986304)] // ceil(1.05 × 18082194 measured)
-
 fn test_cost_segment_call_exploration() {
     let (words, actions) = exploration();
     let (out, done) = segment_call(words, actions);
@@ -4689,9 +4818,7 @@ fn test_cost_segment_call_exploration() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 19576299)] // ceil(1.05 × 18644094 measured)
-
 fn test_cost_segment_call_fight_fixture() {
     let _ = declare("SegmentLibrary").unwrap().contract_class();
     let (words, actions) = fight_whole();
@@ -4699,9 +4826,7 @@ fn test_cost_segment_call_fight_fixture() {
 }
 
 #[test]
-
 #[available_gas(l2_gas: 529038582)] // ceil(1.05 × 503846268 measured)
-
 fn test_cost_segment_call_fight() {
     let (words, actions) = fight_whole();
     let (out, done) = segment_call(words, actions);
