@@ -257,12 +257,20 @@ fn eng05_entry() -> (eng05::Site, eng05::Progress, Array<(u8, Terrain)>, u8) {
 }
 
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_base_reveal_eng05() {
     let (_, progress, _, next) = eng05_entry();
     assert(progress.count == 1 && next != 255, 'fixture');
 }
 
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_pair_reveal_eng05_one() {
     let (site, mut progress, known, next) = eng05_entry();
     assert(progress.count == 1 && next != 255, 'fixture');
@@ -274,6 +282,10 @@ fn test_pair_reveal_eng05_one() {
 
 /// The rest of the floor, the lowest revealable index each time, until `N`.
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_pair_reveal_eng05_floor() {
     let (site, mut progress, known, next) = eng05_entry();
     assert(progress.count == 1 && next != 255, 'fixture');

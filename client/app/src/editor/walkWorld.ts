@@ -14,6 +14,7 @@ import {
   terrainOf,
 } from "./model";
 import { type MapObject, kindOf } from "./objects";
+import { bridgeHexes } from "./pack";
 
 /**
  * The map as the game builds it (CLI-09b, brief §2.8): a zone as an instance's `SandboxWorld`
@@ -34,6 +35,19 @@ export function footprintOf(object: MapObject): Tile[] {
  */
 export function coversOf(object: MapObject): Tile[] {
   return kindOf(object).covers?.(object) ?? [];
+}
+
+/**
+ * The hexes of the map's bridges' decks, by key (D-227, ADR-0008 rule 1): walkable ground over
+ * water, as the converter writes them. A bridge whose record cannot be written has none.
+ */
+export function deckKeys(doc: MapDocument): Set<number> {
+  const out = new Set<number>();
+  for (const object of doc.objects.values()) {
+    if (object.kind !== "bridge") continue;
+    for (const t of bridgeHexes(object)?.deck ?? []) out.add(keyOf(t));
+  }
+  return out;
 }
 
 /** The hexes the town's buildings and props make walls of, by key. */
@@ -78,13 +92,16 @@ export const WALKER_ID = 1;
  *   they cover (a place's door stays floor), the figures standing on their spots, as `hubWorld`.
  * - on both, the pack's objects (CLI-09e part 3) stand as structures, characters in their idle
  *   loop; a building's footprint but its door and a blocking prop's hex are walls, as the
- *   validation counts them and as the converter will make them (ENG-08). A bridge is drawn only.
+ *   validation counts them and as the converter will make them (ENG-08). A bridge's deck is
+ *   floor, its ground still water under the sprite (D-227, ADR-0008 rule 1); one outside the
+ *   outline or blocked stays as painted (E-24, E-25 refuse it).
  */
 export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions): SandboxWorld {
   const zone = isZone(doc);
   const width = frame.width * CHUNK;
   const height = frame.height * CHUNK;
   const covered = townCovers(doc);
+  const decks = deckKeys(doc);
   const at = (t: Tile): Tile => ({ x: t.x - frame.x0, y: t.y - frame.y0 });
   const start = at(options.start);
   const inside = (x: number, y: number): boolean => {
@@ -102,7 +119,8 @@ export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions):
         ground.push("water");
         continue;
       }
-      hidden.push(terrainOf(cell) === WALL || covered.has(key) ? "wall" : "floor");
+      const floor = decks.has(key) || terrainOf(cell) !== WALL;
+      hidden.push(!floor || covered.has(key) ? "wall" : "floor");
       ground.push(GROUND_KINDS[groundOfCell(cell)]!);
     }
   }
@@ -166,14 +184,18 @@ export function townStructures(
 ): ViewStructure[] {
   const out: ViewStructure[] = [];
   for (const [id, object] of [...doc.objects].sort(([a], [b]) => a - b)) {
-    const look = kindOf(object).look?.(object);
+    const kind = kindOf(object);
+    const look = kind.look?.(object);
     if (!look) continue;
-    out.push({
-      key: `${object.kind}:${id}`,
-      ...look,
-      at: at(object.at),
-      ...((look.mirror ?? ("mirror" in object && object.mirror)) ? { mirror: true } : {}),
-      covers: coversOf(object).map(at),
+    // A repeated sprite (a long bridge) is one structure a copy; the first keeps the object's key.
+    (kind.drawnAt?.(object) ?? [object.at]).forEach((tile, i) => {
+      out.push({
+        key: i === 0 ? `${object.kind}:${id}` : `${object.kind}:${id}:${i}`,
+        ...look,
+        at: at(tile),
+        ...((look.mirror ?? ("mirror" in object && object.mirror)) ? { mirror: true } : {}),
+        covers: i === 0 ? coversOf(object).map(at) : [],
+      });
     });
   }
   return out;

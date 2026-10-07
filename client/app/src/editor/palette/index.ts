@@ -5,6 +5,7 @@
  */
 export {
   BRIDGES,
+  BRIDGE_DECK_MAX,
   BUILDINGS,
   type BridgeKind,
   type BuildingKind,

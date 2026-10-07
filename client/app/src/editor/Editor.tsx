@@ -42,7 +42,7 @@ import {
   objectLabel,
   servicesOf,
 } from "./objects";
-import { PACK_KIND_OF, isPack, placementOf } from "./pack";
+import { PACK_KIND_OF, isPack, placedOn, placementOf } from "./pack";
 import { drawSprites, spritesFromLibrary } from "./packDraw";
 import {
   Palette,
@@ -838,11 +838,11 @@ function EditorScreen({
   // The placement's preview: the renderer draws the pack's objects placed (CLI-09e part 3).
   const preview = useMemo(() => {
     if (!hover || walking || session.tool !== "place" || !session.placing.type) return null;
-    const object = newObject(session.placing, hover);
+    const object = placedOn(doc, newObject(session.placing, hover));
     if (!isPack(object)) return null;
     const look = previewOf(placementOf(object));
     return { look, object };
-  }, [hover, walking, session.tool, session.placing]);
+  }, [doc, revision, hover, walking, session.tool, session.placing]);
   useEffect(() => {
     canvas.current?.setScene({
       outside:

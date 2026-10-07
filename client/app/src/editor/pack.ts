@@ -1,10 +1,11 @@
 import { TILE_WIDTH } from "../input/coords";
 import { isMirrored } from "../render/facing";
 import type { Facing, Tile } from "../render/view";
-import type { MapMeta } from "./model";
+import { GROUND_KINDS, type MapDocument, type MapMeta, groundOfCell, keyOf } from "./model";
 import type { FieldSpec, KindSpec, PlaceChoice, StructureLook } from "./objects";
 import {
   BRIDGES,
+  BRIDGE_DECK_MAX,
   BRIDGE_RUNS,
   BUILDINGS,
   type BridgeRun,
@@ -34,8 +35,10 @@ import {
  * - A prop stands on `at`: a variant and a mirror for a prop that turns by flip, a facing for one
  *   that turns by facing (the cannon). Both are kept on the object; the record writes the one its
  *   kind uses.
- * - A bridge's southern end is `at`; its deck and northern end follow (D-217). Placed and drawn
- *   only: its walking waits for ENG-08b.
+ * - A bridge's southern end is `at`; its deck of `deck` hexes and its northern end follow, one
+ *   level (D-227, ADR-0008): the deck is walkable ground over water, written so by the converter;
+ *   nothing stands on its ends or deck (R-37). A deck longer than the art's repeats its sprite
+ *   along it (`bridgeCopies`, CLI-09f).
  */
 export type PackObject =
   | {
@@ -65,6 +68,8 @@ export type PackObject =
       readonly type: string;
       readonly mirror: boolean;
       readonly run: BridgeRun;
+      /** The deck's length in hexes (a file without it: 1, CLI-09e's fixed deck). */
+      readonly deck: number;
     };
 
 export type PackKind = PackObject["kind"];
@@ -170,6 +175,7 @@ export function placementOf(object: PackObject): Placement {
         south: object.at,
         mirrored: object.mirror,
         run: object.run,
+        deck: object.deck,
       };
   }
 }
@@ -202,6 +208,60 @@ export function propSprite(object: Of<"scenery">): { sprite: string; mirror: boo
   }
   const sprite = kind.art[object.variant];
   return sprite ? { sprite, mirror: object.mirror } : null;
+}
+
+/** A bridge's deck and ends, or null when its record cannot be written. */
+export function bridgeHexes(object: Of<"bridge">): { deck: Tile[]; ends: [Tile, Tile] } | null {
+  const placed = recordFor(object);
+  if ("problem" in placed || placed.category !== "bridge") return null;
+  return { deck: [...placed.record.deck], ends: [placed.record.ends[0], placed.record.ends[1]] };
+}
+
+/**
+ * Where a bridge's sprite is drawn: the art spans one deck hex and its two ends, so a longer deck
+ * repeats it every second hex from the southern end, the last copy ending on the northern end
+ * (overlapping the one before when the deck's length is even). Its southern end alone when its
+ * record cannot be written.
+ */
+export function bridgeCopies(object: Of<"bridge">): Tile[] {
+  const hexes = bridgeHexes(object);
+  if (!hexes) return [object.at];
+  const line = [hexes.ends[0], ...hexes.deck, hexes.ends[1]];
+  const last = line.length - 3;
+  const at: number[] = [];
+  for (let k = 0; k <= last; k += 2) at.push(k);
+  if (at[at.length - 1] !== last) at.push(last);
+  return at.map((k) => line[k]!);
+}
+
+/**
+ * A bridge placed on land spanned across the water ahead (CLI-09f): its deck takes the water hexes
+ * along its run up to the next land hex, at most `BRIDGE_DECK_MAX`. Unchanged when `at` is not land
+ * or no land lies within reach. `isWater` reads the map: true for water, false for land, null for
+ * an unpainted hex.
+ */
+export function spanned(
+  object: Of<"bridge">,
+  isWater: (tile: Tile) => boolean | null,
+): Of<"bridge"> {
+  if (isWater(object.at) !== false) return object;
+  for (let length = 1; length <= BRIDGE_DECK_MAX; length++) {
+    const hexes = bridgeHexes({ ...object, deck: length });
+    if (!hexes) return object;
+    if (isWater(hexes.deck[length - 1]!) !== true) return object;
+    if (isWater(hexes.ends[1]) === false) return { ...object, deck: length };
+  }
+  return object;
+}
+
+/** A new object as it is placed on the map: a bridge spanned across the water ahead. */
+export function placedOn<O extends { readonly kind: string }>(doc: MapDocument, object: O): O {
+  if (object.kind !== "bridge") return object;
+  const water = GROUND_KINDS.indexOf("water");
+  return spanned(object as unknown as Of<"bridge">, (t) => {
+    const cell = doc.hexes.get(keyOf(t));
+    return cell === undefined ? null : groundOfCell(cell) === water;
+  }) as unknown as O;
 }
 
 /** Whether a prop's kind blocks: its hex is a wall in the walk's world (ENG-08's kind table). */
@@ -380,19 +440,26 @@ export const PACK_ROWS: { readonly [K in PackKind]: KindSpec<Of<K>> } = {
         options: () => BRIDGE_RUNS.map((r) => [r, r === "north" ? "North" : "West"] as const),
         fallback: "north",
       },
+      // CLI-09f: a file without it has CLI-09e's one-hex deck.
+      { key: "deck", label: "Deck (hexes)", type: "number", fallback: 1 },
     ],
-    note: "Placed and drawn only: its walking waits for ENG-08b (D-217).",
-    create: (choice: PlaceChoice, at: Tile) => ({
-      kind: "bridge",
-      at,
-      type: first(BRIDGES, choice.type),
-      mirror: false,
-      run: "north",
-    }),
+    note: "One level: the deck is walkable over water; nothing on its deck or ends (D-227, R-37).",
+    create: (choice: PlaceChoice, at: Tile) => {
+      const type = first(BRIDGES, choice.type);
+      return {
+        kind: "bridge",
+        at,
+        type,
+        mirror: false,
+        run: "north",
+        deck: BRIDGES.find((k) => k.id === type)!.deck,
+      };
+    },
     look: (o) => {
       const kind = kindOf(o.type);
       return still("building", kind?.category === "bridge" ? kind.sprite : o.type, TILE_WIDTH * 2);
     },
+    drawnAt: bridgeCopies,
     record: recordFor,
   },
 };

@@ -248,6 +248,8 @@ pub impl ZoneImpl of ZoneTrait {
             height: *self.location.height,
             entry_chunk: *self.location.entry_chunk,
             chunk_set: *self.chunk_set,
+            west: 0,
+            north: 0,
             masks: array![].span(),
             anchors: array![].span(),
             quotas: *self.quotas,

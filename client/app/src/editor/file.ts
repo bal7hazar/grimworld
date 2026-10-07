@@ -46,7 +46,8 @@ import {
  *
  * CLI-09c adds, still in format 2 and read as 0 when absent: the map's `region`, a gate's `id` and a
  * feature's `param` (registry ids the export for the chain names through a content manifest), and a
- * bridge's `run`.
+ * bridge's `run`. CLI-09f adds a bridge's `deck`, its length in hexes, read as 1 when absent (CLI-09e's
+ * one-hex deck).
  *
  * CLI-09b adds, still in format 2 (a file without them has none): the map's `quotas` (a zone's,
  * `{ kind, param, count }`) and `objects`, a list of `{ kind, x, y, …its fields }` in the order
