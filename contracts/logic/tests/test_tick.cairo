@@ -4109,7 +4109,7 @@ fn ai_call_of(words: Words) -> Words {
 
 #[test]
 
-#[available_gas(l2_gas: 10460189)] // ceil(1.05 × 9962084 measured)
+#[available_gas(l2_gas: 10460084)] // ceil(1.05 × 9961984 measured)
 
 fn test_cost_ai_fixture() {
     let class = declare("AiLibrary").unwrap().contract_class();
@@ -4125,7 +4125,7 @@ fn test_cost_ai_fixture() {
 
 #[test]
 
-#[available_gas(l2_gas: 14643781)] // ceil(1.05 × 13946458 measured)
+#[available_gas(l2_gas: 14643676)] // ceil(1.05 × 13946358 measured)
 
 fn test_cost_ai_call_returning() {
     let out = ai_call(5);
@@ -4134,7 +4134,7 @@ fn test_cost_ai_call_returning() {
 
 #[test]
 
-#[available_gas(l2_gas: 17987242)] // ceil(1.05 × 17130706 measured)
+#[available_gas(l2_gas: 17987137)] // ceil(1.05 × 17130606 measured)
 
 fn test_cost_ai_call_engaged() {
     let out = ai_call(ai::ENGAGED);
@@ -4335,7 +4335,7 @@ fn test_cost_segment_exploration_fixture() {
 
 #[test]
 
-#[available_gas(l2_gas: 17515695)] // ceil(1.05 × 16681614 measured)
+#[available_gas(l2_gas: 17515590)] // ceil(1.05 × 16681514 measured)
 
 fn test_cost_segment_exploration() {
     let (words, actions) = exploration();
@@ -4355,7 +4355,7 @@ fn test_cost_segment_fight_fixture() {
 
 #[test]
 
-#[available_gas(l2_gas: 217827099)] // ceil(1.05 × 207454380 measured)
+#[available_gas(l2_gas: 217826994)] // ceil(1.05 × 207454280 measured)
 
 fn test_cost_segment_fight() {
     let (words, actions) = fight();
@@ -4407,7 +4407,7 @@ fn test_cost_segment_fight_whole_fixture() {
 
 #[test]
 
-#[available_gas(l2_gas: 527545692)] // ceil(1.05 × 502424468 measured)
+#[available_gas(l2_gas: 527545587)] // ceil(1.05 × 502424368 measured)
 
 fn test_cost_segment_fight_whole() {
     let (words, actions) = fight_whole();
@@ -4439,7 +4439,7 @@ fn landing_words() -> Words {
 
 #[test]
 
-#[available_gas(l2_gas: 27245703)] // ceil(1.05 × 25948288 measured)
+#[available_gas(l2_gas: 27245598)] // ceil(1.05 × 25948188 measured)
 
 fn test_cost_landing_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -4452,7 +4452,7 @@ fn test_cost_landing_fixture() {
 
 #[test]
 
-#[available_gas(l2_gas: 81594883)] // ceil(1.05 × 77709412 measured)
+#[available_gas(l2_gas: 81594778)] // ceil(1.05 × 77709312 measured)
 
 fn test_cost_landing() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -4516,7 +4516,7 @@ fn test_cost_lever_fixture_whole() {
 
 #[test]
 
-#[available_gas(l2_gas: 284662998)] // ceil(1.05 × 271107617 measured)
+#[available_gas(l2_gas: 284662893)] // ceil(1.05 × 271107517 measured)
 
 fn test_cost_lever_batch_real() {
     let (out, done) = segment_of(lever_words(480), lever_actions());
@@ -4529,7 +4529,7 @@ fn test_cost_lever_batch_real() {
 
 #[test]
 
-#[available_gas(l2_gas: 403496210)] // ceil(1.05 × 384282104 measured)
+#[available_gas(l2_gas: 403496105)] // ceil(1.05 × 384282004 measured)
 
 fn test_cost_lever_batch_whole() {
     let (out, done) = segment_of(lever_words(20000), lever_actions());
@@ -4542,7 +4542,7 @@ fn test_cost_lever_batch_whole() {
 
 // The tick alone: one tick through `TickLibrary`, the 4 goblins attacking, no action of the member.
 #[test]
-#[available_gas(l2_gas: 19111884)] // ceil(1.05 × 18201794 measured)
+#[available_gas(l2_gas: 19111779)] // ceil(1.05 × 18201694 measured)
 fn test_cost_lever_tick_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4554,7 +4554,7 @@ fn test_cost_lever_tick_fixture() {
 
 #[test]
 
-#[available_gas(l2_gas: 46814870)] // ceil(1.05 × 44585590 measured)
+#[available_gas(l2_gas: 46814765)] // ceil(1.05 × 44585490 measured)
 
 fn test_cost_lever_tick() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -4565,7 +4565,7 @@ fn test_cost_lever_tick() {
 
 // The same tick with the 8 attacking (the uncapped fight's), for the pair.
 #[test]
-#[available_gas(l2_gas: 18931620)] // ceil(1.05 × 18030114 measured)
+#[available_gas(l2_gas: 18931515)] // ceil(1.05 × 18030014 measured)
 fn test_cost_lever_tick_uncapped_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4577,7 +4577,7 @@ fn test_cost_lever_tick_uncapped_fixture() {
 
 #[test]
 
-#[available_gas(l2_gas: 63588752)] // ceil(1.05 × 60560716 measured)
+#[available_gas(l2_gas: 63588647)] // ceil(1.05 × 60560616 measured)
 
 fn test_cost_lever_tick_uncapped() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -4617,7 +4617,7 @@ fn cap_step(cap: u8) -> u8 {
 
 #[test]
 
-#[available_gas(l2_gas: 123735761)] // ceil(1.05 × 117843581 measured)
+#[available_gas(l2_gas: 123735656)] // ceil(1.05 × 117843481 measured)
 
 fn test_attackers_cap() {
     assert(cap_step(4) == 4, 'four attack');

@@ -3104,6 +3104,7 @@ pub mod tests {
     // against armor 70), then the knock-down (`D` 53) interrupts its smash (`A` 53): the field to
     // none, recharge 52 + 10 − 1 = 61. The adventurer +4 quarters, the Hobgoblin +1.
     #[test]
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
     #[available_gas(l2_gas: 10989074)] // ceil(1.05 × 10465784 measured)
     fn test_example_interrupt() {
         // R3: the Hobgoblin's cap is its caste's kit: its smash (24) costs 1 strike, 4 quarters.

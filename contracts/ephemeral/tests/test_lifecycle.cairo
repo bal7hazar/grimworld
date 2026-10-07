@@ -1722,7 +1722,7 @@ fn batch_played(ref spy: snforge_std::EventSpy, world: World) -> (felt252, felt2
 // Two Moves (West, then East back) from a floor tile: each one tick on the fast path, the facing
 // the direction, the sequence and the clock moved by two, `BatchPlayed` with no stop (A2, A3).
 #[test]
-#[available_gas(l2_gas: 59019092)] // ceil(1.05 × 56208659 measured)
+#[available_gas(l2_gas: 59018987)] // ceil(1.05 × 56208559 measured)
 fn test_play_moves() {
     let world = setup();
     play_classes(world);
@@ -1742,7 +1742,7 @@ fn test_play_moves() {
 
 // A Move into a wall is illegal: the batch stops there, the two Moves before it kept (A2, A3).
 #[test]
-#[available_gas(l2_gas: 59078833)] // ceil(1.05 × 56265555 measured)
+#[available_gas(l2_gas: 59078728)] // ceil(1.05 × 56265455 measured)
 fn test_play_move_blocked() {
     let world = setup();
     play_classes(world);
