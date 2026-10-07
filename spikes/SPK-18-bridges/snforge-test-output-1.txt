@@ -1,0 +1,77 @@
+   Compiling test(spk18_unittest) spk18 v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0094-eng-08b-bridges-rules/spikes/SPK-18-bridges/Scarb.toml)
+   Compiling test(spk18_tests) spk18_tests v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0094-eng-08b-bridges-rules/spikes/SPK-18-bridges/Scarb.toml)
+warn: external contracts not found for selectors: `spk18::*`
+    Finished `dev` profile target(s) in 17 seconds
+
+
+Collected 43 test(s) from spk18 package
+Running 0 test(s) from src/
+Running 43 test(s) from tests/
+[PASS] spk18_tests::test_cost::test_once_bridged_climb (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~803108)
+[PASS] spk18_tests::test_cost::test_once_member_place (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~17450)
+[PASS] spk18_tests::test_cost::test_once_goblin_moved_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10810)
+[PASS] spk18_tests::test_cost::test_once_goblin_place (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~15970)
+[PASS] spk18_tests::test_cost::test_once_goblin_place_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~19400)
+[PASS] spk18_tests::test_cost::test_once_ground_step (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1507866)
+[PASS] spk18_tests::test_cost::test_once_member_moved (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10610)
+[PASS] spk18_tests::test_cost::test_once_member_moved_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10910)
+[PASS] spk18_tests::test_cost::test_twice_bridged_none (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1562806)
+[PASS] spk18_tests::test_cost::test_twice_bridged_under (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~839976)
+[PASS] spk18_tests::test_cost::test_twice_either_climb (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2325236)
+[PASS] spk18_tests::test_cost::test_twice_goblin_moved (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~11810)
+[PASS] spk18_tests::test_cost::test_twice_either_none (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~3016782)
+[PASS] spk18_tests::test_cost::test_twice_goblin_moved_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~13410)
+[PASS] spk18_tests::test_cost::test_twice_goblin_place_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~32790)
+[PASS] spk18_tests::test_cost::test_twice_goblin_place (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~25930)
+[PASS] spk18_tests::test_cost::test_twice_ground_step (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1527262)
+[PASS] spk18_tests::test_cost::test_twice_member_moved (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~12010)
+[PASS] spk18_tests::test_cost::test_twice_member_moved_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~13610)
+[PASS] spk18_tests::test_cost::test_twice_member_place (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~28890)
+[PASS] spk18_tests::test_cost::test_twice_member_place_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~35750)
+[PASS] spk18_tests::test_rules::test_along_a_long_deck (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~854894)
+[PASS] spk18_tests::test_rules::test_climb_and_descend (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~822854)
+[PASS] spk18_tests::test_rules::test_cut (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~801736)
+[PASS] spk18_tests::test_rules::test_facing_refused (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1488870)
+[PASS] spk18_tests::test_rules::test_goblin_level_round_trip (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~48850)
+[PASS] spk18_tests::test_rules::test_levels_occupied_apart (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2375971)
+[PASS] spk18_tests::test_rules::test_member_level_round_trip (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~50490)
+[PASS] spk18_tests::test_rules::test_railings (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1665242)
+[PASS] spk18_tests::test_rules::test_ring_and_window_edge (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1487970)
+[PASS] spk18_tests::test_rules::test_under (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2348462)
+[PASS] spk18_tests::test_cost::test_once_bridged_descend (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~803108)
+[PASS] spk18_tests::test_rules::test_no_deck_is_one_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~82158060)
+[PASS] spk18_tests::test_cost::test_once_bridged_ground (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~803108)
+[PASS] spk18_tests::test_cost::test_once_bridged_none (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1525938)
+[PASS] spk18_tests::test_cost::test_once_bridged_under (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~803108)
+[PASS] spk18_tests::test_cost::test_once_either_climb (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2288668)
+[PASS] spk18_tests::test_cost::test_once_either_none (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2995326)
+[PASS] spk18_tests::test_cost::test_once_goblin_moved (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10510)
+[PASS] spk18_tests::test_cost::test_twice_bridged_descend (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~839976)
+[PASS] spk18_tests::test_cost::test_twice_bridged_climb (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~839976)
+[PASS] spk18_tests::test_cost::test_twice_bridged_ground (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~839976)
+[PASS] spk18_tests::test_cost::test_once_member_place_level (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~20880)
+Tests: 43 passed, 0 failed, 0 ignored, 0 filtered out
+
+	Command being timed: "../../scripts/lock.sh --heavy snforge test --max-threads 2"
+	User time (seconds): 17.38
+	System time (seconds): 2.13
+	Percent of CPU this job got: 94%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.56
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1351620
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 150465
+	Voluntary context switches: 1380
+	Involuntary context switches: 631
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 43752
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
