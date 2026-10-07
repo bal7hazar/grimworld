@@ -6,7 +6,7 @@ cairo-version = "2.20"
 
 [dependencies]
 starknet = "2.20"
-hexx = "0.1.0-rc.2"
+hexx = "0.2.0"
 # The game's packages by path, main's code at the spike's base (ENG-05 merged, 9ffd4ff), as SPK-12
 # and SPK-15 do: `grimworld_logic` for the models, the reveal's placement and `Board`;
 # `grimworld_persistent` for `Registry`, measured as it is.

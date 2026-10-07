@@ -10,7 +10,7 @@ cairo-version = "2.20"
 starknet = "2.20"
 snforge_std = "0.64"
 assert_macros = "2.20"
-hexx = "0.1.0-rc.2"
+hexx = "0.2.0"
 
 [cairo]
 sierra-replace-ids = true

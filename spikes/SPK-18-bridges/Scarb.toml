@@ -6,7 +6,7 @@ cairo-version = "2.20"
 
 [dependencies]
 starknet = "2.20"
-hexx = "0.1.0-rc.2"
+hexx = "0.2.0"
 # The game's package by path, main's code at the spike's base (862c972), as SPK-16 and SPK-17 do:
 # the packing helpers and the members' and goblins' word offsets (ENG-01 §3.2).
 grimworld_logic = { path = "../../contracts/logic" }
