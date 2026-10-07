@@ -2,8 +2,11 @@
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
 use starknet::{ClassHash, ContractAddress};
+use crate::models::chunk::Terrain;
+use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::executor::{Board, Cache, Carrier};
+use crate::types::reveal::{Progress, Site};
 use crate::types::tick::Content;
 use crate::types::world::{Actor, Words};
 use crate::types::{InstanceId, Outcome};
@@ -138,6 +141,46 @@ pub trait IFlattenLibrary<T> {
     fn words(
         self: @T, loadout: Loadout, worn: Span<Worn>, ids: Span<u16>, records: Span<felt252>,
     ) -> (felt252, felt252, felt252);
+}
+
+/// A zone's quota hosts as a library class (ENG-01 §1.3, ENG-05, D-210): `Instances` calls it
+/// through `IHostsLibraryLibraryDispatcher` once at `create` in a zone with quotas, the class hash
+/// being its configuration.
+#[starknet::interface]
+pub trait IHostsLibrary<T> {
+    /// The host chunks of each of the 14 quotas of `plan` (`PlacementTrait::plan`) in the zone
+    /// `zone` (its chunk set, 0 for its whole `width × height` rectangle), the location's set
+    /// pieces in `pieces`, drawn from `seed` (`PlacementTrait::hosts`): one bitmap a quota, bit
+    /// `15 cy + cx`; and `masks`, the masks of the chunks to reveal, each with the quotas its chunk
+    /// hosts above the board (`PlacementTrait::with_hosts`).
+    fn hosts(
+        self: @T,
+        zone: felt252,
+        width: u8,
+        height: u8,
+        plan: (felt252, felt252),
+        pieces: Span<(u16, SetPiece)>,
+        masks: Span<(u8, felt252)>,
+        seed: felt252,
+    ) -> (Span<felt252>, Span<(u8, felt252)>);
+}
+
+/// The chunk reveal's library class (ENG-01 §1.3, ENG-05): `Instances` calls it through
+/// `IRevealLibraryLibraryDispatcher`, the class hash being its configuration.
+#[starknet::interface]
+pub trait IRevealLibrary<T> {
+    /// Reveals `chunks` (in order) of instance `instance_id` in the location `site`, from
+    /// `progress`, with the terrain of every revealed neighbour in `known`
+    /// (`types::reveal::RevealTrait::reveal`): the progress after them, and the chunks revealed as
+    /// `(chunk, terrain, features)`, their two words packed as stored (ENG-01 §3.2).
+    fn reveal(
+        self: @T,
+        site: Site,
+        progress: Progress,
+        instance_id: felt252,
+        known: Span<(u8, Terrain)>,
+        chunks: Span<u8>,
+    ) -> (Progress, Span<(u8, felt252, felt252)>);
 }
 
 /// The executor as its own library class (CBT-05a, route (c)): one call a carrier, the words of the

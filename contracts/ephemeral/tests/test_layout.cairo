@@ -2,7 +2,9 @@
 // record's size in slots and the bit offsets of every packed record, LIVE included. The variables'
 // names and keys (their addresses) are checked in `store::layout_tests`; the tests of one model
 // alone are in its module (D-167, ENG-R1b).
-use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement, Terrain};
+use grimworld_ephemeral::models::chunk::{
+    Chunk, Features, FeaturesStorePacking, Object, PackPlacement, Terrain, TerrainStorePacking,
+};
 use grimworld_ephemeral::models::goblin::{
     Goblin, GoblinState, GoblinTimers, GoblinTimersTrait, MAX_ADRENALINE,
 };
@@ -144,7 +146,8 @@ fn test_goblin_deadline_above_28_bits_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: offsets above 25 bits')]
-#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+// gas: raised, ENG-05: the chunk's field packers are no longer inlined (D-200, class size)
+#[available_gas(l2_gas: 121443)] // ceil(1.05 × 115660 measured)
 fn test_pack_offsets_refused() {
     let pack = PackPlacement { offsets: 0x2000000, ..Default::default() };
     let features = Features {

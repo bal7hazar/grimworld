@@ -14,7 +14,9 @@ Limits (docs.starknet.io, *Chain info*, read 2026-09-29): 4,089,446 bytes of Sie
 Two named exceptions to the 50 % (ENG-01 §1.3; decided by the project manager, 2026-10-02,
 D-200), each its own threshold, nothing else loosened: `ExecutorLibrary` at most 80,420 CASM felts
 (the limit less 1,500 of margin), `TickLibrary` at most 75 % (61,440 felts), its room kept for
-CBT-05b's resolution parts and ENG-07's act hook.
+CBT-05b's resolution parts and ENG-07's act hook. Two more for ENG-05's zone quota hosts (the project
+manager, 2026-10-03, D-209), until the bit-parallel placement lot wins the room back before ENG-07:
+`RevealLibrary` at most 50.5 %, `Instances` at most 51 %.
 
     python3 contracts/tools/class_sizes.py [--warn PERCENT]
 """
@@ -30,6 +32,9 @@ BYTECODE_LIMIT = 81_920
 EXCEPTIONS = {
     ("grimworld_logic", "ExecutorLibrary"): 100 * 80_420 / BYTECODE_LIMIT,
     ("grimworld_logic", "TickLibrary"): 75.0,
+    # D-209
+    ("grimworld_logic", "RevealLibrary"): 50.5,
+    ("grimworld_ephemeral", "Instances"): 51.0,
 }
 HERE = os.path.dirname(os.path.abspath(__file__))
 TARGET = os.path.join(os.path.dirname(HERE), "target", "dev")

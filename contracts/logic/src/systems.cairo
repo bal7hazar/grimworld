@@ -3,5 +3,9 @@
 pub mod executor;
 /// `FlattenLibrary`: the snapshot's flattening as a library class (CBT-02e, D-168).
 pub mod flatten;
+/// `HostsLibrary`: a zone's quota hosts drawn at `create`, as a library class (ENG-05, D-210).
+pub mod hosts;
+/// `RevealLibrary`: the chunk reveal as a library class (ENG-05).
+pub mod reveal;
 /// `TickLibrary`: the world tick's pipeline as a library class (CBT-02).
 pub mod tick;

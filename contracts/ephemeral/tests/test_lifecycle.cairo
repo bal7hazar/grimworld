@@ -21,21 +21,29 @@ use grimworld_ephemeral::systems::instances::{
     IInstancesDispatcher, IInstancesDispatcherTrait, IInstancesSafeDispatcher,
     IInstancesSafeDispatcherTrait, InstanceView,
 };
-use grimworld_logic::content::{GATE, LOCATION, REGION};
-use grimworld_logic::fate::{ENTRY, derive, domain};
+use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
+use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
 use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
 };
+use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
+use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
+use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
+use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota_kind};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
+use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord};
 use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry, TaskPage};
-use grimworld_logic::types::{Outcome, Refusal, instance_id};
+use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
+use grimworld_logic::types::reveal::{ProgressTrait, RevealTrait, Site};
+use grimworld_logic::types::{ChunkKind, Outcome, Refusal, instance_id};
 use snforge_std::{
-    ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, load,
-    map_entry_address, spy_events, start_cheat_caller_address, store,
+    ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, EventSpyTrait,
+    EventsFilterTrait, declare, load, map_entry_address, spy_events, start_cheat_caller_address,
+    store,
 };
 use starknet::ContractAddress;
 use starknet::storage_access::StorePacking;
@@ -80,10 +88,23 @@ mod RegistryDouble {
             out.span()
         }
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
-            core::panic_with_felt252('double: records')
+            let mut out = array![];
+            for id in ids {
+                for part in 0..parts(kind) {
+                    out.append(self.records.read((kind, *id, part)));
+                }
+            }
+            out.span()
         }
         fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, u32, Span<felt252>) {
-            core::panic_with_felt252('double: bundle')
+            let mut out = array![];
+            for request in requests {
+                let (kind, id) = *request;
+                for part in 0..parts(kind) {
+                    out.append(self.records.read((kind, id, part)));
+                }
+            }
+            (0, 0, out.span())
         }
         fn content_version(self: @ContractState) -> u32 {
             0
@@ -310,9 +331,16 @@ fn setup() -> World {
     let (fate, _) = class.deploy(@array![]).unwrap();
     let class = declare("HubDouble").unwrap().contract_class();
     let (hub, _) = class.deploy(@array![]).unwrap();
+    let reveal = declare("RevealLibrary").unwrap().contract_class();
+    let hosts = declare("HostsLibrary").unwrap().contract_class();
     let class = declare("Instances").unwrap().contract_class();
     let (instances, _) = class
-        .deploy(@array![ADMIN, hub.into(), registry.into(), fate.into()])
+        .deploy(
+            @array![
+                ADMIN, hub.into(), registry.into(), fate.into(), (*reveal.class_hash).into(),
+                (*hosts.class_hash).into(),
+            ],
+        )
         .unwrap();
 
     let records = IRecordsDispatcher { contract_address: registry };
@@ -337,6 +365,9 @@ fn setup() -> World {
     records.set(GATE, 11, gate(ZONE, TOWN, here, (0, 0), gate_kind::LINK, 0, 0));
     records.set(GATE, 12, gate(TOWN, RIFT, (0, 0), centre, gate_kind::HUB, 0, 0));
     records.set(GATE, 13, gate(ZONE, 9, here, centre, gate_kind::LINK, 0, 0));
+    // ENG-05: into the zone at chunk 16's tile 16 (`(16, 16)`), next to its South-East corner:
+    // sight touches chunks 0, 1, 15 and 16.
+    records.set(GATE, 14, gate(TOWN, ZONE, (0, 0), (16, 16), gate_kind::HUB, 0, 0));
     World { instances, registry, fate, hub }
 }
 
@@ -470,12 +501,14 @@ fn placement_of(world: World, adventurer: u32) -> Placement {
 // ---- create -------------------------------------------------------------------------------------
 
 // An adventurer's first entry: a new slot, generation 1, every word of §2.1 written for clock 0,
-// the entry draw under `poseidon(id, 0, ENTRY)`. Write set (ENG-01 §9.3, first entry, cold): the
-// placement, header, entropy, revealed, quotas, the member's 8 words and ⌈16 / 4⌉ = 4 task
-// pages new (19 − 2: the entry chunk's 2 words are ENG-05's reveal), `next_slot` overwritten.
+// the entry draw under `poseidon(id, 0, ENTRY)`, then the entry reveal (ENG-05): sight from the
+// entry tile (column 0, row 7 of chunk 0) touches chunk 0 alone (its East is outside the zone).
+// Write set (ENG-01 §9.3, first entry, cold): the placement, header, entropy, revealed, quotas,
+// the member's 8 words, ⌈16 / 4⌉ = 4 task pages and the entry chunk's 2 words new: 19;
+// `next_slot` overwritten.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 34194796)] // ceil(1.05 × 32566472 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 38987798)] // ceil(1.05 × 37131236 measured)
 fn test_create_first_entry() {
     let world = setup();
     let keys = watched();
@@ -488,7 +521,7 @@ fn test_create_first_entry() {
     println!("gas create, first entry, 16 tasks (doubles): {}", gas - get_available_gas());
     assert(id == instance_id(1, 1), 'slot 1, generation 1');
     let after = values(world.instances, keys.span());
-    assert(changes(before.span(), after.span()) == (17, 1, 0), 'writes: 17 new, 1 overwritten');
+    assert(changes(before.span(), after.span()) == (19, 1, 0), 'writes: 19 new, 1 overwritten');
 
     let header = header_of(world, 1);
     let expected = Header {
@@ -499,7 +532,7 @@ fn test_create_first_entry() {
         status: OPEN,
         members: 1,
         tasks: 16,
-        revealed_count: 0,
+        revealed_count: 1,
         roster_count: 0,
         flags: 0,
         entry_chunk: 0,
@@ -509,10 +542,12 @@ fn test_create_first_entry() {
     assert(header == expected, 'header');
     let draw = domain(id.into(), 0, ENTRY);
     let entropy = read(world.instances, key(selector!("entropy"), array![1]));
+    // The entry draw alone: a reveal feeds nothing (audit #348, major 1).
     assert(entropy == derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0), 'entry draw');
     assert(draws(world) == 1, 'one draw');
     assert(
-        read(world.instances, key(selector!("revealed"), array![1])) == LIVE, 'nothing revealed',
+        read(world.instances, key(selector!("revealed"), array![1])) == LIVE + 1,
+        'chunk 0 revealed',
     );
     let quotas: Quotas = StorePacking::unpack(
         read(world.instances, key(selector!("quotas"), array![1])),
@@ -576,25 +611,25 @@ fn test_create_first_entry() {
     );
 }
 
-// The same with no task: no task page is written (17 − 4 = 13 new).
+// The same with no task: no task page is written (19 − 4 = 15 new).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 29928671)] // ceil(1.05 × 28503496 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 34639761)] // ceil(1.05 × 32990248 measured)
 fn test_create_without_tasks() {
     let world = setup();
     let keys = watched();
     let before = values(world.instances, keys.span());
     create(world, HERO, ALICE, INTO_ZONE, 0);
     let after = values(world.instances, keys.span());
-    assert(changes(before.span(), after.span()) == (13, 1, 0), 'writes: 13 new, 1 overwritten');
+    assert(changes(before.span(), after.span()) == (15, 1, 0), 'writes: 15 new, 1 overwritten');
     assert(header_of(world, 1).tasks == 0, 'no task');
 }
 
 // A later entry reuses the slot: generation + 1, `next_slot` untouched, every key already written
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 47942057)] // ceil(1.05 × 45659101 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 60138794)] // ceil(1.05 × 57275041 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -616,8 +651,8 @@ fn test_create_reuses_the_slot() {
 }
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 35498291)] // ceil(1.05 × 33807896 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 42295437)] // ceil(1.05 × 40281368 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -645,8 +680,8 @@ fn test_create_refusals() {
 
 // A sealed destination sets the header's flag (design/17).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 27903568)] // ceil(1.05 × 26574826 measured)
+// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
+#[available_gas(l2_gas: 34257287)] // ceil(1.05 × 32625987 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -713,8 +748,8 @@ fn fill_slot(world: World) {
 // A slot another generation used, with stale data in every word: the new instance shows nothing of
 // it, through the view and through the stored words its gates reach.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 49831376)] // ceil(1.05 × 47458453 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 57589809)] // ceil(1.05 × 54847437 measured)
 fn test_generation_isolation() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -735,8 +770,8 @@ fn test_generation_isolation() {
     let view = play(world, BOB).instance_state(second);
     let header = header_of(world, 1);
     assert(header.generation == 2 && header.roster_count == 0, 'roster count reset');
-    assert(header.revealed_count == 0 && header.tasks == 1, 'counts reset');
-    assert(view.revealed == LIVE, 'nothing revealed');
+    assert(header.revealed_count == 1 && header.tasks == 1, 'counts reset, entry revealed');
+    assert(view.revealed == LIVE + 1, 'only the entry chunk');
     let quotas: Quotas = StorePacking::unpack(view.quotas);
     assert(quotas == Quotas { target: 0, open_edges: 0, left: [0; 14] }, 'quotas fresh');
     assert(
@@ -832,8 +867,8 @@ fn test_generation_isolation() {
 // unlocked, the belt's counts reported (ENG-01 §9.3: header, member state, placement: 0 new, 3
 // overwritten; `InstanceClosed`; one report).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 35917052)] // ceil(1.05 × 34206716 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 40627869)] // ceil(1.05 × 38693208 measured)
 fn test_leave_to_a_hub() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -879,11 +914,11 @@ fn test_leave_to_a_hub() {
 // the same slot, generation 2, in the same invocation, with its entry draw. Nothing of the member
 // carries but the belt's reserve (D-141, E-20; E-13's F-12 case): its conditions, effects,
 // recharges and activation, set before leaving, are gone. Write set (ENG-01 §9.3, moved): header,
-// entropy, revealed, quotas, the 4 transient member words, the placement: 9 written, 0 new (the
-// entry chunk's 2 words are ENG-05's).
+// entropy, revealed, quotas, the 4 transient member words, the placement: 9 overwritten; and the
+// entry reveal (ENG-05): floor 1's entry chunk 112, its 2 words new in this slot.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 43030793)] // ceil(1.05 × 40981707 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 59583506)] // ceil(1.05 × 56746196 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -923,9 +958,13 @@ fn test_leave_to_a_location() {
     println!("gas leave to a location (doubles): {}", gas - get_available_gas());
     assert(next == instance_id(1, 2), 'next: slot 1, generation 2');
     let after = values(world.instances, keys.span());
-    // Nine keys written; the revealed set is written with the value it holds (empty: nothing was
-    // revealed before ENG-05), which is no state change (ENG-01 §2.2, point 4): eight change.
-    assert(changes(before.span(), after.span()) == (0, 8, 0), 'writes: 8 changed');
+    assert(changes(before.span(), after.span()) == (2, 9, 0), 'writes: 2 new, 9 changed');
+    assert(header_of(world, 1).revealed_count == 1, 'the entry chunk revealed');
+    assert(
+        read(world.instances, key(selector!("revealed"), array![1])) == LIVE
+            + 0x10000000000000000000000000000,
+        'chunk 112 alone',
+    );
 
     let header = header_of(world, 1);
     assert(header.generation == 2 && header.location == FLOOR_1 && header.status == OPEN, 'next');
@@ -996,8 +1035,8 @@ fn test_leave_to_a_location() {
 
 // Travel back: Returned to the last hub (the hub settles `hub` 0 as its last one, D-04).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 34121261)] // ceil(1.05 × 32496439 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 38831742)] // ceil(1.05 × 36982611 measured)
 fn test_travel_back() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1052,8 +1091,8 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 }
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 35768341)] // ceil(1.05 × 34065086 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 40479493)] // ceil(1.05 × 38551898 measured)
 fn test_refused_sequence() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1067,8 +1106,8 @@ fn test_refused_sequence() {
 
 // An id of an earlier generation, and an instance already closed.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 41571438)] // ceil(1.05 × 39591845 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 49665440)] // ceil(1.05 × 47300419 measured)
 fn test_refused_closed() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1081,8 +1120,8 @@ fn test_refused_closed() {
 
 // The adventurer is not in that instance (another's, in another slot), or is down.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 43568314)] // ceil(1.05 × 41493632 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 52410389)] // ceil(1.05 × 49914656 measured)
 fn test_refused_absent() {
     let world = setup();
     create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1097,8 +1136,8 @@ fn test_refused_absent() {
 // Every gate that cannot be taken from where the member stands (design/02: "the gate is
 // reachable"), before any draw.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 63683830)] // ceil(1.05 × 60651266 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 68400169)] // ceil(1.05 × 65143018 measured)
 fn test_refused_gate() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1114,8 +1153,8 @@ fn test_refused_gate() {
 
 // A sealed Red Rift: no travel back (design/17).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 31449725)] // ceil(1.05 × 29952119 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 36103682)] // ceil(1.05 × 34384459 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1124,8 +1163,8 @@ fn test_refused_sealed() {
 
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 30174149)] // ceil(1.05 × 28737284 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 35310656)] // ceil(1.05 × 33629196 measured)
 fn test_not_controller() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1141,8 +1180,8 @@ fn test_not_controller() {
 // ---- set_controller -----------------------------------------------------------------------------
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 35680126)] // ceil(1.05 × 33981072 measured)
+// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
+#[available_gas(l2_gas: 40390607)] // ceil(1.05 × 38467244 measured)
 fn test_set_controller() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -1168,4 +1207,278 @@ fn test_set_controller() {
     refused(try_play(world, ALICE).travel_back(id, HERO, 0), NOT_CONTROLLER);
     play(world, BOB).travel_back(id, HERO, 0);
     assert(reports(world).outcome == 1, 'the new owner plays');
+}
+
+// ---- the entry reveal (ENG-05)
+// --------------------------------------------------------------------
+
+/// The zone with its content: its chunk set (0, 1, 2, 15, 16), chunk 16's tile mask (rows 0–9,
+/// then columns 0–9), the collector's quota, a spawn table of one template.
+fn zone_content(world: World) -> felt252 {
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let zone = LocationTrait::new(
+        location_kind::ZONE,
+        1,
+        1,
+        1,
+        3,
+        0,
+        3,
+        2,
+        0,
+        0,
+        0,
+        1,
+        false,
+        0,
+        105,
+        Lanes16 { lanes: [0; 15] },
+    );
+    records.set(LOCATION, ZONE.into(), zone.pack());
+    records
+        .set(
+            OUTLINE,
+            OutlineTrait::id(ZONE, CHUNK_SET),
+            OutlineRecord::pack(@OutlineTrait::new(0x18007, 0)),
+        );
+    let mask = OutlineTrait::new(0xffffffffffffffffffffffffffffffff, 0xffc1ff83ff07fe0ffffffff);
+    records.set(OUTLINE, OutlineTrait::id(ZONE, 16), OutlineRecord::pack(@mask));
+    records.set(QUOTAS, ZONE.into(), QuotaSetRecord::pack(@camp()));
+    records.set(SPAWN_TABLE, 1, SpawnTableRecord::pack(@table()));
+    records.set(PACK, 1, PackRecord::pack(@template()));
+    mask.low.into() + mask.high.into() * 0x100000000000000000000000000000000
+}
+
+fn camp() -> QuotaSet {
+    QuotaSet {
+        quotas: [
+            Quota { kind: quota_kind::COLLECTOR, param: 1, count: 1 }, Default::default(),
+            Default::default(), Default::default(), Default::default(), Default::default(),
+        ],
+    }
+}
+
+fn table() -> SpawnTable {
+    SpawnTable {
+        spawns: [
+            Spawn { template: 1, weight: 1 }, Default::default(), Default::default(),
+            Default::default(), Default::default(), Default::default(), Default::default(),
+        ],
+        density: 200,
+    }
+}
+
+fn template() -> Pack {
+    Pack {
+        castes: [
+            PackCaste { caste: 1, min: 1, max: 2 }, PackCaste { caste: 2, min: 1, max: 3 },
+            Default::default(), Default::default(), Default::default(),
+        ],
+        level: 0,
+    }
+}
+
+// `create` reveals every chunk sight touches from the entry tile (Open question 3): entering the
+// zone through the floor's link, on chunk 16's tile 110 (`(20, 22)`), sight touches chunk 16 and
+// chunk 15. The words stored are the engine's, called directly on the same content (`Instances`
+// reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
+// question 6); `instance_region` tells void, not yet revealed and revealed apart.
+#[test]
+#[available_gas(l2_gas: 56358721)] // ceil(1.05 × 53674972 measured)
+fn test_entry_reveal_through_the_engine() {
+    let world = setup();
+    let mask = zone_content(world);
+    let mut spy = spy_events();
+    start_cheat_caller_address(world.instances, world.hub);
+    let id = IInstanceEntryDispatcher { contract_address: world.instances }
+        .create(HERO, addr(ALICE), FLOOR_TO_ZONE, snapshot().words(), tasks(3));
+    // The engine on the same content, the zone's hosts above the masks (D-208).
+    let mut site = Site {
+        target: 0,
+        biome: 1,
+        level_min: 1,
+        level_max: 3,
+        width: 3,
+        height: 2,
+        entry_chunk: 16,
+        chunk_set: 0x18007,
+        masks: array![(16, mask), (15, 0)].span(),
+        anchors: array![(16, 110)].span(),
+        quotas: camp(),
+        tasks: tasks(3),
+        spawn: table(),
+        packs: array![(1, template())].span(),
+        pieces: array![].span(),
+    };
+    let draw = domain(id.into(), 0, ENTRY);
+    let entropy = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
+    let mut progress = ProgressTrait::new(@site, entropy);
+    let (low, high) = QuotaPlacementTrait::plan(@site, progress.left.span());
+    let hosts = QuotaPlacementTrait::hosts(
+        site.chunk_set,
+        site.width,
+        site.height,
+        (low, high),
+        site.pieces,
+        EntropyTrait::hosts(entropy, id.into()),
+    );
+    site
+        .masks =
+            array![
+                (16, QuotaPlacementTrait::with_hosts(mask, hosts.span(), 16)),
+                (15, QuotaPlacementTrait::with_hosts(0, hosts.span(), 15)),
+            ]
+        .span();
+    let mut quota: felt252 = 0;
+    let mut stored: u8 = 0;
+    for host in hosts.span() {
+        assert(read(world.instances, key(selector!("hosts"), array![1, quota])) == *host, 'hosts');
+        if *host != 0 {
+            stored += 1;
+        }
+        quota += 1;
+    }
+    assert(stored != 0, 'a quota hosted');
+    let revealed = RevealTrait::reveal(
+        @site, ref progress, id.into(), array![].span(), array![16, 15].span(),
+    );
+    assert(revealed.len() == 2, 'two chunks');
+    for chunk in revealed.span() {
+        let at = key(selector!("chunks"), array![1, (*chunk.chunk).into()]);
+        assert(read(world.instances, at) == StorePacking::pack(*chunk.terrain), 'terrain');
+        assert(read(world.instances, at + 1) == StorePacking::pack(*chunk.features), 'features');
+    }
+    let header = header_of(world, 1);
+    assert(header.revealed_count == 2 && header.entry_chunk == 16, 'two revealed');
+    let view = play(world, ALICE).instance_state(id);
+    assert(view.revealed == LIVE + progress.revealed, 'revealed set');
+    assert(view.entropy == progress.entropy, 'entropy fed');
+    let quotas: Quotas = StorePacking::unpack(view.quotas);
+    assert(quotas.left == progress.left, 'quotas');
+    // `InstanceEntered` alone.
+    let events = spy.get_events().emitted_by(world.instances);
+    assert(events.events.len() == 1, 'no ChunkRevealed');
+    // The views: chunks 0–15, then 16–31.
+    let region = play(world, ALICE).instance_region(id, 0, 16);
+    assert(region.len() == 16, 'a page');
+    assert(
+        *region[0].kind == ChunkKind::Unrevealed && *region[2].kind == ChunkKind::Unrevealed,
+        'in the set',
+    );
+    assert(*region[3].kind == ChunkKind::Void && *region[14].kind == ChunkKind::Void, 'beyond');
+    assert(*region[15].kind == ChunkKind::Revealed, 'chunk 15');
+    assert(*region[0].terrain == 0 && *region[0].features == 0, 'unrevealed: no word');
+    let region = play(world, ALICE).instance_region(id, 16, 16);
+    assert(*region[0].kind == ChunkKind::Revealed, 'chunk 16');
+    assert(
+        *region[0].terrain == read(world.instances, key(selector!("chunks"), array![1, 16])),
+        'its words',
+    );
+    assert(*region[1].kind == ChunkKind::Void, 'outside the outline');
+    // A stale id answers nothing.
+    assert(play(world, ALICE).instance_region(id + 1, 0, 16).len() == 0, 'stale');
+}
+
+// `instance_region` refuses a page above 16 (`REGION_PAGE`).
+#[test]
+#[available_gas(l2_gas: 32860914)] // ceil(1.05 × 31296108 measured)
+#[feature("safe_dispatcher")]
+fn test_region_page_bound() {
+    let world = setup();
+    let id = create(world, HERO, ALICE, INTO_ZONE, 0);
+    refused(try_play(world, ALICE).instance_region(id, 0, 17), 'region: page above 16');
+}
+
+// A dungeon floor: the entry chunk alone (sight from its centre stays in it); its edges decided,
+// the frontier open (it never closes before `N`); the chunks beyond an open edge not yet revealed,
+// the others void or undecided.
+#[test]
+#[available_gas(l2_gas: 37270030)] // ceil(1.05 × 35495266 measured)
+fn test_entry_reveal_of_a_dungeon() {
+    let world = setup();
+    let id = create(world, HERO, ALICE, FAR_LINK, 0);
+    let header = header_of(world, 1);
+    assert(header.revealed_count == 1, 'the entry chunk alone');
+    let quotas: Quotas = StorePacking::unpack(
+        read(world.instances, key(selector!("quotas"), array![1])),
+    );
+    assert(quotas.target == 6 && quotas.open_edges >= 1, 'the frontier open');
+    let terrain: Terrain = StorePacking::unpack(
+        read(world.instances, key(selector!("chunks"), array![1, 112])),
+    );
+    assert(terrain.edges != 0, 'edges decided');
+    let region = play(world, ALICE).instance_region(id, 104, 16);
+    // 112 is index 8 of the page from 104; its West neighbour 113 is index 9.
+    assert(*region[8].kind == ChunkKind::Revealed, 'the entry chunk');
+    let west = if terrain.edges % 2 == 1 {
+        ChunkKind::Unrevealed
+    } else {
+        ChunkKind::Void
+    };
+    assert(*region[9].kind == west, 'beyond the West edge');
+}
+
+// The entry reveal as the invocation's difference (ENG-05 *Budget lines*): `create` into the zone
+// revealing 1 chunk (the entry tile on column 0), 2 (the floor's link, chunk 16's tile 110) and 4
+// (chunk 16's tile 16, next to a corner), each the adventurer's first entry (cold: every chunk's
+// two words new); `create` revealing 1 a later entry (the slot's words overwritten).
+fn create_gas(gate: u16, chunks: u8) -> u128 {
+    let world = setup();
+    start_cheat_caller_address(world.instances, world.hub);
+    let entry = IInstanceEntryDispatcher { contract_address: world.instances };
+    let gas = get_available_gas();
+    entry.create(HERO, addr(ALICE), gate, snapshot().words(), tasks(0));
+    let spent = gas - get_available_gas();
+    assert(header_of(world, 1).revealed_count == chunks, 'chunks revealed');
+    spent
+}
+
+/// `create` into the test zone (2 chunks revealed), its content as `zone_content` writes it, with
+/// the camp's quota or with none: `begin`'s zone block (the plan, `HostsLibrary`'s call, the hosts
+/// written) runs only with a quota (D-210).
+fn create_gas_zone(quotas: bool) -> u128 {
+    let world = setup();
+    zone_content(world);
+    if !quotas {
+        let none = QuotaSet { quotas: [Default::default(); 6] };
+        IRecordsDispatcher { contract_address: world.registry }
+            .set(QUOTAS, ZONE.into(), QuotaSetRecord::pack(@none));
+    }
+    start_cheat_caller_address(world.instances, world.hub);
+    let gas = get_available_gas();
+    IInstanceEntryDispatcher { contract_address: world.instances }
+        .create(HERO, addr(ALICE), FLOOR_TO_ZONE, snapshot().words(), tasks(0));
+    let spent = gas - get_available_gas();
+    // The hosts written with a quota, none without (the review t-0078, note 3)
+    let mut written: u8 = 0;
+    let mut quota: felt252 = 0;
+    while quota != 14 {
+        if read(world.instances, key(selector!("hosts"), array![1, quota])) != 0 {
+            written += 1;
+        }
+        quota += 1;
+    }
+    assert(written == if quotas {
+        1
+    } else {
+        0
+    }, 'hosts written with a quota only');
+    spent
+}
+
+// D-210 (review note 5 at 46d7d89): `begin`'s cost with and without the zone block, on the same
+// zone; the difference also holds the collector's placement when a host is revealed.
+#[test]
+#[available_gas(l2_gas: 88296086)] // ceil(1.05 × 84091510 measured)
+fn test_cost_create_zone_block() {
+    println!("gas create, zone with a quota (the zone block): {}", create_gas_zone(true));
+    println!("gas create, zone without a quota (no zone block): {}", create_gas_zone(false));
+}
+
+#[test]
+#[available_gas(l2_gas: 110226220)] // ceil(1.05 × 104977352 measured)
+fn test_cost_create_reveals() {
+    println!("gas create revealing 1 chunk: {}", create_gas(INTO_ZONE, 1));
+    println!("gas create revealing 2 chunks: {}", create_gas(FLOOR_TO_ZONE, 2));
+    println!("gas create revealing 4 chunks: {}", create_gas(14, 4));
 }

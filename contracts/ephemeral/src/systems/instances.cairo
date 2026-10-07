@@ -21,6 +21,8 @@ pub use errors::{NOT_ADMIN, ZERO_ADMIN};
 pub mod errors {
     /// An administrator's entrypoint called by anyone else.
     pub const NOT_ADMIN: felt252 = 'not admin';
+    /// `instance_region` asked for more than `REGION_PAGE` chunks.
+    pub const PAGE: felt252 = 'region: page above 16';
     /// `set_admin` to the zero address would leave the role to nobody.
     pub const ZERO_ADMIN: felt252 = 'admin is zero';
 }
@@ -198,9 +200,16 @@ pub trait IInstances<T> {
 pub trait IInstancesAdmin<T> {
     fn version(self: @T) -> felt252;
     /// The registered contracts: the hub that may create instances and receives results, the
-    /// registry, the randomness provider (configuration, ADR-0002).
+    /// registry, the randomness provider (configuration, ADR-0002); and the class of the chunk
+    /// reveal's library, `RevealLibrary` (ENG-01 §1.3, ENG-05), and of the hosts' library,
+    /// `HostsLibrary` (D-210), called by `library_call`.
     fn set_contracts(
-        ref self: T, hub: ContractAddress, registry: ContractAddress, fate: ContractAddress,
+        ref self: T,
+        hub: ContractAddress,
+        registry: ContractAddress,
+        fate: ContractAddress,
+        reveal: ClassHash,
+        hosts_library: ClassHash,
     );
     fn set_admin(ref self: T, admin: ContractAddress);
     /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
@@ -209,17 +218,31 @@ pub trait IInstancesAdmin<T> {
 
 #[starknet::contract]
 pub mod Instances {
-    use grimworld_logic::content::{GATE, LOCATION, exists};
-    use grimworld_logic::fate::{ENTRY, derive, domain};
+    use grimworld_logic::content::{
+        GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, exists,
+    };
+    use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
     use grimworld_logic::interface::{
-        IFateDispatcher, IFateDispatcherTrait, IInstanceEntry, IRegistryReadDispatcher,
-        IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait, Results, facts,
+        IFateDispatcher, IFateDispatcherTrait, IHostsLibraryDispatcherTrait,
+        IHostsLibraryLibraryDispatcher, IInstanceEntry, IRegistryReadDispatcher,
+        IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait,
+        IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher, Results, facts,
     };
     use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
+    use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
+    use grimworld_logic::models::pack::{Pack, PackRecord};
+    use grimworld_logic::models::quotas::{QuotaSet, QuotaSetRecord, kind as quota_kind};
+    use grimworld_logic::models::set_piece::{SetPiece, SetPieceRecord};
+    use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
-    use grimworld_logic::types::{InstanceId, Outcome, Refusal, instance_id, instance_parts};
+    use grimworld_logic::types::reveal::board::BoardTrait;
+    use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
+    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
+    use grimworld_logic::types::{
+        ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
+    };
     use starknet::storage::Map;
     use starknet::storage_access::StorePacking;
     use starknet::{ClassHash, ContractAddress, get_caller_address};
@@ -236,7 +259,10 @@ pub mod Instances {
     };
     use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
     use crate::store::InstancesStoreTrait;
-    use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION};
+    use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors};
+
+    /// Tasks whose quotas a reveal places (ENG-01 §3.2: the location's 6, then 8).
+    const TASK_QUOTAS: u32 = 8;
 
     /// Task entries on a stored page (`TaskPage`).
     const TASKS_PER_PAGE: u32 = 4;
@@ -252,6 +278,10 @@ pub mod Instances {
         pub hub: ContractAddress,
         pub registry: ContractAddress,
         pub fate: ContractAddress,
+        /// The chunk reveal's library class (ENG-05; ENG-01 §1.3).
+        pub reveal: ClassHash,
+        /// The library class of a zone's quota hosts (D-210; ENG-01 §1.3).
+        pub hosts_library: ClassHash,
         /// The next slot handed out, at an adventurer's first entry; slots are never freed.
         pub next_slot: Counter,
         pub placements: Map<u32, Placement>,
@@ -273,6 +303,10 @@ pub mod Instances {
         pub chunks: Map<(u32, u8), Chunk>,
         /// `(slot, entity)`: two consecutive slots each.
         pub goblins: Map<(u32, u16), Goblin>,
+        /// `(slot, quota)`: a zone's quota hosts, a chunk bitmap per quota with a count, drawn once
+        /// at the generation's start (D-208, ENG-05); never read in a dungeon, stale beyond the
+        /// current generation's quotas.
+        pub hosts: Map<(u32, u8), felt252>,
     }
 
     #[event]
@@ -294,8 +328,10 @@ pub mod Instances {
         hub: ContractAddress,
         registry: ContractAddress,
         fate: ContractAddress,
+        reveal: ClassHash,
+        hosts_library: ClassHash,
     ) {
-        self.initialize(admin, hub, registry, fate);
+        self.initialize(admin, hub, registry, fate, reveal, hosts_library);
     }
 
     #[abi(embed_v0)]
@@ -414,6 +450,14 @@ pub mod Instances {
             let (max_health, max_energy) = MemberStateTrait::maxima(
                 self.get_stats(slot, placement.member).word,
             );
+            // The reveal reads the first 8 tasks' quotas (2 pages at most); the count is kept
+            // whole.
+            let read: u8 = if header.tasks < 8 {
+                header.tasks
+            } else {
+                8
+            };
+            let tasks = self.get_tasks(slot, read);
             let next = self
                 .begin(
                     slot,
@@ -423,6 +467,7 @@ pub mod Instances {
                     @record,
                     @location,
                     header.tasks,
+                    tasks,
                     max_health,
                     max_energy,
                     state.belt,
@@ -501,10 +546,65 @@ pub mod Instances {
             }
         }
 
+        /// Chunks `first .. first + count` of the instance (`count` at most `REGION_PAGE`; past
+        /// chunk 224 nothing): each one's kind (design/02 *How the views tell them apart*: void,
+        /// not yet revealed, revealed; the engine's rule, `RevealTrait::kind`, read here without
+        /// building a `Site`: `InternalTrait::kind`) and a revealed one's two words as stored. A
+        /// chunk not revealed is never read (§2.1). An id whose generation is not the slot's
+        /// current one answers nothing. The location's record (and a zone's chunk set) is read
+        /// once; a dungeon's chunk not revealed reads its revealed neighbours' terrain (their
+        /// edges). Each chunk's goblins are ENG-07's (the roster, `touched`): empty here (ENG-05
+        /// Open question 5).
         fn instance_region(
             self: @ContractState, instance_id: InstanceId, first: u8, count: u8,
         ) -> Span<RegionChunk> {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(count <= REGION_PAGE, errors::PAGE);
+            let (slot, generation) = instance_parts(instance_id);
+            let header = self.get_stored_header(slot).model();
+            let mut out: Array<RegionChunk> = array![];
+            if generation == 0 || header.generation != generation {
+                return out.span();
+            }
+            let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
+            let location: Location = LocationRecord::unpack(
+                registry.record(LOCATION, header.location.into()),
+            );
+            let chunk_set = if location.target == 0 {
+                InternalTrait::bitmap(
+                    registry.record(OUTLINE, OutlineTrait::id(header.location, CHUNK_SET)),
+                )
+            } else {
+                0
+            };
+            let revealed = self.get_revealed(slot).model().bits;
+            let last: u16 = first.into() + count.into();
+            let last: u8 = if last > 225 {
+                225
+            } else {
+                last.try_into().unwrap()
+            };
+            let mut chunk = first;
+            while chunk < last {
+                let (kind, terrain, features) = if BoardTrait::has(revealed, chunk) {
+                    let (terrain, features) = self.get_chunk_words(slot, chunk);
+                    (ChunkKind::Revealed, terrain, features)
+                } else {
+                    (
+                        self
+                            .chunk_kind(
+                                slot, @location, chunk_set, revealed, header.revealed_count, chunk,
+                            ),
+                        0,
+                        0,
+                    )
+                };
+                out
+                    .append(
+                        RegionChunk { chunk, kind, terrain, features, goblins: array![].span() },
+                    );
+                chunk += 1;
+            }
+            out.span()
         }
 
         /// `(instance id, member, inside)`: the adventurer's last instance, 0 if it never entered.
@@ -571,6 +671,7 @@ pub mod Instances {
                     @record,
                     @location,
                     tasks.len().try_into().unwrap(),
+                    tasks,
                     max_health,
                     max_energy,
                     snapshot.belt_counts,
@@ -600,9 +701,11 @@ pub mod Instances {
             hub: ContractAddress,
             registry: ContractAddress,
             fate: ContractAddress,
+            reveal: ClassHash,
+            hosts_library: ClassHash,
         ) {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
-            self.set_registered(hub, registry, fate);
+            self.set_registered(hub, registry, fate, reveal, hosts_library);
         }
 
         /// Hands the administrator role over; the caller loses it. Administrator only.
@@ -652,12 +755,18 @@ pub mod Instances {
             self.emit(Refused { instance_id, adventurer_id, from, sequence, reason });
         }
 
-        /// A new generation of `slot` after `previous` (ENG-01 §2.1): its header, the entry draw
+        /// A new generation of `slot` after `previous` (ENG-01 §2.1): the entry draw
         /// (`fate(poseidon(id, 0, ENTRY))`, ADR-0002; the entropy is the value derived from it),
-        /// an empty revealed set, the location's quotas, and the member's four transient words
-        /// for clock 0 (F-12, F-14): on the gate's entry tile, maxima from `stats`, the belt's
-        /// `belt` counts, no activation, condition, effect or recharge. The placement follows.
-        /// The caller has made every check: the draw comes last but for the writes it feeds.
+        /// then **the entry reveal** (ENG-05, Open question 3): every chunk sight touches from the
+        /// entry tile, the entry chunk first, in one call to the reveal's library; then its header
+        /// (the revealed count), entropy, revealed set, quotas and chunks, each written once, and
+        /// the member's four transient words for clock 0 (F-12, F-14): on the gate's entry tile,
+        /// maxima from `stats`, the belt's `belt` counts, no activation, condition, effect or
+        /// recharge. The placement follows. The caller has made every check: the draw comes last
+        /// but for the writes it feeds. `count` is the snapshot's task count, `tasks` at least its
+        /// first 8 (their quotas follow the location's). No `ChunkRevealed` here (ENG-01 §5: a
+        /// batch, `open`, `mine`, `barter`;
+        /// Open question 6): the client knows the entry from `InstanceEntered` and the header.
         fn begin(
             ref self: ContractState,
             slot: u32,
@@ -666,7 +775,8 @@ pub mod Instances {
             gate: u16,
             record: @Gate,
             location: @Location,
-            tasks: u8,
+            count: u8,
+            tasks: Span<TaskEntry>,
             max_health: u16,
             max_energy: u8,
             belt: [u8; 4],
@@ -674,25 +784,73 @@ pub mod Instances {
             let generation = previous + 1;
             let id = instance_id(slot, generation);
             let destination = *record.destination;
-            self
-                .set_header(
-                    slot,
-                    HeaderTrait::new(
-                        generation,
-                        destination,
-                        tasks,
-                        *location.sealed,
-                        *record.entry_chunk,
-                        *record.entry_tile,
-                        gate,
-                    ),
-                );
             let draw = domain(id.into(), 0, ENTRY);
             let word = IFateDispatcher { contract_address: self.get_fate() }.fate(draw);
-            self.set_entropy(slot, derive(word, draw, 0));
-            self.set_revealed(slot, Bitmap { bits: 0 });
-            self.set_quotas(slot, QuotasTrait::new(*location.target));
+            // [Compute] The entry reveal
             let (x, y) = record.entry();
+            let chunks = SightTrait::chunks(x, y, *location.width, *location.height);
+            let site = self
+                .site(
+                    destination,
+                    location,
+                    *record.entry_chunk,
+                    *record.entry_tile,
+                    tasks,
+                    chunks.span(),
+                );
+            let entropy = derive(word, draw, 0);
+            // A zone's quota hosts, drawn once (D-208), carried above each chunk's mask; none to
+            // draw without a quota
+            let progress = ProgressTrait::new(@site, entropy);
+            let mut site = site;
+            let mut hosts: Span<felt252> = array![].span();
+            let plan = QuotaPlacementTrait::plan(@site, progress.left.span());
+            if *location.target == 0 && plan != (0, 0) {
+                let seed = EntropyTrait::hosts(entropy, id.into());
+                let (drawn, masks) = IHostsLibraryLibraryDispatcher {
+                    class_hash: self.get_hosts_library(),
+                }
+                    .hosts(
+                        site.chunk_set,
+                        site.width,
+                        site.height,
+                        plan,
+                        site.pieces,
+                        site.masks,
+                        seed,
+                    );
+                hosts = drawn;
+                site.masks = masks;
+            }
+            let (progress, revealed) = IRevealLibraryLibraryDispatcher {
+                class_hash: self.get_reveal(),
+            }
+                .reveal(site, progress, id.into(), array![].span(), chunks.span());
+            // [Effect] The instance's words, each once
+            let header = HeaderTrait::new(
+                generation,
+                destination,
+                count,
+                *location.sealed,
+                *record.entry_chunk,
+                *record.entry_tile,
+                gate,
+            );
+            self.set_header(slot, Header { revealed_count: progress.count, ..header });
+            self.set_entropy(slot, progress.entropy);
+            self.set_revealed(slot, Bitmap { bits: progress.revealed });
+            self.set_quotas(slot, QuotasTrait::from_progress(*location.target, @progress));
+            for chunk in revealed {
+                let (index, terrain, features) = *chunk;
+                self.set_chunk(slot, index, terrain, features);
+            }
+            let mut quota: u8 = 0;
+            for mask in hosts {
+                if *mask != 0 {
+                    self.set_hosts(slot, quota, *mask);
+                }
+                quota += 1;
+            }
             self
                 .set_entering(
                     slot,
@@ -705,6 +863,202 @@ pub mod Instances {
                     InstanceEntered { instance_id: id, adventurer_id, location: destination, gate },
                 );
             id
+        }
+
+        /// What a reveal reads of `location` (`destination`'s record, read by the caller), in the
+        /// fewest calls (ENG-05): one `bundle` of its `QUOTAS`, its `SPAWN_TABLE`, a zone's chunk
+        /// set and the tile masks of `chunks`, and its set pieces; then one `records` of the `PACK`
+        /// templates the spawn table, the Heart quotas and the set pieces name. The anchors are the
+        /// entry tile: a gate anchored in the location is found by no index of the registry yet
+        /// (the report's escalation). The first 8 `tasks` give the tasks' quotas.
+        fn site(
+            self: @ContractState,
+            destination: u16,
+            location: @Location,
+            entry_chunk: u8,
+            entry_tile: u8,
+            tasks: Span<TaskEntry>,
+            chunks: Span<u8>,
+        ) -> Site {
+            let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
+            let zone = *location.target == 0;
+            let table = *location.spawn_table;
+            let mut requests: Array<(u8, u32)> = array![(QUOTAS, destination.into())];
+            if table != 0 {
+                requests.append((SPAWN_TABLE, table.into()));
+            }
+            if zone {
+                requests.append((OUTLINE, OutlineTrait::id(destination, CHUNK_SET)));
+                for chunk in chunks {
+                    requests.append((OUTLINE, OutlineTrait::id(destination, *chunk)));
+                }
+            }
+            for piece in location.set_pieces.lanes.span() {
+                if *piece != 0 {
+                    requests.append((SET_PIECE, (*piece).into()));
+                }
+            }
+            let (_, _, parts) = registry.bundle(requests.span());
+            // [Compute] The records, in the order asked
+            let quotas: QuotaSet = QuotaSetRecord::unpack(parts.slice(0, 1));
+            let mut at: u32 = 1;
+            let spawn: SpawnTable = if table != 0 {
+                at += 1;
+                SpawnTableRecord::unpack(parts.slice(1, 1))
+            } else {
+                SpawnTable { spawns: [Default::default(); 7], density: 0 }
+            };
+            let mut chunk_set: felt252 = 0;
+            let mut masks: Array<(u8, felt252)> = array![];
+            if zone {
+                chunk_set = Self::bitmap(parts.slice(at, 1));
+                at += 1;
+                for chunk in chunks {
+                    masks.append((*chunk, Self::bitmap(parts.slice(at, 1))));
+                    at += 1;
+                }
+            }
+            let mut pieces: Array<(u16, SetPiece)> = array![];
+            let mut ids: Array<u32> = array![];
+            for piece in location.set_pieces.lanes.span() {
+                if *piece != 0 {
+                    let record = parts.slice(at, 2);
+                    at += 2;
+                    if exists(record) {
+                        let set: SetPiece = SetPieceRecord::unpack(record);
+                        for entry in set.packs.span() {
+                            Self::add(ref ids, *entry.template);
+                        }
+                        pieces.append((*piece, set));
+                    }
+                }
+            }
+            // [Compute] The pack templates named
+            for entry in spawn.spawns.span() {
+                Self::add(ref ids, *entry.template);
+            }
+            for entry in quotas.quotas.span() {
+                if *entry.kind == quota_kind::HEART {
+                    Self::add(ref ids, *entry.param);
+                }
+            }
+            let mut packs: Array<(u16, Pack)> = array![];
+            if ids.len() != 0 {
+                let records = registry.records(PACK, ids.span());
+                let mut i: u32 = 0;
+                for id in ids.span() {
+                    let record = records.slice(i, 1);
+                    if exists(record) {
+                        packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
+                    }
+                    i += 1;
+                }
+            }
+            let count = if tasks.len() < TASK_QUOTAS {
+                tasks.len()
+            } else {
+                TASK_QUOTAS
+            };
+            Site {
+                target: *location.target,
+                biome: *location.biome,
+                level_min: *location.level_min,
+                level_max: *location.level_max,
+                width: *location.width,
+                height: *location.height,
+                entry_chunk,
+                chunk_set,
+                masks: masks.span(),
+                anchors: array![(entry_chunk, entry_tile)].span(),
+                quotas,
+                tasks: tasks.slice(0, count),
+                spawn,
+                packs: packs.span(),
+                pieces: pieces.span(),
+            }
+        }
+
+        /// The kind of a chunk not revealed (`RevealTrait::kind`'s rule, which the tests hold it
+        /// against): void outside the location's rectangle or a zone's chunk set; in a zone, not
+        /// yet revealed; in a dungeon, void once `N` chunks are revealed, or when revealed
+        /// neighbours face it and every one with a border, else not yet revealed.
+        fn chunk_kind(
+            self: @ContractState,
+            slot: u32,
+            location: @Location,
+            chunk_set: felt252,
+            revealed: felt252,
+            count: u8,
+            chunk: u8,
+        ) -> ChunkKind {
+            let (cy, cx) = DivRem::div_rem(chunk, 15);
+            let target = *location.target;
+            let inside = cx < *location.width
+                && cy < *location.height
+                && (target != 0 || chunk_set == 0 || BoardTrait::has(chunk_set, chunk));
+            if !inside {
+                return ChunkKind::Void;
+            }
+            if target == 0 {
+                return ChunkKind::Unrevealed;
+            }
+            if count >= target {
+                return ChunkKind::Void;
+            }
+            // [Compute] Its neighbours `(chunk, the bit of their edge facing it)`: West, East,
+            // South, North, those inside the rectangle
+            let mut faced = false;
+            let mut open = false;
+            let mut around: Array<(u8, u8)> = array![];
+            if cx + 1 < *location.width {
+                around.append((chunk + 1, 2));
+            }
+            if cx != 0 {
+                around.append((chunk - 1, 1));
+            }
+            if cy != 0 {
+                around.append((chunk - 15, 8));
+            }
+            if cy + 1 < *location.height {
+                around.append((chunk + 15, 4));
+            }
+            for entry in around.span() {
+                let (next, bit) = *entry;
+                if BoardTrait::has(revealed, next) {
+                    faced = true;
+                    if (self.get_terrain(slot, next).edges / bit) % 2 == 1 {
+                        open = true;
+                    }
+                }
+            }
+            if open || !faced {
+                ChunkKind::Unrevealed
+            } else {
+                ChunkKind::Void
+            }
+        }
+
+        /// An `OUTLINE` record's bitmap (0 for none).
+        fn bitmap(parts: Span<felt252>) -> felt252 {
+            let outline = OutlineRecord::unpack(parts);
+            outline.low.into() + outline.high.into() * 0x100000000000000000000000000000000
+        }
+
+        /// `id` added to `ids` unless it is 0 or already there.
+        fn add(ref ids: Array<u32>, id: u16) {
+            if id == 0 {
+                return;
+            }
+            let id: u32 = id.into();
+            let mut found = false;
+            for seen in ids.span() {
+                if *seen == id {
+                    found = true;
+                }
+            }
+            if !found {
+                ids.append(id);
+            }
         }
 
         /// **The closing path** of every way out that ends a member's presence: `leave` through a

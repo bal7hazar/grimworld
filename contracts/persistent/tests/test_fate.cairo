@@ -37,7 +37,8 @@ fn test_fate_deterministic_per_transaction_and_domain() {
 
 // One transaction, one word per purpose, four values each through `derive`: all distinct.
 #[test]
-#[available_gas(l2_gas: 3575435)] // ceil(1.05 × 3405176 measured)
+// gas: raised, ENG-05: one more purpose to derive (the reveal's)
+#[available_gas(l2_gas: 4229493)] // ceil(1.05 × 4028088 measured)
 fn test_fate_values_distinct_through_derive() {
     let fate = deploy_fate();
     start_cheat_transaction_hash(fate.contract_address, 0x7a);

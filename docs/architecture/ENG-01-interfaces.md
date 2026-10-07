@@ -200,6 +200,62 @@ The last row is why `create` receives the packed words: the three unpackers alon
 of `Hub`. The call: 3,183,138 L2 gas on the widest equipment design/20 §1.2 counts (15 modifiers, 30
 passives), 745,553 without equipment (`contracts/logic/tests/test_flatten.cairo`, the call alone).
 
+**The reveal's library class (ENG-05; Open question 1, decided by the orchestrator on
+2026-10-03).** `RevealLibrary`, in `grimworld_logic` (`contracts/logic/src/systems/reveal.cairo`),
+declared as its own class; its one entrypoint, `IRevealLibrary::reveal(site, progress, instance_id,
+known, chunks) -> (progress, chunks revealed)` (`grimworld_logic::interface`), runs the engine
+(`types::reveal::RevealTrait::reveal`) on what `Instances` read: the location's records as a `Site`
+(the location, its `QUOTAS`, `SPAWN_TABLE`, the `PACK`s and `SET_PIECE`s they name, a zone's chunk
+set and tile masks, the anchors, the snapshot's first 8 tasks), the instance's `Progress` (revealed
+set and count, open edges, quotas left, entropy), the terrain of the revealed neighbours, and the
+chunks to reveal. A zone chunk's mask word carries above its 225 tiles the quotas it hosts (bit
+`225 + i` for quota `i`, D-208): `Instances` draws a zone's hosts once (`PlacementTrait::hosts`),
+keeps them (`hosts`, §3.2) and sets those bits (`PlacementTrait::with_hosts`) on every mask it
+passes. It returns the progress after them and each
+chunk's two words packed as stored, which `Instances` writes as they are. `Instances` holds the
+class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as `Hub` holds
+`flatten`: an administrator's argument, no event) and calls it through
+`IRevealLibraryLibraryDispatcher { class_hash }`, **once an invocation that reveals** (`create`,
+`leave` to a location; ENG-07's batches). CASM felts (`class_sizes.py`, Linux, Scarb 2.20.1,
+`RAYON_NUM_THREADS=1`):
+
+| Class | CASM felts | Share |
+|---|---:|---:|
+| `RevealLibrary` | 41,109 | **50.18 %** (D-209: at most 50.5 %) |
+| `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept) | 41,247 | **50.35 %** (D-209: at most 51 %; 29.05 % before ENG-05) |
+| `HostsLibrary` (D-210, D-220) | 6,580 | 8.03 % |
+
+Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
+bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cost the library about
+1,900 felts); one call site of `keep_component` (each call with constant dimensions compiled a copy,
+878 felts); the packers of a chunk's and a record's fields and the board's set operations not inlined
+(a few hundred L2 gas a reveal for about 3,100 felts); and the library returns a chunk's words
+packed, so that `Instances` holds no `Features` packer or unpacker (its view returns the words as
+stored), and `instance_region` computes a chunk's kind itself instead of building a `Site`. After
+the audit's frontier guard (#348, minor 3) two more: a power of two by two small `match`es (one
+128-arm match cost about 900 felts), and the loops of `decide` and of the guard start their state
+from a value the compiler cannot fold (`chunk / 255`, 0 for every chunk index): a loop whose state
+starts from constants is compiled twice, a copy specialised to them (1,471 felts in `decide` alone),
+at about 15 % of a reveal's gas. The order-free quota draws (#348, major 1: one drawing loop over
+the quotas' counts, 345 felts) and the delta review's guard (always one side toward growth, not
+the frontier's edges against the chunks owed; a side the mask cuts whole never opened) leave the
+library 22 felts under 50 %, `Instances` 1,466. Counting the distinct chunks behind the frontier's
+edges, the review's first proposal, measured 51.20 %. ENG-07's wiring of the reveal into `play` is
+measured against these margins first, and the library has no room left. D-208's zone hosts took
+`RevealLibrary` and `Instances` over 50 %: D-209 allows them 50.5 % and 51 % until the bit-parallel
+placement lot wins the room back, before ENG-07.
+
+**`HostsLibrary`** (D-210, the project manager, 2026-10-04): a zone's quota hosts
+(`types::reveal::placement::PlacementTrait::hosts`, D-208) as their own class, so that the exact
+draw and the caps leave `Instances` no larger. `IHostsLibrary::hosts(zone, width, height, plan,
+pieces, masks, seed) -> (hosts, masks)` takes the zone (its chunk set, 0 for the rectangle), the
+quotas' plan (`PlacementTrait::plan`: each quota's count, kind and param in two felts), the
+location's set pieces, the masks of the chunks the entry reveals and the seed
+(`EntropyTrait::hosts`); it returns one bitmap a quota and those masks with the quotas each chunk
+hosts above the board. `Instances` holds its class hash (`hosts_library`, §3.2) from its
+constructor and `set_contracts` and calls it **once at `create` in a zone with a quota** (none
+without), then writes the bitmaps (`hosts`, §3.2).
+
 ---
 
 ## 2. Reusing an instance's slots
@@ -218,7 +274,8 @@ slot is reached only through a gate that `create` or a reveal rewrites.
 | Record | Reached through | Rewritten at |
 |---|---|---|
 | `headers[slot]` | the instance id: `header.generation` must equal the id's generation, else the call is refused (`Closed`) and views answer nothing | `create` (generation + 1, sequence 0, clock 0, counts reset) |
-| `entropy`, `revealed`, `quotas` | the header | `create` (entry draw; the entry chunk only; the location's quotas) |
+| `entropy`, `revealed`, `quotas` | the header | `create` (entry draw; the chunks sight touches from the entry tile, ENG-05; the location's quotas less what the entry reveal placed) |
+| `hosts[(slot, quota)]` | the header's location (a zone) and its quotas with a count | `create` in a zone (D-208): every quota with a count, its hosts drawn once |
 | `tasks[(slot, page)]` | `header.tasks` (pages beyond `⌈tasks / 4⌉` are never read) | `create`, only the pages it needs: a page never used before is new then (§9.3) |
 | `members[(slot, m)]` | `header.members` (members beyond the count are never read) | `create`, all eight words; **every generation-changing path** (`create`, and `leave` through a gate to a location) writes every transient word for the new clock 0: state from the snapshot, timers with no activation (`act_slot` 255, deadlines 0), effects and recharges empty (fix loops 2 and 3, F-12, F-14) |
 | `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole). **Masked, not rewritten** (F-13): every read of a page, internal or in a view, zeroes the lanes of entries at or beyond the count (`RosterTrait::mask`), and no raw page is returned | nothing at `create`: the count is reset to 0 there, so stale lanes are masked without a write |
@@ -351,6 +408,8 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 | Variable | Key | Slots | Record | Written by |
 |---|---|---:|---|---|
 | `admin`, `hub`, `registry`, `fate` | — | 4 | addresses | constructor, `set_contracts` |
+| `reveal` | — | 1 | `ClassHash` of `RevealLibrary` (ENG-05, §1.3) | constructor, `set_contracts` |
+| `hosts_library` | — | 1 | `ClassHash` of `HostsLibrary` (D-210, §1.3) | constructor, `set_contracts` |
 | `next_slot` | — | 1 | `Counter` | first entry of an adventurer |
 | `placements` | adventurer `u32` | 1 | `Placement` | `create`, `leave` |
 | `headers` | slot | 1 | `Header` | every invocation that runs an action |
@@ -362,6 +421,7 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 | `roster` | (slot, page 0–3) | 1 each | `Lanes16`: entity ids of goblins displaced from their spawn, alive or dead and not looted; a compact list of `header.roster_count` entries | a goblin is displaced, is looted or goes home |
 | `chunks` | (slot, chunk 0–224) | **2** each | `Chunk { terrain, features }` | reveal (both); a pack wakes or an object is used (`features`) |
 | `goblins` | (slot, entity) | **2** each | `Goblin { state, timers }` | a goblin leaves its first state, acts, dies, is looted |
+| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only, never in a dungeon | `create` and `leave` to a zone |
 
 **`Placement`** (1 felt): slot 0–31 · generation 32–63 · member 64–71 · inside 72–79 · `LIVE`.
 
@@ -407,8 +467,20 @@ before personalisation); `MemberBar` refuses more (`MAX_UNGUARDED_ARMOR`), an `i
 - `Features`: packs at 0 and 64 (tile 0–7 · template 8–23 · level 24–31 · count 32–35 (0–5) ·
   each goblin's tile as one of the 19 tiles within 2, 5 bits each, 36–60 · the pack's shared `alert` 61–63:
   asleep, on watch, alerted, while none of its goblins has a record) · objects at 128, 160, 192
-  (tile 0–7 · kind 8–11 (chest, vein, node, trap, collector, landmark, lever or brazier) · state
+  (tile 0–7 · kind 8–11 (chest, vein, node, trap, collector, landmark, lever or brazier; **ENG-05**:
+  8 a dungeon floor's exit, placed by quota, its `param` the floor gate) · state
   12–15 (used) · param 16–31) · `touched` 224–239 (bit `k`: goblin `k` has a record) · `LIVE`.
+- **ENG-05** (the layout unchanged): the models `Terrain`, `PackPlacement`, `Object` and `Features`
+  are `grimworld_logic::models::chunk`'s (Open question 4), `Instances`' `Chunk` puts their two words
+  in two consecutive slots as typed slots (`Stored<Terrain>`, `Stored<Features>`), which the
+  reveal's library returns packed. A goblin's tile index `k` (0–18) names the tile at `OFFSETS[k]`
+  from the pack's: by axial `dr`, then `dq` (`q = x − ⌊y/2⌋`, global), independent of the row's
+  parity, `k` 9 the pack's tile (`PackPlacementTrait::member`). The reveal writes a chunk's two
+  words, the revealed set, the header's revealed count, the quotas (its open edges and what each
+  quota has left) at `create`, `leave` to a location and, from ENG-07, in a batch. **A reveal
+  feeds nothing into the entropy** (audit #348, major 1, the orchestrator's ruling of 2026-10-03):
+  each chunk's word reads it, so a fed reveal would make the order of moves a free choice over every
+  later chunk. In a dungeon the engine reads every revealed chunk's terrain (its frontier).
 - **Occupancy is not stored.** The window's occupancy is the tiles of the members and of the
   goblins in it (the roster's, and the untouched ones of the chunks it overlaps, derived from the
   pack placements), set with one table-driven addition each (E: 70 goblins at most, an estimate of
@@ -668,6 +740,10 @@ Every variable is read and written through `Registry`'s store (`RegistryStoreTra
 (Pedersen), computed in the store (`PartsTrait`): the first two links are computed once a record,
 each part adds one (tested against the map, `test_part_address_is_the_maps`); `bundle` of 32 three-part records: 4,045,220 → 3,477,020 (M).
 
+The four rows marked **ENG-05** are laid out by the chunk reveal (round-trip and bit tests in each
+model's module, D-167); `Registry`'s content checks of them (`set_record`) come after CBT-05a's
+validators (ENG-05's report).
+
 **Layouts of the world's records** (ENG-03; models under D-143: the structs in
 `grimworld_logic::models::index`, each with `new`, its `...Assert` checks, its `errors` and its
 `content::Record` impl packing into the record's parts; round-trip and bit tests in
@@ -696,6 +772,11 @@ value; no field straddles bit 128; `LIVE` in part 0.
 | `ARMOR_SET` | 0 | 5 piece bases `u16` at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · the 3-piece bonus 128–180 · the 5-piece bonus 181–233 (a passive each) |
 | `CASTE` | 0 | tier 0–7 · AI profile 8–15 · health multiplier (percent) 16–31 · health regeneration + 10 32–39 · armor 40–47 · weapon 48–79 (class 48–51 · damage 52–67 · damage type 68–71 · ticks 72–75 · range 76–79) · energy (≤ 85) 80–87 · energy regeneration 88–95 · flee threshold 96–103 · rank of its skills 104–107 · boss 108 · armor per damage type 128–181 (type `t` at `128 + 6 (t − 1)`, ≤ 63) · loot table 182–197 |
 | `CASTE` | 1 | 4 skills `u16` at 0, 16, 32, 48, in priority order (design/19 §7.3: 243 bits over 4 limbs; the shape, DES-06 fills the values) |
+| `QUOTAS` | 0 | **ENG-05** (`models::quotas`, id = the location's): quota `i` of 6, 32 bits each, at `32 i` (`i` 0–3, low limb) and `128 + 32 (i − 4)` (`i` 4–5): kind 0–7 (0 none, 1 exit, 2 Heart, 3 vein, 4 collector, 5 landmark, 6 set piece; the packer refuses another) · param 8–23 (the exit's floor gate, the Heart's `PACK`, the `COLLECTOR`, the `LANDMARK`, the `SET_PIECE`; 0 for a vein) · count 24–31 (over the location; a dungeon floor: over its `N`) |
+| `SPAWN_TABLE` | 0 | **ENG-05** (`models::spawn_table`): entry `i` of 7, 24 bits each, at `24 i` (`i` 0–4, low limb) and `128 + 24 (i − 5)` (`i` 5–6): template `u16` 0–15 (a `PACK`; 0 none) · weight 16–23 · density 176–183 (each of a chunk's two pack slots holds a pack with probability `density / 256`) |
+| `PACK` | 0 | **ENG-05** (`models::pack`): caste `i` of 5, 32 bits each, at `32 i` (`i` 0–3, low limb) and 128 (`i` 4): caste `u16` 0–15 (0 none) · min 16–23 · max 24–31 (the packer refuses `min > max`) · level offset 160–167 (`i8`, two's complement, added to the chunk's band level, the sum held in the location's band). A placed pack stores its template and count only: goblin `k`'s caste is derived, each caste taking its `min`, then the rest in order up to each `max` (`PackTrait::caste`); a pack holds at most 5 (E-3) |
+| `SET_PIECE` | 0 | **ENG-05** (`models::set_piece`): the authored walls, bit `15 row + column` (1 = wall), 0–224 |
+| `SET_PIECE` | 1 | packs `i` of 2 (tile 0–7 · template 8–23) at `24 i`; objects at 48, 80 (low limb) and 128, each in `Object`'s 32-bit layout (§3.2), state 0. The reveal keeps the interior and the placements and joins the ring like any chunk's (ADR-0006 *Set pieces*) |
 
 **The effect entry** (CBT-01, design/19 §2.1; `grimworld_logic::types::effect::Entry`), 97 bits of a
 limb: kind 0–7 (0 empty, 1–23) · param 8–15 · `v0` 16–31 · `v12` 32–47 (`i16`) · `d0` 48–63 · `d12`
@@ -796,7 +877,7 @@ instance_region(instance_id, first: u8, count: u8) -> Span<RegionChunk>     coun
 placement(adventurer_id) -> (u64, u8, bool)
 create(adventurer_id, controller, gate: u16, snapshot: Snapshot, tasks: Span<TaskEntry>) -> u64   Hub only
 set_controller(adventurer_id, controller)                                                         Hub only
-version, set_contracts(hub, registry, fate), set_admin, upgrade(class_hash)                        admin
+version, set_contracts(hub, registry, fate, reveal: ClassHash, hosts_library: ClassHash), set_admin, upgrade(class_hash)     admin
 ```
 
 **The batch in one felt** (`grimworld_logic::actions`): count at bits 0–3 (1–10); actions 0–4 at
@@ -1404,6 +1485,11 @@ Conventions of the key sets:
 - **`create`** writes 15 + ⌈t/4⌉ keys at an adventurer's first entry (t ≤ 16 tasks), plus
   `next_slot`. A later entry finds them written; only its entry chunk index and task pages beyond
   those used before can be new. The roster is not written (§2.1: masked by its count).
+  **ENG-05**: the entry reveal writes every chunk sight touches from the entry tile, 1 to 4 chunks
+  of 2 keys each (Open question 3): the rows of `enter`, `enter_rift` and `leave` to a location
+  count the one-chunk case (`I.chunk` 2), the 4-chunk case adds 6 keys, new the first time a slot
+  reveals those chunk indices. The identities are `contracts/tools/budget_table.py`'s (ENG-05's
+  report, escalation: a branch of 8 chunk keys).
 - Goblins, chunks and pages are numbered in the identities as distinct physical keys, the worst
   case: a boss's three items on three distinct pages, 16 goblins as 32 distinct words.
 - **Standalone actions with an objective** (ENG-01b, F-3): `open`, `mine` and `barter` run ticks
@@ -1693,6 +1779,37 @@ inside 3,893,819 (D). Calls: `enter` 5 (the gate read by `Hub`, then the gate an
 `Instances.create`), `leave` 2 to a hub and 4 to a location: a gate names its location, so the two
 are read by two calls (D-148 (a)). The entry chunk's two keys move from `enter` to ENG-05's reveal.
 
+**Measured by ENG-05** (the chunk reveal; **every rise of `enter` and `leave` below is the project
+manager's under D-144**, on the expedition's path; snforge M, each test less its baseline,
+`contracts/logic/tests/test_reveal_cost.cairo` and `contracts/ephemeral/tests/test_lifecycle.cairo`
+`test_cost_create_reveals`; the node's receipts, `lifecycle_probe.py`):
+
+| What | L2 gas | Source |
+|---|---:|---|
+| One chunk in memory, the worst case (no neighbour known: four sides drawn; every quota due, two 5-goblin packs, the objects by frequency) | **3,901,320** meadow · 4,041,891 ruin · 4,042,451 forest · **4,067,457** cave | `test_cost_reveal_worst_*` |
+| One chunk in memory, typical (two sides known, a zone's content) | **2,830,905** | `test_cost_reveal_typical` |
+| Three chunks in one call, the worst content | **11,856,780** (3.95 M a chunk) | `test_cost_reveal_three` |
+| The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
+| `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,277,858 · 7,398,860 · 11,233,690: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,902,400–7,022,400** | `lifecycle_probe.py`, three runs at the final code (D-210) |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,212,400–13,292,400**; with the zone's collector quota (`--quotas on`: `HostsLibrary` called, its host written) **14,214,400–14,254,400** | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,622,400–7,782,400** | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,076,640–8,236,640** | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,760,640–10,920,640** | idem |
+
+The node's figures follow the entry draw, which follows the transaction hash: the same code gives
+another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
+`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs 12,061,667 with its quota and 10,017,658 without, the library call alone 358,834 against the same draw direct (210,194; two benchmarks run at `ab7017a`, then removed: their figures moved by 100 between runs, D-154). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
+
+Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
+about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
+(`keep_component` 0.37 M, smoothing 0.10 M, the openings' dilations 0.13 M), the sides' decisions
+0.40 M, the quotas' draws 0.10 M, the placement 2.10 M (0.38 M with nothing to place). SPK-7's
+"generation 390k–447k" is the board's steps alone; the placement, which SPK-7 did not build, is
+most of the rest: many small integer operations (a pack member's tile, a tile drawn and tested,
+each about 7,000–14,000). Its next lever is a bit-parallel placement (the tiles within 2 and the
+allowed ones as bitmaps, members drawn from their intersection), measured in a lot of its own.
+
 **Measured by CBT-02e** (D-168; the node's receipts net of 189,141, `contracts/tools/lifecycle_probe.py`;
 snforge for what the node cannot build yet). `enter` copies the stored snapshot. **CBT-02f** (D-169)
 adds one storage read to `enter` and to `set_build`, the rules epoch (+40,000 on the node each; the
@@ -1816,7 +1933,10 @@ difference is the calldata (+25,600 with the version) and the events priced from
   (ENG-07, CBT-*); design/02 item 6 cannot be answered by interfaces (E-13). Until then, **keep 40 M
   and weight 10**; if the ticks prove near their cost alone, weight 8 (the worst branch 38.77 M: two
   ticks and their windows less) or a bound of 48 M.
-- A reveal at weight 2 costs about 1.4 M: E-12 is unchanged.
+- A reveal at weight 2 costs about 1.4 M: E-12 is unchanged. **ENG-05 measured it**: 2.7 M typical,
+  3.9–4.1 M worst in memory; in `create`, with nothing to place, about 2.0–2.1 M a chunk, its two
+  new slots included (§10): weight 2 kept, not 1; whether 2 under-prices it is reopened at ENG-07
+  (the review of #348).
 
 ### 10.2 The expedition (D-129)
 
@@ -1857,7 +1977,7 @@ follows the **default** named; the project manager decides.
 | **E-9** | Version 1's Fate needs a request and a later draw | a provider that keeps requests, or a two-phase `loot` | ADR-0002's |
 | **E-10** | **Class sizes in CI**: `python3 contracts/tools/class_sizes.py` after the build, in `.github/workflows/ci.yml` | — | **the orchestrator's (F-11)**: added by the orchestrator to this pull request before merge |
 | **E-11** | Market: lots are new slots (ids never reused, SPK-11); a trade side ≤ 7 entities and ≤ 2 balances | reuse lot slots per account (−0.42 M a posting) | new slots; 7 / 2 |
-| **E-12** | A reveal weighs 2 but costs 1.4 M (0.6 M after its first time) | weight 1 after ENG-05's measurement | 2 |
+| **E-12** | A reveal weighs 2 but costs 1.4 M (0.6 M after its first time) | weight 1 after ENG-05's measurement | **2 kept** (ENG-05): a reveal measures 2.7 M typical and 3.9–4.1 M worst in memory; in `create`, with nothing to place, about 2.0–2.1 M a chunk, its two new slots included (§10): above the 1.4 M weight 2 was set for, so a weight of 1 is not proposed; whether 2 holds against a batch's 40 M goes with ENG-07's representative batch and the placement's lever (§10, *Measured by ENG-05*) |
 | **E-13** | design/02's tests that need game logic: batch = singles = multicall (item 5), the gas bound with the full execution and a revealed chunk measured (item 6), restart, window crossing, reveal, unrevealed and boundary (item 8), and the view cases of the fix loops: **(F-6)** a goblin killed away from its spawn chunk, then a restart: `instance_region` of the chunk where it lies shows its remains; after `loot`, they are gone. **(F-13)** an earlier generation fills roster page 0; the new one has one entry: `instance_state` and `instance_region` show that entry and zeros in every other lane. **(F-12)** an instance with conditions, effects and recharges running leaves through a gate: the new instance's member has none, and its belt counts are the reserve's | ENG-05, ENG-06, ENG-07 | out of this task (the masking helper is tested: `test_roster_masking`) |
 | **E-14** | quiver's components are not embedded (ARC) | — | ARC-03c/04 |
 | **E-15** (F-1) | **What happens to the belt's unused potions on defeat.** The reserve is debited at entry and credited back unused at the closing report; what is consumed is gone (the orchestrator's ruling). design/03 and design/07 do not settle defeat for the belt: design/07 says loot is kept on defeat, and design/02's D-04 says defeat costs "the instance, nothing else" | (a) **credited back on defeat as on return** (D-04's reading: the potions are not loot but were not used); (b) **lost on defeat** (the belt is part of what the instance costs); (c) lost only in a sealed Red Rift. Cost: (a) and (c) write ≤ 4 pack pages at defeat (0.13 M); (b) none | **stopped, as the ruling asks.** The interface carries the counts (`Results.belt`) whatever the rule; the hub's rule waits for the decision |

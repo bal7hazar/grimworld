@@ -14,6 +14,9 @@ pub mod hit;
 pub mod infliction;
 /// Passive effects (design/19 §4, CBT-01).
 pub mod passive;
+/// The chunk reveal engine: generation with margins, edges, the cut, quotas and placement
+/// (ENG-05, ADR-0006).
+pub mod reveal;
 /// The state and content a world tick reads and writes (CBT-02).
 pub mod tick;
 /// The game's geometry on the window: sight, reach, arcs, facing, shapes (ENG-02).

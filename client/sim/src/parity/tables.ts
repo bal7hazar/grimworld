@@ -157,6 +157,6 @@ const packing: Record<string, Mirror> = {
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
-  { file: "fate.jsonl", floor: 218, fns: fate },
+  { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
 ];

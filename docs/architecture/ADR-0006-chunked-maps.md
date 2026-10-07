@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it |
+| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it. **Amended by the project manager, 2026-10-03 (D-208)**: §2's fog and what feeds the value, §3's quotas, as ENG-05 builds them |
 | Date | 2026-09-28 |
 | Decides | How a location larger than one felt is stored, generated, simulated and shown |
 | Supersedes | The room model of `docs/design/02-core-loop.md` (Map) and `docs/design/18-rooms.md` (size, entering a room, perception by room) |
@@ -85,7 +85,7 @@ This corrects ADR-0002, which accepted that layouts could be read in advance.
 | Health lost | Waiting |
 | A consumable used | Using a skill out of combat (energy comes back by waiting) |
 | Remains looted, a chest opened, a vein mined | The tick count, the position |
-| The chunk revealed and the side it was entered from | The order of two actions that lead to the same state |
+| ~~The chunk revealed and the side it was entered from~~ (amended, D-208: no reveal feeds the value) | The order of two actions that lead to the same state |
 
 The value is a **set**, not a sequence: killing A then B gives the same value as B then
 A, so that order cannot be used as free choice.
@@ -111,6 +111,15 @@ is natural and which prevents choosing one's instance; player entropy inside. Th
 war is then a fog **for honest clients and one chunk deep for the others**, stated as
 such. D-107 ("must resist reading the chain") is met for everything beyond the next chunk.
 
+> **Amended by the project manager, 2026-10-03 (D-208).** As ENG-05 builds it (audit of #348,
+> major 1): **no reveal feeds the value**, and no production feeder exists yet, so every chunk's
+> word is fixed at entry: `derive(entropy, domain(instance, chunk, REVEAL), 0)`, the entropy being
+> the entry draw. The fog is **0 chunks deep** for a client that reads the chain: the whole
+> location, its terrain and its contents, is readable from the entry draw on. What it buys: no
+> order of moves, no side entered and no reveal changes any chunk, so the order is no free choice
+> (only what §3's dungeon exception keeps). A later feeder (a kill, a chest, in their lots) must
+> make its facts unique, and changes the words of the chunks revealed after it.
+
 ### 3. Constraints without a plan
 
 The fear is legitimate: generating chunk by chunk while honouring constraints on the whole
@@ -131,6 +140,22 @@ It does not, if constraints are restricted to **three kinds**, each resolved loc
 
 The same method as alchemy discovery ([design/07](../design/07-loot-and-alchemy.md)):
 sampling without replacement.
+
+> **Amended by the project manager, 2026-10-03 (D-208): the quota distribution as built (ENG-05).**
+>
+> | | Zones | Dungeons |
+> |---|---|---|
+> | Where a quota lands | Its **hosts**: `count` members of the zone (its chunk set, or its rectangle), drawn **once at the instance's start** by their own library class, `HostsLibrary` (D-210): an exact draw without replacement from the entry draw (`derive(entropy, domain(instance, 225, REVEAL), 0)`, the word of no chunk) over the quota's **allowed** members, those its kind would not push past a chunk's caps (3 objects, 2 packs, one set piece, a set piece's own objects and packs counted); **no cap on the draws**: a quota stops when it has its hosts or no allowed member is left (a determination of the caps). Above half the allowed members, the members to leave out are drawn instead (D-220), the same uniform law. One bitmap per quota, kept with the instance | Hit or forced: each chunk draws `u` in `[0, N)` from its own word; the quota is due when `u < count` and something is left |
+> | Guarantee | Every host can lay its quota (the caps are respected at the draw; a pack, the Heart's included, holds at least one goblin); **nothing is ever forced on the last chunks**. A quota with fewer allowed members than its count keeps fewer hosts, and **the rest stays owed for good, never placed**; a set-piece quota whose piece is not in the registry stays owed; a host whose chunk has no allowed tile left (its terrain, unknown at entry) does not lay it | **Forced** when what is left reaches the chunks left: the last chunks hold what is still owed; never more than `count` |
+> | Order of moves | **Free of it**: the hosts are fixed at entry and a chunk holds exactly the quotas it hosts, so no order chooses where a zone's quota lands | Depends on it: the forced window (at most the last `count` chunks), a quota whose draws hit more chunks than its count (the first revealed take it), and which chunk is the `N`-th |
+> | State | Left to place, per quota; the hosts | Left to place, per quota; the revealed count |
+>
+> **The dungeon exception and its reason.** A dungeon's outline emerges from the order of the
+> moves (option (i), D-111): its chunks are not known before they are revealed, so no host can be
+> drawn at entry. Its quotas stay order-dependent, **a dungeon exit's position with them**,
+> accepted as the dungeon's nature (D-208). A Heart's pack takes the band's top level wherever it
+> lands, so that steering it near the entry does not lower the boss. A fixed dungeon outline at
+> entry, which would remove the exception, is a design change on the project manager's plan.
 
 ```
 at each reveal, for each quota still open:
@@ -185,7 +210,7 @@ Rules that keep an emerging outline sound:
 | Rule | Why |
 |---|---|
 | An edge facing an existing neighbour copies that neighbour's decision: open if it is open, border if it is border | Consistency |
-| While fewer than `N` chunks are revealed, the last open edge of the frontier **cannot** be drawn as a border | The dungeon cannot close before it is complete |
+| While fewer than `N` chunks are revealed, the last open edge of the frontier **cannot** be drawn as a border. *Amended (D-208, as ENG-05 builds it): a chunk with a side it can open always keeps one open toward a chunk that can still grow; a side its mask cuts whole is never opened* | The dungeon cannot close before it is complete (but when `N` equals its rectangle's area, the last chunks can be walled in: a content rule is proposed) |
 | When `N` chunks are revealed, every remaining open edge becomes a border | The dungeon ends |
 | Quotas count on `N` | "Chunks left to reveal" stays a known number, so guarantees hold |
 | State | Revealed count, open-edge count |

@@ -67,20 +67,22 @@ the seeded ones, so no earlier id moved, the table now 203 cases:
 
 ## `fate.jsonl`: the Fate derivations (VEC-01)
 
-Printed by `fate::tests::test_vectors` (ids 0–217), one part, with its digest.
+Printed by `fate::tests::test_vectors` (ids 0–226), one part, with its digest. ENG-05 added the
+`REVEAL` purpose (index 8): its `purpose` row and its 8 `domain` rows are new, every other row is
+unchanged and the ids after them moved by up to 9.
 
 One line: `{"id", "fn", "case", "ok"}`, every felt in hex (a `u32` index is a felt below 2^32).
 Poseidon is `core::poseidon::poseidon_hash_span`, the hash of the Starknet `poseidon` builtin.
 
 | `fn` | `case` | `ok` |
 |---|---|---|
-| `purpose` | the index in `PURPOSES` (0 `ENTRY` … 7 `RIFT_BOARD`) | the purpose's felt (a short string, e.g. `'fate:entry'`) |
+| `purpose` | the index in `PURPOSES` (0 `ENTRY` … 7 `RIFT_BOARD`, 8 `REVEAL`) | the purpose's felt (a short string, e.g. `'fate:entry'`) |
 | `domain` | `subject`, `counter`, `purpose` | `fate::domain`: `poseidon(subject, counter, purpose)` |
 | `derive` | `word`, `domain`, `index` | `fate::derive`: `poseidon(word, domain, index)` |
 
-The cases (218):
-- `purpose`: the 8 purposes.
-- `domain` (120): each purpose over 8 pairs `(subject, counter)` — zeros, one on either side, `P − 1` for both, 2^128 with 2^64, a small pair, 2^250 with 2^32, a `u32` maximum counter; then 8 subjects × 7 counters (0, 1, 2, 255, 2^32, 2^64, `P − 1`) under `ENTRY`. `P − 1` is `0x800000000000011000000000000000000000000000000000000000000000000`.
+The cases (227):
+- `purpose`: the 9 purposes.
+- `domain` (128): each purpose over 8 pairs `(subject, counter)` — zeros, one on either side, `P − 1` for both, 2^128 with 2^64, a small pair, 2^250 with 2^32, a `u32` maximum counter; then 8 subjects × 7 counters (0, 1, 2, 255, 2^32, 2^64, `P − 1`) under `ENTRY`. `P − 1` is `0x800000000000011000000000000000000000000000000000000000000000000`.
 - `derive` (90): 5 words (0, 1, a small one, 2^128, `P − 1`) × 3 domains (0, `domain(1, 0, ENTRY)`, `P − 1`) × 6 indices (0, 1, 7, 255, 65535, `u32::MAX`).
 
 ## `packing.jsonl`: the packing of records into a felt (VEC-01)
@@ -119,3 +121,44 @@ The cases (520): `split` 14 and `limbs` 8, edges of the limbs, of `LIVE` and of 
 limbs from 0 to `u128::MAX`, shifts across both halves of the limb); the lanes: zeros, ones,
 maxima, ascending, and one lane set at a time (`pack` and `unpack` rows, 126 in all, and the
 words without `LIVE`); `Counter` from 0 to `u64::MAX`; `Bitmap` around bit 250 and `P − 1`.
+
+## `reveal.jsonl`: the chunk reveal (ENG-05)
+
+Printed by `types::reveal::tests::test_vectors` (ids 0–170), `test_vectors_1` (171–185) and
+`test_vectors_2` (186–196), split for snforge's step limit, each part with its digest
+(`PART_1`, `PART_2` are the first ids of the later parts).
+
+One line: `{"id", "fn", "case", "ok"}`, every felt in hex. A struct, an `Option`, a tuple or a
+`Span` is its Cairo `Serde` (a span: its length, then its elements; an `Option`: `0` then the
+value for `Some`, `1` for `None`; an `i8` as a felt, `-1` as `P − 1`).
+
+| `fn` | `case` | `ok` |
+|---|---|---|
+| `word` | `entropy`, `instance_id`, `chunk` | `EntropyTrait::word`: `derive(entropy, domain(instance_id, chunk, REVEAL), 0)` |
+| `feed` | `entropy`, then a fact's three felts (a tag, two values) | `EntropyTrait::feed(entropy, fact)`: `entropy + poseidon(fact)` (no reveal feeds the entropy: audit #348, major 1) |
+| `base` | `word`, `biome` (1 meadow … 4 ruin) | `BoardTrait::base`: the base's floor bitmap (1 = floor, interior only) |
+| `sight` | `x`, `y`, `width`, `height` (a global tile, a location in chunks) | `SightTrait::chunks`: the chunks within 6, the tile's own first, then by index |
+| `member` | `tile`, `k` (0–18), `odd` (the tile's global row parity) | `PackPlacementTrait::member`: `Option<u8>`, the chunk's tile at `OFFSETS[k]` |
+| `reveal` | `Site`, `Progress`, `instance_id`, `known` (`Span<(u8, Terrain)>`; in a dungeon every revealed chunk), `chunks` (`Span<u8>`) | `RevealTrait::reveal`: the `Progress` after, then the chunks revealed, `Span<Revealed>` (chunk, `Terrain` (walls 1 = wall, edges), `Features` (2 `PackPlacement`, 3 `Object`, `touched`)) |
+
+`reveal` covers every computation the client repeats: the chunk's word, the base, the smoothing
+with the margins (`hexx`'s `CaverTrait::smooth`, B4/S2, one generation), the ring's decisions and
+openings, the lines to the spine, the cut, `keep_component`, the quotas' draws, the bands and the
+placement (the draws of `hexx`'s `RngTrait` from `mix(word, k)`: 2 quotas, 3 placement, 4 the
+ring), and the progress (revealed set, count, open edges, quotas left; the entropy unchanged).
+
+The cases (197):
+- `word` (18): 3 entropies (0, a short string, `P − 1`) × 2 instance ids × 3 chunks (0, 112, 224);
+  `feed` (15): the 3 entropies × 5 facts `('fact:test', 17, s)`; `base` (12): 3 words × the 4 biomes;
+  `sight` (12): corners, sides, centres and edges of chunks in a 15 × 15 location; `member` (114):
+  the 19 offsets from tiles 112, 97 and 16, both parities.
+- `reveal`, part 1 (15): each biome on a 3 × 3 zone, chunk 16 (an odd chunk row) with nothing known,
+  then chunk 1 (an even one) knowing it; chunk 16 of a forest after its South, East, West and North
+  neighbours one at a time (1 to 4 sides known); the edge of a 2 × 2 zone whose chunk (1, 1) is
+  outside the outline, an anchor on the East side (three chunks asked, the void one skipped); a
+  ruin's chunk cut by a tile mask (columns 0–11), then its neighbour.
+- `reveal`, part 2 (11): a cave dungeon floor of `N` 6 grown from its entry chunk 112 to its close
+  (the frontier's rules at `N − 1` and `N`), with an exit and a vein quota; a 2 × 2 meadow with a
+  collector, two landmarks, a Heart and a task's landmark, revealed whole (every quota placed); a
+  set piece laid by quota, then its neighbour.
+

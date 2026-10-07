@@ -61,7 +61,17 @@ writes (key, value) and every event of `Instances` with its keys and data, in em
 every key of both contracts' storage with its last value. A value the entry draw feeds is recorded
 by its key alone, as `"draw"`: the entropy word of each instance entered (found by the instance's
 `instance_state`, whose third felt it is), the only stored value derived from the draw, which
-follows the transaction hash. `lifecycle-stream-before-r1b.json`, recorded on `main`'s code before
+follows the transaction hash. ENG-05 adds the entry reveal's values, which follow the draw too:
+each revealed chunk's terrain word (found by `instance_region`) and a dungeon's quotas word (its
+open edges are drawn), recorded by key alone; a chunk's features word, in the slot after its
+terrain, is left out of the stream: it is written only when the draw places something, so even its
+key depends on the draw (#348's delta review: the stream must not change between two runs). A
+zone's quota hosts (D-208), `Instances`' `hosts` entries `(slot, quota)` written at the entry, are
+drawn too: their keys are computed by starknet.js (the client's dependency, through Node, which
+`scripts/with-node.sh` provides) and their values recorded as `"draw"`.
+`RevealLibrary` and `HostsLibrary` (D-210) are declared before `Hub`'s deployment, and their class
+hashes given to `Instances`' constructor, so the transactions recorded are the same. `lifecycle-stream-before-r1b.json`,
+recorded on `main`'s code before
 ENG-R1b's first change, is what `Instances` and `Registry` keep: run
 `--scope r1b --expect contracts/tools/lifecycle-stream-before-r1b.json`. Without `--scope`, the
 stream is ENG-R1a's, unchanged.
@@ -93,7 +103,7 @@ LOGS = os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node
 ACCOUNTS = os.path.join(LOGS, "accounts-eng06.json")
 
 LIVE = 1 << 250
-REGION, LOCATION, GATE, ITEM = 1, 2, 4, 11
+REGION, LOCATION, GATE, QUOTAS, ITEM = 1, 2, 4, 5, 11
 HUB_GATE, LINK, FLOOR = 1, 2, 3
 INGREDIENT, POTION = 1, 3
 
@@ -219,18 +229,26 @@ def deploy(package, class_hash, *calldata):
 
 registry = deploy("persistent", declare("persistent", "Registry"), ADDRESS)
 fate = deploy("persistent", declare("persistent", "TxHashFate"))
+# ENG-05: the reveal's library class, declared before `Hub`'s deployment so that the recorded
+# transactions are the ones they were; its class hash is `Instances`' constructor argument.
+reveal = declare("logic", "RevealLibrary")
+hosts_library = declare("logic", "HostsLibrary")
 hub = deploy("persistent", declare("persistent", "Hub"), ADDRESS, registry, 3, 4, fate)
 flatten = declare("logic", "FlattenLibrary")
-instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub, registry, fate)
+instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub, registry, fate,
+                   reveal, hosts_library)
 emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances,
-      "flatten_class": flatten})
+      "flatten_class": flatten, "reveal_class": reveal, "hosts_class": hosts_library})
 WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
 NAMES = {int(registry, 16): "registry", int(fate, 16): "fate", int(hub, 16): "hub",
-         int(instances, 16): "instances", int(flatten, 16): "flatten_class"}
+         int(instances, 16): "instances", int(flatten, 16): "flatten_class",
+         int(reveal, 16): "reveal_class", int(hosts_library, 16): "hosts_class"}
 STREAM = []
 # ENG-R1b: the stream of `Instances` and `Registry`, and the keys whose value the entry draw feeds.
 STREAM_R1B = []
 DRAWN = set()
+# ENG-05: the features slots of the chunks revealed, left out of the r1b stream (module doc).
+UNSTREAMED = set()
 OWNERS = {int(instances, 16): "instances", int(registry, 16): "registry"}
 
 
@@ -243,14 +261,51 @@ def drawn(address, key, value):
     return "draw" if (address, key) in DRAWN else named(value)
 
 
-def entropy_of(instance_id):
-    """The entropy word `instance_state` returns for `instance_id`: its third felt."""
+def view(function, *calldata):
+    """The raw response of a view of `Instances`, as felts."""
     out = sncast("ephemeral", "call", "--url", URL, "--contract-address", instances, "--function",
-                 "instance_state", "--calldata", hex(instance_id), "--block-id", "latest")
+                 function, "--calldata", *[hex(c) for c in calldata], "--block-id", "latest")
     match = re.search(r"Response Raw:\s*\[([^\]]*)\]", out)
     if not match:
-        raise RuntimeError(f"instance_state: no raw response in: {out}")
-    return int(match.group(1).split(",")[2].strip(), 16)
+        raise RuntimeError(f"{function}: no raw response in: {out}")
+    return [int(f.strip(), 16) for f in match.group(1).split(",")]
+
+
+def entropy_of(instance_id):
+    """The entropy word `instance_state` returns for `instance_id`: its third felt."""
+    return view("instance_state", instance_id)[2]
+
+
+HOSTS_KEYS = {}
+
+
+def hosts_keys(slot):
+    """ENG-05 (D-208): the storage keys of `Instances`' `hosts` entries of `slot`, quotas 0-13: the
+    Pedersen chain of the map's name and the key's parts, as a storage address."""
+    if slot not in HOSTS_KEYS:
+        script = ("const {hash}=require('starknet');const b=hash.starknetKeccak('hosts');"
+                  f"for(let i=0;i<14;i++)console.log(hash.computePedersenHash("
+                  f"hash.computePedersenHash(b,{slot}),i));")
+        node_path = os.path.join(os.path.dirname(CONTRACTS), "client", "app", "node_modules")
+        out = subprocess.run(["node", "-e", script], env={**os.environ, "NODE_PATH": node_path},
+                             capture_output=True, text=True, check=True).stdout
+        HOSTS_KEYS[slot] = [int(line, 16) % (2 ** 251 - 256) for line in out.split()]
+    return HOSTS_KEYS[slot]
+
+
+def drawn_words(instance_id):
+    """ENG-05: the stored values the entry reveal draws, beside the entropy: each revealed chunk's
+    terrain word (`instance_region`'s, one chunk a call; its `features` word is the next slot) and,
+    when it is not `LIVE` alone (a dungeon's open edges), the quotas word. Returns
+    `(terrains, quotas)`."""
+    state = view("instance_state", instance_id)
+    revealed, quotas = state[3] - LIVE, state[4]
+    terrains = []
+    for chunk in range(225):
+        if (revealed >> chunk) & 1:
+            # `Span<RegionChunk>`: its length, then chunk, kind, terrain, features, goblins.
+            terrains.append(view("instance_region", instance_id, chunk, 1)[3])
+    return terrains, (quotas if quotas != LIVE else None)
 
 
 def streamed_r1b(label, function, receipt, diff):
@@ -259,19 +314,28 @@ def streamed_r1b(label, function, receipt, diff):
     for event in receipt.get("events", []):
         if int(event["from_address"], 16) == int(instances, 16) and len(event["keys"]) == 2 \
                 and len(event["data"]) == 3:
-            entropy = entropy_of(int(event["keys"][1], 16))
+            entered_id = int(event["keys"][1], 16)
+            entropy = entropy_of(entered_id)
+            terrains, quotas = drawn_words(entered_id)
+            for key in hosts_keys(entered_id >> 32):
+                DRAWN.add((int(instances, 16), key))
             for entry in diff:
                 if int(entry["address"], 16) == int(instances, 16):
                     for s in entry["storage_entries"]:
-                        if int(s["value"], 16) == entropy:
-                            DRAWN.add((int(instances, 16), int(s["key"], 16)))
+                        key, value = int(s["key"], 16), int(s["value"], 16)
+                        if value == entropy or value == quotas:
+                            DRAWN.add((int(instances, 16), key))
+                        if value in terrains:
+                            DRAWN.add((int(instances, 16), key))
+                            UNSTREAMED.add((int(instances, 16), key + 1))
     writes = {}
     for entry in diff:
         address = int(entry["address"], 16)
         if address in OWNERS:
             writes[OWNERS[address]] = sorted(
                 [hex(int(s["key"], 16)), drawn(address, int(s["key"], 16), int(s["value"], 16))]
-                for s in entry["storage_entries"])
+                for s in entry["storage_entries"]
+                if (address, int(s["key"], 16)) not in UNSTREAMED)
     events = [{"keys": [named(int(k, 16)) for k in event["keys"]],
                "data": [named(int(d, 16)) for d in event["data"]]}
               for event in receipt.get("events", [])
@@ -360,6 +424,10 @@ records = [(REGION, 1, region(1, 0, 1, "Test Region")),
            (GATE, 4, gate(3, 2, (112, 112), (16, 110), LINK)),
            (GATE, 5, gate(3, 4, (0, 0), (112, 112), FLOOR)),
            (GATE, 6, gate(2, 3, (0, 105), (112, 112), LINK))]
+# ENG-05 (D-208): with `--quotas on`, the zone's `QUOTAS` of the seed (a collector, id 1, once), so
+# that `create` draws and writes a host; a measure, not the recorded streams (which run without).
+if OPTIONS.get("--quotas") == "on":
+    records.append((QUOTAS, 2, [LIVE + 4 + 1 * 2 ** 8 + 1 * 2 ** 24]))
 # Items 1 to 22 (sequential ids): potions 1, 8, 15, 22, one per pack page; the others ingredients.
 records += [(ITEM, i, item(POTION if i in POTIONS else INGREDIENT)) for i in range(1, 23)]
 for kind, rid, parts in records:
@@ -459,7 +527,8 @@ invoke("set_account_owner, 3 inside", hub, "set_account_owner", 1, 0x2000)
 if SCOPE == "r1b":
     STREAM = STREAM_R1B
     storage = {who: sorted([hex(key), drawn(address, key, value)]
-                           for (address, key), value in KNOWN.items() if address == owner)
+                           for (address, key), value in KNOWN.items()
+                           if address == owner and (address, key) not in UNSTREAMED)
                for owner, who in sorted(OWNERS.items(), key=lambda o: o[1])}
 elif OPTIONS:
     storage = sorted([hex(key), named(value)] for (address, key), value in KNOWN.items()

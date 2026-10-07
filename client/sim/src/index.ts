@@ -45,6 +45,7 @@ export {
   LIFT,
   LOOT,
   PURPOSES,
+  REVEAL,
   RIFT_BOARD,
   derive,
   domain,

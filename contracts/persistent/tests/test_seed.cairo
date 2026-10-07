@@ -8,12 +8,19 @@
 // nested arrays, drops empty ones and writes a one-element array without its length: the file
 // therefore holds, per kind, one flat array (a record a line, fixed columns, never empty) and the
 // names of its columns, which are read with a cursor (`Stream`) and checked (`SeedAssert`).
-use grimworld_logic::content::{GATE, LOCATION, OUTLINE, REGION, Record, parts};
+use grimworld_logic::content::{
+    GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, Record, SPAWN_TABLE, parts,
+};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait, biome, kind};
 use grimworld_logic::models::outline::{CHUNK_SET, Outline, OutlineRecord, OutlineTrait};
+use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord, PackTrait};
+use grimworld_logic::models::quotas::{
+    Quota, QuotaSet, QuotaSetRecord, QuotaSetTrait, kind as quota,
+};
 use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
+use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
 use grimworld_logic::packing::Lanes16;
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
@@ -32,6 +39,10 @@ const SET_PIECES_AT: u32 = 16;
 /// Columns of an outline's row, and of a gate's.
 const OUTLINE_COLUMNS: u32 = 17;
 const GATE_COLUMNS: u32 = 10;
+/// Columns of a pack template's row, a spawn table's and a location's quotas' (ENG-05).
+const PACK_COLUMNS: u32 = 17;
+const SPAWN_TABLE_COLUMNS: u32 = 16;
+const QUOTA_COLUMNS: u32 = 19;
 
 pub mod errors {
     pub const TRUNCATED: felt252 = 'seed: truncated';
@@ -62,8 +73,14 @@ pub struct Seed {
     locations: Span<felt252>,
     outline_fields: Array<ByteArray>,
     outlines: Span<felt252>,
+    pack_fields: Array<ByteArray>,
+    packs: Span<felt252>,
+    quota_fields: Array<ByteArray>,
+    quotas: Span<felt252>,
     region_fields: Array<ByteArray>,
     regions: Array<RegionRow>,
+    spawn_table_fields: Array<ByteArray>,
+    spawn_tables: Span<felt252>,
 }
 
 /// What was written, in the order written: `(kind, id)` of every record, and the felts of all of
@@ -163,6 +180,51 @@ impl RowImpl of Row {
         OutlineTrait::new(bits.low, bits.high)
     }
 
+    /// A pack template: five `(caste, min, max)`, then its level offset.
+    fn pack(self: Span<felt252>) -> Pack {
+        PackTrait::new(
+            [self.caste(0), self.caste(1), self.caste(2), self.caste(3), self.caste(4)],
+            self.field(16),
+        )
+    }
+
+    fn caste(self: Span<felt252>, i: u32) -> PackCaste {
+        PackCaste {
+            caste: self.field(1 + 3 * i), min: self.field(2 + 3 * i), max: self.field(3 + 3 * i),
+        }
+    }
+
+    /// A spawn table: seven `(template, weight)`, then its density.
+    fn spawn_table(self: Span<felt252>) -> SpawnTable {
+        SpawnTableTrait::new(
+            [
+                self.spawn(0), self.spawn(1), self.spawn(2), self.spawn(3), self.spawn(4),
+                self.spawn(5), self.spawn(6),
+            ],
+            self.field(15),
+        )
+    }
+
+    fn spawn(self: Span<felt252>, i: u32) -> Spawn {
+        Spawn { template: self.field(1 + 2 * i), weight: self.field(2 + 2 * i) }
+    }
+
+    /// A location's quotas: six `(kind, param, count)`.
+    fn quotas(self: Span<felt252>) -> QuotaSet {
+        QuotaSetTrait::new(
+            [
+                self.quota(0), self.quota(1), self.quota(2), self.quota(3), self.quota(4),
+                self.quota(5),
+            ],
+        )
+    }
+
+    fn quota(self: Span<felt252>, i: u32) -> Quota {
+        Quota {
+            kind: self.field(1 + 3 * i), param: self.field(2 + 3 * i), count: self.field(3 + 3 * i),
+        }
+    }
+
     fn gate(self: Span<felt252>) -> Gate {
         GateTrait::new(
             self.field(1),
@@ -258,6 +320,10 @@ pub impl SeedImpl of SeedTrait {
         let locations = stream.numbers();
         let outline_fields = stream.names();
         let outlines = stream.numbers();
+        let pack_fields = stream.names();
+        let packs = stream.numbers();
+        let quota_fields = stream.names();
+        let quotas = stream.numbers();
         let region_fields = stream.names();
         // Five elements a row: four numbers, then the name (a `ByteArray` of several felts).
         let (count, rest) = DivRem::div_rem(stream.length(), 5);
@@ -270,6 +336,8 @@ pub impl SeedImpl of SeedTrait {
             );
             regions.append(RegionRow { numbers, name });
         }
+        let spawn_table_fields = stream.names();
+        let spawn_tables = stream.numbers();
         SeedAssert::assert_read(stream);
         Seed {
             gate_fields,
@@ -278,13 +346,20 @@ pub impl SeedImpl of SeedTrait {
             locations,
             outline_fields,
             outlines,
+            pack_fields,
+            packs,
+            quota_fields,
+            quotas,
             region_fields,
             regions,
+            spawn_table_fields,
+            spawn_tables,
         }
     }
 
     /// Its records, packed, in the order they are written: regions, locations, outlines (whose
-    /// parent location must exist first), then gates.
+    /// parent location must exist first), gates, then the reveal's (ENG-05): pack templates, spawn
+    /// tables and the locations' quotas (after their location).
     fn records(self: @Seed) -> Written {
         let mut written = Written { requests: array![], felts: array![] };
 
@@ -337,6 +412,43 @@ pub impl SeedImpl of SeedTrait {
             let row = self.gates.slice(GATE_COLUMNS * i, GATE_COLUMNS);
             written.add(row.field(0), @row.gate());
         }
+
+        let mut columns: Array<ByteArray> = array!["id"];
+        for i in 1..6_u8 {
+            columns.append(format!("caste_{}", i));
+            columns.append(format!("min_{}", i));
+            columns.append(format!("max_{}", i));
+        }
+        columns.append("level");
+        let rows = SeedAssert::assert_columns(self.pack_fields, columns, *self.packs);
+        for i in 0..rows {
+            let row = self.packs.slice(PACK_COLUMNS * i, PACK_COLUMNS);
+            written.add(row.field(0), @row.pack());
+        }
+
+        let mut columns: Array<ByteArray> = array!["id"];
+        for i in 1..8_u8 {
+            columns.append(format!("template_{}", i));
+            columns.append(format!("weight_{}", i));
+        }
+        columns.append("density");
+        let rows = SeedAssert::assert_columns(self.spawn_table_fields, columns, *self.spawn_tables);
+        for i in 0..rows {
+            let row = self.spawn_tables.slice(SPAWN_TABLE_COLUMNS * i, SPAWN_TABLE_COLUMNS);
+            written.add(row.field(0), @row.spawn_table());
+        }
+
+        let mut columns: Array<ByteArray> = array!["location"];
+        for i in 1..7_u8 {
+            columns.append(format!("kind_{}", i));
+            columns.append(format!("param_{}", i));
+            columns.append(format!("count_{}", i));
+        }
+        let rows = SeedAssert::assert_columns(self.quota_fields, columns, *self.quotas);
+        for i in 0..rows {
+            let row = self.quotas.slice(QUOTA_COLUMNS * i, QUOTA_COLUMNS);
+            written.add(row.field(0), @row.quotas());
+        }
         written
     }
 
@@ -381,17 +493,19 @@ impl SeedFixture of Fixture {
     }
 }
 
-// The test region, written and read back in one `bundle` (AC-4): 13 records, 17 slots.
+// The test region, written and read back in one `bundle` (AC-4): 18 records, 22 slots (ENG-05: two
+// pack templates, a spawn table, the zone's and floor 1's quotas).
 #[test]
-#[available_gas(l2_gas: 23701566)] // ceil(1.05 × 22572920 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 32941682)] // ceil(1.05 × 31373030 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
-    assert(written.requests.len() == 13, '13 records');
-    assert(written.felts.len() == 17, '17 slots');
+    assert(written.requests.len() == 18, '18 records');
+    assert(written.felts.len() == 22, '22 slots');
     let read = IRegistryReadDispatcher { contract_address: registry };
     let (version, inputs, felts) = read.bundle(written.requests.span());
-    assert(version == 13, 'one version a record');
+    assert(version == 18, 'one version a record');
     // Every record is new: no stored snapshot can name it (D-169).
     assert(inputs == 0, 'no input rewritten');
     assert(felts == written.felts.span(), 'read back as written');
@@ -438,19 +552,37 @@ fn test_seed_written_and_read_back() {
     assert(link.anchor_chunk == 16 && link.anchor_tile == 110, 'gate 3: anchor');
     let floor = Record::<Gate>::unpack(felts.slice(16, 1));
     assert(floor.source == 3 && floor.destination == 4 && floor.kind == gate_kind::FLOOR, 'gate 5');
+    // The reveal's records (ENG-05).
+    assert(zone.spawn_table == 1 && floor1.spawn_table == 1, 'spawn table named');
+    assert(admin.last_id(PACK) == 2 && admin.last_id(SPAWN_TABLE) == 1, 'packs, table');
+    assert(admin.last_id(QUOTAS) == 0, 'quotas are composite');
+    let first = PackRecord::unpack(felts.slice(17, 1));
+    assert(first.castes.span()[1] == @PackCaste { caste: 2, min: 1, max: 3 }, 'pack 1');
+    assert(first.bounds() == (2, 5), 'pack 1: 2 to 5 goblins');
+    let second = PackRecord::unpack(felts.slice(18, 1));
+    assert(second.level == 1 && second.bounds() == (1, 3), 'pack 2');
+    let table = SpawnTableRecord::unpack(felts.slice(19, 1));
+    assert(table.density == 128 && table.weight() == 4 && table.pick(3) == 2, 'spawn table');
+    assert(*written.requests[16] == (QUOTAS, 2), 'the zone quotas');
+    let camp = QuotaSetRecord::unpack(felts.slice(20, 1));
+    assert(*camp.quotas.span()[0] == Quota { kind: quota::COLLECTOR, param: 1, count: 1 }, 'camp');
+    let exit = QuotaSetRecord::unpack(felts.slice(21, 1));
+    assert(*exit.quotas.span()[0] == Quota { kind: quota::EXIT, param: 5, count: 1 }, 'exit');
 }
 
 // The baseline of the next test: the deployment, and the file read and packed.
 #[test]
-#[available_gas(l2_gas: 6200114)] // ceil(1.05 × 5904870 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 9202904)] // ceil(1.05 × 8764670 measured)
 fn test_gas_seed_baseline() {
     Fixture::deploy();
     SeedTrait::load().records();
 }
 
-// Writing the whole test region, 13 `set_record` (AC-4): this test less the baseline.
+// Writing the whole test region, 18 `set_record` (AC-4): this test less the baseline.
 #[test]
-#[available_gas(l2_gas: 21430091)] // ceil(1.05 × 20409610 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 29624595)] // ceil(1.05 × 28213900 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -458,11 +590,12 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-#[available_gas(l2_gas: 30814791)] // ceil(1.05 × 29347420 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 43327022)] // ceil(1.05 × 41263830 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);
     SeedTrait::write(registry);
     let read = IRegistryReadDispatcher { contract_address: registry };
-    assert(read.content_version() == 13, 'version kept');
+    assert(read.content_version() == 18, 'version kept');
 }
