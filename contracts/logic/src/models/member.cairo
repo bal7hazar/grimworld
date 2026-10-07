@@ -416,6 +416,15 @@ pub impl MemberWordsImpl of MemberWordsTrait {
         }
     }
 
+    /// Moves it to the location's tile `(x, y)` facing `facing` (`MemberState` 32–55; ENG-07's
+    /// Move).
+    fn set_place(ref self: Member, x: u8, y: u8, facing: u8) {
+        let (ox, oy, old_facing) = MemberSnapshotTrait::place(@self);
+        let old: felt252 = ox.into() + oy.into() * F8 + old_facing.into() * 0x10000;
+        let new: felt252 = x.into() + y.into() * F8 + facing.into() * 0x10000;
+        self.words.state += (new - old) * F32;
+    }
+
     /// Its facing (`MemberState` 48–55), which the action phase turns (design/19 §5.3 step 3).
     fn set_facing(ref self: Member, facing: u8) {
         let (_, _, old) = MemberSnapshotTrait::place(@self);

@@ -46,7 +46,8 @@ use crate::models::goblin::{
 };
 use crate::models::member::MemberSnapshotTrait;
 use crate::types::action::Carry;
-use crate::types::combat::{activation, skill_kind};
+use crate::models::chunk::object;
+use crate::types::combat::{Placer, PlacerTrait, activation, skill_kind};
 use crate::types::effect::{kind, target};
 use crate::interface::{ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
 use crate::models::member::MemberTrait;
@@ -77,7 +78,7 @@ pub impl DelegateEnter of Enter<Delegate> {
     fn enter(
         ref self: Delegate, ref world: World, sheets: @Sheets, entrant: Actor, position: u8,
     ) -> bool {
-        if !AiTrait::armed(@self.ground, @self.board, position) {
+        if AiTrait::armed(@self.ground, @self.board, position).is_none() {
             return false;
         }
         let index = match entrant {
@@ -454,23 +455,24 @@ pub impl AiImpl of AiTrait {
         None
     }
 
-    /// Whether the window's `position` holds an unused trap in `ground` (§5.11).
-    fn armed(ground: @Ground, board: @Board, position: u8) -> bool {
-        let (chunk, tile) = match TrapTrait::locate(board, position) {
-            Some(found) => found,
-            None => { return false; },
-        };
+    /// The unused trap of the window's `position` in `ground` (§5.11), if any: its placer, `None`
+    /// for a terrain trap.
+    fn armed(ground: @Ground, board: @Board, position: u8) -> Option<Option<Placer>> {
+        let (chunk, tile) = TrapTrait::locate(board, position)?;
         for (c, features) in ground.span() {
             if *c == chunk {
                 for object in features.objects.span() {
                     if TrapTrait::is_trap(object) && *object.state == 0 && *object.tile == tile {
-                        return true;
+                        if *object.kind == object::PLACED_TRAP {
+                            return Some(Some(PlacerTrait::from_param(*object.param)));
+                        }
+                        return Some(None);
                     }
                 }
-                return false;
+                return None;
             }
         }
-        false
+        None
     }
 
     /// Whether the goblin holds a `MOVEMENT` effect at `t` (FX-18).

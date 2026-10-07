@@ -85,8 +85,11 @@ pub enum Illegal {
     Reach,
     /// A trap tile that cannot take one (§5.11, FX-14).
     Trap,
-    /// Move and Interact: ENG-07's.
+    /// Move and Interact: ENG-07's (the segment's own: Interact is refused until its entrypoints
+    /// exist, ENG-07 Open question 6).
     Kind,
+    /// A Move onto a tile that is not walkable or holds a living actor (ENG-07).
+    Blocked,
 }
 
 /// The executor as the action phase calls it for an immediate carrier (§5.3 step 4) and as step 1

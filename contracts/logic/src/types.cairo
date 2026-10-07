@@ -4,6 +4,8 @@
 
 /// The goblins' acts: step 2 of the tick, one hook for the step (ENG-07).
 pub mod ai;
+/// A segment of a played batch: the actions in order, the moves, the window (ENG-07).
+pub mod play;
 /// The adventurer's action between two ticks: legality, costs, facing, resolution (design/19 §5.3,
 /// CBT-05b).
 pub mod action;

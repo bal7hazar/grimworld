@@ -8,6 +8,7 @@ use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::action::Illegal;
 use crate::types::executor::{Board, Cache, Carrier};
+use crate::types::play::{Area, Classes, Done};
 use crate::types::reveal::outline::Outline;
 use crate::types::reveal::{Progress, Site};
 use crate::types::tick::Content;
@@ -139,6 +140,23 @@ pub trait ITickLibrary<T> {
         level: u8,
         ticks: u8,
     ) -> Words;
+    /// A segment of a played batch (ENG-07, D-233; `types::play`): `owed` ticks first, then
+    /// `actions` in order within `weight`, the window assembled from `area` after each Move, an
+    /// Attack, a Skill or an Item through `classes.action`, the trap of a tile entered through
+    /// `classes.trap` (`level`, the location band's lower level), the chunk objects `ground`
+    /// carried across every tick (Open question 3). Returns the words, the ground and how it ended.
+    fn segment(
+        self: @T,
+        words: Words,
+        content: Content,
+        area: Area,
+        classes: Classes,
+        level: u8,
+        ground: Array<(u8, Features)>,
+        actions: Span<Action>,
+        owed: u8,
+        weight: u8,
+    ) -> (Words, Array<(u8, Features)>, Done);
 }
 
 /// The adventurer's combat action as its own library class (D-233; design/19 §5.3, CBT-05b):
