@@ -20,7 +20,7 @@ fn deploy_instances() -> ContractAddress {
 
 #[test]
 // gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
-#[available_gas(l2_gas: 4334211)] // ceil(1.05 × 4127820 measured)
+#[available_gas(l2_gas: 4334001)] // ceil(1.05 × 4127620 measured)
 fn test_instances_deploys_and_stubs_revert() {
     let address = deploy_instances();
     assert(IInstancesAdminDispatcher { contract_address: address }.version() == VERSION, 'version');

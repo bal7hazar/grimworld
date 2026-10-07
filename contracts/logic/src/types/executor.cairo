@@ -3074,7 +3074,8 @@ pub mod tests {
     // 92,682 / 65,536⌋ = 113), in tile order: 57 (90 health) and 90 (100) die, `GoblinKilled` 57
     // then 90, Burning skipped on the dead; 24 goes 200 → 87 and burns to 44.
     #[test]
-    #[available_gas(l2_gas: 12274320)] // ceil(1.05 × 11689828 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12315102)] // ceil(1.05 × 11728668 measured)
     fn test_example_area_kills_two() {
         let sheets = sheets(40);
         let tiles = ring(AT);
@@ -3103,7 +3104,7 @@ pub mod tests {
     // against armor 70), then the knock-down (`D` 53) interrupts its smash (`A` 53): the field to
     // none, recharge 52 + 10 − 1 = 61. The adventurer +4 quarters, the Hobgoblin +1.
     #[test]
-    #[available_gas(l2_gas: 10959012)] // ceil(1.05 × 10437154 measured)
+    #[available_gas(l2_gas: 6815941)] // ceil(1.05 × 6491372 measured)
     fn test_example_interrupt() {
         // R3: the Hobgoblin's cap is its caste's kit: its smash (24) costs 1 strike, 4 quarters.
         let base = content(70, array![].span());
@@ -3140,7 +3141,7 @@ pub mod tests {
     // evicts Warcry (deadlines 85 and 85: the lowest slot) into slot 1, `D` = 86, rank 12; Brace at
     // clock 82, a stance while one is held, takes slot 1.
     #[test]
-    #[available_gas(l2_gas: 11308133)] // ceil(1.05 × 10769650 measured)
+    #[available_gas(l2_gas: 11274491)] // ceil(1.05 × 10737610 measured)
     fn test_example_eviction_and_stance() {
         let content = content(40, array![].span());
         let sheets = content.sheets();
@@ -3170,7 +3171,8 @@ pub mod tests {
     // §10.6: a goblin's knock-down in step 2 of tick 201 interrupts the Arcanist's spell (`A`
     // 202): no effect, the recharge from `t₀` = 201.
     #[test]
-    #[available_gas(l2_gas: 10519157)] // ceil(1.05 × 10018244 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10550678)] // ceil(1.05 × 10048264 measured)
     fn test_example_fifth_cast_interrupted() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3194,7 +3196,8 @@ pub mod tests {
     // strength 60 = armor 60 (x = 0). In tile order A, the source, B: A 100 → 50; the source
     // heals 230 → 270, above half now; B is still hit, its guard read once: 100 → 50.
     #[test]
-    #[available_gas(l2_gas: 11484699)] // ceil(1.05 × 10937808 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11522079)] // ceil(1.05 × 10973408 measured)
     fn test_example_guard_crossing_half() {
         let sheets = sheets(60);
         let tiles = ring(AT);
@@ -3215,7 +3218,8 @@ pub mod tests {
     // §10.9 through the pipeline: a goblin's attack skill of activation 1 started at 50 (`A` 51)
     // resolves in step 1 of 51 through the executor's hook: its weapon hit lands on the member.
     #[test]
-    #[available_gas(l2_gas: 10783965)] // ceil(1.05 × 10270442 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11065050)] // ceil(1.05 × 10538142 measured)
     fn test_example_activated_attack_resolves() {
         let content = content(40, array![].span());
         let sheets = content.sheets();
@@ -3235,7 +3239,8 @@ pub mod tests {
     // →
     // 44; Crippled from 305 to 307. The placement first: the guard held, `Place`.
     #[test]
-    #[available_gas(l2_gas: 9979158)] // ceil(1.05 × 9503960 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12934340)] // ceil(1.05 × 12318419 measured)
     fn test_example_trap() {
         let sheets = sheets(40);
         let snare = at(@sheets, SNARE);
@@ -3280,7 +3285,7 @@ pub mod tests {
     // once, blocks goblin A's hit and is spent; goblin B's lands. The naive executor, reading it at
     // each hit, agrees.
     #[test]
-    #[available_gas(l2_gas: 22082508)] // ceil(1.05 × 21030960 measured)
+    #[available_gas(l2_gas: 22025976)] // ceil(1.05 × 20977120 measured)
     fn test_guard_two_hits() {
         let content = content(40, array![].span());
         let sheets = content.sheets();
@@ -3338,7 +3343,8 @@ pub mod tests {
     // A stopped hit stops the carrier on that actor (§5.5 step 2): Skullring blocked applies no
     // knock-down; the attack's adrenaline is not gained.
     #[test]
-    #[available_gas(l2_gas: 10786204)] // ceil(1.05 × 10272575 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10798206)] // ceil(1.05 × 10284005 measured)
     fn test_stopped_hit_stops_the_carrier() {
         let sheets = sheets(70);
         let front = *ring(AT)[0];
@@ -3366,7 +3372,8 @@ pub mod tests {
 
     // §5.9: a target dead or out of reach at resolution: nothing, `Illegal`.
     #[test]
-    #[available_gas(l2_gas: 9885303)] // ceil(1.05 × 9414574 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 9941268)] // ceil(1.05 × 9467874 measured)
     fn test_target_illegal_at_resolution() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3403,7 +3410,8 @@ pub mod tests {
 
     // A carrier with no actor (Cinder Ring alone): carrier-level effects only, nothing written.
     #[test]
-    #[available_gas(l2_gas: 9891178)] // ceil(1.05 × 9420169 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 9925156)] // ceil(1.05 × 9452529 measured)
     fn test_carrier_without_actor() {
         let sheets = sheets(40);
         let mut world = Fixture::world(
@@ -3421,7 +3429,8 @@ pub mod tests {
     // The instant kinds on the source (`HEAL` capped at max, `CURE`, `ENERGY` in thirds capped),
     // and never on a member at 0 (CBT-04's review): nothing cured or healed.
     #[test]
-    #[available_gas(l2_gas: 16150585)] // ceil(1.05 × 15381509 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16199053)] // ceil(1.05 × 15427669 measured)
     fn test_instant_kinds() {
         let sheets = sheets(40);
         let mut adventurer = member(AT, 0, weapon::STAFF);
@@ -3451,7 +3460,7 @@ pub mod tests {
     // A holding `ARMOR` (an enchantment: `ENCHANTED` holds) enters the member's defence once held:
     // the cache is updated at the hold (L3).
     #[test]
-    #[available_gas(l2_gas: 10269557)] // ceil(1.05 × 9780530 measured)
+    #[available_gas(l2_gas: 10257461)] // ceil(1.05 × 9769010 measured)
     fn test_hold_updates_the_defence() {
         let sheets = sheets(40);
         let mut world = Fixture::world(9, array![member(AT, 0, weapon::STAFF)], array![]);
@@ -3471,7 +3480,8 @@ pub mod tests {
     // `HIT_PENETRATION` with the carrier's hit (Static Lash's kind on an attack): 50 % of armor 80
     // gone, so the hit at strength 60 meets 40.
     #[test]
-    #[available_gas(l2_gas: 10742336)] // ceil(1.05 × 10230796 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10761478)] // ceil(1.05 × 10249026 measured)
     fn test_hit_penetration() {
         let sheets = sheets(80);
         let front = *ring(AT)[0];
@@ -3490,7 +3500,8 @@ pub mod tests {
 
     // §5.12: `ADRENALINE_EVERY_N` 2: the second weapon hit doubles (4, then 8), `hits` resets.
     #[test]
-    #[available_gas(l2_gas: 12308174)] // ceil(1.05 × 11722070 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12311639)] // ceil(1.05 × 11725370 measured)
     fn test_adrenaline_every_n() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3529,7 +3540,8 @@ pub mod tests {
     // D-179 through the executor: a sleeping goblin holding `EVADE` takes its first hit (critical)
     // and notices: Engaged.
     #[test]
-    #[available_gas(l2_gas: 10732005)] // ceil(1.05 × 10220957 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10750958)] // ceil(1.05 × 10239007 measured)
     fn test_asleep_first_hit() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3711,57 +3723,66 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 11503626)] // ceil(1.05 × 10955834 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11538066)] // ceil(1.05 × 10988634 measured)
     fn test_cost_area_fixture() {
         let (world, _) = area_state();
         assert(opaque(world.goblin_count()) == 8, 'fixture');
     }
 
     #[test]
-    #[available_gas(l2_gas: 16289892)] // ceil(1.05 × 15514182 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16347684)] // ceil(1.05 × 15569222 measured)
     fn test_cost_area_naive() {
         area(Naive {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16214764)] // ceil(1.05 × 15442632 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16272556)] // ceil(1.05 × 15497672 measured)
     fn test_cost_area_entries() {
         area(EntriesOnly {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16197607)] // ceil(1.05 × 15426292 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16255399)] // ceil(1.05 × 15481332 measured)
     fn test_cost_area_rebuild() {
         area(RebuildOnly {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16130040)] // ceil(1.05 × 15361942 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16187832)] // ceil(1.05 × 15416982 measured)
     fn test_cost_area_levered() {
         area(Levered {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 10921821)] // ceil(1.05 × 10401734 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10956261)] // ceil(1.05 × 10434534 measured)
     fn test_cost_hits_fixture() {
         let (world, _) = hits_state();
         assert(opaque(world.goblin_count()) == 6, 'fixture');
     }
 
     #[test]
-    #[available_gas(l2_gas: 18035737)] // ceil(1.05 × 17176892 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 18051529)] // ceil(1.05 × 17191932 measured)
     fn test_cost_hits_naive() {
         hits(Naive {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16743975)] // ceil(1.05 × 15946642 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16831167)] // ceil(1.05 × 16029682 measured)
     fn test_cost_hits_defence() {
         hits(DefenceOnly {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16830978)] // ceil(1.05 × 16029502 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16918170)] // ceil(1.05 × 16112542 measured)
     fn test_cost_hits_levered() {
         hits(Levered {});
     }
@@ -3771,7 +3792,8 @@ pub mod tests {
 
     // The source goblin read from the world and written back (one rebuild of the awake set).
     #[test]
-    #[available_gas(l2_gas: 11461133)] // ceil(1.05 × 10915364 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11495573)] // ceil(1.05 × 10948164 measured)
     fn test_cost_part_source() {
         let (mut world, _) = hits_state();
         for i in 0..6_u32 {
@@ -3782,7 +3804,8 @@ pub mod tests {
 
     // The member target read and written back.
     #[test]
-    #[available_gas(l2_gas: 11188910)] // ceil(1.05 × 10656104 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11223350)] // ceil(1.05 × 10688904 measured)
     fn test_cost_part_member() {
         let (mut world, _) = hits_state();
         for _ in 0..6_u32 {
@@ -3793,7 +3816,8 @@ pub mod tests {
 
     // §5.14 step 4: the actor list of an implicit weapon hit on the member.
     #[test]
-    #[available_gas(l2_gas: 11922690)] // ceil(1.05 × 11354942 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12003624)] // ceil(1.05 × 11432022 measured)
     fn test_cost_part_actors() {
         let (world, _) = hits_state();
         let tiles = ring(AT);
@@ -3809,7 +3833,8 @@ pub mod tests {
     // The hit itself: the defence (kept), the geometry (`arc`, `front`), CBT-03a's `resolve`, the
     // damage and the hit recorded, on the member, with the goblins' offence.
     #[test]
-    #[available_gas(l2_gas: 12900275)] // ceil(1.05 × 12285976 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12920435)] // ceil(1.05 × 12305176 measured)
     fn test_cost_part_strike() {
         let (world, sheets) = hits_state();
         let tiles = ring(AT);
@@ -3886,7 +3911,8 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 12810320)] // ceil(1.05 × 12200304 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12887180)] // ceil(1.05 × 12273504 measured)
     fn test_cost_class_hits_fixture() {
         let (words, content) = class_args();
         for i in 0..6_u32 {
@@ -3896,7 +3922,8 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 26060425)] // ceil(1.05 × 24819452 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 26407765)] // ceil(1.05 × 25150252 measured)
     fn test_cost_class_hits() {
         let class = declare("ExecutorLibrary").unwrap().contract_class();
         let library = IExecutorLibraryLibraryDispatcher { class_hash: *class.class_hash };

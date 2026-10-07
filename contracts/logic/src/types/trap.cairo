@@ -427,7 +427,8 @@ mod tests {
     // moves onto it: strength 3 × 20 = 60, rank 12; the hit 100 → 44, Crippled `D = 307`; the
     // object used.
     #[test]
-    #[available_gas(l2_gas: 12062102)] // ceil(1.05 × 11487716 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12934340)] // ceil(1.05 × 12318419 measured)
     fn test_example_trap() {
         let sheets = sheets();
         let mut world = Fixture::world(
@@ -462,7 +463,8 @@ mod tests {
 
     // A placed trap never triggers on its own side: the member on its own trap.
     #[test]
-    #[available_gas(l2_gas: 9313227)] // ceil(1.05 × 8869740 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 9315201)] // ceil(1.05 × 8871620 measured)
     fn test_own_side() {
         let sheets = sheets();
         let mut world = Fixture::world(305, array![warden(@sheets)], array![]);
@@ -478,7 +480,7 @@ mod tests {
     // A terrain trap (kind 4, its `param` a `SKILL`) hits members only (FX-34), at its band's
     // lower level and rank 0 (the project manager, 2026-10-02): a goblin entering is not hit.
     #[test]
-    #[available_gas(l2_gas: 10635489)] // ceil(1.05 × 10129037 measured)
+    #[available_gas(l2_gas: 10625157)] // ceil(1.05 × 10119197 measured)
     fn test_terrain_trap() {
         let sheets = sheets();
         let mut world = Fixture::world(
@@ -515,7 +517,8 @@ mod tests {
     // `place` writes the object at the free index and leaves the others; an actor on the tile
     // refuses it (a dead goblin's remains do not).
     #[test]
-    #[available_gas(l2_gas: 16173820)] // ceil(1.05 × 15403638 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16209541)] // ceil(1.05 × 15437658 measured)
     fn test_place() {
         let sheets = sheets();
         let _ = sheets;
@@ -561,7 +564,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 10402694)] // ceil(1.05 × 9907327 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10404668)] // ceil(1.05 × 9909207 measured)
     fn test_cost_trigger() {
         let (mut world, sheets, mut ground) = trigger_state();
         assert(enter(ref world, @sheets, ref ground, Actor::Goblin(0), 0), 'triggered');
@@ -570,7 +574,8 @@ mod tests {
 
     // A window position's chunk and tile, the board's origin added; outside the window, none.
     #[test]
-    #[available_gas(l2_gas: 10910)] // ceil(1.05 × 10390 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12380)] // ceil(1.05 × 11790 measured)
     fn test_locate() {
         let board = board();
         assert(TrapTrait::locate(@board, SPOT) == Some((0, 142)), 'chunk 0');

@@ -597,7 +597,8 @@ mod tests {
     // Wait costs 1 and writes nothing; Turn costs 0, sets the facing, and only once between two
     // ticks (design/04); a knocked-down adventurer may only Wait (FX-7).
     #[test]
-    #[available_gas(l2_gas: 10550539)] // ceil(1.05 × 10048132 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10564147)] // ceil(1.05 × 10061092 measured)
     fn test_wait_turn_knocked() {
         let sheets = bench().sheets();
         let mut world = Fixture::world(
@@ -621,7 +622,8 @@ mod tests {
     // The clock past `LAST_TICK` refuses any action (E-4); an adventurer at 0 acts no more; Move
     // and Interact are ENG-07's.
     #[test]
-    #[available_gas(l2_gas: 10349724)] // ceil(1.05 × 9856880 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10360140)] // ceil(1.05 × 9866800 measured)
     fn test_clock_absent_kind() {
         let sheets = bench().sheets();
         let mut world = Fixture::world(
@@ -641,7 +643,8 @@ mod tests {
     // A weapon attack lands now and costs the weapon's `k` (1 here): the goblin hit, the member
     // turned toward it. Refused: no such entity, a member, a dead goblin, one out of reach.
     #[test]
-    #[available_gas(l2_gas: 13405979)] // ceil(1.05 × 12767599 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 13418201)] // ceil(1.05 × 12779239 measured)
     fn test_attack() {
         let sheets = bench().sheets();
         let near = AT + 1;
@@ -665,7 +668,7 @@ mod tests {
     // tick cost `n`; the target an entity it addresses, in range and sight. Refused: an empty bar
     // slot, recharging, energy short, a tile for an entity.
     #[test]
-    #[available_gas(l2_gas: 12365761)] // ceil(1.05 × 11776915 measured)
+    #[available_gas(l2_gas: 12336834)] // ceil(1.05 × 11749365 measured)
     fn test_spell_activation() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![FIRE].span());
@@ -713,7 +716,8 @@ mod tests {
     // and the flag: a second instant skill between two ticks is refused. An attack skill of 2
     // adrenaline: refused short, else lands now for its weapon's `k` (FX-5).
     #[test]
-    #[available_gas(l2_gas: 14285945)] // ceil(1.05 × 13605661 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 14293085)] // ceil(1.05 × 13612461 measured)
     fn test_instant_and_attack_skill() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![STANCE, FIELD, RAGE].span());
@@ -749,7 +753,7 @@ mod tests {
     // primary rank off a Warden's Warden skill, floored at 0; a held glyph takes its
     // `NEXT_SPELL_COST` off a spell and is consumed, not off a skill of kind 11 (FX-25).
     #[test]
-    #[available_gas(l2_gas: 13466618)] // ceil(1.05 × 12825350 measured)
+    #[available_gas(l2_gas: 13453209)] // ceil(1.05 × 12812580 measured)
     fn test_energy_reductions() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![FIELD, FIRE, MEND].span());
@@ -788,7 +792,8 @@ mod tests {
     // An ally skill reaches a living member, not a goblin; a `SELF` one leaves the facing alone
     // (the same tile, D-174).
     #[test]
-    #[available_gas(l2_gas: 12903945)] // ceil(1.05 × 12289471 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12936453)] // ceil(1.05 × 12320431 measured)
     fn test_ally_and_self() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![MEND, STANCE].span());
@@ -812,7 +817,8 @@ mod tests {
     // 1 tick, the goblins of its `DISC_1` hit now. Refused: an empty count, an item the content
     // lacks, out of reach.
     #[test]
-    #[available_gas(l2_gas: 12775513)] // ceil(1.05 × 12167155 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12812935)] // ceil(1.05 × 12202795 measured)
     fn test_item_bomb() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![].span());
@@ -844,7 +850,8 @@ mod tests {
     // (§10.10: 10 / 2 /
     // 20 at clock 300, `A = 302`).
     #[test]
-    #[available_gas(l2_gas: 12387462)] // ceil(1.05 × 11797582 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12440172)] // ceil(1.05 × 11847782 measured)
     fn test_trap_tile() {
         let sheets = bench().sheets();
         let member = adventurer(@sheets, array![SNARE].span());
@@ -905,7 +912,7 @@ mod tests {
 
     // Facing (§5.3 step 3, ENG-02): toward a target two tiles away, the first step of the line.
     #[test]
-    #[available_gas(l2_gas: 11325481)] // ceil(1.05 × 10786172 measured)
+    #[available_gas(l2_gas: 11316399)] // ceil(1.05 × 10777522 measured)
     fn test_facing_first_step() {
         let sheets = bench().sheets();
         let member = adventurer(@sheets, array![FIRE].span());
@@ -933,7 +940,8 @@ mod tests {
     // interrupted, energy stays paid, the recharge from `t₀ = 201`. The bonus is spent: the next
     // Fire spell makes `casts` 1.
     #[test]
-    #[available_gas(l2_gas: 10412275)] // ceil(1.05 × 9916452 measured)
+    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10550678)] // ceil(1.05 × 10048264 measured)
     fn test_example_fifth_cast_interrupted() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![FIRE].span());

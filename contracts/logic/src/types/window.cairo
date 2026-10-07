@@ -1718,7 +1718,7 @@ mod tests {
     // `vectors/check.py` fails while the committed file differs from what these print
     // (`vectors/README.md`).
     #[test]
-    #[available_gas(l2_gas: 1265854713)] // ceil(1.05 × 1205575917 measured)
+    #[available_gas(l2_gas: 464531905)] // ceil(1.05 × 442411338 measured)
     fn test_vectors() {
         let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];
@@ -1793,7 +1793,7 @@ mod tests {
 
     /// The table's second part, its ids following the first's (snforge's step limit splits it).
     #[test]
-    #[available_gas(l2_gas: 438945576)] // ceil(1.05 × 418043405 measured)
+    #[available_gas(l2_gas: 257503327)] // ceil(1.05 × 245241263 measured)
     fn test_vectors_1() {
         let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];

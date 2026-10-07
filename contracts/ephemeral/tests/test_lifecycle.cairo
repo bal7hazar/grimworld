@@ -512,8 +512,8 @@ fn placement_of(world: World, adventurer: u32) -> Placement {
 // the member's 8 words, ⌈16 / 4⌉ = 4 task pages and the entry chunk's 2 words new: 19;
 // `next_slot` overwritten.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 38987798)] // ceil(1.05 × 37131236 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 41259225)] // ceil(1.05 × 39294500 measured)
 fn test_create_first_entry() {
     let world = setup();
     let keys = watched();
@@ -618,8 +618,8 @@ fn test_create_first_entry() {
 
 // The same with no task: no task page is written (19 − 4 = 15 new).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 34639761)] // ceil(1.05 × 32990248 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 36843476)] // ceil(1.05 × 35089024 measured)
 fn test_create_without_tasks() {
     let world = setup();
     let keys = watched();
@@ -633,8 +633,8 @@ fn test_create_without_tasks() {
 // A later entry reuses the slot: generation + 1, `next_slot` untouched, every key already written
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 60138794)] // ceil(1.05 × 57275041 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 62494063)] // ceil(1.05 × 59518155 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -656,8 +656,8 @@ fn test_create_reuses_the_slot() {
 }
 
 #[test]
-// gas: raised, ENG-10b: a larger Instances deployed, a zone's Site two felts longer
-#[available_gas(l2_gas: 44352792)] // ceil(1.05 × 42240754 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 45005735)] // ceil(1.05 × 42862604 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -685,8 +685,8 @@ fn test_create_refusals() {
 
 // A sealed destination sets the header's flag (design/17).
 #[test]
-// gas: raised, ENG-10b: a Rift floor is a dungeon floor, its outline and hosts drawn at create
-#[available_gas(l2_gas: 37235321)] // ceil(1.05 × 35462210 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 38326974)] // ceil(1.05 × 36501880 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -753,8 +753,8 @@ fn fill_slot(world: World) {
 // A slot another generation used, with stale data in every word: the new instance shows nothing of
 // it, through the view and through the stored words its gates reach.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 57589809)] // ceil(1.05 × 54847437 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 59848773)] // ceil(1.05 × 56998831 measured)
 fn test_generation_isolation() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -872,8 +872,8 @@ fn test_generation_isolation() {
 // unlocked, the belt's counts reported (ENG-01 §9.3: header, member state, placement: 0 new, 3
 // overwritten; `InstanceClosed`; one report).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40627869)] // ceil(1.05 × 38693208 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 42832151)] // ceil(1.05 × 40792524 measured)
 fn test_leave_to_a_hub() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -922,8 +922,8 @@ fn test_leave_to_a_hub() {
 // entropy, revealed, quotas, the 4 transient member words, the placement: 9 overwritten; and the
 // entry reveal (ENG-05): floor 1's entry chunk 112, its 2 words new in this slot.
 #[test]
-// gas: raised, ENG-10b: the link enters a dungeon floor, its outline and hosts drawn and stored
-#[available_gas(l2_gas: 64714018)] // ceil(1.05 × 61632398 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 65659249)] // ceil(1.05 × 62532618 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -1040,8 +1040,8 @@ fn test_leave_to_a_location() {
 
 // Travel back: Returned to the last hub (the hub settles `hub` 0 as its last one, D-04).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 38831742)] // ceil(1.05 × 36982611 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 41035604)] // ceil(1.05 × 39081527 measured)
 fn test_travel_back() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1096,8 +1096,8 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 }
 
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40479493)] // ceil(1.05 × 38551898 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 42686589)] // ceil(1.05 × 40653894 measured)
 fn test_refused_sequence() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1111,8 +1111,8 @@ fn test_refused_sequence() {
 
 // An id of an earlier generation, and an instance already closed.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 49665440)] // ceil(1.05 × 47300419 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 51735549)] // ceil(1.05 × 49271951 measured)
 fn test_refused_closed() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1125,8 +1125,8 @@ fn test_refused_closed() {
 
 // The adventurer is not in that instance (another's, in another slot), or is down.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 52410389)] // ceil(1.05 × 49914656 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 54576216)] // ceil(1.05 × 51977348 measured)
 fn test_refused_absent() {
     let world = setup();
     create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1141,8 +1141,8 @@ fn test_refused_absent() {
 // Every gate that cannot be taken from where the member stands (design/02: "the gate is
 // reachable"), before any draw.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 68400169)] // ceil(1.05 × 65143018 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 70621356)] // ceil(1.05 × 67258434 measured)
 fn test_refused_gate() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1158,8 +1158,8 @@ fn test_refused_gate() {
 
 // A sealed Red Rift: no travel back (design/17).
 #[test]
-// gas: raised, ENG-10b: a Rift floor is a dungeon floor, its outline and hosts drawn at create
-#[available_gas(l2_gas: 40781479)] // ceil(1.05 × 38839503 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 41874455)] // ceil(1.05 × 39880433 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1168,8 +1168,8 @@ fn test_refused_sealed() {
 
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 35310656)] // ceil(1.05 × 33629196 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 37620980)] // ceil(1.05 × 35829504 measured)
 fn test_not_controller() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1185,8 +1185,8 @@ fn test_not_controller() {
 // ---- set_controller -----------------------------------------------------------------------------
 
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40390607)] // ceil(1.05 × 38467244 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 42596054)] // ceil(1.05 × 40567670 measured)
 fn test_set_controller() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -1289,7 +1289,8 @@ fn template() -> Pack {
 // reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
 // question 6); `instance_region` tells void, not yet revealed and revealed apart.
 #[test]
-#[available_gas(l2_gas: 54159866)] // ceil(1.05 × 51580824 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 54812808)] // ceil(1.05 × 52202674 measured)
 fn test_entry_reveal_through_the_engine() {
     let world = setup();
     let mask = zone_content(world);
@@ -1388,7 +1389,8 @@ fn test_entry_reveal_through_the_engine() {
 
 // `instance_region` refuses a page above 16 (`REGION_PAGE`).
 #[test]
-#[available_gas(l2_gas: 32860914)] // ceil(1.05 × 31296108 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 35073764)] // ceil(1.05 × 33403584 measured)
 #[feature("safe_dispatcher")]
 fn test_region_page_bound() {
     let world = setup();
@@ -1462,8 +1464,8 @@ fn reveal_rest(
 // engine on the stored state then reveals the rest in two orders, by index and backward: the same
 // words in every chunk, one exit, on a chunk of the farthest layer.
 #[test]
-// gas: raised, ENG-10b: A2, the stored floor against the pure draw, revealed in two orders
-#[available_gas(l2_gas: 76637455)] // ceil(1.05 × 72988052 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 77290398)] // ceil(1.05 × 73609902 measured)
 fn test_entry_reveal_of_a_dungeon() {
     let world = setup();
     let records = IRecordsDispatcher { contract_address: world.registry };
@@ -1585,7 +1587,8 @@ fn test_entry_reveal_of_a_dungeon() {
 // outline, the hosts, the three outline slots and the hosts written, the entry chunk revealed), to
 // read next to `test_cost_create_reveals`' zone entries (the node's figures: `lifecycle_probe.py`).
 #[test]
-#[available_gas(l2_gas: 41302152)] // ceil(1.05 × 39335382 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 42393805)] // ceil(1.05 × 40375052 measured)
 fn test_cost_create_floor() {
     let world = setup();
     let records = IRecordsDispatcher { contract_address: world.registry };
@@ -1651,14 +1654,16 @@ fn create_gas_zone(quotas: bool) -> u128 {
 // D-210 (review note 5 at 46d7d89): `begin`'s cost with and without the zone block, on the same
 // zone; the difference also holds the collector's placement when a host is revealed.
 #[test]
-#[available_gas(l2_gas: 86718894)] // ceil(1.05 × 82589422 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 88024779)] // ceil(1.05 × 83833122 measured)
 fn test_cost_create_zone_block() {
     println!("gas create, zone with a quota (the zone block): {}", create_gas_zone(true));
     println!("gas create, zone without a quota (no zone block): {}", create_gas_zone(false));
 }
 
 #[test]
-#[available_gas(l2_gas: 110226220)] // ceil(1.05 × 104977352 measured)
+// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233 to D-236)
+#[available_gas(l2_gas: 116237132)] // ceil(1.05 × 110702030 measured)
 fn test_cost_create_reveals() {
     println!("gas create revealing 1 chunk: {}", create_gas(INTO_ZONE, 1));
     println!("gas create revealing 2 chunks: {}", create_gas(FLOOR_TO_ZONE, 2));
@@ -1717,6 +1722,7 @@ fn batch_played(ref spy: snforge_std::EventSpy, world: World) -> (felt252, felt2
 // Two Moves (West, then East back) from a floor tile: each one tick on the fast path, the facing
 // the direction, the sequence and the clock moved by two, `BatchPlayed` with no stop (A2, A3).
 #[test]
+#[available_gas(l2_gas: 59019092)] // ceil(1.05 × 56208659 measured)
 fn test_play_moves() {
     let world = setup();
     play_classes(world);
@@ -1736,6 +1742,7 @@ fn test_play_moves() {
 
 // A Move into a wall is illegal: the batch stops there, the two Moves before it kept (A2, A3).
 #[test]
+#[available_gas(l2_gas: 59078833)] // ceil(1.05 × 56265555 measured)
 fn test_play_move_blocked() {
     let world = setup();
     play_classes(world);
@@ -1754,6 +1761,7 @@ fn test_play_move_blocked() {
 
 // A stale sequence, a different content version and an Interact (Open question 6) run nothing.
 #[test]
+#[available_gas(l2_gas: 60579973)] // ceil(1.05 × 57695212 measured)
 fn test_play_refusals() {
     let world = setup();
     play_classes(world);
