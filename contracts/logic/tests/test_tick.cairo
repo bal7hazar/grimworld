@@ -11,6 +11,7 @@
 // claim that no state costs more; "upper bound" is kept for the derived result (REPORT.md, ENG-01
 // §9.2).
 use core::testing::get_available_gas;
+use grimworld_logic::actions::Action;
 use grimworld_logic::content::Record;
 use grimworld_logic::helpers::signed::SignedTrait;
 use grimworld_logic::interface::{ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher};
@@ -20,6 +21,7 @@ use grimworld_logic::models::index::{Caste, Skill};
 use grimworld_logic::models::member::{Member, MemberTickTrait, MemberTrait, MemberWords};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::MAX_CLOCK;
+use grimworld_logic::types::action::ActionTrait;
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::executor::{Board, BoardTrait, ExecutorTrait};
@@ -31,8 +33,6 @@ use grimworld_logic::types::window::WindowTrait;
 use grimworld_logic::types::world::{
     Actor, Idle, Rules, TickTrait, Words, WordsTrait, World, WorldStoreTrait, WorldTrait,
 };
-use grimworld_logic::actions::Action;
-use grimworld_logic::types::action::ActionTrait;
 use snforge_std::{DeclareResultTrait, declare};
 
 const LIVE: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
@@ -2698,16 +2698,16 @@ fn test_cost_sheet_skill_none() {
 
 // A skill's sheet, its `REGENERATION`: an empty second entry.
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 48174)] // ceil(1.05 × 45880 measured)
+// gas: raised, CBT-05b: the skill sheet reads the header's energy and profession
+#[available_gas(l2_gas: 50715)] // ceil(1.05 × 48300 measured)
 fn test_cost_sheet_skill_damage_then_empty() {
     assert(read_skill([kind::DAMAGE, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
 }
 
 // A skill's sheet, its `REGENERATION`: no entry.
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 44552)] // ceil(1.05 × 42430 measured)
+// gas: raised, CBT-05b: the skill sheet reads the header's energy and profession
+#[available_gas(l2_gas: 47093)] // ceil(1.05 × 44850 measured)
 fn test_cost_sheet_skill_empty() {
     assert(read_skill([kind::EMPTY, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
 }
@@ -3834,7 +3834,7 @@ fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 14539605)] // ceil(1.05 × 13847242 measured)
 fn test_cost_bomb_fixture() {
     let (world, sheets, rules) = bomb_state();
     let _ = bomb_tile();
@@ -3844,7 +3844,7 @@ fn test_cost_bomb_fixture() {
 
 // The action phase's floor: a Wait (legality only).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 14582487)] // ceil(1.05 × 13888082 measured)
 fn test_cost_bomb_wait() {
     let (mut world, sheets, mut rules) = bomb_state();
     let _ = bomb_tile();
@@ -3854,7 +3854,7 @@ fn test_cost_bomb_wait() {
 
 // The bomb alone: legality, the belt, facing, its carrier through `ExecutorLibrary`.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 23491375)] // ceil(1.05 × 22372738 measured)
 fn test_cost_bomb_action() {
     let (mut world, sheets, mut rules) = bomb_state();
     let (tile, most) = bomb_tile();
@@ -3864,7 +3864,7 @@ fn test_cost_bomb_action() {
 
 // The 8 goblins' tick alone, the same state (its pair).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 50227938)] // ceil(1.05 × 47836131 measured)
 fn test_cost_bomb_goblins() {
     let (mut world, sheets, mut rules) = bomb_state();
     let _ = bomb_tile();
@@ -3874,11 +3874,12 @@ fn test_cost_bomb_goblins() {
 
 // The bomb and its tick: the action phase, then the 8 goblin carriers (the task's measure, D-207).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 59176034)] // ceil(1.05 × 56358127 measured)
 fn test_cost_bomb_tick() {
     let (mut world, sheets, mut rules) = bomb_state();
     let (tile, most) = bomb_tile();
-    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile))).unwrap();
+    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile)))
+        .unwrap();
     TickTrait::run(ref world, @sheets, ticks, ref rules);
     assert(rules.cache.hits == most + 8 && !world.defeated, 'bomb, then eight');
 }

@@ -370,7 +370,10 @@ mod tests {
                 sheet.activation = 2;
                 sheet.recharge = 20;
                 skills.append(sheet);
-                skills.append(crate::types::tick::SkillSheet { id: 70, kind: skill_kind::TRAP, ..sheet });
+                skills
+                    .append(
+                        crate::types::tick::SkillSheet { id: 70, kind: skill_kind::TRAP, ..sheet },
+                    );
             } else {
                 skills.append(sheet);
             }
@@ -401,7 +404,9 @@ mod tests {
         *features.objects.span()[k]
     }
 
-    fn enter(ref world: World, sheets: @Sheets, ref ground: Ground, entrant: Actor, level: u8) -> bool {
+    fn enter(
+        ref world: World, sheets: @Sheets, ref ground: Ground, entrant: Actor, level: u8,
+    ) -> bool {
         let mut cache: Cache = Default::default();
         TrapTrait::trigger(
             @Levered {}, ref cache, ref world, sheets, ref ground, @board(), entrant, SPOT, level,
@@ -414,18 +419,24 @@ mod tests {
     // moves onto it: strength 3 × 20 = 60, rank 12; the hit 100 → 44, Crippled `D = 307`; the
     // object used.
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 12062102)] // ceil(1.05 × 11487716 measured)
     fn test_example_trap() {
         let sheets = sheets();
-        let mut world = Fixture::world(300, array![warden(@sheets)], array![goblin(44, AT + 1, 0, 100)]);
+        let mut world = Fixture::world(
+            300, array![warden(@sheets)], array![goblin(44, AT + 1, 0, 100)],
+        );
         let mut rules = ExecutorTrait::new(board());
         rules.ground = chunk([Default::default(); 3]);
-        let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Skill((0, Target::Tile(TILE))));
+        let ticks = ActionTrait::act(
+            ref world, @sheets, ref rules, 0, Action::Skill((0, Target::Tile(TILE))),
+        );
         assert(ticks == Ok(2), 'two ticks');
         TickTrait::run(ref world, @sheets, 2, ref rules);
         assert(world.clock == 302 && world.goblin(0).health == 100, 'placed, no actor');
         let placed = nth(@rules.ground, 0);
-        assert(placed == trap(SPOT, object::PLACED_TRAP, 0, Placer::Member((0, 0)).param()), 'kind 9');
+        assert(
+            placed == trap(SPOT, object::PLACED_TRAP, 0, Placer::Member((0, 0)).param()), 'kind 9',
+        );
         // Step 2 of 305: goblin 44 enters.
         world.clock = 305;
         let mut goblin = world.goblin(0);
@@ -443,12 +454,14 @@ mod tests {
 
     // A placed trap never triggers on its own side: the member on its own trap.
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 9313227)] // ceil(1.05 × 8869740 measured)
     fn test_own_side() {
         let sheets = sheets();
         let mut world = Fixture::world(305, array![warden(@sheets)], array![]);
         let param = Placer::Member((0, 0)).param();
-        let mut ground = chunk([trap(SPOT, object::PLACED_TRAP, 0, param), Default::default(), Default::default()]);
+        let mut ground = chunk(
+            [trap(SPOT, object::PLACED_TRAP, 0, param), Default::default(), Default::default()],
+        );
         let before = world.member(0);
         assert(!enter(ref world, @sheets, ref ground, Actor::Member(0), 0), 'own side');
         assert(world.member(0) == before && nth(@ground, 0).state == 0, 'nothing');
@@ -457,11 +470,15 @@ mod tests {
     // A terrain trap (kind 4, its `param` a `SKILL`) hits members only (FX-34), at its band's
     // lower level and rank 0 (the project manager, 2026-10-02): a goblin entering is not hit.
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 10635489)] // ceil(1.05 × 10129037 measured)
     fn test_terrain_trap() {
         let sheets = sheets();
-        let mut world = Fixture::world(305, array![warden(@sheets)], array![goblin(44, SPOT, 0, 100)]);
-        let mut ground = chunk([trap(SPOT, object::TRAP, 0, 70), Default::default(), Default::default()]);
+        let mut world = Fixture::world(
+            305, array![warden(@sheets)], array![goblin(44, SPOT, 0, 100)],
+        );
+        let mut ground = chunk(
+            [trap(SPOT, object::TRAP, 0, 70), Default::default(), Default::default()],
+        );
         assert(!enter(ref world, @sheets, ref ground, Actor::Goblin(0), 20), 'not on goblins');
         let health = world.member(0).health;
         assert(enter(ref world, @sheets, ref ground, Actor::Member(0), 20), 'on members');
@@ -471,7 +488,7 @@ mod tests {
     // Placing (§5.11): the lowest index that is empty or a used trap; a tile holding another
     // object, or a full chunk, takes none (FX-14); a used trap on the tile itself is replaced.
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 64953)] // ceil(1.05 × 61860 measured)
     fn test_free_index() {
         let used = trap(5, object::PLACED_TRAP, 1, 0);
         let chest = trap(7, object::CHEST, 0, 0);
@@ -480,18 +497,23 @@ mod tests {
         assert(TrapTrait::free(@features, 9) == Some(1), 'the used trap first');
         assert(TrapTrait::free(@features, 7) == None, 'a chest on it');
         assert(TrapTrait::free(@features, 5) == Some(1), 'a used trap on it');
-        let full = Features { objects: [chest, trap(8, object::VEIN, 1, 0), trap(6, object::TRAP, 0, 3)], ..FeaturesTrait::empty() };
+        let full = Features {
+            objects: [chest, trap(8, object::VEIN, 1, 0), trap(6, object::TRAP, 0, 3)],
+            ..FeaturesTrait::empty(),
+        };
         assert(TrapTrait::free(@full, 9) == None, 'full');
     }
 
     // `place` writes the object at the free index and leaves the others; an actor on the tile
     // refuses it (a dead goblin's remains do not).
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 16173820)] // ceil(1.05 × 15403638 measured)
     fn test_place() {
         let sheets = sheets();
         let _ = sheets;
-        let mut world = Fixture::world(300, array![member(AT, 0, weapon::BOW)], array![goblin(8, SPOT, 0, 0)]);
+        let mut world = Fixture::world(
+            300, array![member(AT, 0, weapon::BOW)], array![goblin(8, SPOT, 0, 0)],
+        );
         world.kill(0);
         let chest = trap(1, object::CHEST, 0, 0);
         let mut ground = chunk([chest, Default::default(), Default::default()]);
@@ -499,15 +521,48 @@ mod tests {
         assert(TrapTrait::place(ref ground, @world, @board(), SPOT, placer), 'over remains');
         assert(nth(@ground, 0) == chest, 'kept');
         assert(nth(@ground, 1) == trap(SPOT, object::PLACED_TRAP, 0, placer.param()), 'index 1');
-        let world = Fixture::world(300, array![member(AT, 0, weapon::BOW)], array![goblin(8, SPOT, 0, 50)]);
+        let world = Fixture::world(
+            300, array![member(AT, 0, weapon::BOW)], array![goblin(8, SPOT, 0, 50)],
+        );
         let mut ground = chunk([Default::default(); 3]);
         assert(!TrapTrait::place(ref ground, @world, @board(), SPOT, placer), 'occupied');
         assert(!TrapTrait::place(ref ground, @world, @board(), AT, placer), 'the member');
     }
 
+    // ---- The trigger's cost (ENG-01 §9.2: "a trap's trigger replaces an application already
+    // counted, never adds one"): Snare's payload on goblin 44 in process (the hit, Crippled, the
+    // lookup, the used mark), less its fixture.
+
+    fn trigger_state() -> (World, Sheets, Ground) {
+        let sheets = sheets();
+        let world = Fixture::world(305, array![warden(@sheets)], array![goblin(44, SPOT, 0, 100)]);
+        let param = Placer::Member((0, 0)).param();
+        let ground = chunk(
+            [trap(SPOT, object::PLACED_TRAP, 0, param), Default::default(), Default::default()],
+        );
+        (world, sheets, ground)
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 9576525)] // ceil(1.05 × 9120500 measured)
+    fn test_cost_trigger_fixture() {
+        let (world, sheets, ground) = trigger_state();
+        assert(
+            world.goblin_count() == 1 && sheets.skills.len() > 0 && ground.len() == 1, 'fixture',
+        );
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 10402694)] // ceil(1.05 × 9907327 measured)
+    fn test_cost_trigger() {
+        let (mut world, sheets, mut ground) = trigger_state();
+        assert(enter(ref world, @sheets, ref ground, Actor::Goblin(0), 0), 'triggered');
+        assert(world.goblin(0).health == 44, 'hit');
+    }
+
     // A window position's chunk and tile, the board's origin added; outside the window, none.
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 10910)] // ceil(1.05 × 10390 measured)
     fn test_locate() {
         let board = board();
         assert(TrapTrait::locate(@board, SPOT) == Some((0, 142)), 'chunk 0');
