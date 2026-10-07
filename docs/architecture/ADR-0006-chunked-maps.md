@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it. **Amended by the project manager, 2026-10-03 (D-208)**: §2's fog and what feeds the value, §3's quotas, as ENG-05 builds them. **Amended by the owner, 2026-10-05 (D-214), for zones only**: zones are **authored** with the map editor and held in the registry; dungeons stay generated; the format is ENG-08's (D-215, the project manager's rulings; `docs/decisions/2026-10-07-authored-zones-format.md`, proposed). **Amendment proposed by ENG-10a, 2026-10-07 (D-208's PLAN item; its design choices ruled by the project manager, D-223 and D-224; built by ENG-10b): a dungeon floor's outline is drawn at entry** (§3 *A dungeon floor's outline, fixed at entry*), which removes §3's dungeon exception and the residue of #348's re-audits |
+| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it. **Amended by the project manager, 2026-10-03 (D-208)**: §2's fog and what feeds the value, §3's quotas, as ENG-05 builds them. **Amended by the owner, 2026-10-05 (D-214), for zones only**: zones are **authored** with the map editor and held in the registry; dungeons stay generated; the format is ENG-08's (D-215, the project manager's rulings; `docs/decisions/2026-10-07-authored-zones-format.md`, proposed). **Amendment by ENG-10a, 2026-10-07 (D-208's PLAN item; its design choices ruled by the project manager, D-223 and D-224), built by ENG-10b: a dungeon floor's outline is drawn at entry** (§3 *A dungeon floor's outline, fixed at entry*), which removes §3's dungeon exception and the residue of #348's re-audits |
 | Date | 2026-09-28 |
 | Decides | How a location larger than one felt is stored, generated, simulated and shown |
 | Supersedes | The room model of `docs/design/02-core-loop.md` (Map) and `docs/design/18-rooms.md` (size, entering a room, perception by room) |
@@ -168,7 +168,7 @@ sampling without replacement.
 > lands, so that steering it near the entry does not lower the boss. A fixed dungeon outline at
 > entry, which would remove the exception, is a design change on the project manager's plan.
 >
-> **ENG-10a (proposed; ENG-10b builds it).** The exception goes: a floor's outline, its exit and
+> **ENG-10a, built by ENG-10b.** The exception is gone: a floor's outline, its exit and
 > its quotas' hosts are drawn once at entry (*A dungeon floor's outline, fixed at entry*, below), so a
 > dungeon's quotas take the zone column of this table (hosts, never forced; the exit and the Heart
 > among the outline's farthest chunks), and no order of moves chooses where the exit lands or how far
@@ -238,16 +238,16 @@ Rules that keep an emerging outline sound:
 | Quotas count on `N` | "Chunks left to reveal" stays a known number, so guarantees hold |
 | State | Revealed count, open-edge count |
 
-> **ENG-10a (proposed; ENG-10b builds it).** A dungeon's outline no longer emerges: it is drawn at
-> entry (below). The table above and its rules hold until ENG-10b merges; after it, the dungeon
-> column reads: *Outline* drawn at the instance's entry, from its entry draw; *Known before entering*
-> no (it is drawn at entry, a new one each instance); *Stored as* `N` in the registry, and per instance
-> the floor's three felts and its hosts; *At reveal* each side toward a chunk of the outline is open exactly when its
-> seam is, every other side closed; *Gates* the entrance, and the exit a quota on a chunk drawn at
-> entry. The rules that keep an emerging outline sound have nothing left to keep: a drawn outline
-> holds its `N` chunks, connected, before the first reveal.
+> **ENG-10a, built by ENG-10b.** A dungeon's outline no longer emerges: it is drawn at entry
+> (below). The table above and its rules were ENG-05's; since ENG-10b the dungeon column reads:
+> *Outline* drawn at the instance's entry, from its entry draw; *Known before entering* no (it is
+> drawn at entry, a new one each instance); *Stored as* `N` in the registry, and per instance the
+> floor's three felts and its hosts; *At reveal* each side toward a chunk of the outline is open
+> exactly when its seam is, every other side closed; *Gates* the entrance, and the exit a quota on a
+> chunk drawn at entry. The rules that keep an emerging outline sound have nothing left to keep: a
+> drawn outline holds its `N` chunks, connected, before the first reveal.
 
-#### A dungeon floor's outline, fixed at entry (ENG-10a, proposed; D-223, D-224; ENG-10b builds it)
+#### A dungeon floor's outline, fixed at entry (ENG-10a; D-223, D-224; built by ENG-10b)
 
 The measured residue (#348's re-audits t-0077 and t-0082, D-208's record): with the outline emerging
 from the order of the moves, a modified client keeps a neighbour of the entry for the `N`-th reveal,
@@ -276,10 +276,15 @@ fixed at create, so both chunks of a seam draw the same tiles whichever is revea
 second's copy of the first's ring is what it would draw itself. Before D-224 the first chunk revealed
 drew them from its own stream, and through them the floor's tiles near the seam and the placements'
 tiles moved with the order (the residue in tiles, below); with it, nothing a reveal reads moves with
-the order. **How they are kept**: SPK-17 derives them from the outline's seed at each reveal (no slot,
-no cost at create, one `Rng` a dungeon side opened: measured in ENG-01 §10); D-224 says "stored with
-the outline". The two give the same tiles; storing them is ENG-10b's to measure if the project
-manager keeps it (an open question of ENG-10a's report).
+the order. **How they are kept: derived** (D-224 as amended by the project manager, 2026-10-07: the
+lot's to choose by measure, over a floor's whole life). Each reveal in a dungeon computes the
+outline's seed (`EntropyTrait::outline`) and draws a side's openings from its seam's stream; nothing
+is stored. Measured by ENG-10b on a floor of 12 with 13 open seams (snforge, Linux;
+`types::reveal::tests::test_cost_seams_*`): the whole life's derivation costs **3,580,690**, of which
+12 seeds 240,126 and the 13 seams' draws 3,340,564. Storing would draw the same 13 seams at `create`
+and add a slot written (about 475,700 when new, SPK-17), its packing, and a read and an unpacking at
+every reveal, to save the 240,126 of seeds: dearer over the life by at least 235,000 (E), and
+dearer at `create`, on the expedition's path, by the 13 seams' 3.34 M and the slot.
 
 **The zero-residue test** (deliverable 2, ENG-10b's merge gate): for a set of entropies and `N` in
 {6, 12}, every one of seven orders of the reveals (by index, backward, nearest first, farthest first,
@@ -289,7 +294,13 @@ Heart chunk (one each, in the farthest layer), the same exit-to-entry distance i
 revealed edges (the farthest distance), and the same edges in every chunk. SPK-17's
 `test_zero_residue_*` passes it on the changed engine: 16 floors, and 6 more whose farthest layer is
 one chunk with a set piece of 2 packs and 3 objects listed before the exit and the Heart (review
-t-0088, major 1), 154 orders in all. **The same comparison with the same seven orders fails on
+t-0088, major 1), 154 orders in all. **On the real path** (ENG-10b, `contracts/logic/tests/
+test_zero_residue.cairo`: the `Site` `Instances` builds, the outline, hosts and masks from the
+`HostsLibrary` class's `floor` by `library_call`, `RevealTrait::reveal` one chunk a call), with the
+opening tiles of both sides of every seam compared too (review t-0090), it passes on 22 floors (8 of
+6 chunks, 8 of 12, 6 whose farthest layer is one chunk with the set piece), 154 orders; `Instances`
+stores the same outline and hosts as the pure draw and reveals the rest in two orders alike
+(`test_lifecycle::test_entry_reveal_of_a_dungeon`). **The same comparison with the same seven orders fails on
 ENG-05's merged engine** (`test_zero_residue_on_eng05_*`, `N` = 12, four floors: 5, 5, 5 and 6 of
 the six other orders differ from the first). There, t-0077's forcing order (keep the entry's first
 open neighbour for the `N`-th reveal, avoid the chunks whose draw hits the exit) puts the exit **1
@@ -303,14 +314,19 @@ breadth-first walk on the revealed floor) equal in every order: on the 22 floors
 is. **Measured without D-224** (the openings drawn by whichever chunk of a seam was revealed first,
 SPK-17 at `a2d740b`): at most **24 tiles** over 22 floors and 7 orders (73 to 97 tiles on one floor of
 12), the spreads 1 to 24, the walks 29 to 124 tiles: a sample, not a bound, kept as the residue of the
-design without D-224. ENG-10b re-measures on the real path.
+design without D-224. **ENG-10b re-measured it on the real path: 0 tiles** (22 floors, 7 orders each;
+the walks 41 to 121 tiles, each equal in every order of its floor).
 
 **The shape this draw gives** (SPK-17 `test_outline_*`, 64 entropies each). **The law is the
 winding growth** (D-223, the project manager, 2026-10-07; SPK-17's `draw_winding`): the farthest
 distance, where the exit lies, is 2 to 5 chunks at `N` = 6 (mean 3.38) and 3 to 9 at `N` = 12 (5.16),
 for 2,393,509 L2 gas at `N` = 12 (ENG-01 §10). **Uniform growth was measured and not kept**: 2 to 5
 at `N` = 6 (2.81), 2 to 6 at `N` = 9 (3.56), 3 to 6 at `N` = 12 (4.20), compact floors, 2,801,446 at
-`N` = 12. A corridor or room layout proper is ENG-11's (dungeon room kinds). **Any law drawn at
+`N` = 12. ENG-10b's build, 64 other entropies a size (`types::reveal::outline::tests`, the
+production seed): 2 to 5 at `N` = 6 (mean 3.48), 3 to 8 at 9 (4.41), 3 to 10 at 12 (5.53); the draw
+2,335,334 at `N` = 12 (the mean of 16 seeds); the lever of D-223, ruling 4 (each step's draws from
+its own word), measured on the same 16 seeds at 2,356,503 (+0.9 %) and not kept. A corridor or room
+layout proper is ENG-11's (dungeon room kinds). **Any law drawn at
 entry keeps the residue at zero.**
 
 #### Joining chunks
