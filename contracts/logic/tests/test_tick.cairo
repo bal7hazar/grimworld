@@ -3929,24 +3929,38 @@ fn test_cost_act_fixture() {
 #[test]
 #[available_gas(l2_gas: 60939824)] // ceil(1.05 × 58037927 measured)
 fn test_cost_act_bomb() {
+    let (tile, _) = bomb_tile();
+    let words = act_then_ticks(act_words(), Action::Item((0, tile)));
+    assert(words.clock == 41, 'bomb, one tick');
+}
+
+/// The action through `ActionLibrary` (D-233), then its ticks through `TickLibrary` (the segment
+/// that chains the two is ENG-07's, not built yet: two calls here).
+fn act_then_ticks(words: Words, action: Action) -> Words {
+    let class = declare("ActionLibrary").unwrap().contract_class();
+    let library = grimworld_logic::interface::IActionLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let content = bomb_content();
+    let (words, _, ticks) = grimworld_logic::interface::IActionLibraryDispatcherTrait::act(
+        library, words, content, board(), executor(), array![], action,
+    );
+    let ticks = match ticks {
+        Ok(ticks) => ticks,
+        Err(_) => core::panic_with_felt252('illegal'),
+    };
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (tile, _) = bomb_tile();
-    let (words, _, illegal) = library
-        .act(act_words(), bomb_content(), board(), executor(), ai_class(), trap(), 10, array![], Action::Item((0, tile)));
-    assert(illegal.is_none() && words.clock == 41, 'bomb, one tick');
+    library.run(words, content, board(), executor(), ai_class(), trap(), 10, ticks)
 }
 
 #[test]
 #[available_gas(l2_gas: 17095133)] // ceil(1.05 × 16281079 measured)
 fn test_cost_act_wait() {
-    let class = declare("TickLibrary").unwrap().contract_class();
-    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (tile, _) = bomb_tile();
     let _ = tile;
-    let (words, _, illegal) = library
-        .act(rep_words(0), bomb_content(), board(), executor(), ai_class(), trap(), 10, array![], Action::Wait);
-    assert(illegal.is_none() && words.clock == 41, 'wait, one tick');
+    let words = act_then_ticks(rep_words(0), Action::Wait);
+    assert(words.clock == 41, 'wait, one tick');
 }
 
 // ---- A trap's trigger through `TrapLibrary` (D-222) --------------------------------------------

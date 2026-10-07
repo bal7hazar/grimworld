@@ -39,6 +39,15 @@ D-207's gates. Ruled:
 The other gates are unchanged: D-144 on the node (six runs, the maximum + 5 %), scoped tests, the gas
 files regenerated, one push.
 
+**Amended by D-234 (the project manager, 2026-10-07)**, after the thin `play` probe measured `Instances`
+at 52.91 % (43,345 felts) before any content, goblin or reveal:
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **`play`'s body in a library class of the ephemeral package, `PlayLibrary`**, called by `library_call` from `Instances`' context: the storage layout and the events unchanged; `Instances.play` keeps its admission checks and one call; no `Instances` exception. `PlayLibrary` stays under 50 %: above, stop and report. Its call, once a batch, is measured and goes in the D-144 rows with the batch total | the project manager |
+| 2 | **`ActionLibrary` capped at 57,476 felts (70.16 %)**, its measure (54,739) + 5 %. `TickLibrary` stays at most 88 %: if the 9,987 felts left do not hold the segment loop, the moves and the window, stop and report before any further move | the project manager |
+| 3 | **`Board`'s offset origin's cost accepted under D-144**: +23,100 to +43,200 L2 gas a goblin attack (`position` not inlined) | the project manager |
+
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
 D-133): each action checked against the state it meets, the adventurer's moves with facing, occupancy
