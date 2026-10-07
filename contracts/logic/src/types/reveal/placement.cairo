@@ -938,6 +938,7 @@ mod tests {
     // `OFFSETS` one index at a time, from every interior tile, both parities; and their order the
     // same.
     #[test]
+    #[available_gas(l2_gas: 230571402)] // ceil(1.05 × 219591811 measured)
     fn test_near_against_members() {
         let mut tile: u8 = 0;
         while tile != 225 {

@@ -2425,6 +2425,7 @@ pub mod tests {
     // ENG-05b: `Progress`' hand-written Serde keeps the derived encoding, `left` one felt a value
     // with no length, and refuses a value above a byte.
     #[test]
+    #[available_gas(l2_gas: 118419)] // ceil(1.05 × 112780 measured)
     fn test_progress_serde() {
         let progress = Progress {
             revealed: 0x10001,
