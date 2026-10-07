@@ -54,6 +54,9 @@ import {
 import { type Marker, outlineSegments, outsideMask, seamSegments } from "./overlay";
 import { EditorSession, NOTHING } from "./session";
 import { type Finding, tally, validate } from "./validate";
+import { type Manifest, convert, recordsFile } from "./export/convert";
+import { fromExport, isExportText, readManifest, toExport } from "./export/document";
+import { Refused } from "./export/records";
 import { footprintOf, frameOf } from "./walkWorld";
 import { listenSpaceRelease } from "./spaceHold";
 import { LAYER_NAMES, type Layers, editorView } from "./view";
@@ -114,12 +117,29 @@ export function EditorApp() {
   /** What a file's load says beside the map: a format 1 file's conversion. */
   const [note, setNote] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  /** The content manifest the export and the import name records by (CLI-09c), for this page. */
+  const [manifest, setManifest] = useState<{ name: string; value: Manifest } | null>(null);
+  const manifestInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => installKeys(), []);
 
   const openText = useCallback(
     (text: string) => {
-      const read = loadMap(text);
+      let raw: unknown = null;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        // `loadMap` says so.
+      }
+      // An export for the chain (ENG-08's `grimworld-export`) opens through the manifest.
+      const read = !isExportText(raw)
+        ? loadMap(text)
+        : manifest
+          ? fromExport(raw, manifest.value)
+          : {
+              problem:
+                "This is an export for the chain: it names its records. Load its content manifest first (Manifest…).",
+            };
       if ("problem" in read) {
         // The open map is not touched (§2.7).
         setProblem(read.problem);
@@ -131,7 +151,7 @@ export function EditorApp() {
       drafts.put(id, read.doc);
       setOpen({ id, doc: read.doc });
     },
-    [drafts],
+    [drafts, manifest],
   );
 
   const openFile = useCallback(
@@ -161,6 +181,21 @@ export function EditorApp() {
   }, [openFile]);
 
   const pickFile = () => fileInput.current?.click();
+  const pickManifest = () => manifestInput.current?.click();
+  const loadManifest = (file: File | undefined) => {
+    if (!file) return;
+    file
+      .text()
+      .then((text) => {
+        const read = readManifest(text);
+        if (typeof read === "string") setProblem(read);
+        else {
+          setProblem("");
+          setManifest({ name: file.name, value: read });
+        }
+      })
+      .catch(() => setProblem("The manifest cannot be read."));
+  };
 
   return (
     <div className="ed-root" data-chrome="plain" data-editor={open ? "map" : "list"}>
@@ -173,6 +208,17 @@ export function EditorApp() {
         data-open-file=""
         onChange={(e) => {
           openFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={manifestInput}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        data-manifest-file=""
+        onChange={(e) => {
+          loadManifest(e.target.files?.[0]);
           e.target.value = "";
         }}
       />
@@ -190,6 +236,8 @@ export function EditorApp() {
             setOpen(null);
           }}
           onOpenFile={pickFile}
+          manifest={manifest}
+          onLoadManifest={pickManifest}
         />
       ) : (
         <MapList
@@ -211,6 +259,8 @@ export function EditorApp() {
             setOpen({ id, doc });
           }}
           onOpenFile={pickFile}
+          manifest={manifest?.name ?? null}
+          onLoadManifest={pickManifest}
         />
       )}
     </div>
@@ -226,6 +276,8 @@ function MapList({
   onOpen,
   onCreate,
   onOpenFile,
+  manifest,
+  onLoadManifest,
 }: {
   drafts: Drafts;
   problem: string;
@@ -233,6 +285,8 @@ function MapList({
   onOpen: (id: string) => void;
   onCreate: (doc: MapDocument) => void;
   onOpenFile: () => void;
+  manifest: string | null;
+  onLoadManifest: () => void;
 }) {
   const [entries, setEntries] = useState<DraftEntry[]>(() => drafts.list());
   const [creating, setCreating] = useState(false);
@@ -261,6 +315,7 @@ function MapList({
       <header className="ed-bar">
         <strong>Grim World — Map editor</strong>
         <span className="ed-spacer" />
+        <ManifestButton name={manifest} onLoad={onLoadManifest} />
         <button type="button" onClick={onOpenFile}>
           Open file…
         </button>
@@ -612,6 +667,8 @@ function EditorScreen({
   note,
   onBack,
   onOpenFile,
+  manifest,
+  onLoadManifest,
 }: {
   id: string;
   doc: MapDocument;
@@ -620,6 +677,8 @@ function EditorScreen({
   note: string;
   onBack: () => void;
   onOpenFile: () => void;
+  manifest: { name: string; value: Manifest } | null;
+  onLoadManifest: () => void;
 }) {
   const [, setTick] = useState(0);
   const rerender = useCallback(() => setTick((t) => t + 1), []);
@@ -640,7 +699,9 @@ function EditorScreen({
   const [help, setHelp] = useState(false);
   const [panel, setPanel] = useState(false);
   const [walking, setWalking] = useState(false);
-  const [findings, setFindings] = useState<Finding[]>(() => validate(doc));
+  const [exporting, setExporting] = useState(false);
+  const checked = manifest?.value ?? null;
+  const [findings, setFindings] = useState<Finding[]>(() => validate(doc, checked));
   const findingsRef = useRef(findings);
   findingsRef.current = findings;
   const meta = doc.meta;
@@ -712,9 +773,11 @@ function EditorScreen({
   // The checks, on every change, debounced (§2.6).
   useEffect(() => {
     if (revision === 0) return;
-    const timer = window.setTimeout(() => setFindings(validate(doc)), VALIDATE_DELAY_MS);
+    const timer = window.setTimeout(() => setFindings(validate(doc, checked)), VALIDATE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [doc, revision]);
+  }, [doc, revision, checked]);
+  // A manifest loaded runs the converter's checks at once.
+  useEffect(() => setFindings(validate(doc, checked)), [doc, checked]);
 
   // The hexes are edited in place and the origin set on the document: the revision says when.
   const fit = useMemo(() => fitted(doc), [doc, revision]);
@@ -859,7 +922,7 @@ function EditorScreen({
   };
 
   const validateNow = () => {
-    setFindings(validate(doc));
+    setFindings(validate(doc, checked));
     setPanel(true);
   };
 
@@ -991,15 +1054,18 @@ function EditorScreen({
     }
   };
 
-  useEditorKeys((event) => {
-    if (event.code === "Space" && !event.ctrlKey && !event.metaKey) {
-      // Space held: a left drag pans (§3); its release, a blur or a hidden page end it.
-      canvas.current?.setSpace(true);
-      return true;
-    }
-    const command = editorCommand(event);
-    return command ? run(command) : false;
-  }, !help && !walking);
+  useEditorKeys(
+    (event) => {
+      if (event.code === "Space" && !event.ctrlKey && !event.metaKey) {
+        // Space held: a left drag pans (§3); its release, a blur or a hidden page end it.
+        canvas.current?.setSpace(true);
+        return true;
+      }
+      const command = editorCommand(event);
+      return command ? run(command) : false;
+    },
+    !help && !walking && !exporting,
+  );
   useEffect(() => listenSpaceRelease(window, document, () => canvas.current?.setSpace(false)), []);
 
   const cell = hover ? cellAt(doc, hover) : null;
@@ -1074,6 +1140,11 @@ function EditorScreen({
         <button type="button" data-save="" onClick={save}>
           Save
         </button>
+        {session.zone && (
+          <button type="button" data-export="" onClick={() => setExporting(true)}>
+            Export for the chain…
+          </button>
+        )}
         <button type="button" aria-label="Keys" onClick={() => setHelp(true)}>
           ?
         </button>
@@ -1296,7 +1367,105 @@ function EditorScreen({
         />
       )}
       {help && <HelpDialog onClose={() => setHelp(false)} />}
+      {exporting && (
+        <ExportDialog
+          doc={doc}
+          manifest={manifest}
+          findings={validate(doc, checked)}
+          onLoadManifest={onLoadManifest}
+          onClose={() => setExporting(false)}
+        />
+      )}
     </>
+  );
+}
+
+/** The content manifest loaded, by its file's name, and the button that loads one (CLI-09c). */
+function ManifestButton({ name, onLoad }: { name: string | null; onLoad: () => void }) {
+  return (
+    <button type="button" data-load-manifest="" onClick={onLoad} title="The content manifest">
+      {name ? `Manifest: ${name}` : "Manifest…"}
+    </button>
+  );
+}
+
+/**
+ * Export for the chain (§2.7, CLI-09c): the zone's Registry records as packed felts, written as the
+ * converter writes them (`grimworld-records`: one `set_record(kind, id, record)` call per write, in
+ * order, a multicall's calls). ENG-08's `grimworld-export` JSON is offered beside it. Both need the
+ * content manifest; the records need a map the editor's checks and the converter's accept.
+ */
+function ExportDialog({
+  doc,
+  manifest,
+  findings,
+  onLoadManifest,
+  onClose,
+}: {
+  doc: MapDocument;
+  manifest: { name: string; value: Manifest } | null;
+  findings: readonly Finding[];
+  onLoadManifest: () => void;
+  onClose: () => void;
+}) {
+  const base = fileName(doc.meta).replace(/\.grimmap\.json$/, "");
+  const file = manifest ? toExport(doc, manifest.value) : null;
+  const out = file && "file" in file ? convert(file.file, manifest!.value) : null;
+  const { errors, warnings } = tally(findings);
+  const ready = out !== null && !(out instanceof Refused) && errors === 0;
+  const verdict = !manifest
+    ? "Load the content manifest: the export names its records through it."
+    : file && "problem" in file
+      ? file.problem
+      : out instanceof Refused
+        ? `The converter refuses it: ${out.message}.`
+        : out
+          ? `${out.writes.length} records, in their order of writing.`
+          : "";
+  return (
+    <Dialog
+      title={`Export for the chain · ${doc.meta.name}`}
+      confirm="Download"
+      disabled={!ready}
+      onCancel={onClose}
+      onConfirm={() => {
+        if (!ready || !file || !("file" in file)) return;
+        download(`${base}.records.json`, recordsFile(out.writes, `${base}.json`));
+        onClose();
+      }}
+    >
+      <div className="ed-export" data-dialog="export">
+        <p>
+          Writes the zone&apos;s Registry records as packed felts: a <strong>multicall file</strong>{" "}
+          (ENG-08&apos;s <code>grimworld-records</code>), one{" "}
+          <code>set_record(kind, id, record)</code> call per record, in order. The content pipeline
+          sends it; the editor never does.
+        </p>
+        <p>
+          Content manifest: <ManifestButton name={manifest?.name ?? null} onLoad={onLoadManifest} />
+        </p>
+        <p data-export-validation="">
+          Validation: {errors} errors · {warnings} warnings
+        </p>
+        <p data-export-verdict="" className={ready ? undefined : "ed-problem"}>
+          {verdict}
+        </p>
+        <p>
+          <button
+            type="button"
+            data-export-json=""
+            disabled={!file || !("file" in file)}
+            onClick={() => {
+              if (file && "file" in file) {
+                download(`${base}.json`, `${JSON.stringify(file.file, null, 1)}\n`);
+              }
+            }}
+          >
+            Download the grimworld-export JSON
+          </button>
+        </p>
+      </div>
+    </Dialog>
   );
 }
 
