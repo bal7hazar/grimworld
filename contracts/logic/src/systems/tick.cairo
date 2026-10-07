@@ -12,10 +12,7 @@
 #[starknet::contract]
 pub mod TickLibrary {
     use starknet::ClassHash;
-    use crate::actions::Action;
     use crate::interface::ITickLibrary;
-    use crate::models::chunk::Features;
-    use crate::types::action::{ActionTrait, Illegal};
     use crate::types::executor::{Board, Delegate};
     use crate::types::tick::Content;
     use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait};
@@ -52,41 +49,6 @@ pub mod TickLibrary {
             };
             TickTrait::run(ref world, @sheets, ticks, ref rules);
             world.store()
-        }
-
-        fn act(
-            self: @ContractState,
-            words: Words,
-            content: Content,
-            board: Board,
-            executor: ClassHash,
-            ai: ClassHash,
-            trap: ClassHash,
-            level: u8,
-            ground: Array<(u8, Features)>,
-            action: Action,
-        ) -> (Words, Array<(u8, Features)>, Option<Illegal>) {
-            let (mut world, sheets, index) = words.clone().indexed(@content);
-            let mut rules = Delegate {
-                board,
-                cache: Default::default(),
-                executor,
-                content,
-                index,
-                placed: array![],
-                ground,
-                ai,
-                trap,
-                level,
-                frozen: 0,
-            };
-            match ActionTrait::act(ref world, @sheets, ref rules, 0, action) {
-                Ok(ticks) => {
-                    TickTrait::run(ref world, @sheets, ticks, ref rules);
-                    (world.store(), rules.ground, None)
-                },
-                Err(illegal) => (words, rules.ground, Some(illegal)),
-            }
         }
     }
 }

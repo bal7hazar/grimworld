@@ -139,23 +139,26 @@ pub trait ITickLibrary<T> {
         level: u8,
         ticks: u8,
     ) -> Words;
-    /// The adventurer's `action` (member 0) at the words' clock, then its ticks (design/19 §5.3,
-    /// CBT-05b, D-222): its legality, costs, facing and resolution through the executor's class
-    /// `executor`, a trap placed in `ground` (the chunks it can touch, ENG-07's). Returns the
-    /// words, the ground, and `None`, or why the action is illegal (nothing changed: the batch
-    /// stops).
+}
+
+/// The adventurer's combat action as its own library class (D-233; design/19 §5.3, CBT-05b):
+/// `TickLibrary`'s segment calls it through `IActionLibraryLibraryDispatcher` for an Attack, a
+/// Skill or an Item only, the class hash being `Instances`' configuration.
+#[starknet::interface]
+pub trait IActionLibrary<T> {
+    /// The adventurer's `action` (member 0) at the words' clock (§5.3): its legality, costs,
+    /// facing and resolution through the executor's class `executor`, a trap placed in `ground`.
+    /// Returns the words, the ground, and the action's tick cost, or why it is illegal (the words
+    /// unchanged: the batch stops).
     fn act(
         self: @T,
         words: Words,
         content: Content,
         board: Board,
         executor: ClassHash,
-        ai: ClassHash,
-        trap: ClassHash,
-        level: u8,
         ground: Array<(u8, Features)>,
         action: Action,
-    ) -> (Words, Array<(u8, Features)>, Option<Illegal>);
+    ) -> (Words, Array<(u8, Features)>, Result<u8, Illegal>);
 }
 
 /// The goblins' acts as their own library class (ENG-07 Open question 1, candidate C): the tick's

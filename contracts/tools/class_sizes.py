@@ -16,7 +16,7 @@ D-200), each its own threshold, nothing else loosened: `ExecutorLibrary` at most
 (the limit less 1,500 of margin), `TickLibrary` at most 75 % (61,440 felts), its room kept for
 CBT-05b's resolution parts and ENG-07's act hook; raised to 88 % (72,090 felts) for the action
 phase (the project manager, 2026-10-07, D-222); `TrapLibrary`, a trap's trigger, at most 78 %
-(63,900 felts; D-222 amended). D-209's two (`RevealLibrary` at most 50.5 %, `Instances` at most
+(63,900 felts; D-222 amended). D-233 (ENG-07): `AiLibrary` at most 80 %, `ActionLibrary` 65 % until measured. D-209's two (`RevealLibrary` at most 50.5 %, `Instances` at most
 51 %, for ENG-05's zone quota hosts) were removed by ENG-05b, which brought both back under 50 %.
 
     python3 contracts/tools/class_sizes.py [--warn PERCENT]
@@ -36,6 +36,10 @@ EXCEPTIONS = {
     ("grimworld_logic", "TickLibrary"): 88.0,
     # D-222 amended (CBT-05b): a trap's trigger in its own class, nothing cut.
     ("grimworld_logic", "TrapLibrary"): 78.0,
+    # D-233 (ENG-07): the goblins' acts, all of step 2 inside it.
+    ("grimworld_logic", "AiLibrary"): 80.0,
+    # D-233 (ENG-07): CBT-05b's action phase, provisional until measured (the measure + 5 %).
+    ("grimworld_logic", "ActionLibrary"): 65.0,
 }
 HERE = os.path.dirname(os.path.abspath(__file__))
 TARGET = os.path.join(os.path.dirname(HERE), "target", "dev")

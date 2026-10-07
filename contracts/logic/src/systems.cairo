@@ -1,3 +1,6 @@
+/// `ActionLibrary`: the adventurer's combat action (Attack, Skill, Item) as a library class
+/// (CBT-05b's action phase; D-233).
+pub mod action;
 /// `AiLibrary`: the goblins' acts, step 2 of a tick, as a library class called once a tick
 /// (ENG-07 Open question 1, candidate C).
 pub mod ai;

@@ -23,6 +23,22 @@
 
 Q4 stays this lot's (D-172).
 
+## Decided after the size probe (D-233, the project manager, 2026-10-07)
+The probe (the thread's report: `AiLibrary` 78.96 %, `TickLibrary` 99.33 % with the hooks alone, the
+call 4,559,107 a tick, a melee tick of 8 step-2 attacks ≈ 42.1 M) stopped the lot at Q1's, Q2's and
+D-207's gates. Ruled:
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **`AiLibrary` at most 80 % (65,536 felts)**, all of step 2 inside it, the sequential state exact. **CBT-05b's action phase moves to a new `ActionLibrary`, called only for a combat action** (Attack, Skill, Item); Move, Turn, Wait and the Interact refusal run in process in `TickLibrary`'s segment. `ActionLibrary`'s exception is provisional at 65 % (53,248): measured, the project manager fixes its cap at the measure + 5 %. The call a combat action (2,578,020–3,323,680) is accepted under D-144. `class_sizes.py`: `AiLibrary` 80, `ActionLibrary` 65 for now. **`TickLibrary` stays at most 88 %**: past it, stop | the project manager |
+| 2 | `AiLibrary`'s call a tick accepted at **4,559,107**, none on a tick where no goblin is free to act | the project manager |
+| 3 | **`Instances`: no exception.** The window's goblins derived from the pack placements (part of `play`) move into the segment's class; `Instances` stays under 50 %. If it cannot, stop and report | the project manager |
+| 4 | **D-207 and R-2.** Before E-12's weight is fixed, measured and reported: (a) the representative fight on this placement, end to end: the batch total and how many ticks a batch hit the worst case; (b) the member's activation landing in the same tick as 8 goblin attacks; (c) CBT-05d's levers (fewer goblins attacking a tick, a cheaper goblin carrier), with their figures. **A batch above 369 M: stop and report** (the project manager takes it to the owner) | the owner (R-2) |
+| 5 | **`Board`'s origin held plus 15** (escalation 3, the orchestrator): a window near a West or South edge is not clamped (D-134). If `ExecutorLibrary` would pass 80,420, stop and report | the orchestrator |
+
+The other gates are unchanged: D-144 on the node (six runs, the maximum + 5 %), scoped tests, the gas
+files regenerated, one push.
+
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
 D-133): each action checked against the state it meets, the adventurer's moves with facing, occupancy
