@@ -40,7 +40,7 @@ use core::poseidon::poseidon_hash_span;
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
 use crate::content::CRITERION_REACH_LANDMARK;
-use crate::models::chunk::{CENTRE, NEAR, Object, PackPlacement, PackPlacementTrait, object};
+use crate::models::chunk::{CENTRE, Object, PackPlacement, object};
 use crate::models::location::biome;
 use crate::models::pack::PackTrait;
 use crate::models::quotas::kind as quota;
@@ -61,6 +61,10 @@ pub const TRIES: u8 = 16;
 /// least 3 from the ring, so never within 2 of an opening; a dungeon's exit and Heart are laid on
 /// it (`place`, ENG-10b).
 pub const CORE: felt252 = 0x100020004000801ff002000400080010000000000000;
+/// The tiles within 2 of tile 32 (row 2, column 2), itself left out, when its global row is even
+/// and when it is odd (`PlacementTrait::near`; `test_near_against_members`).
+pub const NEAR_EVEN: u128 = 0xe001e006c007800e;
+pub const NEAR_ODD: u128 = 0xe003c006c00f000e;
 
 /// What a reveal places in a chunk, built in order.
 #[derive(Drop)]
@@ -671,63 +675,69 @@ pub impl PlacementImpl of PlacementTrait {
             },
         };
         // [Compute] Goblin 0 on the pack's tile, the others among the allowed tiles within 2
-        let (row, _) = DivRem::div_rem(tile, 15);
+        let (row, column) = DivRem::div_rem(tile, 15);
         let (_, parity) = DivRem::div_rem(row, 2);
         let odd = (parity == 1) != self.odd;
-        // The allowed tiles within 2, each tested once: `(offset, tile)`.
-        let allowed: u256 = self.allowed.into();
-        let mut candidates: Array<(u8, u8)> = array![];
-        let mut k: u8 = 0;
-        while k != NEAR {
-            if k != CENTRE {
-                if let Option::Some(member) = PackPlacementTrait::member(tile, k, odd) {
-                    if BoardTrait::has_wide(allowed, member) {
-                        candidates.append((k, member));
-                    }
-                }
-            }
-            k += 1;
-        }
-        // Drawn without replacement: `chosen` marks the candidates taken, by their index.
+        // The allowed tiles within 2 as one bitmap (ENG-05b): `OFFSETS`' order is the tiles'
+        // order (by row, then by column), so the `j`-th allowed one left is the bitmap's `j`-th
+        // set bit, the draws as before.
+        let mut pool = BoardTrait::and(Self::near(tile, odd), self.allowed);
+        let mut left = BoardTrait::count(pool);
         let mut offsets: u32 = CENTRE.into();
         let mut count: u8 = 1;
         let mut shift: u32 = 32;
-        let mut chosen: u32 = 0;
-        let total = candidates.len();
-        let mut taken: u32 = 0;
-        while count != size && taken != total {
-            let left: u8 = (total - taken).try_into().unwrap();
-            let mut pick = rng.draw_byte(left.try_into().unwrap());
-            let mut i: u32 = 0;
-            let mut bit: u32 = 1;
-            let mut found: u32 = 0;
-            let mut done = false;
-            while !done {
-                if (chosen / bit) % 2 == 0 {
-                    if pick == 0 {
-                        found = i;
-                        done = true;
-                    } else {
-                        pick -= 1;
-                    }
-                }
-                if !done {
-                    i += 1;
-                    bit *= 2;
-                }
-            }
-            chosen += bit;
-            let (index, member) = *candidates[found];
-            self.allowed -= BoardTrait::pow(member);
-            offsets += index.into() * shift;
+        while count != size && left != 0 {
+            let member = BoardTrait::nth(pool, rng.draw_byte(left.try_into().unwrap()));
+            let bit = BoardTrait::pow(member);
+            pool -= bit;
+            self.allowed -= bit;
+            offsets += Self::offset(member, row, column, odd).into() * shift;
             shift *= 32;
             count += 1;
-            taken += 1;
+            left -= 1;
         }
         let alert = rng.draw_byte(2);
         let level = Self::pack_level(site, self.level, pack.level);
         self.packs.append(PackPlacement { tile, template, level, count, offsets, alert });
         true
+    }
+
+    /// The interior tiles within 2 of `tile`, an interior tile (the allowed tiles are, `generate`),
+    /// itself left out; `odd` when its global row is odd: `NEAR_EVEN` or `NEAR_ODD` moved from tile
+    /// 32 to `tile`. Below bit 240 (row 13 at most); what wraps across a side lands on the ring.
+    fn near(tile: u8, odd: bool) -> felt252 {
+        let template: u128 = if odd {
+            NEAR_ODD
+        } else {
+            NEAR_EVEN
+        };
+        if tile >= 32 {
+            template.into() * BoardTrait::pow(tile - 32)
+        } else {
+            (template / BoardTrait::pow128(32 - tile)).into()
+        }
+    }
+
+    /// The index in `OFFSETS` of `member`, a tile within 2 of the pack's tile (at `row` and
+    /// `column`, `odd` as in `near`): `PackPlacementTrait::member`'s inverse.
+    fn offset(member: u8, row: u8, column: u8, odd: bool) -> u8 {
+        let (y, x) = DivRem::div_rem(member, 15);
+        let dr = y + 2 - row;
+        let half = if odd {
+            (dr + 1) / 2
+        } else {
+            dr / 2
+        };
+        // `dq + start(dr)`, `dq = x + 3 − column − half`, the rows of `OFFSETS` starting at
+        // 0, 3, 7, 12 and 16 (`dq` from 2, 1, 0, 0, 0)
+        let start: u8 = match dr {
+            0 => 1,
+            1 => 5,
+            2 => 10,
+            3 => 15,
+            _ => 19,
+        };
+        x + start - column - half
     }
 
     /// Places everything of a chunk (module doc). `due`: the quotas drawn for it; `piece`: the set
@@ -915,5 +925,46 @@ pub impl PlacementImpl of PlacementTrait {
             k -= 1;
         }
         bit
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::models::chunk::{CENTRE, NEAR, PackPlacementTrait};
+    use super::PlacementTrait;
+    use super::super::board::{BoardTrait, INTERIOR};
+
+    // ENG-05b: the bitmap of the interior tiles within 2, and the index of each, against
+    // `OFFSETS` one index at a time, from every interior tile, both parities; and their order the
+    // same.
+    #[test]
+    fn test_near_against_members() {
+        let mut tile: u8 = 0;
+        while tile != 225 {
+            let (row, column) = DivRem::div_rem(tile, 15);
+            if BoardTrait::has(INTERIOR, tile) {
+                for odd in array![false, true] {
+                    let mut members: felt252 = 0;
+                    let mut last: u8 = 0;
+                    let mut k: u8 = 0;
+                    while k != NEAR {
+                        if k != CENTRE {
+                            if let Option::Some(member) = PackPlacementTrait::member(tile, k, odd) {
+                                assert(members == 0 || member > last, 'order');
+                                assert(
+                                    PlacementTrait::offset(member, row, column, odd) == k, 'offset',
+                                );
+                                members += BoardTrait::pow(member);
+                                last = member;
+                            }
+                        }
+                        k += 1;
+                    }
+                    let near = BoardTrait::and(PlacementTrait::near(tile, odd), INTERIOR);
+                    assert(near == BoardTrait::and(members, INTERIOR), 'near');
+                }
+            }
+            tile += 1;
+        }
     }
 }
