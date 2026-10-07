@@ -129,11 +129,12 @@ such. D-107 ("must resist reading the chain") is met for everything beyond the n
 > location, its terrain and its contents, is readable from the entry draw on. What it buys: no
 > order of moves, no side entered and no reveal changes any chunk, so the order is no free choice
 > (only what §3's dungeon exception keeps). A later feeder (a kill, a chest, in their lots) must
-> make its facts unique, and changes the words of the chunks revealed after it. **The first feeder
-> lot is bound by PLAN's FEED-1** (ENG-10b's re-audit t-0099, finding 1 and note 2): it re-seeds a
-> dungeon seam's openings from something fixed at `create` before it merges (with a test feeding
-> the entropy between two reveals), and brings a ruling on whether a dungeon's words read the
-> entry draw only.
+> make its facts unique, and changes the words of the chunks revealed after it. **In a dungeon,
+> D-229** (the project manager, 2026-10-07): the layout (chunk words, seam openings, exit and
+> Heart) reads only data fixed at `create`; a feeder steers only what is drawn inside it (loot,
+> encounters). The first feeder lot is bound by PLAN's FEED-1 (ENG-10b's re-audit t-0099,
+> finding 1): it makes the seams and the chunk words read data fixed at `create` before it merges,
+> with a test feeding the entropy between two reveals.
 
 ### 3. Constraints without a plan
 

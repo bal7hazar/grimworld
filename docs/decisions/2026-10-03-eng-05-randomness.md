@@ -28,10 +28,10 @@ t-0077's forcing order among them) finds the same chunks, exit chunk, exit-to-en
 chunks, edges, seam openings and walked distance in tiles in every order: **0 chunks and 0 tiles**
 on that sample. The randomness re-audit (t-0099, Opus, at 1fdee83): a modified client gains 0
 chunks and 0 tiles in a dungeon, checked by reading every reveal path, while nothing feeds the
-instance's entropy (no production feeder exists). Its finding 1 bounds that figure: a seam's opening
-tiles are derived from the instance's current entropy, so the first lot that feeds it would move
-them again unless it re-seeds the seams from something fixed at `create` (PLAN, *The first entropy
-feeder*). Until ENG-10b merges, the residue above still blocks any non-test deployment.
+instance's entropy (no production feeder exists). D-229 (the project manager, 2026-10-07) keeps the
+zero after a feeder: a dungeon's layout (chunk words, seam openings, exit and Heart) reads only data
+fixed at `create`, so the first feeder lot re-seeds the seams, today derived from the current
+entropy (finding 1), from data fixed at `create` (PLAN, FEED-1). Until ENG-10b merges, the residue above still blocks any non-test deployment.
 
 ## What would reverse it
 
