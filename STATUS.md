@@ -91,6 +91,7 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 | **ENG-R1b part 1** | [#320](https://github.com/bal7hazar/grimworld/pull/320): `Instances` and `Market` through a store; typed slots (also `Hub`'s accounts, account_adventurers, packs); `create_adventurer` +0.12 %, `delete_adventurer` +0.26 % |
 | **VEC-01** | [#294](https://github.com/bal7hazar/grimworld/pull/294): `fate.jsonl` (218) and `packing.jsonl` (520) in `check.py` |
 | **FND-11 to FND-21** | Scarb 2.20.1; class artefacts; prepush and the hook; heavy lock; CI by changed paths; `hexx` rc.2; tests under 8 GB (`--max-threads 2`); the prepush diff base. No game result changed |
+| **FND-24** | `hexx` 0.2.0 (L-M2) in place of rc.2; checksum `853a6f70…9b08`; vectors, tests, gas budgets and class sizes unchanged to the felt |
 | **CBT-03a** | [#229](https://github.com/bal7hazar/grimworld/pull/229): `HitTrait::resolve`, one hit in 46,460; `hit.jsonl` (200 cases) in `check.py`; worst tick ≤ 5,464,542 with CBT-04 |
 | **ENG-02** | [#246](https://github.com/bal7hazar/grimworld/pull/246): the geometry on `hexx` rc.1 (`types::window`); `window.jsonl`, `check.py` in CI |
 | **CBT-04** | [#228](https://github.com/bal7hazar/grimworld/pull/228): the five conditions as tested rules; a cure on a dead goblin does nothing |

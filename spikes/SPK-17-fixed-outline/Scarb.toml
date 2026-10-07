@@ -6,7 +6,7 @@ cairo-version = "2.20"
 
 [dependencies]
 starknet = "2.20"
-hexx = "0.1.0-rc.2"
+hexx = "0.2.0"
 # The game's package by path, main's code at the spike's base (ENG-05 and ENG-08 merged, 44961f2),
 # as SPK-12, SPK-15 and SPK-16 do: the models, `Board`, the entropy, and ENG-05's reveal engine as
 # it is (the negative control and the baselines).
