@@ -3898,7 +3898,7 @@ fn act_words() -> Words {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 12672568)] // ceil(1.05 × 12069112 measured)
 fn test_cost_act_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -3910,7 +3910,7 @@ fn test_cost_act_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 60939824)] // ceil(1.05 × 58037927 measured)
 fn test_cost_act_bomb() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -3921,7 +3921,7 @@ fn test_cost_act_bomb() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 17095133)] // ceil(1.05 × 16281079 measured)
 fn test_cost_act_wait() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -3956,7 +3956,7 @@ fn trap_args() -> (Words, Content, Array<(u8, grimworld_logic::models::chunk::Fe
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 5809997)] // ceil(1.05 × 5533330 measured)
 fn test_cost_trap_class_fixture() {
     let class = declare("TrapLibrary").unwrap().contract_class();
     let _ = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {
@@ -3970,7 +3970,7 @@ fn test_cost_trap_class_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 9552786)] // ceil(1.05 × 9097891 measured)
 fn test_cost_trap_class() {
     let class = declare("TrapLibrary").unwrap().contract_class();
     let library = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {

@@ -1154,8 +1154,8 @@ fn test_refused_gate() {
 
 // A sealed Red Rift: no travel back (design/17).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 36103682)] // ceil(1.05 × 34384459 measured)
+// gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
+#[available_gas(l2_gas: 38308956)] // ceil(1.05 × 36484720 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);

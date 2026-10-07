@@ -36,8 +36,8 @@ fn stored(
 }
 
 #[test]
-// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
-#[available_gas(l2_gas: 4240341)] // ceil(1.05 × 4038420 measured)
+// gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
+#[available_gas(l2_gas: 4809263)] // ceil(1.05 × 4580250 measured)
 fn test_instances_set_contracts_by_admin() {
     let instances = deploy_instances();
     start_cheat_caller_address(instances, ADMIN.try_into().unwrap());
@@ -54,8 +54,8 @@ fn test_instances_set_contracts_by_admin() {
 }
 
 #[test]
-// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
-#[available_gas(l2_gas: 3978744)] // ceil(1.05 × 3789280 measured)
+// gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
+#[available_gas(l2_gas: 4495197)] // ceil(1.05 × 4281140 measured)
 #[feature("safe_dispatcher")]
 fn test_instances_set_contracts_refused_to_others() {
     let instances = deploy_instances();
@@ -75,8 +75,8 @@ fn test_instances_set_contracts_refused_to_others() {
 
 // The role moves: the new administrator sets the provider, the former one no longer can.
 #[test]
-// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
-#[available_gas(l2_gas: 4965881)] // ceil(1.05 × 4729410 measured)
+// gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
+#[available_gas(l2_gas: 5548253)] // ceil(1.05 × 5284050 measured)
 #[feature("safe_dispatcher")]
 fn test_instances_set_admin_hands_over() {
     let instances = deploy_instances();
@@ -111,8 +111,8 @@ fn test_instances_set_admin_hands_over() {
 }
 
 #[test]
-// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
-#[available_gas(l2_gas: 4236530)] // ceil(1.05 × 4034790 measured)
+// gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
+#[available_gas(l2_gas: 4739532)] // ceil(1.05 × 4513840 measured)
 #[feature("safe_dispatcher")]
 fn test_instances_set_admin_refused() {
     let instances = deploy_instances();

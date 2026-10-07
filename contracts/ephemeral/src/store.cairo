@@ -551,7 +551,8 @@ mod tests {
     // The words the view returns as stored: 0 where nothing was written, the models' packed words
     // otherwise.
     #[test]
-    #[available_gas(l2_gas: 3361502)] // ceil(1.05 × 3201430 measured)
+    // gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
+    #[available_gas(l2_gas: 3554187)] // ceil(1.05 × 3384940 measured)
     fn test_words_as_stored() {
         let mut state = Instances::contract_state_for_testing();
         assert(state.get_stored_header(3).word == 0, 'no header');
