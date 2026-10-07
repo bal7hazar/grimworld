@@ -347,25 +347,30 @@ pub impl PlayImpl of PlayTrait {
         // The derived goblins at full health, their pack's state
         let mut goblins: Array<GoblinWords> = array![];
         let mut all: Array<GoblinWords> = array![];
+        // A goblin whose caste, a skill of its caste or its held effect's skill the registry does
+        // not hold is left out of the batch's world: it is neither read nor written (the tick's
+        // load would refuse it).
+        let held = skill_sheets.span();
         for entry in derived.span() {
             let (entity, gx, gy, alert, caste, level, _) = *entry;
-            let sheet = Self::sheet(caste_sheets.span(), caste);
-            let (health, energy) = match sheet {
-                Some(sheet) => (sheet.max_health(level), sheet.energy * 3),
-                None => (0, 0),
-            };
-            let state = LIVE
-                + gx.into()
-                + gy.into() * P8
-                + alert.into() * P24
-                + health.into() * P32
-                + energy.into() * P48
-                + caste.into() * P64
-                + level.into() * P80;
-            all.append(GoblinWords { entity: entity, awake: false, state, timers: EMPTY_TIMERS });
+            if let Some(sheet) = Self::usable(caste_sheets.span(), held, caste, 0) {
+                let state = LIVE
+                    + gx.into()
+                    + gy.into() * P8
+                    + alert.into() * P24
+                    + sheet.max_health(level).into() * P32
+                    + (sheet.energy * 3).into() * P48
+                    + caste.into() * P64
+                    + level.into() * P80;
+                all.append(GoblinWords { entity, awake: false, state, timers: EMPTY_TIMERS });
+            }
         }
         for goblin in stored.span() {
-            all.append(*goblin);
+            let caste = Self::caste_of(*goblin.state);
+            let effect = Self::effect_of(*goblin.timers);
+            if Self::usable(caste_sheets.span(), held, caste, effect).is_some() {
+                all.append(*goblin);
+            }
         }
         // Ascending entity id, as the tick takes them
         let mut last: u32 = 0;
@@ -861,6 +866,32 @@ pub impl PlayImpl of PlayTrait {
             }
         }
         None
+    }
+
+    /// The sheet of caste `caste` if the content holds it, every skill of it and the skill
+    /// `effect` (0 for none).
+    fn usable(
+        castes: Span<CasteSheet>, skills: Span<SkillSheet>, caste: u16, effect: u32,
+    ) -> Option<CasteSheet> {
+        let sheet = Self::sheet(castes, caste)?;
+        for id in sheet.skills.span() {
+            if *id != 0 && !Self::holds_skill(skills, (*id).into()) {
+                return None;
+            }
+        }
+        if effect != 0 && !Self::holds_skill(skills, effect) {
+            return None;
+        }
+        Some(sheet)
+    }
+
+    fn holds_skill(skills: Span<SkillSheet>, id: u32) -> bool {
+        for sheet in skills {
+            if (*sheet.id).into() == id {
+                return true;
+            }
+        }
+        false
     }
 
     fn sheet(castes: Span<CasteSheet>, id: u16) -> Option<CasteSheet> {
