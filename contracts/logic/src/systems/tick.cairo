@@ -6,18 +6,17 @@
 //! (`ExecutorLibrary`, `executor`), called once a carrier by step 1's hook
 //! (`types::executor::Delegate`); perception and the AI are ENG-07's. It stores them back. The
 //! tick's board (the window and where it lies, D-120) comes with the call: ENG-07 assembles it.
-//! Its second entrypoint, `act`, runs one action of the batch before its ticks (design/19 §5.3,
-//! CBT-05b; D-222: the class at most 88 %).
+//! Since ENG-07 (D-233 to D-235) its one entrypoint, `ticks`, runs the ticks with a fight that
+//! `PlayLibrary`'s segment hands it (the action phase is `ActionLibrary`'s; a tick without a goblin
+//! in the window runs in `PlayLibrary`), with the chunk objects carried across them (Open question
+//! 3): perception and the awake set in process, the goblins' acts through `AiLibrary`.
 
 #[starknet::contract]
 pub mod TickLibrary {
-    use starknet::ClassHash;
     use crate::interface::ITickLibrary;
-    use crate::actions::Action;
     use crate::models::chunk::Features;
-    use crate::types::executor::{Board, BoardTrait, Delegate};
-    use crate::types::play::{Area, Classes, Done, SegmentTrait};
-    use crate::types::window::WindowTrait;
+    use crate::types::executor::{Board, Delegate};
+    use crate::types::play::Classes;
     use crate::types::tick::Content;
     use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait};
 
@@ -26,50 +25,19 @@ pub mod TickLibrary {
 
     #[abi(embed_v0)]
     impl TickLibraryImpl of ITickLibrary<ContractState> {
-        fn run(
+        fn ticks(
             self: @ContractState,
             words: Words,
             content: Content,
             board: Board,
-            executor: ClassHash,
-            ai: ClassHash,
-            trap: ClassHash,
-            level: u8,
-            ticks: u8,
-        ) -> Words {
-            let (mut world, sheets, index) = words.indexed(@content);
-            let mut rules = Delegate {
-                board,
-                cache: Default::default(),
-                executor,
-                content,
-                index,
-                placed: array![],
-                ground: array![],
-                ai,
-                trap,
-                level,
-                frozen: 0,
-            };
-            TickTrait::run(ref world, @sheets, ticks, ref rules);
-            world.store()
-        }
-
-        fn segment(
-            self: @ContractState,
-            words: Words,
-            content: Content,
-            area: Area,
             classes: Classes,
             level: u8,
             ground: Array<(u8, Features)>,
-            actions: Span<Action>,
-            owed: u8,
-            weight: u8,
-        ) -> (Words, Array<(u8, Features)>, Done) {
+            ticks: u8,
+        ) -> (Words, Array<(u8, Features)>) {
             let (mut world, sheets, index) = words.indexed(@content);
             let mut rules = Delegate {
-                board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+                board,
                 cache: Default::default(),
                 executor: classes.executor,
                 content,
@@ -81,10 +49,8 @@ pub mod TickLibrary {
                 level,
                 frozen: 0,
             };
-            let done = SegmentTrait::run(
-                ref world, @sheets, ref rules, @area, classes.action, actions, owed, weight,
-            );
-            (world.store(), rules.ground, done)
+            TickTrait::run(ref world, @sheets, ticks, ref rules);
+            (world.store(), rules.ground)
         }
     }
 }

@@ -8,7 +8,7 @@ use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::action::Illegal;
 use crate::types::executor::{Board, Cache, Carrier};
-use crate::types::play::{Area, Classes, Done};
+use crate::types::play::Classes;
 use crate::types::reveal::outline::Outline;
 use crate::types::reveal::{Progress, Site};
 use crate::types::tick::Content;
@@ -126,37 +126,20 @@ pub trait IFate<T> {
 #[starknet::interface]
 pub trait ITickLibrary<T> {
     /// Runs `ticks` world ticks over the stored `words` with the batch's `content` on the tick's
-    /// `board` (the window and where it lies), each carrier through the executor's class
-    /// `executor` (route (c), CBT-05a), stopping after a tick that defeated the adventurer;
-    /// returns the words.
-    fn run(
+    /// `board`, each carrier through `classes.executor` (route (c)), perception in process and
+    /// step 2 through `classes.ai` (ENG-07), a trap through `classes.trap` (`level`, the location
+    /// band's lower level), the chunk objects `ground` carried across them (Open question 3);
+    /// stops after a tick that defeated the adventurer. Returns the words and the ground.
+    fn ticks(
         self: @T,
         words: Words,
         content: Content,
         board: Board,
-        executor: ClassHash,
-        ai: ClassHash,
-        trap: ClassHash,
-        level: u8,
-        ticks: u8,
-    ) -> Words;
-    /// A segment of a played batch (ENG-07, D-233; `types::play`): `owed` ticks first, then
-    /// `actions` in order within `weight`, the window assembled from `area` after each Move, an
-    /// Attack, a Skill or an Item through `classes.action`, the trap of a tile entered through
-    /// `classes.trap` (`level`, the location band's lower level), the chunk objects `ground`
-    /// carried across every tick (Open question 3). Returns the words, the ground and how it ended.
-    fn segment(
-        self: @T,
-        words: Words,
-        content: Content,
-        area: Area,
         classes: Classes,
         level: u8,
         ground: Array<(u8, Features)>,
-        actions: Span<Action>,
-        owed: u8,
-        weight: u8,
-    ) -> (Words, Array<(u8, Features)>, Done);
+        ticks: u8,
+    ) -> (Words, Array<(u8, Features)>);
 }
 
 /// The adventurer's combat action as its own library class (D-233; design/19 §5.3, CBT-05b):

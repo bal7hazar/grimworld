@@ -568,7 +568,7 @@ fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (world, content) = representative();
-    let words = library.run(world.store(), content_of(@content), board(), executor(), ai_class(), trap(), 10, 10);
+    let words = ticks_of(library, world.store(), content_of(@content), board(), 10);
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -987,7 +987,7 @@ fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words();
-    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
+    let words = ticks_of(library, words, content, board(), 1);
     assert(words.clock == 50, 'one tick');
 }
 
@@ -1004,7 +1004,7 @@ fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (world, content) = worst_state(false, 1);
-    let words = library.run(world.store(), content_of(@content), board(), executor(), ai_class(), trap(), 10, 10);
+    let words = ticks_of(library, world.store(), content_of(@content), board(), 10);
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -1030,7 +1030,7 @@ fn test_library_matches_pipeline() {
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words();
     let (expected, _) = worst_words();
-    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 3);
+    let words = ticks_of(library, words, content, board(), 3);
     let (mut world, sheets) = expected.load(@content);
     let mut rules = ExecutorTrait::new(board());
     TickTrait::run(ref world, @sheets, 3, ref rules);
@@ -2807,7 +2807,7 @@ fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_kills();
-    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
+    let words = ticks_of(library, words, content, board(), 1);
     assert(words.killed.len() == 100, 'every goblin once');
 }
 
@@ -2841,7 +2841,7 @@ fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_two();
-    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
+    let words = ticks_of(library, words, content, board(), 1);
     assert(words.members.len() == 2, 'two members');
 }
 
@@ -2880,7 +2880,7 @@ fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_all_dead();
-    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
+    let words = ticks_of(library, words, content, board(), 1);
     assert(words.killed.len() == 100, 'each goblin once');
 }
 
@@ -3329,6 +3329,24 @@ fn ai_class() -> starknet::ClassHash {
     *declare("AiLibrary").unwrap().contract_class().class_hash
 }
 
+/// `TickLibrary`'s ticks with the classes of the tests, the ground none (ENG-07, D-235).
+fn ticks_of(
+    library: ITickLibraryLibraryDispatcher, words: Words, content: Content, board: Board, n: u8,
+) -> Words {
+    let (words, _) = library.ticks(words, content, board, classes(), 10, array![], n);
+    words
+}
+
+fn classes() -> grimworld_logic::types::play::Classes {
+    grimworld_logic::types::play::Classes {
+        executor: executor(),
+        ai: ai_class(),
+        trap: trap(),
+        action: *declare("ActionLibrary").unwrap().contract_class().class_hash,
+        tick: *declare("TickLibrary").unwrap().contract_class().class_hash,
+    }
+}
+
 fn trap() -> starknet::ClassHash {
     *declare("TrapLibrary").unwrap().contract_class().class_hash
 }
@@ -3425,7 +3443,7 @@ fn agree(words: Words, content: Content) -> Words {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (mut world, sheets) = words.clone().load(@content);
-    let out = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
+    let out = ticks_of(library, words, content, board(), 1);
     let mut rules = ExecutorTrait::new(board());
     TickTrait::run(ref world, @sheets, 1, ref rules);
     assert(out == world.store(), 'route (c) = in process');
@@ -3700,7 +3718,7 @@ fn rep_run(scenario: u8, ticks: u8) -> Words {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let executor = executor();
-    library.run(rep_words(scenario), rep_content(), board(), executor, ai_class(), trap(), 10, ticks)
+    ticks_of(library, rep_words(scenario), rep_content(), board(), ticks)
 }
 
 /// A fixture: the same arguments and classes, no call.
@@ -3951,7 +3969,7 @@ fn act_then_ticks(words: Words, action: Action) -> Words {
     };
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    library.run(words, content, board(), executor(), ai_class(), trap(), 10, ticks)
+    ticks_of(library, words, content, board(), ticks)
 }
 
 #[test]
@@ -4095,7 +4113,7 @@ fn test_cost_ai_call_engaged() {
 fn ai_tick(state: u8, busy: bool) -> Words {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    library.run(ai_words(state, busy), rep_content(), board(), executor(), ai_class(), trap(), 10, 1)
+    ticks_of(library, ai_words(state, busy), rep_content(), board(), 1)
 }
 
 #[test]
@@ -4142,16 +4160,196 @@ fn test_cost_ai_fixture_attacks() {
 fn test_cost_ai_tick_attacks() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let words = library
-        .run(
-            ai_words_of(ai::ENGAGED, false, true),
+    let words = ticks_of(library, ai_words_of(ai::ENGAGED, false, true),
             rep_content(),
-            board(),
-            executor(),
-            ai_class(),
-            trap(),
-            10,
-            1,
-        );
+            board(), 1);
     assert(words.clock == 41, 'one tick');
+}
+
+// ---- ENG-07 (D-235): the segment, its fast path, an exploration batch and a fight batch --------
+// The segment runs in process here (as `PlayLibrary` runs it), with every class it calls declared:
+// `TickLibrary` for the ticks with a fight, `AiLibrary`, `ActionLibrary`, `ExecutorLibrary`,
+// `TrapLibrary`. The area: 3 × 3 chunks, every one revealed and walkable. Each figure less its
+// fixture (the same arguments and classes, no segment).
+
+fn open_area() -> grimworld_logic::types::play::Area {
+    let mut known: felt252 = 0;
+    let mut chunks: Array<(u8, felt252)> = array![];
+    let all = two(225) - 1;
+    for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
+        known += two(chunk.into());
+        chunks.append((chunk, all));
+    }
+    grimworld_logic::types::play::Area {
+        width: 3, height: 3, known, revealed: known, chunks: chunks.span(),
+    }
+}
+
+fn segment_of(
+    words: Words, actions: Span<Action>,
+) -> (Words, grimworld_logic::types::play::Done) {
+    let content = rep_content();
+    let classes = classes();
+    let area = open_area();
+    let (mut world, sheets, index) = words.indexed(@content);
+    let mut rules = grimworld_logic::types::executor::Delegate {
+        board: board(),
+        cache: Default::default(),
+        executor: classes.executor,
+        content,
+        index,
+        placed: array![],
+        ground: array![],
+        ai: classes.ai,
+        trap: classes.trap,
+        level: 10,
+        frozen: 0,
+    };
+    let done = grimworld_logic::types::play::SegmentTrait::run(
+        ref world, @sheets, ref rules, @area, @classes, actions, 0, 10,
+    );
+    (world.store(), done)
+}
+
+/// Ten Moves, East then West in turn: no goblin, every tick on the fast path.
+fn exploration() -> (Words, Span<Action>) {
+    let words = Fixture::world(40, array![member_at(400)], array![]).store();
+    let mut actions = array![];
+    let mut k: u8 = 0;
+    while k < 10 {
+        actions.append(Action::Move(if k % 2 == 0 {
+            0
+        } else {
+            3
+        }));
+        k += 1;
+    }
+    (words, actions.span())
+}
+
+/// Ten weapon attacks of the member on goblins 10, 11 and 12 (on its ring), the 8 goblins Engaged around it, each attacking
+/// with its weapon (its skills recharging): every tick has a fight.
+fn fight() -> (Words, Span<Action>) {
+    let mut words = ai_words_of(ai::ENGAGED, false, true);
+    // The member's weapon (the executor's tests' melee one): class 1, damage 27, range 1,
+    // strength 60, slashing, its requirement met.
+    let mut member = *words.members[0];
+    member.stats += two(88) + 27 * two(96) + two(112) + 60 * two(120) + two(160) + two(176);
+    words.members = array![member];
+    (words, attacks())
+}
+
+/// The same, the member's health and max health raised from 480 to 20,000 (`MemberState` 64–79,
+/// `MemberStats` 0–15) so that it stands
+/// through the ten ticks: the batch whole.
+fn fight_whole() -> (Words, Span<Action>) {
+    let (mut words, actions) = fight();
+    let mut member = *words.members[0];
+    member.state += 19520 * two(64);
+    member.stats += 19520;
+    words.members = array![member];
+    (words, actions)
+}
+
+fn attacks() -> Span<Action> {
+    let mut actions = array![];
+    let mut k: u8 = 0;
+    // Goblin 10 falls to 4 hits: then 11, then 12, each on the member's ring.
+    while k < 10 {
+        actions.append(Action::Attack(10 + (k / 4).into()));
+        k += 1;
+    }
+    actions.span()
+}
+
+fn segment_fixture(words: Words, actions: Span<Action>) {
+    let _ = classes();
+    let area = open_area();
+    let content = rep_content();
+    assert(
+        opaque(words.members.len()) == 1 && actions.len() == 10 && area.chunks.len() == 9
+            && content.skills.len() == 38,
+        'fixture',
+    );
+}
+
+#[test]
+fn test_cost_segment_exploration_fixture() {
+    let (words, actions) = exploration();
+    segment_fixture(words, actions);
+}
+
+#[test]
+fn test_cost_segment_exploration() {
+    let (words, actions) = exploration();
+    let (out, done) = segment_of(words, actions);
+    println!("exploration: played {} weight {} clock {}", done.played, done.weight, out.clock);
+    assert(done.played == 10 && out.clock == 50, 'ten moves');
+}
+
+#[test]
+fn test_cost_segment_fight_fixture() {
+    let (words, actions) = fight();
+    segment_fixture(words, actions);
+}
+
+#[test]
+fn test_cost_segment_fight() {
+    let (words, actions) = fight();
+    let (out, done) = segment_of(words, actions);
+    println!(
+        "fight: played {} weight {} clock {} defeated {} killed {} illegal {:?}",
+        done.played,
+        done.weight,
+        out.clock,
+        out.defeated,
+        out.killed.len(),
+        done.illegal,
+    );
+    assert(done.played > 0, 'played');
+}
+
+// D-235: the fast path and `TickLibrary` on the same ticks give the same words (the events a batch
+// emits are read from them: the kills, the defeat). The member bleeding, a goblin frozen outside the
+// window; three ticks each way.
+#[test]
+fn test_segment_fast_path_equals_tick_library() {
+    let mut member = member_at(400);
+    member.bleeding = 45;
+    let mut far = Fixture::goblin(8, HOB);
+    far.state += 100 + 100 * two(8);
+    far.awake = false;
+    let words = Fixture::world(40, array![member], array![far]).store();
+    let content = rep_content();
+    let (mut world, sheets) = words.clone().load(@content);
+    let mut idle = Idle {};
+    TickTrait::run(ref world, @sheets, 3, ref idle);
+    let fast = world.store();
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let slow = ticks_of(library, words, content, board(), 3);
+    assert(fast == slow, 'fast path differs');
+    assert(fast.clock == 43, 'three ticks');
+}
+
+#[test]
+fn test_cost_segment_fight_whole_fixture() {
+    let (words, actions) = fight_whole();
+    segment_fixture(words, actions);
+}
+
+#[test]
+fn test_cost_segment_fight_whole() {
+    let (words, actions) = fight_whole();
+    let (out, done) = segment_of(words, actions);
+    println!(
+        "fight whole: played {} weight {} clock {} defeated {} killed {} illegal {:?}",
+        done.played,
+        done.weight,
+        out.clock,
+        out.defeated,
+        out.killed.len(),
+        done.illegal,
+    );
+    assert(done.played > 0, 'played');
 }

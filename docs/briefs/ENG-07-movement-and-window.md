@@ -48,6 +48,16 @@ at 52.91 % (43,345 felts) before any content, goblin or reveal:
 | 2 | **`ActionLibrary` capped at 57,476 felts (70.16 %)**, its measure (54,739) + 5 %. `TickLibrary` stays at most 88 %: if the 9,987 felts left do not hold the segment loop, the moves and the window, stop and report before any further move | the project manager |
 | 3 | **`Board`'s offset origin's cost accepted under D-144**: +23,100 to +43,200 L2 gas a goblin attack (`position` not inlined) | the project manager |
 
+**Amended by D-235 (the project manager, 2026-10-07)**, after the segment measured `TickLibrary` at
+82,133 felts (100.26 %) with 9,987 felts of room:
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **Option (b): the segment lives in `PlayLibrary`**, with a fast path: a tick with no living goblin in the window and nothing owed (no activation of the member) runs in `PlayLibrary` without a call; only a tick with a fight calls `TickLibrary`. **The old `run` entrypoint is removed** (read: `TickLibrary` keeps one entrypoint, `ticks`, which runs a fight's ticks with the chunk objects carried, Open question 3) | the project manager |
+| 2 | **`PlayLibrary` at most 80 %** (`class_sizes.py`); above, stop | the project manager |
+| 3 | **A test runs the fast path and the `TickLibrary` path on the same ticks** and compares their state and events: identical | the project manager |
+| 4 | **On the node, six runs + 5 %, each against the same batch on main's path**: an exploration batch end to end; a fight batch end to end, carrying D-233 #4's figures (the worst-case ticks a batch, the member's activation in the same tick as 8 goblin attacks, CBT-05d's levers with figures). **A fight batch above 369 M: stop and report before any further build** (the owner, R-2) | the owner |
+
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
 D-133): each action checked against the state it meets, the adventurer's moves with facing, occupancy

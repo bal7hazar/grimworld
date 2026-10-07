@@ -1,5 +1,5 @@
-//! A segment of a played batch (ENG-07; design/02 *Executing a batch*, ADR-0006 §4; D-233, D-234):
-//! `TickLibrary::segment` runs the batch's actions in order, each against the state it meets, and
+//! A segment of a played batch (ENG-07; design/02 *Executing a batch*, ADR-0006 §4; D-233 to
+//! D-235): `PlayLibrary` runs the batch's actions in order, each against the state it meets, and
 //! each action's ticks, until the actions end, one is illegal (`Done.illegal`: nothing of it is
 //! written, the batch stops), the weight left would pass, the adventurer is defeated, or a Move
 //! brings sight onto a chunk not yet revealed (`Done.reveal`: the caller reveals it, then calls the
@@ -18,31 +18,39 @@
 //! overlaps, the origin on an even global row, a chunk not revealed wall (D-136), a void one (out
 //! of the location, a zone's set or a dungeon floor's outline) a constant, never read (D-134), the
 //! outer ring wall. The origin, down to −8, is held plus `ORIGIN`: `15 (cx + 1) + ox`.
+//!
+//! **The ticks** (D-235): a tick with no living goblin in the window and nothing owed by the
+//! adventurer (no activation) runs here, with no hook to call (`Idle`, the fast path); every other
+//! tick runs in `TickLibrary` (`ticks`), with the whole words and the chunk objects, perception,
+//! the executor and the goblins' acts behind it. On a tick the fast path takes, `TickLibrary`'s
+//! rules call nothing either (no carrier resolves, no goblin is awake): the two paths agree,
+//! which a test holds.
 
 use hexx::board::assembly::AssemblyTrait;
 use hexx::board::layout::LayoutTrait;
 use starknet::ClassHash;
 use crate::actions::Action;
+use core::num::traits::Zero;
 use crate::interface::{
-    IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait,
-    ITrapLibraryLibraryDispatcher,
+    IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher, ITickLibraryDispatcherTrait,
+    ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher,
 };
-use crate::models::goblin::GoblinTrait;
+use crate::models::goblin::{GoblinPlaceTrait, GoblinTrait};
 use crate::models::member::{
     Member, MemberConditionTrait, MemberSnapshotTrait, MemberTrait, MemberWordsTrait,
 };
 use crate::types::LAST_TICK;
 use crate::types::action::Illegal;
 use crate::types::ai::AiTrait;
-use crate::types::combat::{Placer, PlacerTrait};
+use crate::types::combat::Placer;
 use crate::types::effect::kind;
 use crate::types::executor::{Board, BoardTrait, Delegate, Levered, Levers, ORIGIN};
 use crate::types::reveal::SightTrait;
 use crate::types::reveal::board::BoardTrait as Bitmap;
-use crate::types::tick::{ABSENT_LANE, Sheets, flag};
+use crate::types::tick::{ABSENT_LANE, NO_SLOT, Sheets, flag};
 use crate::types::trap::TrapTrait;
-use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
-use crate::types::world::{TickTrait, Words, World, WorldStoreTrait, WorldTrait};
+use crate::types::window::{FAR, HEIGHT, WIDTH, WindowAssert, WindowTrait};
+use crate::types::world::{Idle, TickTrait, Words, World, WorldStoreTrait, WorldTrait};
 
 /// The window's interior, its ring cleared (hexx's `LayoutTrait::interior(15, 16)`), as limbs.
 const INTERIOR: u256 = u256 {
@@ -72,6 +80,8 @@ pub struct Classes {
     pub ai: ClassHash,
     pub trap: ClassHash,
     pub action: ClassHash,
+    /// `TickLibrary`: the ticks with a fight (D-235).
+    pub tick: ClassHash,
 }
 
 /// How a segment ended.
@@ -106,13 +116,13 @@ pub impl SegmentImpl of SegmentTrait {
         sheets: @Sheets,
         ref rules: Delegate,
         area: @Area,
-        action: ClassHash,
+        classes: @Classes,
         actions: Span<Action>,
         owed: u8,
         weight: u8,
     ) -> Done {
         rules.board = Self::board(area, @world);
-        TickTrait::run(ref world, sheets, owed, ref rules);
+        Self::ticks(ref world, sheets, ref rules, *classes.tick, owed);
         let mut done = Done {
             played: 0, weight, owed: 0, reveal: false, illegal: None, heavy: false,
         };
@@ -125,7 +135,7 @@ pub impl SegmentImpl of SegmentTrait {
                 Action::Turn(direction) => Self::turn(ref world, direction),
                 Action::Wait => Self::wait(@world),
                 Action::Interact(_) => Err(Halt::Illegal(Illegal::Kind)),
-                _ => Self::combat(ref world, sheets, ref rules, action, *next, done.weight),
+                _ => Self::combat(ref world, sheets, ref rules, *classes.action, *next, done.weight),
             };
             let ticks = match ran {
                 Ok(ticks) => ticks,
@@ -159,9 +169,52 @@ pub impl SegmentImpl of SegmentTrait {
                 }
                 rules.board = Self::board(area, @world);
             }
-            TickTrait::run(ref world, sheets, ticks, ref rules);
+            Self::ticks(ref world, sheets, ref rules, *classes.tick, ticks);
         }
         done
+    }
+
+    /// `n` ticks (the module's *ticks*): in process when none has a fight (`idle`), else in
+    /// `TickLibrary` with the whole words and the chunk objects.
+    fn ticks(ref world: World, sheets: @Sheets, ref rules: Delegate, tick: ClassHash, n: u8) {
+        if n == 0 || world.defeated {
+            return;
+        }
+        if Self::idle(@world, @rules.board) {
+            let mut idle = Idle {};
+            TickTrait::run(ref world, sheets, n, ref idle);
+            return;
+        }
+        let current = world;
+        let words = current.store();
+        let ground = rules.ground;
+        let classes = Classes {
+            executor: rules.executor,
+            ai: rules.ai,
+            trap: rules.trap,
+            action: Zero::zero(),
+            tick: Zero::zero(),
+        };
+        let (out, ground) = ITickLibraryLibraryDispatcher { class_hash: tick }
+            .ticks(words, rules.content, rules.board, classes, rules.level, ground, n);
+        rules.ground = ground;
+        world = Self::reload(out, sheets, ref rules);
+    }
+
+    /// Whether the ticks can take the fast path: the adventurer owes nothing (no activation) and
+    /// no living goblin stands in the window. The board does not move during an action's ticks, and
+    /// a goblin outside the window is frozen (§5.2): it cannot enter it on these ticks.
+    fn idle(world: @World, board: @Board) -> bool {
+        if world.member(0).act_slot != NO_SLOT {
+            return false;
+        }
+        for (_, state) in world.alive() {
+            let (x, y, _) = GoblinPlaceTrait::at(state);
+            if board.position(x, y) < FAR {
+                return false;
+            }
+        }
+        true
     }
 
     /// A Move of the adventurer (member 0) toward `direction`: legal against the state it meets,
