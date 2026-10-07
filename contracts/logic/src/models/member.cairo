@@ -347,7 +347,14 @@ pub impl MemberImpl of MemberTrait {
     /// The skill id of bar slot 0–7 (`MemberBar`).
     #[inline(always)]
     fn skill(self: @Member, slot: u8) -> u16 {
-        let (low, _) = limbs(*self.words.bar);
+        Self::bar_skill(*self.words.bar, slot)
+    }
+
+    /// The skill id of bar slot 0–7 in a `MemberBar` word (ENG-07: the content a batch reads is
+    /// listed from the words, before any member is loaded).
+    #[inline(always)]
+    fn bar_skill(bar: felt252, slot: u8) -> u16 {
+        let (low, _) = limbs(bar);
         let shift = *[1, P16, P32, 0x1000000000000, P64, P80, P96, P112].span()[slot.into()];
         field(low, shift, P16).try_into().unwrap()
     }
@@ -468,13 +475,24 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// The potion item of belt slot 0–3 (`MemberKit` bits `32 slot`).
     fn belt_item(self: @Member, slot: u16) -> u32 {
-        let (low, _) = limbs(*self.words.kit);
+        Self::kit_item(*self.words.kit, slot)
+    }
+
+    /// The potion item of belt slot 0–3 in a `MemberKit` word.
+    #[inline(always)]
+    fn kit_item(kit: felt252, slot: u16) -> u32 {
+        let (low, _) = limbs(kit);
         field(low, *[1, P32, P64, P96].span()[slot.into()], P32).try_into().unwrap()
     }
 
     /// The held effect of slot 0–3, as the word stores it.
     fn effect_of(self: @Member, slot: u8) -> Held {
-        let (low, high) = limbs(*self.words.effects);
+        Self::held(*self.words.effects, slot)
+    }
+
+    /// The held effect of slot 0–3 in a `MemberEffects` word.
+    fn held(effects: felt252, slot: u8) -> Held {
+        let (low, high) = limbs(effects);
         let (upper, shift, _) = MemberTrait::effect_at(slot);
         let limb = if upper {
             high

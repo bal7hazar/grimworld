@@ -14,6 +14,15 @@ use crate::models::instance::errors as instance_errors;
 pub const VERSION: felt252 = 'grimworld-instances-1';
 /// The revert of every entrypoint not written yet.
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
+
+/// The keys of `play_classes` (ENG-07).
+pub mod play_class {
+    pub const PLAY: u8 = 0;
+    pub const TICK: u8 = 1;
+    pub const AI: u8 = 2;
+    pub const ACTION: u8 = 3;
+    pub const EXECUTOR: u8 = 4;
+}
 pub use errors::{NOT_ADMIN, ZERO_ADMIN};
 
 /// The refusals of `Instances`' administration (ADR-0007, *Access control*). The lifecycle's are
@@ -214,6 +223,16 @@ pub trait IInstancesAdmin<T> {
         trap_library: ClassHash,
     );
     fn set_admin(ref self: T, admin: ContractAddress);
+    /// The classes `play` calls (ENG-07, D-233 to D-235): `PlayLibrary` (`play`'s body, by
+    /// `library_call`), `TickLibrary`, `AiLibrary`, `ActionLibrary` and `ExecutorLibrary`.
+    fn set_play_classes(
+        ref self: T,
+        play: ClassHash,
+        tick: ClassHash,
+        ai: ClassHash,
+        action: ClassHash,
+        executor: ClassHash,
+    );
     /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
@@ -243,7 +262,7 @@ pub mod Instances {
     use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
     use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
     use grimworld_logic::types::{
-        ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
+        ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, Stop, instance_id, instance_parts,
     };
     use starknet::storage::Map;
     use starknet::storage_access::StorePacking;
@@ -261,7 +280,10 @@ pub mod Instances {
     };
     use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
     use crate::store::InstancesStoreTrait;
-    use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors};
+    use crate::systems::play::{IPlayLibraryDispatcherTrait, IPlayLibraryLibraryDispatcher};
+    use super::{
+        InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors, play_class,
+    };
 
     /// Tasks whose quotas a reveal places (ENG-01 §3.2: the location's 6, then 8).
     const TASK_QUOTAS: u32 = 8;
@@ -316,6 +338,9 @@ pub mod Instances {
         /// ADR-0006 §3, *A dungeon floor's outline, fixed at entry*): 0 its chunks, 1 its open
         /// West seams, 2 its open North seams (`Outline`); never read in a zone.
         pub outline: Map<(u32, u8), felt252>,
+        /// The classes `play` calls (ENG-07, D-233 to D-235): `PLAY` (`PlayLibrary`, called by
+        /// `library_call` with `play`'s body), `TICK`, `AI`, `ACTION`, `EXECUTOR` (`play_classes`).
+        pub play_classes: Map<u8, ClassHash>,
     }
 
     #[event]
@@ -354,7 +379,38 @@ pub mod Instances {
             version: u32,
             actions: felt252,
         ) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            // The admission (D-234): the caller controls the member (a revert otherwise), then the
+            // instance's checks, a refusal a `BatchPlayed` that ran nothing; the body is
+            // `PlayLibrary`'s, in this contract's context.
+            let (slot, generation) = instance_parts(instance_id);
+            let placement = self.get_placement(adventurer_id);
+            let state = self
+                .get_controlled_state(placement.slot, placement.member, get_caller_address());
+            let header = self.get_header(slot);
+            if let Option::Some(reason) = header
+                .refusal(generation, @placement, slot, state.status, sequence) {
+                let stop = if reason == Refusal::Sequence {
+                    Stop::Sequence
+                } else {
+                    Stop::Closed
+                };
+                self
+                    .emit(
+                        BatchPlayed {
+                            instance_id,
+                            adventurer_id,
+                            from: sequence,
+                            played: 0,
+                            stop,
+                            sequence: header.sequence,
+                            clock: header.clock,
+                            version,
+                        },
+                    );
+                return;
+            }
+            IPlayLibraryLibraryDispatcher { class_hash: self.get_play_class(play_class::PLAY) }
+                .play(instance_id, adventurer_id, sequence, version, actions, slot, placement.member);
         }
 
         fn loot(
@@ -717,6 +773,22 @@ pub mod Instances {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
             InstancesAssert::assert_admin_not_zero(admin);
             self.set_administrator(admin);
+        }
+
+        fn set_play_classes(
+            ref self: ContractState,
+            play: ClassHash,
+            tick: ClassHash,
+            ai: ClassHash,
+            action: ClassHash,
+            executor: ClassHash,
+        ) {
+            InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
+            self.set_play_class(play_class::PLAY, play);
+            self.set_play_class(play_class::TICK, tick);
+            self.set_play_class(play_class::AI, ai);
+            self.set_play_class(play_class::ACTION, action);
+            self.set_play_class(play_class::EXECUTOR, executor);
         }
 
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
