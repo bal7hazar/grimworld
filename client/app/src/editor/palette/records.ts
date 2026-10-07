@@ -2,6 +2,7 @@ import { TILE_WIDTH, tileToPixel } from "../../input/coords";
 import type { Facing, Tile } from "../../render/view";
 import { inPlane, keyOf, sideOf } from "../model";
 import {
+  BRIDGE_DECK_MAX,
   type BridgeKind,
   type BuildingKind,
   type Kind,
@@ -15,8 +16,8 @@ import {
  * What the author places, and the record the editor will write for it: the shapes track game gave
  * for ENG-08's export (under D-215; ENG-08 not yet merged). An NPC, a building's sprite, anchor and
  * door are client-only; a building's footprint and a blocking prop's hex become unwalkable through
- * ENG-08's converter, not here. A bridge (D-217) is its deck hexes and its two end hexes; the
- * walking rules come with ENG-08b.
+ * ENG-08's converter, not here. A bridge (D-227, ADR-0008) is its deck hexes and its two end
+ * hexes, one level: the converter writes its deck walkable.
  */
 
 export interface NpcPlacement {
@@ -59,6 +60,8 @@ export interface BridgePlacement {
   readonly mirrored?: boolean;
   /** North (the default) or along the row, West (CLI-09c: ENG-08's sample bridge runs so). */
   readonly run?: BridgeRun;
+  /** Its deck's length in hexes, 1 to `BRIDGE_DECK_MAX` (CLI-09f); the kind's when absent. */
+  readonly deck?: number;
 }
 
 export type BridgeRun = "north" | "west";
@@ -90,7 +93,7 @@ export interface PropRecord {
   readonly flip?: boolean;
 }
 
-/** D-217's bridge: its kind, its deck hexes (South to North) and its two end hexes. */
+/** D-227's bridge: its kind, its deck hexes (South to North) and its two end hexes. */
 export interface BridgeRecord {
   readonly kind: string;
   readonly deck: readonly Tile[];
@@ -156,14 +159,15 @@ export function doorChoices(footprint: readonly Tile[]): Tile[] {
 }
 
 /**
- * A bridge's hexes from its southern end: `deck` deck hexes, then the northern end. One that runs
- * West goes along the row from its eastern end (East when mirrored).
+ * A bridge's hexes from its southern end: `deck` deck hexes (the kind's by default), then the
+ * northern end. One that runs West goes along the row from its eastern end (East when mirrored).
  */
 export function bridgeAt(
   kind: BridgeKind,
   south: Tile,
   mirrored = false,
   run: BridgeRun = "north",
+  length = kind.deck,
 ): { deck: Tile[]; ends: [Tile, Tile] } {
   // North-South on pointy-top rows: North-East then North-West (or the reverse), so the ends stay
   // in one column on screen.
@@ -176,11 +180,11 @@ export function bridgeAt(
         : [SIDE.northEast, SIDE.northWest];
   const deck: Tile[] = [];
   let tile = south;
-  for (let i = 0; i < kind.deck; i++) {
+  for (let i = 0; i < length; i++) {
     tile = sideOf(tile, lean[i % 2]!);
     deck.push(tile);
   }
-  const north = sideOf(tile, lean[kind.deck % 2]!);
+  const north = sideOf(tile, lean[length % 2]!);
   return { deck, ends: [south, north] };
 }
 
@@ -263,14 +267,18 @@ function propRecord(p: PropPlacement, kind: PropKind): RecordResult {
 }
 
 function bridgeRecord(p: BridgePlacement, kind: BridgeKind): RecordResult {
-  const { deck, ends } = bridgeAt(kind, p.south, p.mirrored, p.run);
+  const length = p.deck ?? kind.deck;
+  if (!(Number.isInteger(length) && length >= 1 && length <= BRIDGE_DECK_MAX)) {
+    return { problem: `a deck of ${String(length)} hexes is not 1 to ${BRIDGE_DECK_MAX}` };
+  }
+  const { deck, ends } = bridgeAt(kind, p.south, p.mirrored, p.run, length);
   return { category: "bridge", record: { kind: kind.id, deck, ends } };
 }
 
 /**
  * The record a placement writes, or what is wrong with it: an unknown kind, a kind of another
- * category, a facing or a variant out of range, a door off the border, a hex past the plane's
- * bound.
+ * category, a facing or a variant out of range, a door off the border, a deck's length out of
+ * range, a hex past the plane's bound.
  */
 export function recordOf(placement: Placement): RecordResult {
   let result: RecordResult;

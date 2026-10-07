@@ -67,14 +67,22 @@ export interface NpcKind extends KindBase {
 }
 
 /**
- * A bridge (D-217): a deck of `deck` hexes between two end hexes, North-South as the pack draws
- * both. Its sprite is a whole image: no deck piece to repeat, so `deck` is fixed by the art.
+ * A bridge (D-227, ADR-0008): a deck of one or more hexes over water between two end hexes, one
+ * level, the deck walkable. `deck` is the length a new one is placed with, the art's own (the pack
+ * draws each bridge whole, North-South, over one deck hex); a longer deck repeats the sprite
+ * (CLI-09f).
  */
 export interface BridgeKind extends KindBase {
   readonly category: "bridge";
   readonly sprite: string;
   readonly deck: number;
 }
+
+/**
+ * The longest deck: a bridge lies in one chunk (format 1, `export: bridge across chunks`), so its
+ * deck and its two ends fit along a chunk's 15 hexes.
+ */
+export const BRIDGE_DECK_MAX = 13;
 
 export type Kind = PropKind | BuildingKind | NpcKind | BridgeKind;
 

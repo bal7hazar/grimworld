@@ -476,3 +476,83 @@ changes), `editor/notice.test.ts`, the deferred bakes' retired textures in
 - A figure under fog beyond sight was checked in unit tests only. No browser capture of the preview
   walk's fog over the pack's objects.
 - Captures with the art are in the thread's library folder only (D-73).
+
+# CLI-09f — bridges in the editor, one level
+
+Opus 5.5, 2026-10-07. D-227 (the owner): a bridge has one level, its deck walkable ground over
+water, nobody passes under it. ADR-0008 (#383) is the reference; §7 choice 6 above (a bridge
+checked only by E-23) is replaced by what follows.
+
+## 16. What exists now
+
+- **A deck of 1 to 13 hexes.** A bridge object keeps its deck's length (`deck`, inspector *Deck
+  (hexes)*); 13 is the longest that fits one chunk with its two ends (format 1: `export: bridge
+  across chunks`). Its hexes follow its run from the southern end, as CLI-09e drew them: *North*
+  (the deck leaning North-East then North-West in turn, one column on the screen, the art's
+  direction) or *West* (along the row, a straight hex line). Each hex touches the one before.
+- **Placed across the water.** A bridge placed from the menu on a land hex spans the water ahead
+  along its run: its deck takes the water hexes up to the next land hex, which becomes its far end
+  (`placedOn`, `spanned` in `pack.ts`; the preview under the pointer shows the same). On water, or
+  with land ahead, or with no land within 13 hexes, it keeps the kind's one-hex deck, and the
+  inspector or the checks say the rest.
+- **Drawn with the pack's art, repeated.** The pack has two whole bridges and no deck piece
+  (CLI-09e §1). The sprite spans one deck hex and its two ends; a longer deck **repeats** it every
+  second hex from the southern end, the last copy ending on the far end (overlapping the one before
+  when the length is even): a deck of 3 draws two copies, 4 draws three. Repeating keeps the art's
+  pixels; stretching would scale them unevenly. Each copy is one structure of the view
+  (`drawnAt`, keys `bridge:<id>` then `bridge:<id>:<n>`); no renderer change.
+- **Walkable.** The preview walk's world makes every deck hex inside the outline floor, its ground
+  still water under the sprite (ADR-0008 rule 1). The reach checks (E-6, E-7, and a town's E-15)
+  walk decks as floor. A river crossed by a bridge alone passes E-7; without its bridge it fails.
+- **The checks** (`validate.ts`, zones and towns; the converter's codes from ADR-0008, which ENG-09
+  adds to `checks.json`; each with a passing fixture, `bridge-zone`, and failing ones in
+  `bridges.test.ts`):
+
+  | Check | Code | Rule | Failing fixtures |
+  |---|---|---|---|
+  | R-37 | `bridge: tile taken` | nothing on an end or deck hex: entry, gate, spawn point, quota place, feature, character, prop, a building's footprint, another bridge | a chest and a character on the deck; a spawn point, a prop, the entry and a house's footprint on an end |
+  | E-24 | `export: deck outside the zone` | every deck hex painted, inside the outline | a deck hex outside the outline; one unpainted |
+  | E-25 | `export: deck blocked` | no deck hex blocked (a footprint but its door, a blocking prop); every deck hex over water | a water rock and a barracks on the deck; a deck hex painted land |
+  | R-34 | `bridge: end not floor` | each end walkable land: a floor hex inside the outline, not water, not blocked | an end painted wall; an end in the water; a rock on an end |
+
+- **The export** writes a bridge as before (`{ kind, deck, ends }`), its deck hexes as painted
+  (water): the converter makes them walkable (ADR-0008 Open question 1). An export's bridge of any
+  length opens again (`fromExport`).
+- **Save and load.** The editor's file keeps `deck`; a file without it (CLI-09e's) opens with a
+  one-hex deck, the same hexes as before.
+
+## 17. Parity with the converter
+
+`fixtures/bridge-zone.grimmap.json` (one chunk, two ponds, a stone bridge North over 3 deck hexes, a
+covered bridge West over 2) exports to `fixtures/bridge-zone.export.json`. Track game's converter,
+run on it from this branch:
+
+    python3 spikes/SPK-16-authored-zone/map-format/convert.py \
+        client/app/src/editor/fixtures/bridge-zone.export.json \
+        --manifest spikes/SPK-16-authored-zone/samples/manifest.json \
+        --out client/app/src/editor/fixtures/bridge-zone.records.json
+    5 records -> bridge-zone.records.json
+
+It accepts the export: LOCATION, the chunk set, the chunk, and two `BRIDGE` records (deck bits 3 and
+2). The editor's port writes the same records, felt for felt (`bridges.test.ts`), and the fixture
+validates with no error with the converter's checks included.
+
+## 18. Choices (reversible)
+
+1. **Repeat, not stretch**, as above. Reversed by deck art, or by the owner's eye.
+2. **Span on placement.** Reversed by a plain one-hex placement and the inspector alone.
+3. **E-24 and E-25 are the editor's ids** for the converter's two deck refusals, which
+   `checks.json` does not hold yet: they follow ENG-09's ids when it adds them.
+4. **R-37 also flags two bridges sharing a hex** (R-38, on touching decks, is dropped; sharing is
+   not touching). Touching bridges are left to the eye.
+
+## 19. Not checked, and what remains
+
+- **The converter on `main` does not apply ADR-0008 rule 1 yet** (ENG-09's): it neither writes a
+  deck walkable nor refuses a deck outside the zone or blocked. So a zone whose only crossing is a
+  bridge passes the editor's checks but is refused by the converter, and by the editor's export
+  checks that run its port, as `pipeline: unreachable tile` (a test holds it). The port follows
+  `convert.py` when ENG-09 changes it.
+- The *North* run zig-zags (a column on the screen): it is not an axial hex line. The *West* run is.
+  The pack's art runs North-South, so a *West* bridge shows the vertical sprite side by side.
+- No phone, no GPU: software GL only. Captures with the art stay in the thread's library (D-73).
