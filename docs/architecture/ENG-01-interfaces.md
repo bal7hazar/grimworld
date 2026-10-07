@@ -1791,15 +1791,27 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 | Three chunks in one call, the worst content | **11,856,780** (3.95 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
 | `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,277,858 · 7,398,860 · 11,233,690: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
-| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,902,400–7,022,400** | `lifecycle_probe.py`, three runs at the final code (D-210) |
-| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,212,400–13,292,400**; with the zone's collector quota (`--quotas on`: `HostsLibrary` called, its host written) **14,214,400–14,254,400** | idem |
-| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,622,400–7,782,400** | idem |
-| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,076,640–8,236,640** | idem |
-| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,760,640–10,920,640** | idem |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,862,400–7,022,400**; with the zone's collector quota **7,342,400–7,502,400** | `lifecycle_probe.py`, three runs each at #348's merged code (`9ffd4ff`, D-220) |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,292,400–13,372,400**; with the zone's collector quota (`--quotas on`: `HostsLibrary` called, its host written) **14,174,400–14,254,400** | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,662,400–7,702,400**; with the quota **8,062,400–8,262,400** | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **7,636,640–8,076,640**; with the quota 7,756,640–8,236,640 | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,800,640 · 11,120,640 · 11,280,640**; with the quota **11,400,640–11,520,640** | idem |
 
 The node's figures follow the entry draw, which follows the transaction hash: the same code gives
 another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
-`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs 12,061,667 with its quota and 10,017,658 without, the library call alone 358,834 against the same draw direct (210,194; two benchmarks run at `ab7017a`, then removed: their figures moved by 100 between runs, D-154). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
+`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs **10,580,962** with its quota and **10,018,258** without (`test_cost_create_zone_block` at #348's merge; 12,061,667 before D-220), the library call alone 358,834 against the same draw direct (210,194; two benchmarks run at `ab7017a`, then removed: their figures moved by 100 between runs, D-154). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
+
+**The D-144 ceilings of ENG-05** (the project manager; on the expedition's path, every rise above them goes to the project manager first; ENG-05b resets every one from at least six runs, the maximum plus 5 %):
+
+| Entrypoint (on the node, `lifecycle_probe.py`) | Without a quota | With a zone quota | Decided |
+|---|---:|---:|---|
+| `enter`, the adventurer's first | 14,294,400 | 14,294,400 | 2026-10-04 (D-210's `HostsLibrary` call) |
+| `enter`, a later entry | 7,302,400 | 7,502,400 | 2026-10-03; with a quota 2026-10-04 |
+| `enter`, a later entry, the belt's worst case | 8,102,400 | 8,262,400 | idem |
+| `leave` to a dungeon floor | 8,276,640 | 8,276,640 | 2026-10-03 |
+| `leave` back into the zone | 11,320,640 | 11,640,640 | 2026-10-07 (the entry draw's spread); with a quota 2026-10-04 |
+
+**The worst legal plan of a zone's quota hosts (D-220)**: **98,153,254** L2 gas in snforge (`test_hosts_worst_half`, `contracts/logic/GAS.md`: 15 × 15, three object quotas, two Hearts and a set piece of 112 each, six passes of 112 draws, the complement draw), under D-220's 100,000,000; the content bound on a zone's total quota draws that keeps every legal plan there is ENG-08's (the Registry's checks of an authored zone, built by ENG-09).
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
