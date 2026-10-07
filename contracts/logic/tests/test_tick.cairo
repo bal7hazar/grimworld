@@ -11,15 +11,19 @@
 // claim that no state costs more; "upper bound" is kept for the derived result (REPORT.md, ENG-01
 // §9.2).
 use core::testing::get_available_gas;
+use grimworld_logic::actions::Action;
 use grimworld_logic::content::Record;
 use grimworld_logic::helpers::signed::SignedTrait;
-use grimworld_logic::interface::{ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher};
+use grimworld_logic::interface::{
+    ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait,
+};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::goblin::{Goblin, GoblinTickTrait, GoblinTrait, GoblinWords};
 use grimworld_logic::models::index::{Caste, Skill};
 use grimworld_logic::models::member::{Member, MemberTickTrait, MemberTrait, MemberWords};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::MAX_CLOCK;
+use grimworld_logic::types::action::ActionTrait;
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::executor::{Board, BoardTrait, ExecutorTrait};
@@ -2696,16 +2700,16 @@ fn test_cost_sheet_skill_none() {
 
 // A skill's sheet, its `REGENERATION`: an empty second entry.
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 48174)] // ceil(1.05 × 45880 measured)
+// gas: raised, CBT-05b: the skill sheet reads the header's energy and profession
+#[available_gas(l2_gas: 50715)] // ceil(1.05 × 48300 measured)
 fn test_cost_sheet_skill_damage_then_empty() {
     assert(read_skill([kind::DAMAGE, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
 }
 
 // A skill's sheet, its `REGENERATION`: no entry.
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 44552)] // ceil(1.05 × 42430 measured)
+// gas: raised, CBT-05b: the skill sheet reads the header's energy and profession
+#[available_gas(l2_gas: 47093)] // ceil(1.05 × 44850 measured)
 fn test_cost_sheet_skill_empty() {
     assert(read_skill([kind::EMPTY, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
 }
@@ -3555,6 +3559,7 @@ fn test_cost_route_c_tick() {
         content,
         index,
         placed: array![],
+        ground: array![],
     };
     TickTrait::tick(ref world, @sheets, ref rules);
     assert(rules.cache.hits == 8 && !world.defeated, 'eight hits');
@@ -3754,4 +3759,226 @@ fn test_cost_rep_far_idle() {
 fn test_cost_rep_batch() {
     let words = rep_run(1, 10);
     assert(words.clock == 50, 'ten ticks');
+}
+
+// ---- The action phase with a bomb (CBT-05b; ENG-01 §9.2, D-207) --------------------------------
+// Scenario 1's state (8 awake goblins, one a tile, each concluding its attack skill on the member
+// at tick 41) and the worst content, the member's belt slot 0 a bomb: fire 30 on `DISC_1` around
+// a tile (`TILE`, `FOES`), range 6, strength 20 (FX-28, FX-35). The action phase runs in process
+// with `TickLibrary`'s rules (`Delegate`): the bomb's carrier, and each goblin's in the tick,
+// through `ExecutorLibrary`. Each figure less `test_cost_bomb_fixture`.
+
+fn bomb_content() -> Content {
+    let base = rep_content();
+    let bomb = EntryTrait::new(
+        kind::DAMAGE, 4, 30, 30, 0, 0, 0, target::TILE, shape::DISC_1, filter::FOES, 0, 0,
+    );
+    let mut potions = array![
+        PotionSheet { id: 100, regen: 0, entry: bomb.pack(), range: 6, strength: 20 },
+    ];
+    for potion in base.potions.slice(1, base.potions.len() - 1) {
+        potions.append(*potion);
+    }
+    Content { skills: base.skills, potions: potions.span(), castes: base.castes }
+}
+
+/// The ring tile around `AT` whose `DISC_1` holds the most goblins of scenario 1, as a location
+/// tile `x + 256 y` (the board at the origin), and how many goblins its `DISC_1` holds.
+fn bomb_tile() -> (u16, u32) {
+    let mut goblins: Array<u8> = array![];
+    for tile in ring(AT) {
+        goblins.append(*tile);
+    }
+    let mut position: u8 = 0;
+    let mut behind: u32 = 0;
+    while position < 240 && behind < 2 {
+        if WindowTrait::distance(position, AT) == 2 {
+            goblins.append(position);
+            behind += 1;
+        }
+        position += 1;
+    }
+    let mut best: u8 = 0;
+    let mut most: u32 = 0;
+    for centre in ring(AT) {
+        let mut count = 0;
+        for goblin in goblins.span() {
+            if WindowTrait::distance(*goblin, *centre) <= 1 {
+                count += 1;
+            }
+        }
+        if count > most {
+            most = count;
+            best = *centre;
+        }
+    }
+    ((best % 15).into() + 256 * (best / 15).into(), most)
+}
+
+fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
+    let mut words = rep_words(1);
+    let mut member = *words.members[0];
+    // Belt slot 0: one bomb (`MemberState` 128–135).
+    member.state += two(128);
+    words.members = array![member];
+    let content = bomb_content();
+    let (world, sheets, index) = words.indexed(@content);
+    let rules = grimworld_logic::types::executor::Delegate {
+        board: board(),
+        cache: Default::default(),
+        executor: executor(),
+        content,
+        index,
+        placed: array![],
+        ground: array![],
+    };
+    (world, sheets, rules)
+}
+
+#[test]
+#[available_gas(l2_gas: 14539605)] // ceil(1.05 × 13847242 measured)
+fn test_cost_bomb_fixture() {
+    let (world, sheets, rules) = bomb_state();
+    let _ = bomb_tile();
+    assert(opaque(world.goblin_count()) == 8 && sheets.potions.len() == 4, 'fixture');
+    let _ = rules;
+}
+
+// The action phase's floor: a Wait (legality only).
+#[test]
+#[available_gas(l2_gas: 14582487)] // ceil(1.05 × 13888082 measured)
+fn test_cost_bomb_wait() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let _ = bomb_tile();
+    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Wait);
+    assert(ticks == Ok(1), 'wait');
+}
+
+// The bomb alone: legality, the belt, facing, its carrier through `ExecutorLibrary`.
+#[test]
+#[available_gas(l2_gas: 23491375)] // ceil(1.05 × 22372738 measured)
+fn test_cost_bomb_action() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let (tile, most) = bomb_tile();
+    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile)));
+    assert(ticks == Ok(1) && rules.cache.hits == most && most >= 3, 'bomb');
+}
+
+// The 8 goblins' tick alone, the same state (its pair).
+#[test]
+#[available_gas(l2_gas: 50227938)] // ceil(1.05 × 47836131 measured)
+fn test_cost_bomb_goblins() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let _ = bomb_tile();
+    TickTrait::run(ref world, @sheets, 1, ref rules);
+    assert(rules.cache.hits == 8 && !world.defeated, 'eight carriers');
+}
+
+// The bomb and its tick: the action phase, then the 8 goblin carriers (the task's measure, D-207).
+#[test]
+#[available_gas(l2_gas: 59176034)] // ceil(1.05 × 56358127 measured)
+fn test_cost_bomb_tick() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let (tile, most) = bomb_tile();
+    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile)))
+        .unwrap();
+    TickTrait::run(ref world, @sheets, ticks, ref rules);
+    assert(rules.cache.hits == most + 8 && !world.defeated, 'bomb, then eight');
+}
+
+// The same through `TickLibrary::act` (D-222): the whole call, its fixture the same arguments and
+// classes without the call. `act_wait` against `rep_idle` (one idle tick through `run`) prices the
+// action phase's entrypoint per action.
+fn act_words() -> Words {
+    let mut words = rep_words(1);
+    let mut member = *words.members[0];
+    member.state += two(128);
+    words.members = array![member];
+    words
+}
+
+#[test]
+#[available_gas(l2_gas: 12672568)] // ceil(1.05 × 12069112 measured)
+fn test_cost_act_fixture() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let _ = executor();
+    let words = act_words();
+    let content = bomb_content();
+    let (tile, _) = bomb_tile();
+    assert(opaque(words.goblins.len()) > 0 && content.potions.len() == 4 && tile > 0, 'fixture');
+}
+
+#[test]
+#[available_gas(l2_gas: 60939824)] // ceil(1.05 × 58037927 measured)
+fn test_cost_act_bomb() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (tile, _) = bomb_tile();
+    let (words, _, illegal) = library
+        .act(act_words(), bomb_content(), board(), executor(), array![], Action::Item((0, tile)));
+    assert(illegal.is_none() && words.clock == 41, 'bomb, one tick');
+}
+
+#[test]
+#[available_gas(l2_gas: 17095133)] // ceil(1.05 × 16281079 measured)
+fn test_cost_act_wait() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (tile, _) = bomb_tile();
+    let _ = tile;
+    let (words, _, illegal) = library
+        .act(rep_words(0), bomb_content(), board(), executor(), array![], Action::Wait);
+    assert(illegal.is_none() && words.clock == 41, 'wait, one tick');
+}
+
+// ---- A trap's trigger through `TrapLibrary` (D-222) --------------------------------------------
+// A terrain trap (kind 4) on the member's tile, its `param` the worst content's skill 2 (fire 80,
+// Burning 3): the member enters it; the call carries the member alone, the worst content and the
+// chunk's features. Less its fixture: the same arguments and class, no call.
+
+fn trap_args() -> (Words, Content, Array<(u8, grimworld_logic::models::chunk::Features)>) {
+    let words = Words {
+        clock: 40,
+        members: array![member_at(480).store()],
+        goblins: array![],
+        killed: array![],
+        defeated: false,
+    };
+    let terrain = grimworld_logic::models::chunk::Object {
+        tile: AT, kind: grimworld_logic::models::chunk::object::TRAP, state: 0, param: 2,
+    };
+    let features = grimworld_logic::models::chunk::Features {
+        objects: [terrain, Default::default(), Default::default()],
+        ..grimworld_logic::models::chunk::FeaturesTrait::empty(),
+    };
+    (words, rep_content(), array![(0, features)])
+}
+
+#[test]
+#[available_gas(l2_gas: 5809997)] // ceil(1.05 × 5533330 measured)
+fn test_cost_trap_class_fixture() {
+    let class = declare("TrapLibrary").unwrap().contract_class();
+    let _ = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let (words, content, ground) = trap_args();
+    assert(
+        opaque(words.members.len()) == 1 && content.skills.len() == 38 && ground.len() == 1,
+        'fixture',
+    );
+}
+
+#[test]
+#[available_gas(l2_gas: 9552786)] // ceil(1.05 × 9097891 measured)
+fn test_cost_trap_class() {
+    let class = declare("TrapLibrary").unwrap().contract_class();
+    let library = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let (words, content, ground) = trap_args();
+    let (out, ground, triggered) = library.trigger(words, content, board(), ground, 0, AT, 10);
+    let (_, features) = *ground.at(0);
+    let [used, _, _] = features.objects;
+    assert(triggered && used.state == 1 && out.members.len() == 1, 'triggered');
 }

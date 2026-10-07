@@ -6,11 +6,16 @@
 //! (`ExecutorLibrary`, `executor`), called once a carrier by step 1's hook
 //! (`types::executor::Delegate`); perception and the AI are ENG-07's. It stores them back. The
 //! tick's board (the window and where it lies, D-120) comes with the call: ENG-07 assembles it.
+//! Its second entrypoint, `act`, runs one action of the batch before its ticks (design/19 §5.3,
+//! CBT-05b; D-222: the class at most 88 %).
 
 #[starknet::contract]
 pub mod TickLibrary {
     use starknet::ClassHash;
+    use crate::actions::Action;
     use crate::interface::ITickLibrary;
+    use crate::models::chunk::Features;
+    use crate::types::action::{ActionTrait, Illegal};
     use crate::types::executor::{Board, Delegate};
     use crate::types::tick::Content;
     use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait};
@@ -30,10 +35,44 @@ pub mod TickLibrary {
         ) -> Words {
             let (mut world, sheets, index) = words.indexed(@content);
             let mut rules = Delegate {
-                board, cache: Default::default(), executor, content, index, placed: array![],
+                board,
+                cache: Default::default(),
+                executor,
+                content,
+                index,
+                placed: array![],
+                ground: array![],
             };
             TickTrait::run(ref world, @sheets, ticks, ref rules);
             world.store()
+        }
+
+        fn act(
+            self: @ContractState,
+            words: Words,
+            content: Content,
+            board: Board,
+            executor: ClassHash,
+            ground: Array<(u8, Features)>,
+            action: Action,
+        ) -> (Words, Array<(u8, Features)>, Option<Illegal>) {
+            let (mut world, sheets, index) = words.clone().indexed(@content);
+            let mut rules = Delegate {
+                board,
+                cache: Default::default(),
+                executor,
+                content,
+                index,
+                placed: array![],
+                ground,
+            };
+            match ActionTrait::act(ref world, @sheets, ref rules, 0, action) {
+                Ok(ticks) => {
+                    TickTrait::run(ref world, @sheets, ticks, ref rules);
+                    (world.store(), rules.ground, None)
+                },
+                Err(illegal) => (words, rules.ground, Some(illegal)),
+            }
         }
     }
 }

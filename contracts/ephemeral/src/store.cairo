@@ -54,7 +54,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     // Configuration: one slot each
 
     /// The constructor's writes: the administrator, the three registered contracts, the reveal's
-    /// and the hosts' library classes (ENG-05, D-210), `next_slot` at 1.
+    /// and the hosts' library classes (ENG-05, D-210), the traps' (D-222), `next_slot` at 1.
     fn initialize(
         ref self: InstancesState,
         admin: ContractAddress,
@@ -63,6 +63,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         fate: ContractAddress,
         reveal: ClassHash,
         hosts_library: ClassHash,
+        trap_library: ClassHash,
     ) {
         self.admin.write(admin);
         self.hub.write(hub);
@@ -70,6 +71,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.fate.write(fate);
         self.reveal.write(reveal);
         self.hosts_library.write(hosts_library);
+        self.trap_library.write(trap_library);
         self.next_slot.write(Counter { value: 1 });
     }
 
@@ -112,6 +114,13 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.hosts_library.read()
     }
 
+    /// The traps' library class (`TrapLibrary`, CBT-05b, D-222), called once a trap triggers
+    /// (ENG-07's moves).
+    #[inline(always)]
+    fn get_trap_library(self: @InstancesState) -> ClassHash {
+        self.trap_library.read()
+    }
+
     /// `set_contracts`' writes, in its order.
     fn set_registered(
         ref self: InstancesState,
@@ -120,12 +129,14 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         fate: ContractAddress,
         reveal: ClassHash,
         hosts_library: ClassHash,
+        trap_library: ClassHash,
     ) {
         self.hub.write(hub);
         self.registry.write(registry);
         self.fate.write(fate);
         self.reveal.write(reveal);
         self.hosts_library.write(hosts_library);
+        self.trap_library.write(trap_library);
     }
 
     /// A new slot, at an adventurer's first entry: `next_slot` read, then written one more. Slots
@@ -540,7 +551,8 @@ mod tests {
     // The words the view returns as stored: 0 where nothing was written, the models' packed words
     // otherwise.
     #[test]
-    #[available_gas(l2_gas: 3361502)] // ceil(1.05 × 3201430 measured)
+    // gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
+    #[available_gas(l2_gas: 3554187)] // ceil(1.05 × 3384940 measured)
     fn test_words_as_stored() {
         let mut state = Instances::contract_state_for_testing();
         assert(state.get_stored_header(3).word == 0, 'no header');
@@ -557,7 +569,16 @@ mod tests {
         let timers: felt252 = StorePacking::<MemberTimers>::pack(MemberTimersTrait::empty());
         assert(timers == EMPTY_TIMERS, 'the constant word');
         let zero: ContractAddress = 0.try_into().unwrap();
-        state.initialize(zero, zero, zero, zero, 0.try_into().unwrap(), 0.try_into().unwrap());
+        state
+            .initialize(
+                zero,
+                zero,
+                zero,
+                zero,
+                0.try_into().unwrap(),
+                0.try_into().unwrap(),
+                0.try_into().unwrap(),
+            );
         assert(state.new_slot() == 1 && state.new_slot() == 2, 'slots from 1');
     }
 }

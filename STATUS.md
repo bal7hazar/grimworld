@@ -138,7 +138,9 @@ ENG-05 merged (2026-10-07). ENG-08 running; then ENG-08b, ENG-10a and ENG-10b, a
 
 ## Decisions needed
 
-None open. Answered since 2026-09-29: D-141 to D-168.
+CBT-05b's, ruled (D-222 and its amendment, the project manager, 2026-10-07): the action phase is `TickLibrary`'s `act` (at most 88 %); a trap's trigger is `TrapLibrary` (at most 78 %), wired into `Instances`; the 286 rises and the bomb through `act`, 45,968,815, accepted; a later shrink of both classes after ENG-07 (PLAN CBT-05g). The two attribute mappings go to CBT-05f (the orchestrator).
+
+None open otherwise. Answered since 2026-09-29: D-141 to D-168.
 
 ## Build notes (D-154)
 

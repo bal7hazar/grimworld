@@ -51,6 +51,7 @@ use crate::models::member::{
     Member, MemberConditionTrait, MemberLifecycleTrait, MemberSnapshotTrait, MemberTrait,
     MemberWordsTrait,
 };
+use crate::types::action::Carry;
 use crate::types::combat::{Arc, HitClass, condition, skill_kind};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
 use crate::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BLOCK};
@@ -59,6 +60,7 @@ use crate::types::tick::{
     ABSENT, ABSENT_LANE, CASTE_KEY, CasteSheetTrait, Content, ENERGY_THIRDS, Held, Index,
     POTION_KEY, Sheets, SkillSheetTrait, ai, flag,
 };
+use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, Window, WindowTrait, range};
 use crate::types::world::{Actor, Pending, Rules, Words, World, WorldTrait};
 use crate::types::{FIRST_GOBLIN, MAX_CLOCK};
@@ -1140,6 +1142,8 @@ pub struct Executor {
     pub board: Board,
     pub cache: Cache,
     pub placed: Array<(u16, Actor)>,
+    /// The chunk objects a placement writes (CBT-05b, §5.11).
+    pub ground: Ground,
 }
 
 pub impl ExecutorRules of Rules<Executor> {
@@ -1148,21 +1152,56 @@ pub impl ExecutorRules of Rules<Executor> {
     fn resolve(
         ref self: Executor, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
     ) {
-        let lever = Levered {};
-        let mut cache = self.cache;
+        let carrier = ExecutorTrait::carrier(@world, sheets, actor, slot);
         let board = self.board;
-        let executed = ExecutorTrait::conclude(
-            @lever, ref cache, ref world, sheets, @board, actor, slot, target,
-        );
-        self.cache = cache;
-        if executed == Executed::Place {
-            self.placed.append((target, actor));
+        if !ExecutorTrait::legal(@Levered {}, @world, sheets, @board, actor, carrier, target) {
+            return;
         }
+        let t = world.clock;
+        let _ = self.carry(ref world, sheets, actor, slot, carrier, target, t);
     }
 
     fn act(ref self: Executor, ref world: World, sheets: @Sheets, index: u32) {}
 
     fn objectives(ref self: Executor, ref world: World) {}
+}
+
+pub impl ExecutorCarry of Carry<Executor> {
+    fn carry(
+        ref self: Executor,
+        ref world: World,
+        sheets: @Sheets,
+        source: Actor,
+        slot: u8,
+        carrier: Carrier,
+        address: u16,
+        t: u32,
+    ) -> Executed {
+        let lever = Levered {};
+        let mut cache = self.cache;
+        let board = self.board;
+        let executed = ExecutorTrait::execute(
+            @lever, ref cache, ref world, sheets, @board, source, carrier, address, t,
+        );
+        self.cache = cache;
+        if executed != Executed::Place {
+            return executed;
+        }
+        let placer = TrapTrait::placer(@world, source, slot);
+        if !TrapTrait::place(ref self.ground, @world, @board, board.tile(address), placer) {
+            return Executed::Illegal;
+        }
+        self.placed.append((address, source));
+        Executed::Place
+    }
+
+    fn board(self: @Executor) -> Board {
+        *self.board
+    }
+
+    fn ground(self: @Executor) -> @Ground {
+        self.ground
+    }
 }
 
 /// The rules of the tick's library class under route (c) (the project manager, 2026-10-02,
@@ -1183,6 +1222,8 @@ pub struct Delegate {
     pub content: Content,
     pub index: Index,
     pub placed: Array<(u16, Actor)>,
+    /// The chunk objects a placement writes (CBT-05b, §5.11).
+    pub ground: Ground,
 }
 
 pub impl DelegateRules of Rules<Delegate> {
@@ -1194,13 +1235,37 @@ pub impl DelegateRules of Rules<Delegate> {
         let board = self.board;
         // §5.9 in this class: the slot's carrier, and its target still legal (else nothing, the
         // costs stay paid); the carrier itself runs behind the call.
-        let lever = Levered {};
         let carrier = ExecutorTrait::carrier(@world, sheets, actor, slot);
-        if !ExecutorTrait::legal(@lever, @world, sheets, @board, actor, carrier, target) {
+        if !ExecutorTrait::legal(@Levered {}, @world, sheets, @board, actor, carrier, target) {
             return;
         }
+        let t = world.clock;
+        let _ = self.carry(ref world, sheets, actor, slot, carrier, target, t);
+    }
+
+    fn act(ref self: Delegate, ref world: World, sheets: @Sheets, index: u32) {}
+
+    fn objectives(ref self: Delegate, ref world: World) {}
+}
+
+pub impl DelegateCarry of Carry<Delegate> {
+    #[inline(never)]
+    fn carry(
+        ref self: Delegate,
+        ref world: World,
+        sheets: @Sheets,
+        source: Actor,
+        slot: u8,
+        carrier: Carrier,
+        address: u16,
+        t: u32,
+    ) -> Executed {
+        let board = self.board;
+        let actor = source;
+        let target = address;
+        let lever = Levered {};
         // §5.14 step 2 before any sub-world: a `TRAP` carrier places its trap if its guard
-        // holds (CBT-05b writes the object), and nothing else runs (CBT-05a's review).
+        // holds and the tile can take one (§5.11), and nothing else runs (CBT-05a's review).
         if let Carrier::Skill((at, _)) = carrier {
             let first = lever.entry(sheets, at, 0);
             if first.kind == kind::TRAP {
@@ -1209,10 +1274,15 @@ pub impl DelegateRules of Rules<Delegate> {
                     Actor::Member(i) => ExecutorTrait::guards(@world.member(i), entries),
                     Actor::Goblin(i) => ExecutorTrait::guards(@world.goblin(i), entries),
                 };
-                if held & 1 == 1 {
-                    self.placed.append((target, actor));
+                if held & 1 == 0 {
+                    return Executed::Skipped;
                 }
-                return;
+                let placer = TrapTrait::placer(@world, actor, slot);
+                if !TrapTrait::place(ref self.ground, @world, @board, board.tile(target), placer) {
+                    return Executed::Illegal;
+                }
+                self.placed.append((target, actor));
+                return Executed::Place;
             }
         }
         let (addressing, _) = ExecutorTrait::addressing(@lever, @world, sheets, actor, carrier);
@@ -1282,8 +1352,9 @@ pub impl DelegateRules of Rules<Delegate> {
             clock: world.clock, members, goblins, killed: array![], defeated: false,
         };
         // Option (3)'s lever (1): only the records the sub-world's loads need.
-        let content = ExecutorTrait::subcontent(@world, picked.span(), @self.content);
-        // The carrier's skill at its position in the trimmed content (the class loads that one).
+        let mut content = ExecutorTrait::subcontent(@world, picked.span(), @self.content);
+        // The carrier's skill at its position in the trimmed content (the class loads that one);
+        // a potion drunk in the action phase (CBT-05b) joins it if no held effect brought it.
         let carrier = match carrier {
             Carrier::Skill((
                 at, rank,
@@ -1301,15 +1372,37 @@ pub impl DelegateRules of Rules<Delegate> {
                 }
                 Carrier::Skill((moved, rank))
             },
+            Carrier::Potion((
+                at, slot,
+            )) => {
+                let sheet = *self.content.potions[at];
+                let mut moved: Option<u32> = None;
+                let mut k = 0;
+                for potion in content.potions {
+                    if *potion.id == sheet.id {
+                        moved = Some(k);
+                        break;
+                    }
+                    k += 1;
+                }
+                let moved = match moved {
+                    Some(k) => k,
+                    None => {
+                        let mut potions = array![];
+                        potions.append_span(content.potions);
+                        potions.append(sheet);
+                        content = Content { potions: potions.span(), ..content };
+                        k
+                    },
+                };
+                Carrier::Potion((moved, slot))
+            },
             other => other,
         };
         let library = IExecutorLibraryLibraryDispatcher { class_hash: self.executor };
-        let (out, cache, place) = library
-            .execute(words, content, board, self.cache, sub, carrier, target, world.clock);
+        let (out, cache, _) = library
+            .execute(words, content, board, self.cache, sub, carrier, target, t);
         self.cache = cache;
-        if place {
-            self.placed.append((target, actor));
-        }
         let mut m = 0;
         for words in out.members {
             let member = MemberTrait::load(words, ref self.index, sheets);
@@ -1325,18 +1418,23 @@ pub impl DelegateRules of Rules<Delegate> {
         for entity in out.killed {
             world.killed.append(entity);
         }
+        Executed::Ran
     }
 
-    fn act(ref self: Delegate, ref world: World, sheets: @Sheets, index: u32) {}
+    fn board(self: @Delegate) -> Board {
+        *self.board
+    }
 
-    fn objectives(ref self: Delegate, ref world: World) {}
+    fn ground(self: @Delegate) -> @Ground {
+        self.ground
+    }
 }
 
 #[generate_trait]
 pub impl ExecutorImpl of ExecutorTrait {
     /// The executor's rules on `board`.
     fn new(board: Board) -> Executor {
-        Executor { board, cache: Default::default(), placed: array![] }
+        Executor { board, cache: Default::default(), placed: array![], ground: array![] }
     }
 
     /// Step 1 (§5.9): the activation of `actor`'s `slot` on `address` concluded (the pipeline set
@@ -2615,9 +2713,9 @@ pub impl ExecutorImpl of ExecutorTrait {
 /// 10.4, 10.6–10.10), §5.14's steps and order, each kind of §3 the MVP's content uses, §5.7,
 /// §5.12, §5.13, §6's edges for carriers, the guard (SPK-15's) across two hits, and L3's pairs:
 /// each part levered alone against `Naive` (the totals of two tests that differ by the lever
-/// alone).
+/// alone). Its fixtures serve the action phase's and the traps' tests (CBT-05b).
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use snforge_std::{DeclareResultTrait, declare};
     use crate::interface::{IExecutorLibraryDispatcherTrait, IExecutorLibraryLibraryDispatcher};
     use crate::models::goblin::{
@@ -2643,41 +2741,41 @@ mod tests {
     // ---- Fixtures ------------------------------------------------------------------------------
 
     /// The member's tile: (7, 7), position 112, in the open window at the origin.
-    const AT: u8 = 112;
+    pub const AT: u8 = 112;
     /// Ids of the tests' skills, appended to the fixtures' content (positions 16 on).
-    const RING: u16 = 40;
-    const SKULLRING: u16 = 41;
-    const SIDESTEP: u16 = 42;
-    const BRACE: u16 = 43;
-    const CROSSING: u16 = 44;
-    const SNARE: u16 = 45;
-    const KNOCK: u16 = 46;
-    const KINDS: u16 = 47;
-    const SHIELD: u16 = 48;
-    const STRIKE: u16 = 49;
+    pub const RING: u16 = 40;
+    pub const SKULLRING: u16 = 41;
+    pub const SIDESTEP: u16 = 42;
+    pub const BRACE: u16 = 43;
+    pub const CROSSING: u16 = 44;
+    pub const SNARE: u16 = 45;
+    pub const KNOCK: u16 = 46;
+    pub const KINDS: u16 = 47;
+    pub const SHIELD: u16 = 48;
+    pub const STRIKE: u16 = 49;
 
-    fn open() -> Window {
+    pub fn open() -> Window {
         WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
     }
 
-    fn board() -> Board {
+    pub fn board() -> Board {
         BoardTrait::new(open(), 0, 0)
     }
 
-    fn xy(position: u8) -> (u8, u8) {
+    pub fn xy(position: u8) -> (u8, u8) {
         (position % 15, position / 15)
     }
 
     /// The tiles of `RING_1` around `centre`, ascending.
-    fn ring(centre: u8) -> Span<u8> {
+    pub fn ring(centre: u8) -> Span<u8> {
         WindowTrait::tiles(open().shape(shape::RING_1, centre))
     }
 
-    fn entry(kind: u8, param: u8, v0: i16, v12: i16, t: u8, s: u8, f: u8) -> Entry {
+    pub fn entry(kind: u8, param: u8, v0: i16, v12: i16, t: u8, s: u8, f: u8) -> Entry {
         EntryTrait::new(kind, param, v0, v12, 0, 0, 0, t, s, f, 0, 0)
     }
 
-    fn skill(id: u16, kind: u8, range: u8, entries: [Entry; 3]) -> SkillSheet {
+    pub fn skill(id: u16, kind: u8, range: u8, entries: [Entry; 3]) -> SkillSheet {
         let [a, b, c] = entries;
         SkillSheet {
             id,
@@ -2691,6 +2789,7 @@ mod tests {
             entry1: a.pack(),
             entry2: b.pack(),
             entry3: c.pack(),
+            ..Default::default(),
         }
     }
 
@@ -2698,7 +2797,7 @@ mod tests {
     /// tests'
     /// skills after, castes of armor `armor`, a sword of damage 30 (rank 12: strength 60), one
     /// potion per `potions`.
-    fn content(armor: u8, potions: Span<PotionSheet>) -> Content {
+    pub fn content(armor: u8, potions: Span<PotionSheet>) -> Content {
         let base = Fixture::content();
         let none: Entry = Default::default();
         let mut skills = array![];
@@ -2785,12 +2884,12 @@ mod tests {
         Content { skills: skills.span(), potions, castes: castes.span() }
     }
 
-    fn sheets(armor: u8) -> Sheets {
+    pub fn sheets(armor: u8) -> Sheets {
         content(armor, array![].span()).sheets()
     }
 
     /// The position of skill `id` in `content`'s sheets.
-    fn at(sheets: @Sheets, id: u16) -> u32 {
+    pub fn at(sheets: @Sheets, id: u16) -> u32 {
         let mut i = 0;
         for sheet in *sheets.skills {
             if *sheet.id == id {
@@ -2803,7 +2902,7 @@ mod tests {
 
     /// The fixtures' member at `position` facing `facing`, level 20, a weapon of `class`,
     /// damage 27, range 1, strength 60, type slashing, its requirement met.
-    fn member(position: u8, facing: u8, class: u8) -> Member {
+    pub fn member(position: u8, facing: u8, class: u8) -> Member {
         let mut member = Fixture::member(Fixture::spec());
         place_member(ref member, position, facing);
         member.words.stats += 20 * two(64)
@@ -2816,13 +2915,13 @@ mod tests {
         member
     }
 
-    fn place_member(ref member: Member, position: u8, facing: u8) {
+    pub fn place_member(ref member: Member, position: u8, facing: u8) {
         let (x, y) = xy(position);
         member.words.state += x.into() * two(32) + y.into() * two(40) + facing.into() * two(48);
     }
 
     /// A fixtures' goblin of caste HOB at `position`, facing `facing`, health `health`.
-    fn goblin(entity: u16, position: u8, facing: u8, health: u16) -> Goblin {
+    pub fn goblin(entity: u16, position: u8, facing: u8, health: u16) -> Goblin {
         let mut goblin = Fixture::goblin(entity, HOB);
         let (x, y) = xy(position);
         goblin.state += x.into() + y.into() * two(8) + facing.into() * two(16);
@@ -2834,11 +2933,11 @@ mod tests {
     }
 
     /// The facing from `from` toward `to`.
-    fn toward(from: u8, to: u8) -> u8 {
+    pub fn toward(from: u8, to: u8) -> u8 {
         WindowTrait::facing(from, to, 0)
     }
 
-    fn levered() -> Levered {
+    pub fn levered() -> Levered {
         Levered {}
     }
 
