@@ -337,17 +337,19 @@ export function fromExport(raw: unknown, manifest: Manifest): ImportResult {
   for (const b of e.bridges ?? []) {
     const kind = kindOf(b.kind);
     const at = { x: b.ends[0][0], y: b.ends[0][1] };
+    // Its deck's length is the file's (CLI-09f); its run and lean, the shape that draws it.
+    const deck = b.deck.length;
     const shape = BRIDGE_RUNS.flatMap((run) =>
       [false, true].map((mirror) => ({ run, mirror })),
     ).find(({ run, mirror }) => {
       if (kind?.category !== "bridge") return false;
-      const drawn = bridgeAt(kind, at, mirror, run);
+      const drawn = bridgeAt(kind, at, mirror, run, deck);
       return same(drawn.deck.map(hex), b.deck) && same(drawn.ends.map(hex), b.ends);
     });
     if (!shape) {
       return refuse(`the ${b.kind} from (${at.x}, ${at.y}) is not a bridge the editor draws`);
     }
-    objects.push({ kind: "bridge", at, type: b.kind, mirror: shape.mirror, run: shape.run });
+    objects.push({ kind: "bridge", at, type: b.kind, mirror: shape.mirror, run: shape.run, deck });
   }
   if (missing.length > 0) {
     return refuse(`the content manifest does not name ${[...new Set(missing)].join(", ")}`);

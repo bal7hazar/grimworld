@@ -100,12 +100,13 @@ const prop = (at: Tile, type = "tree", variant = 0, mirror = false, facing = 0):
   facing,
   mirror,
 });
-const bridge = (at: Tile, type = "stone_bridge", mirror = false): PackObject => ({
+const bridge = (at: Tile, type = "stone_bridge", mirror = false, deck = 1): PackObject => ({
   kind: "bridge",
   at,
   type,
   mirror,
   run: "north",
+  deck,
 });
 
 describe("the pack's rows (CLI-09e part 2)", () => {

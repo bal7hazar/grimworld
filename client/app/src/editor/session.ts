@@ -33,7 +33,7 @@ import {
   movedBy,
   newObject,
 } from "./objects";
-import { buildingFootprint, doorOf, doorOffset } from "./pack";
+import { buildingFootprint, doorOf, doorOffset, placedOn } from "./pack";
 import { doorChoices, kindOf as packKindOf } from "./palette";
 import { DEFAULT_LAYERS, LAYER_NAMES, type Layers } from "./view";
 
@@ -427,7 +427,8 @@ export class EditorSession {
       id = single[0];
       this.step([{ object: id, before: single[1], after: { ...single[1], at: tile } }]);
     } else {
-      const object = newObject(this.placing, tile);
+      // A bridge on land spans the water ahead (CLI-09f).
+      const object = placedOn(this.doc, newObject(this.placing, tile));
       // A pack object whose record cannot be written (past the plane's bound) is not placed.
       const record = kindOf(object).record?.(object);
       if (record && "problem" in record) {
