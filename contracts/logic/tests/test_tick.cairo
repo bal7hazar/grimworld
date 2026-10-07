@@ -568,7 +568,7 @@ fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (world, content) = representative();
-    let words = library.run(world.store(), content_of(@content), board(), executor(), 10);
+    let words = library.run(world.store(), content_of(@content), board(), executor(), ai_class(), trap(), 10, 10);
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -987,7 +987,7 @@ fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words();
-    let words = library.run(words, content, board(), executor(), 1);
+    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
     assert(words.clock == 50, 'one tick');
 }
 
@@ -1004,7 +1004,7 @@ fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (world, content) = worst_state(false, 1);
-    let words = library.run(world.store(), content_of(@content), board(), executor(), 10);
+    let words = library.run(world.store(), content_of(@content), board(), executor(), ai_class(), trap(), 10, 10);
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -1030,7 +1030,7 @@ fn test_library_matches_pipeline() {
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words();
     let (expected, _) = worst_words();
-    let words = library.run(words, content, board(), executor(), 3);
+    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 3);
     let (mut world, sheets) = expected.load(@content);
     let mut rules = ExecutorTrait::new(board());
     TickTrait::run(ref world, @sheets, 3, ref rules);
@@ -2807,7 +2807,7 @@ fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_kills();
-    let words = library.run(words, content, board(), executor(), 1);
+    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
     assert(words.killed.len() == 100, 'every goblin once');
 }
 
@@ -2841,7 +2841,7 @@ fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_two();
-    let words = library.run(words, content, board(), executor(), 1);
+    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
     assert(words.members.len() == 2, 'two members');
 }
 
@@ -2880,7 +2880,7 @@ fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_all_dead();
-    let words = library.run(words, content, board(), executor(), 1);
+    let words = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
     assert(words.killed.len() == 100, 'each goblin once');
 }
 
@@ -3324,6 +3324,15 @@ fn executor() -> starknet::ClassHash {
     *declare("ExecutorLibrary").unwrap().contract_class().class_hash
 }
 
+/// The goblins' acts' class (ENG-07) and the traps' (D-222).
+fn ai_class() -> starknet::ClassHash {
+    *declare("AiLibrary").unwrap().contract_class().class_hash
+}
+
+fn trap() -> starknet::ClassHash {
+    *declare("TrapLibrary").unwrap().contract_class().class_hash
+}
+
 /// The board of the library's calls (CBT-05a): an open window at the location's origin. The
 /// fixtures' actors stand at (0, 0) and conclude no carrier that reaches another actor.
 fn board() -> Board {
@@ -3416,7 +3425,7 @@ fn agree(words: Words, content: Content) -> Words {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (mut world, sheets) = words.clone().load(@content);
-    let out = library.run(words, content, board(), executor(), 1);
+    let out = library.run(words, content, board(), executor(), ai_class(), trap(), 10, 1);
     let mut rules = ExecutorTrait::new(board());
     TickTrait::run(ref world, @sheets, 1, ref rules);
     assert(out == world.store(), 'route (c) = in process');
@@ -3560,6 +3569,10 @@ fn test_cost_route_c_tick() {
         index,
         placed: array![],
         ground: array![],
+        ai: ai_class(),
+        trap: trap(),
+        level: 10,
+        frozen: 0,
     };
     TickTrait::tick(ref world, @sheets, ref rules);
     assert(rules.cache.hits == 8 && !world.defeated, 'eight hits');
@@ -3687,7 +3700,7 @@ fn rep_run(scenario: u8, ticks: u8) -> Words {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let executor = executor();
-    library.run(rep_words(scenario), rep_content(), board(), executor, ticks)
+    library.run(rep_words(scenario), rep_content(), board(), executor, ai_class(), trap(), 10, ticks)
 }
 
 /// A fixture: the same arguments and classes, no call.
@@ -3831,6 +3844,10 @@ fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
         index,
         placed: array![],
         ground: array![],
+        ai: ai_class(),
+        trap: trap(),
+        level: 10,
+        frozen: 0,
     };
     (world, sheets, rules)
 }
@@ -3916,7 +3933,7 @@ fn test_cost_act_bomb() {
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (tile, _) = bomb_tile();
     let (words, _, illegal) = library
-        .act(act_words(), bomb_content(), board(), executor(), array![], Action::Item((0, tile)));
+        .act(act_words(), bomb_content(), board(), executor(), ai_class(), trap(), 10, array![], Action::Item((0, tile)));
     assert(illegal.is_none() && words.clock == 41, 'bomb, one tick');
 }
 
@@ -3928,7 +3945,7 @@ fn test_cost_act_wait() {
     let (tile, _) = bomb_tile();
     let _ = tile;
     let (words, _, illegal) = library
-        .act(rep_words(0), bomb_content(), board(), executor(), array![], Action::Wait);
+        .act(rep_words(0), bomb_content(), board(), executor(), ai_class(), trap(), 10, array![], Action::Wait);
     assert(illegal.is_none() && words.clock == 41, 'wait, one tick');
 }
 
@@ -3981,4 +3998,146 @@ fn test_cost_trap_class() {
     let (_, features) = *ground.at(0);
     let [used, _, _] = features.objects;
     assert(triggered && used.state == 1 && out.members.len() == 1, 'triggered');
+}
+
+// ---- ENG-07: the act hook's class (`AiLibrary`), its call measured as a pair (D-225) -----------
+// Scenario 0's state (the member at `AT`, 8 awake goblins one a tile: its ring of 6 and 2 behind),
+// every goblin in AI state `state`. Returning (5) goblins are awake, free and do nothing: the call
+// alone. Engaged (3) ones each attack the member with their weapon of reach 6 through
+// `ExecutorLibrary`. Busy ones (recovering until tick 100) make no call (D-225).
+
+fn ai_words(state: u8, busy: bool) -> Words {
+    ai_words_of(state, busy, false)
+}
+
+/// The same, every caste skill recharging until tick 100 when `recharging`: each Engaged goblin
+/// attacks with its weapon.
+fn ai_words_of(state: u8, busy: bool, recharging: bool) -> Words {
+    let words = rep_words(0);
+    let mut goblins = array![];
+    for goblin in words.goblins.span() {
+        let mut goblin = *goblin;
+        goblin.state = goblin.state + (state.into() - ai::ENGAGED.into()) * two(24);
+        if busy {
+            goblin.timers = goblin.timers - 1 + 100 * two(24);
+        }
+        if recharging {
+            goblin.state = goblin.state + 100 * (two(128) + two(156) + two(184) + two(212));
+        }
+        goblins.append(goblin);
+    }
+    Words { goblins, ..words }
+}
+
+fn ai_call(state: u8) -> Words {
+    ai_call_of(ai_words(state, false))
+}
+
+fn ai_call_of(words: Words) -> Words {
+    let class = declare("AiLibrary").unwrap().contract_class();
+    let library = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let (out, _) = grimworld_logic::interface::IAiLibraryDispatcherTrait::act(
+        library,
+        words,
+        rep_content(),
+        board(),
+        executor(),
+        trap(),
+        array![],
+        10,
+        0,
+        0,
+    );
+    out
+}
+
+#[test]
+fn test_cost_ai_fixture() {
+    let class = declare("AiLibrary").unwrap().contract_class();
+    let _ = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let _ = executor();
+    let _ = trap();
+    let words = ai_words(5, false);
+    let content = rep_content();
+    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+}
+
+#[test]
+fn test_cost_ai_call_returning() {
+    let out = ai_call(5);
+    assert(out.goblins.len() == 8, 'eight');
+}
+
+#[test]
+fn test_cost_ai_call_engaged() {
+    let out = ai_call(ai::ENGAGED);
+    assert(out.goblins.len() == 8 && !out.defeated, 'eight attacks');
+}
+
+fn ai_tick(state: u8, busy: bool) -> Words {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    library.run(ai_words(state, busy), rep_content(), board(), executor(), ai_class(), trap(), 10, 1)
+}
+
+#[test]
+fn test_cost_ai_tick_busy() {
+    let words = ai_tick(5, true);
+    assert(words.clock == 41, 'one tick');
+}
+
+#[test]
+fn test_cost_ai_tick_returning() {
+    let words = ai_tick(5, false);
+    assert(words.clock == 41, 'one tick');
+}
+
+#[test]
+fn test_cost_ai_tick_engaged() {
+    let words = ai_tick(ai::ENGAGED, false);
+    assert(words.clock == 41, 'one tick');
+}
+
+
+#[test]
+fn test_cost_ai_call_attacks() {
+    let before = ai_words_of(ai::ENGAGED, false, true);
+    let state = (*before.members[0]).state;
+    let out = ai_call_of(before);
+    assert((*out.members[0]).state != state, 'eight attacks');
+}
+
+#[test]
+fn test_cost_ai_fixture_attacks() {
+    let class = declare("AiLibrary").unwrap().contract_class();
+    let _ = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
+        class_hash: *class.class_hash,
+    };
+    let _ = executor();
+    let _ = trap();
+    let words = ai_words_of(ai::ENGAGED, false, true);
+    let content = rep_content();
+    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+}
+
+#[test]
+fn test_cost_ai_tick_attacks() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let words = library
+        .run(
+            ai_words_of(ai::ENGAGED, false, true),
+            rep_content(),
+            board(),
+            executor(),
+            ai_class(),
+            trap(),
+            10,
+            1,
+        );
+    assert(words.clock == 41, 'one tick');
 }
