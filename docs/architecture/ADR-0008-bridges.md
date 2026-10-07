@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Proposed** (ENG-08b, track game, 2026-10-07). Each rule below is a recommendation; **the project manager rules on them before any code** (PLAN's ENG-08b row) |
+| Status | **Proposed** (ENG-08b, track game, 2026-10-07); **Open questions 1–4 decided by the project manager (D-226, 2026-10-07)**, 5 and 6 by the orchestrator (stand). Rules not named by a ruling stay recommendations for the project manager (PLAN's ENG-08b row) |
 | Date | 2026-10-07 |
 | Decides | The rules of a bridge in play and in the content pipeline: a position's level, movement and pathfinding across levels, sight, combat reach, traps and quotas, the window and the reveal, the converter's reachability (P-1) |
 | Builds on | **D-217** (the owner: bridges on two levels, pass under or on), ENG-08's format (ENG-01 §3.5, #378: the `BRIDGE` record, D-214, D-215, D-221), D-225 (ENG-07 one level until this lands), D-127, D-134, D-136, D-144, D-174, D-200; design/04, design/18, design/19 §2.3, §5.11; CLI-09e §1 *Bridges* (the editor's one-hex deck) |
@@ -75,6 +75,9 @@ A Move stays one tile in one of six directions, one tick (two Crippled), facing 
   (`either`): **21,456** with no deck (+2,060, ×1.11) and **36,568** with one. Recommendation: branch
   in the caller (once a move, or once a batch on the union of its windows); a batch of 10 moves pays
   at most +20,600 with no deck, +171,720 across a bridge.
+- **Decided (D-226, condition)**: the +2,060 a move with no deck in the window is **ENG-07b's own
+  D-144 row**, to bring close to zero (for example a window flag read once a batch, the one-level
+  loop run when no chunk of the batch holds a bridge).
 
 ### Rule 3 — Pathfinding (the goblins' flood)
 
@@ -84,7 +87,10 @@ A Move stays one tile in one of six directions, one tick (two Crippled), facing 
   neighbour (by rule 2) in the least layer, ties as today. With no deck in the window the flood is
   today's, unchanged.
 - Goblins use bridges (they climb, cross and descend) as members do. A goblin on the deck that
-  cannot reach a member below waits for the flood to lead it down an end.
+  cannot reach a member below waits for the flood to lead it down an end. **Decided (D-226, Q3)**:
+  goblins use bridges; the implementing lot measures the capped flood with a deck first and **stops
+  above 1.5 M** (the fallback: goblins never climb); the figure is a D-144 row (R-2). A goblin's
+  return to its spawn walks the same graph (the orchestrator, Q6, stands).
 - **How** (proposed for the implementing lot): a layer is two bitmaps, the ground's and the deck's.
   Per layer, with `F` the ground frontier, `Fd` the deck frontier, `E` the ends, `D` the deck tiles,
   `N(·)` hexx's dilation: ground `N(F \ (E ∪ D)) ∪ (N(F ∩ E) \ D) ∪ (N(F ∩ D) \ E) ∪ (N(Fd) ∩ E)`
@@ -93,7 +99,7 @@ A Move stays one tile in one of six directions, one tick (two Crippled), facing 
 - **Cost: E, not measured.** SPK-7's layer is 26,452 and the capped worst flood 634,655 (ADR-0006,
   *Measured*); with a deck in the window a layer holds up to five dilations instead of one, so
   **≤ 3.2 M at the cap (E, ×5)**, only on windows that hold a deck. The implementing lot measures it
-  (D-144); Open question 3 gives the cheaper fallback.
+  (D-144); Open question 3 (D-226) gives the stop at 1.5 M and the cheaper fallback.
 
 ### Rule 4 — Occupancy
 
@@ -114,7 +120,8 @@ A Move stays one tile in one of six directions, one tick (two Crippled), facing 
   adventurer's tile only: unchanged by its level.
 - **Consequence**: a deck tile over a river is open for sight, so a line across the river through
   the deck is clear, though the river elsewhere still hides what lies beyond it (D-221's v1 limit).
-  This follows from "the deck blocks nothing"; Open question 2 asks whether to keep it.
+  This follows from "the deck blocks nothing". **Decided (D-226, Q2)**: kept; a deck over water
+  opens sight at its own tiles only, a narrow exception to D-221.
 - `WindowTrait` is frozen (ENG-02): nothing changes in it. The caller builds the `Window` it passes
   to `sight`, `reach` and `shape` from `open | deck` instead of `open`; the movement check keeps its
   own board (rule 2). Cost: one addition a tick when a deck is in the window (E, of the order of a
@@ -129,7 +136,7 @@ A Move stays one tile in one of six directions, one tick (two Crippled), facing 
 - **Ranged by the usual rules**: range 6 on the plane's hex distance (`WindowTrait::distance`), a line
   of sight on the combat window (rule 5), in either direction between the levels, except the stacked
   pair (no sight). Arcs and facing read the plane (`arc`, `front`, `facing`): unchanged.
-- **Shapes** (recommendation; Open question 1): a shape (`SINGLE`, `RING_1`, `DISC_1` … `DISC_3`,
+- **Shapes** (**decided, D-226, Q1**): a shape (`SINGLE`, `RING_1`, `DISC_1` … `DISC_3`,
   design/19 §2.3) covers its tiles on **both levels** (a bomb on a deck tile also strikes the one
   under it), **except a shape of a `TOUCH` skill, which strikes its source's level only** (a cleave
   on the deck does not reach below, as its single hit would not). `WindowTrait::shape` is unchanged
@@ -276,16 +283,19 @@ the vector tables are the game's.
   bridges takes ENG-08b's rules" → the lot that builds them; ENG-09's row: R-36, R-37, P-1 with
   bridges, the bridge count copied at the reveal.
 
-## Open questions (each with its decider and a recommendation)
+## Open questions (each with its decider, its recommendation and its ruling)
 
-| # | Question | Decider | Recommendation |
-|---|---|---|---|
-| 1 | Shapes across levels: both levels on a shape's tiles, except a `TOUCH` skill's shape (its source's level)? | project manager (a combat rule; CBT track's design/19) | Yes, as rule 6. Reversed if a playtest finds bombs through decks wrong (then a shape strikes its centre's level only, and a tile target needs a level bit) |
-| 2 | A deck over a river opens a line of sight across the river at the deck's tile (rule 5's consequence), against D-221's "a lake hides what lies beyond it" | project manager (D-221 is theirs) | Keep: the deck is a visible structure; it changes sight on the deck's tiles only. Reversed: the combat window takes `deck` only where the ground beneath is walkable |
-| 3 | Goblins use bridges (rule 3) at an estimated ≤ 3.2 M a capped flood on windows with a deck, or never climb in v1 (decks out of their graph: a goblin stops at an end, members on a deck are reached only by ranged goblins) | project manager (D-144, R-2) | Use bridges; the implementing lot measures the flood first and stops for the project manager if the capped flood with a deck passes 1.5 M (≈ 2.4 × today's capped worst) |
-| 4 | Which lot builds the rules in play: ENG-07 is one level (D-225) | project manager (the order of lots) | A lot **ENG-07b, bridges in play**, after ENG-07 and ENG-09 (it needs the authored reveal's bridge count and ENG-07's window and flood): rules 1–7 and 9 in the contracts, the vectors and the paired CV PR. ENG-09 takes rule 8 (P-1, R-36, R-37 in the converter and `ZoneAssert`) and the `Terrain` count. ENG-07 meanwhile builds its check as a function of a board (as SPK-18's `Ground`), so ENG-07b swaps it for the two-level one and branches in the caller |
-| 5 | R-36 (nothing on an end) and R-37 (decks apart): accepted as content rules? | orchestrator (the track's own rule) | Yes: both are cheap, keep the window's masks exact and a bridge never closed |
-| 6 | An actor on the deck and a goblin's return to its spawn (`GoblinState`'s AI state *returning*, ENG-01 §3.2): the spawn is on the ground; the flood leads it down | orchestrator | Nothing to add: the return walks the same graph |
+The project manager's rulings on Q1–Q4 are **D-226** (2026-10-07); Q5 and Q6 stand as the
+orchestrator's.
+
+| # | Question | Decider | Recommendation | Decided |
+|---|---|---|---|---|
+| 1 | Shapes across levels: both levels on a shape's tiles, except a `TOUCH` skill's shape (its source's level)? | project manager (a combat rule; CBT track's design/19) | Yes, as rule 6. Reversed if a playtest finds bombs through decks wrong (then a shape strikes its centre's level only, and a tile target needs a level bit) | **D-226**: an area shape hits both levels on its tiles; a `TOUCH` shape only its source's level |
+| 2 | A deck over a river opens a line of sight across the river at the deck's tile (rule 5's consequence), against D-221's "a lake hides what lies beyond it" | project manager (D-221 is theirs) | Keep: the deck is a visible structure; it changes sight on the deck's tiles only. Reversed: the combat window takes `deck` only where the ground beneath is walkable | **D-226**: kept; a deck over water opens sight at its own tiles only, a narrow exception to D-221 |
+| 3 | Goblins use bridges (rule 3) at an estimated ≤ 3.2 M a capped flood on windows with a deck, or never climb in v1 (decks out of their graph: a goblin stops at an end, members on a deck are reached only by ranged goblins) | project manager (D-144, R-2) | Use bridges; the implementing lot measures the flood first and stops for the project manager if the capped flood with a deck passes 1.5 M (≈ 2.4 × today's capped worst) | **D-226**: goblins use bridges; the capped flood measured first, stop above 1.5 M (fallback: never climb); a D-144 row (R-2) |
+| 4 | Which lot builds the rules in play: ENG-07 is one level (D-225) | project manager (the order of lots) | A lot **ENG-07b, bridges in play**, after ENG-07 and ENG-09 (it needs the authored reveal's bridge count and ENG-07's window and flood): rules 1–7 and 9 in the contracts, the vectors and the paired CV PR. ENG-09 takes rule 8 (P-1, R-36, R-37 in the converter and `ZoneAssert`) and the `Terrain` count. ENG-07 meanwhile builds its check as a function of a board (as SPK-18's `Ground`), so ENG-07b swaps it for the two-level one and branches in the caller | **D-226**: ENG-07b after ENG-07 and ENG-09; ENG-09 takes P-1, R-36, R-37 and the `Terrain` count; ENG-07 builds its move check as a function of a board. Condition: the +2,060 a move with no deck is ENG-07b's own D-144 row, brought close to zero (a window flag read once a batch) |
+| 5 | R-36 (nothing on an end) and R-37 (decks apart): accepted as content rules? | orchestrator (the track's own rule) | Yes: both are cheap, keep the window's masks exact and a bridge never closed | **Stands** (the orchestrator's): R-36 and R-37 are content rules |
+| 6 | An actor on the deck and a goblin's return to its spawn (`GoblinState`'s AI state *returning*, ENG-01 §3.2): the spawn is on the ground; the flood leads it down | orchestrator | Nothing to add: the return walks the same graph | **Stands** (the orchestrator's): the return walks the same graph |
 
 ## What would reverse it
 
