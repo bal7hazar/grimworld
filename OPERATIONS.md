@@ -288,7 +288,7 @@ verdict, findings table, coverage).
 
 ### Deployment blockers
 
-- A non-test deployment is blocked while D-208's dungeon residue stands (see its decision file).
+- None. D-208's dungeon residue was lifted on 2026-10-07: ENG-10b measured it to zero (0 chunks, 0 tiles), and its randomness re-audit passed with a minor finding deferred (PLAN FEED-1). D-229 keeps it at zero once an entropy feeder lands.
 
 ## 8. Phase gates and the definition of done
 
