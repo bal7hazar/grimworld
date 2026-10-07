@@ -3,10 +3,10 @@
 //! anyway. `GROUND` (0) is every tile's level but a deck's; `DECK` (1) only on a bridge's deck.
 //!
 //! The bits (ENG-01 §3.2's free bits, proposed for the bookkeeping):
-//! - `MemberState`: x 32–39 · y 40–47 · facing 48–55 (today) · **level 176** (bits 176–249 are
-//!   free after `casts_2` 168–175);
-//! - `GoblinState`: x 0–7 · y 8–15 · facing 16–23 (today) · **level 240**, **the memory's level
-//!   241** (bits 240–249 are free after the recharges 128–239).
+//! - `MemberState`: x 32–39 · y 40–47 · facing 48–55 (today) · **level 176** (bits
+//!   176–249 are free after `casts_2` 168–175);
+//! - `GoblinState`: x 0–7 · y 8–15 · facing 16–23 (today) · **level 240**, **the
+//!   memory's level 241** (bits 240–249 are free after the recharges 128–239).
 //!
 //! `place` and `moved` are today's reads and writes of a position (`MemberSnapshotTrait::place`,
 //! `GoblinSnapshotTrait::place` and `set_facing`'s delta, on the word); `place_level` and

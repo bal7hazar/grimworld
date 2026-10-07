@@ -116,15 +116,21 @@ fn either(ground: @Ground, bridged: @Bridged, from: u8, level: u8, facing: u8) -
 fn test_once_either_none() {
     let ground = bench_ground();
     let bridged = bench_plain();
-    assert(either(@ground, @bridged, opaque(at(7, 8)), opaque(GROUND), opaque(0)).is_some(), 'step');
+    assert(
+        either(@ground, @bridged, opaque(at(7, 8)), opaque(GROUND), opaque(0)).is_some(), 'step',
+    );
 }
 
 #[test]
 fn test_twice_either_none() {
     let ground = bench_ground();
     let bridged = bench_plain();
-    assert(either(@ground, @bridged, opaque(at(7, 8)), opaque(GROUND), opaque(0)).is_some(), 'step');
-    assert(either(@ground, @bridged, opaque(at(6, 8)), opaque(GROUND), opaque(3)).is_some(), 'step');
+    assert(
+        either(@ground, @bridged, opaque(at(7, 8)), opaque(GROUND), opaque(0)).is_some(), 'step',
+    );
+    assert(
+        either(@ground, @bridged, opaque(at(6, 8)), opaque(GROUND), opaque(3)).is_some(), 'step',
+    );
 }
 
 #[test]
