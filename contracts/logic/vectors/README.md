@@ -139,13 +139,14 @@ value for `Some`, `1` for `None`; an `i8` as a felt, `-1` as `P − 1`).
 | `base` | `word`, `biome` (1 meadow … 4 ruin) | `BoardTrait::base`: the base's floor bitmap (1 = floor, interior only) |
 | `sight` | `x`, `y`, `width`, `height` (a global tile, a location in chunks) | `SightTrait::chunks`: the chunks within 6, the tile's own first, then by index |
 | `member` | `tile`, `k` (0–18), `odd` (the tile's global row parity) | `PackPlacementTrait::member`: `Option<u8>`, the chunk's tile at `OFFSETS[k]` |
-| `reveal` | `Site`, `Progress`, `instance_id`, `known` (`Span<(u8, Terrain)>`; in a dungeon every revealed chunk), `chunks` (`Span<u8>`) | `RevealTrait::reveal`: the `Progress` after, then the chunks revealed, `Span<Revealed>` (chunk, `Terrain` (walls 1 = wall, edges), `Features` (2 `PackPlacement`, 3 `Object`, `touched`)) |
+| `reveal` | `Site` (ENG-10b: with `west` and `north` after `chunk_set`, a dungeon's open seams; 0 in a zone), `Progress`, `instance_id`, `known` (`Span<(u8, Terrain)>`; in a dungeon every revealed chunk), `chunks` (`Span<u8>`) | `RevealTrait::reveal`: the `Progress` after, then the chunks revealed, `Span<Revealed>` (chunk, `Terrain` (walls 1 = wall, edges), `Features` (2 `PackPlacement`, 3 `Object`, `touched`)) |
 
-`reveal` covers every computation the client repeats: the chunk's word, the base, the smoothing
-with the margins (`hexx`'s `CaverTrait::smooth`, B4/S2, one generation), the ring's decisions and
-openings, the lines to the spine, the cut, `keep_component`, the quotas' draws, the bands and the
-placement (the draws of `hexx`'s `RngTrait` from `mix(word, k)`: 2 quotas, 3 placement, 4 the
-ring), and the progress (revealed set, count, open edges, quotas left; the entropy unchanged).
+`reveal` covers every computation the client repeats: the chunk's word, the base, the smoothing with
+the margins (`hexx`'s `CaverTrait::smooth`, B4/S2, one generation), the ring's decisions and
+openings (a dungeon side's from its seam's stream, D-224), the lines to the spine, the cut,
+`keep_component`, the quotas' draws, the bands and the placement (the draws of `hexx`'s `RngTrait`
+from `mix(word, k)`: 2 quotas, 3 placement, 4 the ring), and the progress (revealed set, count, open
+edges, quotas left; the entropy unchanged).
 
 The cases (197):
 - `word` (18): 3 entropies (0, a short string, `P − 1`) × 2 instance ids × 3 chunks (0, 112, 224);
@@ -157,8 +158,9 @@ The cases (197):
   neighbours one at a time (1 to 4 sides known); the edge of a 2 × 2 zone whose chunk (1, 1) is
   outside the outline, an anchor on the East side (three chunks asked, the void one skipped); a
   ruin's chunk cut by a tile mask (columns 0–11), then its neighbour.
-- `reveal`, part 2 (11): a cave dungeon floor of `N` 6 grown from its entry chunk 112 to its close
-  (the frontier's rules at `N − 1` and `N`), with an exit and a vein quota; a 2 × 2 meadow with a
+- `reveal`, part 2 (11): a cave dungeon floor of `N` 6 entered at chunk 112, its outline drawn at
+  `create` (ENG-10b: `Site`'s `chunk_set`, `west` and `north`, every chunk's mask with its hosts
+  above the board), revealed whole by index, with an exit and a vein quota; a 2 × 2 meadow with a
   collector, two landmarks, a Heart and a task's landmark, revealed whole (every quota placed); a
   set piece laid by quota, then its neighbour.
 

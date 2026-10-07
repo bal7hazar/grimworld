@@ -723,6 +723,7 @@ pub mod tests {
     use core::dict::{Felt252Dict, Felt252DictTrait};
     use core::poseidon::poseidon_hash_span;
     use hexx::board::bits::Bits;
+    use hexx::board::rng::RngTrait;
     use hexx::board::seams::{SeamTrait, Side};
     use crate::fate::{ENTRY, EntropyTrait, REVEAL, domain};
     use crate::models::chunk::{PackPlacementTrait, Terrain, object};
@@ -1257,6 +1258,69 @@ pub mod tests {
             }
             seed += 1;
         }
+    }
+
+    // D-224 amended (the project manager, 2026-10-07): a floor's seam openings derived, over its
+    // whole life. Each reveal in a dungeon computes the outline's seed once (`decide`), and each
+    // open seam's openings are drawn once, by the first of its two chunks revealed (the second
+    // copies them): `N` seeds and one stream a seam. Storing them instead would draw the same
+    // streams at `create`, then write and read a slot: this test, less its baseline (the floor
+    // built, nothing derived), is the derivation's whole cost on a floor of 12.
+    fn seams_life(site: @Site, entropy: felt252) {
+        let count = BoardTrait::count(*site.chunk_set);
+        let mut i: u8 = 0;
+        while i != count {
+            let _seed = EntropyTrait::outline(entropy, INSTANCE);
+            i += 1;
+        }
+        let seams = EntropyTrait::outline(entropy, INSTANCE);
+        let mut i: u8 = 0;
+        let west = BoardTrait::count(*site.west);
+        while i != west {
+            let low = BoardTrait::nth(*site.west, i);
+            let mut rng = RngTrait::new(poseidon_hash_span([seams, low.into(), 0].span()));
+            RevealTrait::openings(BoardTrait::side(side::WEST), side::WEST, ref rng);
+            i += 1;
+        }
+        let mut i: u8 = 0;
+        let north = BoardTrait::count(*site.north);
+        while i != north {
+            let low = BoardTrait::nth(*site.north, i);
+            let mut rng = RngTrait::new(poseidon_hash_span([seams, low.into(), 1].span()));
+            RevealTrait::openings(BoardTrait::side(side::NORTH), side::NORTH, ref rng);
+            i += 1;
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 4000000000)]
+    fn test_cost_seams_derived_n12() {
+        let site = dungeon(12, no_quotas(), 'seams');
+        seams_life(@site, 'seams');
+        println!(
+            "seams: {} West and {} North open",
+            BoardTrait::count(site.west),
+            BoardTrait::count(site.north),
+        );
+    }
+
+    // The derivation's part that storing would save: the outline's seed, once a chunk revealed.
+    #[test]
+    #[available_gas(l2_gas: 4000000000)]
+    fn test_cost_seams_seeds_n12() {
+        let site = dungeon(12, no_quotas(), 'seams');
+        let count = BoardTrait::count(site.chunk_set);
+        let mut i: u8 = 0;
+        while i != count {
+            let _seed = EntropyTrait::outline('seams', INSTANCE);
+            i += 1;
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 4000000000)]
+    fn test_cost_seams_baseline_n12() {
+        let _site = dungeon(12, no_quotas(), 'seams');
     }
 
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
@@ -2304,7 +2368,7 @@ pub mod tests {
     const DIGEST_0: felt252 =
         1099007504077458561703646988744304604964174275844371738808055141155867483297;
     const DIGEST_1: felt252 =
-        499845782167855331826439961529088808781201279688007834938530756287138363393;
+        3406219353955151080332403134172067514426351653970253477291706690989101018180;
     const DIGEST_2: felt252 =
-        1776217249721864309039687226775120675190272936172595053149840570196235849095;
+        3010923637803881089662884455180695626882539309385032824192779495723979131840;
 }

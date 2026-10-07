@@ -8,8 +8,8 @@
 // (in the farthest layer), the same exit-to-entry distance in chunks read back from the revealed
 // edges (the farthest distance), the same edges in every chunk, **the same opening tiles on both
 // sides of every seam** (review t-0090), and **the same walked distance in tiles from the entry
-// tile to the exit's tile** (D-224; a bit-parallel walk, `walk`). Split by `N` and by entropies so
-// that each test stays small (FND-23): 8 entropies at `N` = 6, 8 at `N` = 12, and review t-0088's
+// tile to the exit's tile** (D-224; a bit-parallel walk, `walk`). One floor a test, so that each
+// stays within snforge's steps (FND-23): 8 entropies at `N` = 6, 8 at `N` = 12, and review t-0088's
 // major 1 as a fixture of its own (`test_zero_residue_piece_*`): floors whose farthest layer is one
 // chunk, with a set piece of 2 packs and 3 objects listed before the exit and the Heart, both
 // placed in every order. ENG-05's merged engine failed the same comparison (SPK-17,
@@ -471,21 +471,26 @@ fn orders(outline: @Outline, entropy: felt252) -> Array<Array<u8>> {
     array![ascending, descending, nearest, farthest, drawn_1, drawn_2, forcing]
 }
 
-/// The gate over `floors` floors of `n` chunks from the entropies counted from `first`; with
-/// review t-0088's set piece when `piece`, keeping only the floors whose farthest layer is one
-/// chunk. Prints each floor's walk in tiles.
-fn zero_residue(n: u8, first: u32, floors: u32, piece: bool) {
+/// The gate on one floor of `n` chunks: the floor of entropy `first`; with review t-0088's set
+/// piece when `piece`, the `skip`-th floor from `first` (counted from 0) whose farthest layer is
+/// one chunk. One floor a test, for snforge's steps (FND-23). Prints the floor's walk in tiles.
+fn zero_residue(n: u8, first: u32, skip: u32, piece: bool) {
     let hosts = *declare("HostsLibrary").unwrap().contract_class().class_hash;
-    let mut done: u32 = 0;
+    let mut seen: u32 = 0;
+    let mut done = false;
     let mut i: u32 = first;
-    while done != floors {
+    while !done {
         let entropy = poseidon_hash_span(['eng10b residue', i.into()].span());
         i += 1;
         let floor = create(hosts, entropy, n, piece);
         if piece && BoardTrait::count(floor.far) != 1 {
             continue;
         }
-        done += 1;
+        if piece && seen != skip {
+            seen += 1;
+            continue;
+        }
+        done = true;
         if piece {
             // Review t-0089, note 2: the set piece (quota 0) hosted, never on the farthest chunk,
             // which the exit and the Heart took first
@@ -527,49 +532,134 @@ fn zero_residue(n: u8, first: u32, floors: u32, piece: bool) {
 #[test]
 #[available_gas(l2_gas: 4000000000)]
 fn test_zero_residue_n6_0() {
-    zero_residue(6, 0, 4, false);
+    zero_residue(6, 0, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 4000000000)]
 fn test_zero_residue_n6_1() {
-    zero_residue(6, 4, 4, false);
+    zero_residue(6, 1, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n6_2() {
+    zero_residue(6, 2, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n6_3() {
+    zero_residue(6, 3, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n6_4() {
+    zero_residue(6, 4, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n6_5() {
+    zero_residue(6, 5, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n6_6() {
+    zero_residue(6, 6, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n6_7() {
+    zero_residue(6, 7, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 4000000000)]
 fn test_zero_residue_n12_0() {
-    zero_residue(12, 0, 2, false);
+    zero_residue(12, 0, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 4000000000)]
 fn test_zero_residue_n12_1() {
-    zero_residue(12, 2, 2, false);
+    zero_residue(12, 1, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 4000000000)]
 fn test_zero_residue_n12_2() {
-    zero_residue(12, 4, 2, false);
+    zero_residue(12, 2, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 4000000000)]
 fn test_zero_residue_n12_3() {
-    zero_residue(12, 6, 2, false);
+    zero_residue(12, 3, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n12_4() {
+    zero_residue(12, 4, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n12_5() {
+    zero_residue(12, 5, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n12_6() {
+    zero_residue(12, 6, 0, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_n12_7() {
+    zero_residue(12, 7, 0, false);
 }
 
 // Review t-0088's major 1 (A4): a farthest layer of one chunk, a set piece (2 packs, 3 objects)
-// listed before the exit and the Heart; both placed, in every order.
+// listed before the exit and the Heart; both placed, in every order: four floors of 6, two of 12.
+
 #[test]
 #[available_gas(l2_gas: 4000000000)]
-fn test_zero_residue_piece_n6() {
-    zero_residue(6, 100, 4, true);
+fn test_zero_residue_piece_n6_0() {
+    zero_residue(6, 100, 0, true);
 }
 
 #[test]
 #[available_gas(l2_gas: 4000000000)]
-fn test_zero_residue_piece_n12() {
-    zero_residue(12, 100, 2, true);
+fn test_zero_residue_piece_n6_1() {
+    zero_residue(6, 100, 1, true);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_piece_n6_2() {
+    zero_residue(6, 100, 2, true);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_piece_n6_3() {
+    zero_residue(6, 100, 3, true);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_piece_n12_0() {
+    zero_residue(12, 100, 0, true);
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_zero_residue_piece_n12_1() {
+    zero_residue(12, 100, 1, true);
 }
