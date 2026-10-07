@@ -344,6 +344,12 @@ function MapFields({ session }: { session: EditorSession }) {
         value={meta.location}
         onCommit={(location) => session.editMeta({ ...meta, location })}
       />
+      <NumberField
+        name="map-region"
+        label="Region id"
+        value={meta.region}
+        onCommit={(region) => session.editMeta({ ...meta, region })}
+      />
       {session.zone && (
         <>
           <Choice

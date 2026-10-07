@@ -173,6 +173,11 @@
   margin: 0 0 12px;
   font-size: 1.125rem;
 }
+/* Export for the chain (CLI-09c): its lines stacked, as wide as the dialog. */
+.ed-export {
+  max-width: 520px;
+}
+
 .ed-form {
   display: grid;
   grid-template-columns: 7em 1fr;

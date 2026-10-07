@@ -44,6 +44,10 @@ import {
  * `chunks` is the last chosen chunk origin and how it was chosen, or null before the first fit.
  * Pinned obstacle looks are a list of `{ x, y, sprite }`: a still's name, never pixels (§7).
  *
+ * CLI-09c adds, still in format 2 and read as 0 when absent: the map's `region`, a gate's `id` and a
+ * feature's `param` (registry ids the export for the chain names through a content manifest), and a
+ * bridge's `run`.
+ *
  * CLI-09b adds, still in format 2 (a file without them has none): the map's `quotas` (a zone's,
  * `{ kind, param, count }`) and `objects`, a list of `{ kind, x, y, …its fields }` in the order
  * they were placed (§4.2, §4.3; `objects.ts`). Sprite and building names, never pixels.
@@ -97,7 +101,7 @@ function objectOut(object: MapObject): Record<string, unknown> {
 }
 
 /** One span per painted row, from its lowest `x` to its highest, the rows by `y`. */
-function spans(doc: MapDocument): RowSpan[] {
+export function spans(doc: MapDocument): RowSpan[] {
   const byRow = new Map<number, Map<number, Cell>>();
   for (const [key, cell] of doc.hexes) {
     const { x, y } = tileOfKey(key);
@@ -190,6 +194,9 @@ function readMeta(raw: unknown): MapMeta | string {
   for (const field of ["location", "levelMin", "levelMax", "rank", "spawnTable"] as const) {
     if (!isWhole(raw[field], 0)) return `${field} is not a whole number, 0 or more`;
   }
+  // CLI-09c's: a file written before it has none (0).
+  const region = raw.region ?? 0;
+  if (!isWhole(region, 0)) return "region is not a whole number, 0 or more";
   const quotas: Quota[] = [];
   if (raw.quotas !== undefined) {
     if (!Array.isArray(raw.quotas) || (kind !== "zone" && raw.quotas.length > 0)) {
@@ -211,6 +218,7 @@ function readMeta(raw: unknown): MapMeta | string {
     kind,
     name,
     location: raw.location as number,
+    region,
     biome,
     levelMin: raw.levelMin as number,
     levelMax: raw.levelMax as number,

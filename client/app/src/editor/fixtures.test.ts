@@ -85,6 +85,7 @@ function seedZone(): MapDocument {
     put(doc, {
       kind: "gate",
       at: moved ? GATE_102_EDITOR : anchor,
+      id: gate.id,
       to: gate.destination,
       gate: "hub",
       rank: gate.rank,
@@ -99,7 +100,7 @@ function seedZone(): MapDocument {
   put(doc, { kind: "candidate", at: { x: 26, y: 4 }, quota: 1 });
   put(doc, { kind: "spawn", at: { x: 21, y: 10 }, template: 1 });
   put(doc, { kind: "spawn", at: { x: 18, y: 22 }, template: 1 });
-  put(doc, { kind: "feature", at: { x: 33, y: 2 }, feature: "chest" });
+  put(doc, { kind: "feature", at: { x: 33, y: 2 }, feature: "chest", param: 0 });
   doc.origin = { x: 0, y: 0, how: "fitted" };
   return doc;
 }

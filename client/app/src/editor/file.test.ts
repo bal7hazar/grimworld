@@ -187,6 +187,7 @@ describe("format 1 (CLI-09a), converted on load", () => {
       kind: "zone",
       name: "Old",
       location: 2,
+      region: 0,
       biome: "cave",
       levelMin: 1,
       levelMax: 1,

@@ -6,6 +6,7 @@
     "kind": "outpost",
     "name": "Outpost B",
     "location": 101,
+    "region": 0,
     "biome": null,
     "levelMin": 1,
     "levelMax": 1,

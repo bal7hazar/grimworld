@@ -40,7 +40,7 @@ const SEVERITY: Readonly<Record<Finding["severity"], string>> = {
 
 /**
  * The validation panel (§2.6): a drawer over the inspector's column, one line per finding with its
- * severity in words, its source (R, E, ○), its message and Show.
+ * severity in words, its source (R, E), its message and Show.
  */
 export function ValidationPanel({
   findings,
@@ -96,8 +96,9 @@ export function ValidationPanel({
         </ul>
       )}
       <p className="ed-dim ed-validation-key">
-        R = ENG-08&apos;s check · E = the editor&apos;s · ○ waits for the spike (a warning). Export
-        is refused while an error stands; saving never is.
+        R = ENG-08&apos;s check · E = the editor&apos;s or the converter&apos;s own. With a content
+        manifest, the converter&apos;s refusal is shown too. Export is refused while an error
+        stands; saving never is.
       </p>
     </aside>
   );

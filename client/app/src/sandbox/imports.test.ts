@@ -76,6 +76,9 @@ describe("placeholders.ts", () => {
     const data = ["./fixtures/region.ts", "./fixtures/zone.ts", "./fixtures/index.ts"];
     const readers = code
       .filter(([path]) => !data.includes(path))
+      // The export ports ENG-08's schema keys (grimworld-export v1); it encodes records, it decides
+      // no rule.
+      .filter(([path]) => !path.startsWith("../editor/export/"))
       .filter(([, text]) => /\b(anchor|entry)_(chunk|tile)\b|\.destination\b/.test(text))
       .map(([path]) => path)
       .sort();
