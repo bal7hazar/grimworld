@@ -34,10 +34,7 @@ pub mod HostsLibrary {
             masks: Span<(u8, felt252)>,
             seed: felt252,
         ) -> (Span<felt252>, Span<(u8, felt252)>) {
-            let hosts = PlacementTrait::hosts(
-                zone, width, height, plan, pieces, seed, array![].span(),
-            )
-                .span();
+            let hosts = PlacementTrait::hosts(zone, width, height, plan, pieces, seed).span();
             let mut hosted: Array<(u8, felt252)> = array![];
             for entry in masks {
                 let (chunk, mask) = *entry;
@@ -62,10 +59,8 @@ pub mod HostsLibrary {
                 entry, n, width, height, EntropyTrait::outline(entropy, instance_id),
             );
             let layers = outline.layers(entry);
-            let hosts = PlacementTrait::hosts(
+            let hosts = PlacementTrait::floor_hosts(
                 outline.chunks,
-                width,
-                height,
                 plan,
                 pieces,
                 EntropyTrait::hosts(entropy, instance_id),

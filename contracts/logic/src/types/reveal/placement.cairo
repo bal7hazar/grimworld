@@ -205,7 +205,7 @@ pub impl PlacementImpl of PlacementTrait {
         (low, high)
     }
 
-    /// A location's quota hosts (D-208, D-210, module doc), drawn once at `create` by
+    /// A zone's quota hosts (D-208, D-210, module doc), drawn once at `create` by
     /// `HostsLibrary`:
     /// for each quota of the plan (`plan`), in order, its `count` chunks of the zone (`zone`, its
     /// chunk set within the `width × height` rectangle, or 0 for the whole rectangle), an exact
@@ -220,10 +220,6 @@ pub impl PlacementImpl of PlacementTrait {
     /// a determination of the caps, not a cap of the draws. Every host can lay its quota, whatever
     /// the order of the reveals; a quota with fewer allowed members than its count keeps fewer
     /// hosts, and the rest stays owed for good, never placed (nothing falls on "the last chunks").
-    /// A dungeon floor's (ENG-10b): `zone` its outline's chunks and `layers` its chunks by
-    /// distance from the entry, farthest first, the entry's left out (`OutlineTrait::layers`); its
-    /// exit's and Heart's hosts drawn first, in the farthest layer with an allowed member, then
-    /// the other quotas in their order. A zone passes no layers: its draws are as before.
     fn hosts(
         zone: felt252,
         width: u8,
@@ -231,7 +227,6 @@ pub impl PlacementImpl of PlacementTrait {
         plan: (felt252, felt252),
         pieces: Span<(u16, SetPiece)>,
         seed: felt252,
-        layers: Span<felt252>,
     ) -> Array<felt252> {
         // [Compute] The zone: its rectangle's rows, and its chunk set within them
         let row = BoardTrait::pow(width) - 1;
@@ -250,25 +245,69 @@ pub impl PlacementImpl of PlacementTrait {
         let mut objects: [felt252; 3] = [0, 0, 0];
         let mut packs: [felt252; 2] = [0, 0];
         let mut piece: felt252 = 0;
-        // ENG-10b (D-223; review t-0088, major 1; the orchestrator): in a dungeon (`layers` not
-        // empty) a first pass draws the exit's and the Heart's hosts before every other quota, so
-        // that no cap blocks them; the second pass draws the others in their order and takes those
-        // two from the first. A zone takes the second pass alone: its draws as before (D-208)
-        let dungeon = layers.len() != 0;
+        let (first, second) = plan;
+        let mut rest: u256 = first.into();
+        let mut next: u256 = second.into();
+        let mut t: felt252 = 0;
+        let mut out: Array<felt252> = array![];
+        let mut i: u8 = 0;
+        // Quota by quota, as far as any is left (a shorter list: the quotas after hold nothing)
+        while rest != 0 || next != 0 {
+            if i == 7 {
+                rest = next;
+                next = 0;
+            }
+            i += 1;
+            let (above, entry) = DivRem::div_rem(rest, 0x100000000);
+            rest = above;
+            if entry == 0 {
+                out.append(0);
+                continue;
+            }
+            let (above, count) = DivRem::div_rem(entry, 0x100);
+            let (param, kind) = DivRem::div_rem(above, 0x100);
+            let mask = Self::draw_hosts(
+                zone,
+                array![].span(),
+                false,
+                count.try_into().unwrap(),
+                Self::need(kind.try_into().unwrap(), param.try_into().unwrap(), pieces),
+                seed,
+                ref t,
+                ref objects,
+                ref packs,
+                ref piece,
+            );
+            out.append(mask);
+        }
+        out
+    }
+
+    /// A dungeon floor's quota hosts (ENG-10b; D-223, review t-0088, major 1; the orchestrator),
+    /// drawn once at `create` by `HostsLibrary::floor`, as a zone's (`hosts`) over the floor's
+    /// `outline` (its chunks), but in two passes: first the exit's and the Heart's, each in the
+    /// farthest of `layers` (the outline's chunks by distance from the entry, farthest first, the
+    /// entry's left out: `OutlineTrait::layers`) that has an allowed member, so that no cap set by
+    /// a quota listed before them blocks them (never owed for a count of 1); then every other quota
+    /// in its order, among the whole outline. One stream of draws (`t`) for both passes.
+    fn floor_hosts(
+        outline: felt252,
+        plan: (felt252, felt252),
+        pieces: Span<(u16, SetPiece)>,
+        seed: felt252,
+        layers: Span<felt252>,
+    ) -> Array<felt252> {
+        let mut objects: [felt252; 3] = [0, 0, 0];
+        let mut packs: [felt252; 2] = [0, 0];
+        let mut piece: felt252 = 0;
         let mut early: Array<felt252> = array![];
         let mut t: felt252 = 0;
         let mut out: Array<felt252> = array![];
-        let mut pass: u8 = if dungeon {
-            0
-        } else {
-            1
-        };
-        while pass != 2 {
+        for pass in 0..2_u8 {
             let (first, second) = plan;
             let mut rest: u256 = first.into();
             let mut next: u256 = second.into();
             let mut i: u8 = 0;
-            // Quota by quota, as far as any is left (a shorter list: the quotas after hold nothing)
             while rest != 0 || next != 0 {
                 if i == 7 {
                     rest = next;
@@ -280,16 +319,14 @@ pub impl PlacementImpl of PlacementTrait {
                 let (above, count) = DivRem::div_rem(entry, 0x100);
                 let (param, kind) = DivRem::div_rem(above, 0x100);
                 let kind: u8 = kind.try_into().unwrap();
-                let restricted = dungeon
-                    && entry != 0
-                    && (kind == quota::EXIT || kind == quota::HEART);
+                let restricted = entry != 0 && (kind == quota::EXIT || kind == quota::HEART);
                 if pass == 1 && restricted {
                     out.append(early.pop_front().unwrap());
                 } else if pass == 1 && entry == 0 {
                     out.append(0);
                 } else if pass == 1 || restricted {
                     let mask = Self::draw_hosts(
-                        zone,
+                        outline,
                         layers,
                         restricted,
                         count.try_into().unwrap(),
@@ -307,7 +344,6 @@ pub impl PlacementImpl of PlacementTrait {
                     }
                 }
             }
-            pass += 1;
         }
         out
     }
@@ -315,7 +351,8 @@ pub impl PlacementImpl of PlacementTrait {
     /// One quota's hosts (`hosts`): its `count` members drawn among those allowed, the members of
     /// `zone` not at a cap its `need` (`need`) would pass; for a dungeon's exit or Heart
     /// (`restricted`), those of the farthest layer of `layers` that has one. The caps then raised
-    /// by the hosts drawn.
+    /// by the hosts drawn. Inlined, so that a zone's draw keeps its cost before ENG-10b.
+    #[inline(always)]
     fn draw_hosts(
         zone: felt252,
         layers: Span<felt252>,

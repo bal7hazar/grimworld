@@ -723,7 +723,6 @@ pub mod tests {
     use core::dict::{Felt252Dict, Felt252DictTrait};
     use core::poseidon::poseidon_hash_span;
     use hexx::board::bits::Bits;
-    use hexx::board::rng::RngTrait;
     use hexx::board::seams::{SeamTrait, Side};
     use crate::fate::{ENTRY, EntropyTrait, REVEAL, domain};
     use crate::models::chunk::{PackPlacementTrait, Terrain, object};
@@ -735,7 +734,8 @@ pub mod tests {
     use crate::snapshot::TaskEntry;
     use crate::types::ChunkKind;
     use super::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
-    use super::placement::PlacementTrait;
+    use super::outline::{Outline, OutlineTrait};
+    use super::placement::{CORE, PlacementTrait};
     use super::{Progress, ProgressTrait, RevealTrait, Revealed, SightTrait, Site, SiteTrait, side};
 
     pub const INSTANCE: felt252 = 0x100000001;
@@ -805,9 +805,13 @@ pub mod tests {
         }
     }
 
-    /// A dungeon floor of `n` chunks, entered at chunk 112, tile 112.
-    pub fn dungeon(n: u8, quotas: QuotaSet) -> Site {
-        Site {
+    /// A dungeon floor of `n` chunks entered at chunk 112, tile 112, as `create` makes it from
+    /// `entropy` (ENG-10b; `HostsLibrary::floor`'s computation): its outline drawn
+    /// (`EntropyTrait::outline`), its quotas' hosts over it (`EntropyTrait::hosts`, the exit and
+    /// the Heart first, among its farthest chunks), each chunk of it with its hosts above its mask.
+    pub fn dungeon(n: u8, quotas: QuotaSet, entropy: felt252) -> Site {
+        let outline = OutlineTrait::draw(112, n, 15, 15, EntropyTrait::outline(entropy, INSTANCE));
+        let mut site = Site {
             target: n,
             biome: biome::CAVE,
             level_min: 3,
@@ -815,9 +819,9 @@ pub mod tests {
             width: 15,
             height: 15,
             entry_chunk: 112,
-            chunk_set: 0,
-            west: 0,
-            north: 0,
+            chunk_set: outline.chunks,
+            west: outline.west,
+            north: outline.north,
             masks: array![].span(),
             anchors: array![(112, 112)].span(),
             quotas,
@@ -825,7 +829,31 @@ pub mod tests {
             spawn: spawn(160),
             packs: packs(),
             pieces: array![].span(),
+        };
+        let progress = ProgressTrait::new(@site, entropy);
+        let hosts = PlacementTrait::floor_hosts(
+            outline.chunks,
+            PlacementTrait::plan(@site, progress.left.span()),
+            site.pieces,
+            EntropyTrait::hosts(entropy, INSTANCE),
+            outline.layers(112).span(),
+        )
+            .span();
+        let mut masks: Array<(u8, felt252)> = array![];
+        let count = BoardTrait::count(outline.chunks);
+        let mut i: u8 = 0;
+        while i != count {
+            let chunk = BoardTrait::nth(outline.chunks, i);
+            masks.append((chunk, PlacementTrait::with_hosts(0, hosts, chunk)));
+            i += 1;
         }
+        site.masks = masks.span();
+        site
+    }
+
+    /// A dungeon site's outline.
+    pub fn outline_of(site: @Site) -> Outline {
+        Outline { chunks: *site.chunk_set, west: *site.west, north: *site.north }
     }
 
     pub fn exit_quota() -> QuotaSet {
@@ -928,7 +956,7 @@ pub mod tests {
         let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed: felt252 = 0;
         while seed != 12 {
-            let site = dungeon(12, no_quotas());
+            let site = dungeon(12, no_quotas(), seed);
             let mut progress = ProgressTrait::new(@site, seed);
             let revealed = one(@site, ref progress, array![].span(), 112);
             let ground = floor(@revealed.terrain);
@@ -1090,58 +1118,98 @@ pub mod tests {
         }
     }
 
-    // A dungeon never closes before `N` and always closes at `N`: revealing every revealable chunk
-    // reaches exactly `N`, then nothing is revealable and the frontier is closed; the edges agree
-    // across every seam; the quotas are all placed.
+    // ENG-10b: a dungeon floor revealed whole, its chunks by index. Exactly the outline's chunks
+    // are revealable, all of them; once `N` are revealed nothing is; the exit lands once, in the
+    // farthest layer, on the spine's core; nothing is owed; each chunk's edge toward a chunk of the
+    // outline is open exactly when its seam is, every other edge closed; across each open seam the
+    // two chunks carry the same opening tiles, each facing the other's (`hexx`'s seams, N-2).
     fn check_dungeon(n: u8, first: felt252, words: felt252) {
+        let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed = first;
         while seed != first + words {
-            let site = dungeon(n, exit_quota());
+            let site = dungeon(n, exit_quota(), seed);
+            let (far, _) = outline_of(@site).far(112);
             let mut progress = ProgressTrait::new(@site, seed);
             let mut known: Array<(u8, Terrain)> = array![];
             let mut exits: u8 = 0;
             let mut veins: u8 = 0;
-            let mut grew = true;
-            while grew {
-                grew = false;
-                let mut chunk: u8 = 0;
-                while chunk != 225 {
-                    if RevealTrait::revealable(@site, @progress, known.span(), chunk) {
-                        let r = one(@site, ref progress, known.span(), chunk);
-                        check_chunk(@r);
-                        for item in r.features.objects.span() {
-                            if *item.kind == object::EXIT {
-                                exits += 1;
-                            }
-                            if *item.kind == object::VEIN {
-                                veins += 1;
-                            }
+            let mut chunk: u8 = 0;
+            while chunk != 225 {
+                let inside = BoardTrait::has(site.chunk_set, chunk);
+                assert(
+                    RevealTrait::revealable(@site, @progress, known.span(), chunk) == inside,
+                    'revealable: the outline',
+                );
+                if inside {
+                    let r = one(@site, ref progress, known.span(), chunk);
+                    check_chunk(@r);
+                    for item in r.features.objects.span() {
+                        if *item.kind == object::EXIT {
+                            exits += 1;
+                            assert(BoardTrait::has(far, chunk), 'the exit at the farthest');
+                            assert(BoardTrait::has(CORE, *item.tile), 'the exit on the core');
                         }
-                        known.append((chunk, r.terrain));
-                        grew = true;
+                        if *item.kind == object::VEIN {
+                            veins += 1;
+                        }
                     }
-                    chunk += 1;
+                    known.append((chunk, r.terrain));
+                } else {
+                    assert(
+                        RevealTrait::kind(@site, @progress, known.span(), chunk) == ChunkKind::Void,
+                        'void outside the outline',
+                    );
                 }
+                chunk += 1;
             }
-            assert(progress.count == n, 'closes exactly at N');
-            assert(progress.open_edges == 0, 'frontier closed');
+            assert(progress.count == n, 'N revealed');
+            assert(progress.revealed == site.chunk_set, 'the outline revealed');
+            assert(progress.open_edges == 0, 'no open edges');
             assert(exits == 1 && veins == 1, 'quotas placed');
             assert(progress.left == [0; 14], 'nothing owed');
-            // Edges agree across each seam between two revealed chunks.
+            let mut chunk: u8 = 0;
+            while chunk != 225 {
+                assert(
+                    !RevealTrait::revealable(@site, @progress, known.span(), chunk),
+                    'nothing more at N',
+                );
+                chunk += 1;
+            }
             for entry in known.span() {
                 let (chunk, terrain) = *entry;
                 let mut s: u8 = 0;
                 while s != 4 {
-                    if let Option::Some(next) = site.neighbour(chunk, s) {
-                        if progress.is_revealed(next) {
-                            let other = RevealTrait::known(known.span(), next);
-                            assert(
-                                RevealTrait::is_open(
-                                    terrain.edges, s,
-                                ) == RevealTrait::is_open(other.edges, RevealTrait::opposite(s)),
-                                'edges agree',
-                            );
-                        }
+                    let open = RevealTrait::is_open(terrain.edges, s);
+                    match site.neighbour(chunk, s) {
+                        Option::Some(next) => {
+                            if BoardTrait::has(site.chunk_set, next) {
+                                assert(open == site.seam(chunk, s, next), 'edges: the seams');
+                                let other = RevealTrait::known(known.span(), next);
+                                let ground = floor(@terrain);
+                                assert(
+                                    BoardTrait::and(
+                                        ground, BoardTrait::side(s),
+                                    ) == BoardTrait::copy(s, floor(@other)),
+                                    'the same openings',
+                                );
+                                if open {
+                                    assert(
+                                        SeamTrait::is_open_across(
+                                            15,
+                                            15,
+                                            ground,
+                                            floor(@other),
+                                            *sides.span()[s.into()],
+                                            odd(chunk),
+                                        ),
+                                        'open across the seam',
+                                    );
+                                }
+                            } else {
+                                assert(!open, 'closed outside the outline');
+                            }
+                        },
+                        Option::None => { assert(!open, 'closed at the border'); },
                     }
                     s += 1;
                 }
@@ -1150,282 +1218,45 @@ pub mod tests {
         }
     }
 
-    /// Grows a dungeon from `progress` until nothing is revealable.
-    fn grow(site: @Site, ref progress: Progress, ref known: Array<(u8, Terrain)>) {
-        let mut grew = true;
-        while grew {
-            grew = false;
-            let mut chunk: u8 = 0;
-            while chunk != 225 {
-                if RevealTrait::revealable(site, @progress, known.span(), chunk) {
-                    let r = one(site, ref progress, known.span(), chunk);
-                    known.append((chunk, r.terrain));
-                    grew = true;
-                }
-                chunk += 1;
-            }
-        }
-    }
-
-    // Audit #348, minor 3: the enclosure. Six chunks revealed: (7, 7), (8, 7), (9, 7), (9, 8),
-    // (7, 8), (7, 9), every side a border but those named; (8, 7) and (7, 8) open into (8, 8),
-    // which every neighbour but (8, 9) surrounds; (7, 9) opens into (8, 9). Were (8, 9)'s three
-    // drawn sides borders, the frontier would be (8, 8) alone, which cannot grow, and the floor
-    // would close at 8 of 12. Over many words it reaches exactly `N`.
     #[test]
-    #[available_gas(l2_gas: 718823410)] // ceil(1.05 × 684593723 measured)
-    fn test_dungeon_enclosure_keeps_growing() {
-        // (chunk, edges): West 1, East 2, South 4, North 8.
-        let state: [(u8, u8); 6] = [
-            (112, 1 + 8), (113, 2 + 8 + 1), (114, 2 + 8), (129, 4), (127, 4 + 1 + 8), (142, 4 + 1),
-        ];
-        let mut seed: felt252 = 0;
-        while seed != 12 {
-            let site = dungeon(12, no_quotas());
-            let mut progress = ProgressTrait::new(@site, seed);
-            let mut known: Array<(u8, Terrain)> = array![];
-            for entry in state.span() {
-                let (chunk, edges) = *entry;
-                known.append((chunk, Terrain { walls: BOARD, edges }));
-                progress.revealed += BoardTrait::pow(chunk);
-            }
-            progress.count = 6;
-            progress.open_edges = 3;
-            let r = one(@site, ref progress, known.span(), 143);
-            known.append((143, r.terrain));
-            grow(@site, ref progress, ref known);
-            assert(progress.count == 12, 'the enclosure grows to N');
-            seed += 1;
-        }
-    }
-
-    // The randomness re-audit of #348 (t-0075, minor 2): its hand trace on a 3 × 2 rectangle, `N`
-    // 6, entered at chunk 16 (1, 1). Revealed: 16 (East into 15 and South into 1 open, West into 17
-    // a border), 15 (South into 0 open), 1 (East into 0 and West into 2 open); 3 open edges, 2 of
-    // them into 0. Revealing 2 then: the old guard read 2 edges against 2 chunks owed and let 2
-    // draw its North side (into 17) a border; 0 then closed the floor at 5 of 6, 17 faced only by
-    // borders. 17 cannot grow (its other neighbours are revealed), so no open side of 2 faces
-    // growth and the guard keeps North open: every floor reaches `N`.
-    #[test]
-    #[available_gas(l2_gas: 330842682)] // ceil(1.05 × 315088268 measured)
-    fn test_dungeon_reaudit_trace_keeps_growing() {
-        // (chunk, edges): West 1, East 2, South 4, North 8.
-        let state: [(u8, u8); 3] = [(16, 2 + 4), (15, 1 + 4), (1, 8 + 2 + 1)];
-        let mut seed: felt252 = 0;
-        while seed != 12 {
-            let mut site = dungeon(6, no_quotas());
-            site.width = 3;
-            site.height = 2;
-            site.entry_chunk = 16;
-            site.anchors = array![(16, 112)].span();
-            let mut progress = ProgressTrait::new(@site, seed);
-            let mut known: Array<(u8, Terrain)> = array![];
-            for entry in state.span() {
-                let (chunk, edges) = *entry;
-                known.append((chunk, Terrain { walls: BOARD, edges }));
-                progress.revealed += BoardTrait::pow(chunk);
-            }
-            progress.count = 3;
-            progress.open_edges = 3;
-            let r = one(@site, ref progress, known.span(), 2);
-            assert(r.terrain.edges / 8 == 1, 'North kept open');
-            known.append((2, r.terrain));
-            grow(@site, ref progress, ref known);
-            assert(progress.count == 6, 'the trace grows to N');
-            seed += 1;
-        }
-    }
-
-    /// A dungeon of `N` 12 in a 5 × 5 rectangle, entered at its centre (2, 2): crowded, so that
-    /// enclosures are frequent.
-    fn small_dungeon() -> Site {
-        let mut site = dungeon(12, exit_quota());
-        site.width = 5;
-        site.height = 5;
-        site.entry_chunk = 32;
-        site.anchors = array![(32, 112)].span();
-        site
-    }
-
-    fn sweep(first: felt252, words: felt252) {
-        let mut seed = first;
-        while seed != first + words {
-            let site = small_dungeon();
-            let mut progress = ProgressTrait::new(@site, seed);
-            let mut known: Array<(u8, Terrain)> = array![];
-            grow(@site, ref progress, ref known);
-            assert(progress.count == 12, 'closes exactly at N');
-            assert(progress.left == [0; 14], 'nothing owed');
-            seed += 1;
-        }
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 346056356)] // ceil(1.05 × 329577481 measured)
-    fn test_dungeon_sweep_small_rectangle_0() {
-        sweep(1000, 5);
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 349098280)] // ceil(1.05 × 332474552 measured)
-    fn test_dungeon_sweep_small_rectangle_1() {
-        sweep(2000, 5);
-    }
-
-    /// Grows a dungeon from `progress` one chunk at a time until nothing is revealable, each time
-    /// the first revealable chunk (`order` 0), the last (1), or one drawn from `seed` (2).
-    fn grow_in_order(
-        site: @Site,
-        ref progress: Progress,
-        ref known: Array<(u8, Terrain)>,
-        order: u8,
-        seed: felt252,
-    ) {
-        let mut step: felt252 = 0;
-        loop {
-            let mut revealable: Array<u8> = array![];
-            let mut chunk: u8 = 0;
-            while chunk != 225 {
-                if RevealTrait::revealable(site, @progress, known.span(), chunk) {
-                    revealable.append(chunk);
-                }
-                chunk += 1;
-            }
-            let n = revealable.len();
-            if n == 0 {
-                break;
-            }
-            let at: u32 = if order == 0 {
-                0
-            } else if order == 1 {
-                n - 1
-            } else {
-                let hash: u256 = poseidon_hash_span([seed, step].span()).into();
-                (hash % n.into()).try_into().unwrap()
-            };
-            let chunk = *revealable[at];
-            let r = one(site, ref progress, known.span(), chunk);
-            known.append((chunk, r.terrain));
-            step += 1;
-        }
-    }
-
-    /// A dungeon of `N` 12 in a `width × height` rectangle entered at (1, 1): `N` close to the
-    /// area, so that enclosures are frequent.
-    fn tight_dungeon(width: u8, height: u8) -> Site {
-        let mut site = dungeon(12, exit_quota());
-        site.width = width;
-        site.height = height;
-        site.entry_chunk = 16;
-        site.anchors = array![(16, 112)].span();
-        site
-    }
-
-    fn sweep_in_order(width: u8, height: u8, first: felt252, words: felt252, order: u8) {
-        let mut seed = first;
-        while seed != first + words {
-            let site = tight_dungeon(width, height);
-            let mut progress = ProgressTrait::new(@site, seed);
-            let mut known: Array<(u8, Terrain)> = array![];
-            grow_in_order(@site, ref progress, ref known, order, seed);
-            if progress.count != 12 {
-                println!(
-                    "closed at {} of 12: {} x {}, seed {}, order {}",
-                    progress.count,
-                    width,
-                    height,
-                    seed,
-                    order,
-                );
-            }
-            assert(progress.count == 12, 'closes exactly at N');
-            assert(progress.left == [0; 14], 'nothing owed');
-            seed += 1;
-        }
-    }
-
-    // The delta review of #348: `N` close to the rectangle's area (12 of 16, 12 of 15), the reveals
-    // in descending and in drawn orders, so that a closure before `N` would show. At `N` equal to
-    // the area (12 of 4 × 3) a floor can close early (word 5100, a drawn order: 11 of 12): the
-    // guard is local, and the last chunks can be walled in by their revealed neighbours' borders;
-    // ENG-05's report proposes a content rule (a floor's rectangle larger than `N`).
-    #[test]
-    #[available_gas(l2_gas: 1007107555)] // ceil(1.05 × 959150052 measured)
-    fn test_dungeon_sweep_tight_descending() {
-        sweep_in_order(4, 4, 3000, 6, 1);
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 993693215)] // ceil(1.05 × 946374490 measured)
-    fn test_dungeon_sweep_tight_drawn() {
-        sweep_in_order(4, 4, 4000, 6, 2);
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 989363329)] // ceil(1.05 × 942250789 measured)
-    fn test_dungeon_sweep_near_area() {
-        sweep_in_order(5, 3, 5000, 3, 1);
-        sweep_in_order(5, 3, 5100, 3, 2);
-    }
-
-    // The delta review of #348: two open edges into one chunk. Revealed: (7, 8) = 127 opening West
-    // and (9, 8) = 129 opening East into (8, 8) = 128, (8, 7) = 113 closed toward it, (9, 9) = 144
-    // opening East into (8, 9) = 143, (7, 9) = 142 closed toward it; every other side a border.
-    // Revealing 143 with `N` 8: 2 chunks owed after it, 2 open edges left, but one chunk behind
-    // them, which cannot grow (its neighbours are revealed). The old guard compared edges (2) with
-    // chunks (2) and let 143 draw its North side a border: then 128 alone was left and the floor
-    // closed at 7 of 8. The guard keeps growth always: 143 keeps North open whenever its draw is a
-    // border.
-    #[test]
-    #[available_gas(l2_gas: 813587258)] // ceil(1.05 × 774845007 measured)
-    fn test_dungeon_two_edges_into_one_chunk() {
-        let state: [(u8, u8); 5] = [(127, 1), (129, 2), (113, 0), (144, 2), (142, 0)];
-        let revealed = BoardTrait::pow(127)
-            + BoardTrait::pow(129)
-            + BoardTrait::pow(113)
-            + BoardTrait::pow(144)
-            + BoardTrait::pow(142);
-        let mut widened: u8 = 0;
-        let mut seed: felt252 = 0;
-        while seed != 16 {
-            let site = dungeon(8, no_quotas());
-            let mut progress = ProgressTrait::new(@site, seed);
-            let mut known: Array<(u8, Terrain)> = array![];
-            for entry in state.span() {
-                let (chunk, edges) = *entry;
-                known.append((chunk, Terrain { walls: BOARD, edges }));
-            }
-            progress.revealed = revealed;
-            progress.count = 5;
-            progress.open_edges = 3;
-            // 143's ring draws: South (into 128), then North; a border is a draw of 0
-            let word = EntropyTrait::word(seed, INSTANCE, 143);
-            let mut draws = RngTrait::new(RngTrait::mix(word, 4));
-            let _south = draws.draw(7);
-            let north_border = draws.draw(7) == 0;
-            let r = one(@site, ref progress, known.span(), 143);
-            if north_border {
-                assert(r.terrain.edges / 8 == 1, 'North kept open');
-                widened += 1;
-            }
-            known.append((143, r.terrain));
-            grow(@site, ref progress, ref known);
-            assert(progress.count == 8, 'grows to N');
-            seed += 1;
-        }
-        assert(widened != 0, 'the old guard closed one');
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 323999616)] // ceil(1.05 × 308571062 measured)
-    fn test_dungeon_closes_at_n_6() {
+    #[available_gas(l2_gas: 4000000000)]
+    fn test_dungeon_revealed_whole_n_6() {
         check_dungeon(6, 0, 4);
     }
 
     #[test]
-    #[available_gas(l2_gas: 248456640)] // ceil(1.05 × 236625371 measured)
-    fn test_dungeon_closes_at_n_12() {
+    #[available_gas(l2_gas: 4000000000)]
+    fn test_dungeon_revealed_whole_n_12() {
         check_dungeon(12, 50, 2);
+    }
+
+    // ENG-10b: a dungeon's revealable chunks are its outline's, whatever is revealed: a chunk of
+    // the outline that no open seam joins to a revealed chunk (beyond a closed seam) is revealable,
+    // as a zone's chunk is when sight touches it (D-223, ruling 3); a chunk outside it is void.
+    #[test]
+    #[available_gas(l2_gas: 4000000000)]
+    fn test_dungeon_revealable_is_the_outline() {
+        let mut seed: felt252 = 0;
+        while seed != 8 {
+            let site = dungeon(12, no_quotas(), seed);
+            let progress = ProgressTrait::new(@site, seed);
+            let mut chunk: u8 = 0;
+            while chunk != 225 {
+                let inside = BoardTrait::has(site.chunk_set, chunk);
+                assert(
+                    RevealTrait::revealable(@site, @progress, array![].span(), chunk) == inside,
+                    'revealable: the outline',
+                );
+                let kind = RevealTrait::kind(@site, @progress, array![].span(), chunk);
+                assert(
+                    (kind == ChunkKind::Unrevealed) == inside
+                        && (kind == ChunkKind::Void) == !inside,
+                    'the kinds',
+                );
+                chunk += 1;
+            }
+            seed += 1;
+        }
     }
 
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
@@ -1620,7 +1451,6 @@ pub mod tests {
             PlacementTrait::plan(@site, start.left.span()),
             site.pieces,
             EntropyTrait::hosts(entropy, INSTANCE),
-            array![].span(),
         );
         let mut masks: Array<(u8, felt252)> = array![];
         let mut cy: u8 = 0;
@@ -1895,13 +1725,7 @@ pub mod tests {
         site.tasks = tasks.span();
         let start = ProgressTrait::new(@site, 'worst');
         PlacementTrait::hosts(
-            0,
-            15,
-            15,
-            PlacementTrait::plan(@site, start.left.span()),
-            array![].span(),
-            'worst',
-            array![].span(),
+            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
         )
     }
 
@@ -1947,13 +1771,7 @@ pub mod tests {
         let site = zone(biome::MEADOW, 15, 15, quotas);
         let start = ProgressTrait::new(@site, 'worst');
         PlacementTrait::hosts(
-            0,
-            15,
-            15,
-            PlacementTrait::plan(@site, start.left.span()),
-            array![].span(),
-            'worst',
-            array![].span(),
+            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
         )
     }
 
@@ -1982,13 +1800,7 @@ pub mod tests {
         let site = zone(biome::MEADOW, 15, 15, quotas);
         let start = ProgressTrait::new(@site, 'worst');
         let hosts = PlacementTrait::hosts(
-            0,
-            15,
-            15,
-            PlacementTrait::plan(@site, start.left.span()),
-            array![].span(),
-            'worst',
-            array![].span(),
+            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
         );
         assert(BoardTrait::count(*hosts[5]) == 224, 'six passes');
     }
@@ -2042,25 +1854,48 @@ pub mod tests {
         }
     }
 
-    // D-208: a Heart's pack takes the band's top level wherever it lands, here the entry chunk of
-    // a dungeon (band 3 to 5, distance 0: level 3), its Heart forced there (6 owed of 6 chunks).
+    // D-208: a Heart's pack takes the band's top level wherever it lands (band 3 to 5). ENG-10b:
+    // its host drawn first, among the outline's farthest chunks, and laid first in its chunk, so
+    // that chunk's first pack is the Heart (template 2, which the spawn table names too).
     #[test]
-    #[available_gas(l2_gas: 17309254)] // ceil(1.05 × 16485003 measured)
+    #[available_gas(l2_gas: 4000000000)]
     fn test_heart_at_the_band_top() {
         let quotas = QuotaSet {
             quotas: [
-                Quota { kind: quota::HEART, param: 2, count: 6 }, Default::default(),
+                Quota { kind: quota::HEART, param: 2, count: 1 }, Default::default(),
                 Default::default(), Default::default(), Default::default(), Default::default(),
             ],
         };
         let mut seed: felt252 = 0;
         while seed != 4 {
-            let site = dungeon(6, quotas);
+            let site = dungeon(6, quotas, seed);
+            let (far, _) = outline_of(@site).far(112);
+            // The Heart's host: the chunk whose mask carries quota 0 (bit 225)
+            let mut host: u8 = 255;
+            for entry in site.masks {
+                let (chunk, mask) = *entry;
+                let wide: u256 = mask.into();
+                if BoardTrait::has_wide(wide, 225) {
+                    host = chunk;
+                }
+            }
+            assert(BoardTrait::has(far, host), 'hosted at the farthest');
             let mut progress = ProgressTrait::new(@site, seed);
-            let r = one(@site, ref progress, array![].span(), 112);
-            let heart = *r.features.packs.span()[0];
-            assert(heart.template == 2, 'the Heart first');
-            assert(heart.level == 5, 'the band top');
+            let mut known: Array<(u8, Terrain)> = array![];
+            let mut chunk: u8 = 0;
+            while chunk != 225 {
+                if RevealTrait::revealable(@site, @progress, known.span(), chunk) {
+                    let r = one(@site, ref progress, known.span(), chunk);
+                    if chunk == host {
+                        let heart = *r.features.packs.span()[0];
+                        assert(heart.template == 2 && heart.count != 0, 'the Heart first');
+                        assert(heart.level == 5, 'the band top');
+                    }
+                    known.append((chunk, r.terrain));
+                }
+                chunk += 1;
+            }
+            assert(progress.left == [0; 14], 'the Heart placed');
             seed += 1;
         }
     }
@@ -2386,14 +2221,14 @@ pub mod tests {
         assert(digest == DIGEST_1, 'vectors moved: regenerate');
     }
 
-    /// Part 2: a dungeon floor of `N` 6 to its close (the frontier's rules at `N − 1` and `N`),
-    /// a zone's quotas on their hosts (D-208), a set piece, a task's landmark.
+    /// Part 2: a dungeon floor of `N` 6, its outline drawn at `create` (ENG-10b), revealed whole
+    /// by index; a zone's quotas on their hosts (D-208), a set piece, a task's landmark.
     #[test]
     #[available_gas(l2_gas: 320278864)] // ceil(1.05 × 305027489 measured)
     fn test_vectors_2() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_2;
-        let site = dungeon(6, exit_quota());
+        let site = dungeon(6, exit_quota(), 'dungeon');
         let mut progress = ProgressTrait::new(@site, 'dungeon');
         let mut known: Array<(u8, Terrain)> = array![];
         let mut grew = true;
@@ -2411,7 +2246,7 @@ pub mod tests {
                 chunk += 1;
             }
         }
-        assert(progress.count == 6, 'closed at N');
+        assert(progress.count == 6, 'the outline revealed');
         let quotas = QuotaSet {
             quotas: [
                 Quota { kind: quota::COLLECTOR, param: 9, count: 1 },

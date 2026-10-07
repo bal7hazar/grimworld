@@ -27,7 +27,7 @@ use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
 };
-use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking};
+use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking, object};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
@@ -37,8 +37,10 @@ use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord};
 use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry, TaskPage};
+use grimworld_logic::types::reveal::board::BoardTrait;
+use grimworld_logic::types::reveal::outline::OutlineTrait as FloorTrait;
 use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
-use grimworld_logic::types::reveal::{ProgressTrait, RevealTrait, Site};
+use grimworld_logic::types::reveal::{Progress, ProgressTrait, RevealTrait, Site};
 use grimworld_logic::types::{ChunkKind, Outcome, Refusal, instance_id};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, EventSpyTrait,
@@ -1323,7 +1325,6 @@ fn test_entry_reveal_through_the_engine() {
         (low, high),
         site.pieces,
         EntropyTrait::hosts(entropy, id.into()),
-        array![].span(),
     );
     site
         .masks =
@@ -1392,33 +1393,207 @@ fn test_region_page_bound() {
     refused(try_play(world, ALICE).instance_region(id, 0, 17), 'region: page above 16');
 }
 
-// A dungeon floor: the entry chunk alone (sight from its centre stays in it); its edges decided,
-// the frontier open (it never closes before `N`); the chunks beyond an open edge not yet revealed,
-// the others void or undecided.
+/// The dungeon floor's quotas of the tests below: an exit, a Heart (template 1), a vein.
+fn floor_quotas() -> QuotaSet {
+    QuotaSet {
+        quotas: [
+            Quota { kind: quota_kind::EXIT, param: 5, count: 1 },
+            Quota { kind: quota_kind::HEART, param: 1, count: 1 },
+            Quota { kind: quota_kind::VEIN, param: 0, count: 1 }, Default::default(),
+            Default::default(), Default::default(),
+        ],
+    }
+}
+
+/// The chunks of `set`, by index.
+fn chunks_of(set: felt252) -> Array<u8> {
+    let mut out: Array<u8> = array![];
+    let count = BoardTrait::count(set);
+    let mut i: u8 = 0;
+    while i != count {
+        out.append(BoardTrait::nth(set, i));
+        i += 1;
+    }
+    out
+}
+
+/// Reveals `order` from `progress` one chunk a call on `site`, every revealed chunk known
+/// (`known` holds those revealed before): the chunks' terrains and features, a sum of hashes (a
+/// set), the exit's chunk and the progress after.
+fn reveal_rest(
+    site: @Site, progress: Progress, id: felt252, known: Span<(u8, Terrain)>, order: Span<u8>,
+) -> (felt252, u8, Progress) {
+    let mut progress = progress;
+    let mut terrains: Array<(u8, Terrain)> = array![];
+    for entry in known {
+        terrains.append(*entry);
+    }
+    let mut words: felt252 = 0;
+    let mut exit: u8 = 255;
+    for chunk in order {
+        let out = RevealTrait::reveal(
+            site, ref progress, id, terrains.span(), array![*chunk].span(),
+        );
+        for r in out {
+            terrains.append((r.chunk, r.terrain));
+            words +=
+                poseidon_hash_span(
+                    [r.chunk.into(), StorePacking::pack(r.terrain), StorePacking::pack(r.features)]
+                        .span(),
+                );
+            for item in r.features.objects.span() {
+                if *item.kind == object::EXIT {
+                    exit = r.chunk;
+                }
+            }
+        }
+    }
+    (words, exit, progress)
+}
+
+// ENG-10b (acceptance A2): a dungeon floor entered (`create` through the zone's link): `begin`
+// draws its outline and hosts once (`HostsLibrary::floor`) and stores them; they equal the pure
+// draw from its entry draw (`OutlineTrait::draw` from `EntropyTrait::outline`, `PlacementTrait::
+// hosts` over its layers from `EntropyTrait::hosts`). The entry chunk alone is revealed, the open
+// edges 0; the views tell the outline's chunks (not yet revealed) from the void around them. The
+// engine on the stored state then reveals the rest in two orders, by index and backward: the same
+// words in every chunk, one exit, on a chunk of the farthest layer.
 #[test]
-#[available_gas(l2_gas: 37270030)] // ceil(1.05 × 35495266 measured)
+#[available_gas(l2_gas: 4000000000)]
 fn test_entry_reveal_of_a_dungeon() {
     let world = setup();
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    records.set(QUOTAS, FLOOR_1.into(), QuotaSetRecord::pack(@floor_quotas()));
+    records.set(PACK, 1, PackRecord::pack(@template()));
     let id = create(world, HERO, ALICE, FAR_LINK, 0);
+    let draw = domain(id.into(), 0, ENTRY);
+    let entropy = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
+    // [Check] The stored outline: the pure draw
+    let outline = FloorTrait::draw(112, 6, 15, 15, EntropyTrait::outline(entropy, id.into()));
+    assert(
+        read(world.instances, key(selector!("outline"), array![1, 0])) == outline.chunks,
+        'outline: its chunks',
+    );
+    assert(
+        read(world.instances, key(selector!("outline"), array![1, 1])) == outline.west,
+        'outline: its West seams',
+    );
+    assert(
+        read(world.instances, key(selector!("outline"), array![1, 2])) == outline.north,
+        'outline: its North seams',
+    );
+    // [Check] The stored hosts: the pure draw, the exit and the Heart among the farthest chunks
+    let mut site = Site {
+        target: 6,
+        biome: 1,
+        level_min: 1,
+        level_max: 3,
+        width: 15,
+        height: 15,
+        entry_chunk: 112,
+        chunk_set: outline.chunks,
+        west: outline.west,
+        north: outline.north,
+        masks: array![].span(),
+        anchors: array![(112, 112)].span(),
+        quotas: floor_quotas(),
+        tasks: tasks(0),
+        spawn: SpawnTable { spawns: [Default::default(); 7], density: 0 },
+        packs: array![(1, template())].span(),
+        pieces: array![].span(),
+    };
+    let progress = ProgressTrait::new(@site, entropy);
+    let hosts = QuotaPlacementTrait::floor_hosts(
+        outline.chunks,
+        QuotaPlacementTrait::plan(@site, progress.left.span()),
+        site.pieces,
+        EntropyTrait::hosts(entropy, id.into()),
+        outline.layers(112).span(),
+    );
+    let (far, _) = outline.far(112);
+    let mut quota: felt252 = 0;
+    for host in hosts.span() {
+        assert(read(world.instances, key(selector!("hosts"), array![1, quota])) == *host, 'hosts');
+        quota += 1;
+    }
+    assert(BoardTrait::and(*hosts[0], far) == *hosts[0] && *hosts[0] != 0, 'the exit far');
+    assert(BoardTrait::and(*hosts[1], far) == *hosts[1] && *hosts[1] != 0, 'the Heart far');
+    // [Check] The entry chunk alone, as the engine reveals it on the stored state
+    let mut masks: Array<(u8, felt252)> = array![];
+    for chunk in chunks_of(outline.chunks) {
+        masks.append((chunk, QuotaPlacementTrait::with_hosts(0, hosts.span(), chunk)));
+    }
+    site.masks = masks.span();
+    let mut entry = ProgressTrait::new(@site, entropy);
+    let first = RevealTrait::reveal(
+        @site, ref entry, id.into(), array![].span(), array![112].span(),
+    );
+    let terrain: Terrain = StorePacking::unpack(
+        read(world.instances, key(selector!("chunks"), array![1, 112])),
+    );
+    assert(first.len() == 1 && *first[0].terrain == terrain, 'the entry chunk');
     let header = header_of(world, 1);
     assert(header.revealed_count == 1, 'the entry chunk alone');
     let quotas: Quotas = StorePacking::unpack(
         read(world.instances, key(selector!("quotas"), array![1])),
     );
-    assert(quotas.target == 6 && quotas.open_edges >= 1, 'the frontier open');
-    let terrain: Terrain = StorePacking::unpack(
-        read(world.instances, key(selector!("chunks"), array![1, 112])),
+    assert(quotas.target == 6 && quotas.open_edges == 0, 'N, no open edges');
+    assert(quotas.left == entry.left, 'quotas left');
+    // [Check] The views: the outline's chunks not revealed, the others void
+    let region = play(world, ALICE).instance_region(id, 96, 16);
+    let mut i: u8 = 0;
+    for chunk in region {
+        let index = 96 + i;
+        let expected = if index == 112 {
+            ChunkKind::Revealed
+        } else if BoardTrait::has(outline.chunks, index) {
+            ChunkKind::Unrevealed
+        } else {
+            ChunkKind::Void
+        };
+        assert(*chunk.kind == expected, 'the outline in the views');
+        i += 1;
+    }
+    // [Check] The rest in two orders: the same words, one exit at the farthest
+    let mut rest: Array<u8> = array![];
+    for chunk in chunks_of(outline.chunks) {
+        if chunk != 112 {
+            rest.append(chunk);
+        }
+    }
+    let mut backward: Array<u8> = array![];
+    let mut k = rest.len();
+    while k != 0 {
+        k -= 1;
+        backward.append(*rest[k]);
+    }
+    let known = array![(112, terrain)];
+    let (words, exit, after) = reveal_rest(@site, entry, id.into(), known.span(), rest.span());
+    let (again, exit_again, _) = reveal_rest(
+        @site, entry, id.into(), known.span(), backward.span(),
     );
-    assert(terrain.edges != 0, 'edges decided');
-    let region = play(world, ALICE).instance_region(id, 104, 16);
-    // 112 is index 8 of the page from 104; its West neighbour 113 is index 9.
-    assert(*region[8].kind == ChunkKind::Revealed, 'the entry chunk');
-    let west = if terrain.edges % 2 == 1 {
-        ChunkKind::Unrevealed
-    } else {
-        ChunkKind::Void
-    };
-    assert(*region[9].kind == west, 'beyond the West edge');
+    assert(words == again && exit == exit_again, 'the same in both orders');
+    assert(BoardTrait::has(far, exit), 'one exit at the farthest');
+    assert(after.revealed == outline.chunks && after.left == [0; 14], 'the floor whole');
+}
+
+// The entry that creates a floor (D-144; ENG-10b, A7): `create` into floor 1 with its quotas (the
+// outline, the hosts, the three outline slots and the hosts written, the entry chunk revealed), to
+// read next to `test_cost_create_reveals`' zone entries (the node's figures: `lifecycle_probe.py`).
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+fn test_cost_create_floor() {
+    let world = setup();
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    records.set(QUOTAS, FLOOR_1.into(), QuotaSetRecord::pack(@floor_quotas()));
+    records.set(PACK, 1, PackRecord::pack(@template()));
+    start_cheat_caller_address(world.instances, world.hub);
+    let gas = get_available_gas();
+    IInstanceEntryDispatcher { contract_address: world.instances }
+        .create(HERO, addr(ALICE), FAR_LINK, snapshot().words(), tasks(0));
+    let spent = gas - get_available_gas();
+    assert(header_of(world, 1).revealed_count == 1, 'the entry chunk');
+    println!("gas create, a dungeon floor of 6 with an exit, a Heart and a vein: {}", spent);
 }
 
 // The entry reveal as the invocation's difference (ENG-05 *Budget lines*): `create` into the zone
