@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it. **Amended by the project manager, 2026-10-03 (D-208)**: §2's fog and what feeds the value, §3's quotas, as ENG-05 builds them. **Amended by the owner, 2026-10-05 (D-214), for zones only**: zones are **authored** with the map editor and held in the registry; dungeons stay generated; the format is ENG-08's (D-215, the project manager's rulings; `docs/decisions/2026-10-07-authored-zones-format.md`, proposed) |
+| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it. **Amended by the project manager, 2026-10-03 (D-208)**: §2's fog and what feeds the value, §3's quotas, as ENG-05 builds them. **Amended by the owner, 2026-10-05 (D-214), for zones only**: zones are **authored** with the map editor and held in the registry; dungeons stay generated; the format is ENG-08's (D-215, the project manager's rulings; `docs/decisions/2026-10-07-authored-zones-format.md`, proposed). **Amendment proposed by ENG-10a, 2026-10-07 (D-208's PLAN item; built by ENG-10b): a dungeon floor's outline is drawn at entry** (§3 *A dungeon floor's outline, fixed at entry*), which removes §3's dungeon exception and the residue of #348's re-audits |
 | Date | 2026-09-28 |
 | Decides | How a location larger than one felt is stored, generated, simulated and shown |
 | Supersedes | The room model of `docs/design/02-core-loop.md` (Map) and `docs/design/18-rooms.md` (size, entering a room, perception by room) |
@@ -167,6 +167,12 @@ sampling without replacement.
 > accepted as the dungeon's nature (D-208). A Heart's pack takes the band's top level wherever it
 > lands, so that steering it near the entry does not lower the boss. A fixed dungeon outline at
 > entry, which would remove the exception, is a design change on the project manager's plan.
+>
+> **ENG-10a (proposed; ENG-10b builds it).** The exception goes: a floor's outline, its exit and
+> its quotas' hosts are drawn once at entry (*A dungeon floor's outline, fixed at entry*, below), so a
+> dungeon's quotas take the zone column of this table (hosts, never forced; the exit and the Heart
+> among the outline's farthest chunks), and no order of moves chooses where the exit lands or how far
+> it is from the entry.
 
 ```
 at each reveal, for each quota still open:
@@ -231,6 +237,59 @@ Rules that keep an emerging outline sound:
 | When `N` chunks are revealed, every remaining open edge becomes a border | The dungeon ends |
 | Quotas count on `N` | "Chunks left to reveal" stays a known number, so guarantees hold |
 | State | Revealed count, open-edge count |
+
+> **ENG-10a (proposed; ENG-10b builds it).** A dungeon's outline no longer emerges: it is drawn at
+> entry (below). The table above and its rules hold until ENG-10b merges; after it, the dungeon
+> column reads: *Outline* drawn at the instance's entry, from its entry draw; *Known before entering*
+> no (it is drawn at entry, a new one each instance); *Stored as* `N` in the registry, and per instance
+> the floor's three felts and its hosts; *At reveal* each side toward a chunk of the outline is open exactly when its
+> seam is, every other side closed; *Gates* the entrance, and the exit a quota on a chunk drawn at
+> entry. The rules that keep an emerging outline sound have nothing left to keep: a drawn outline
+> holds its `N` chunks, connected, before the first reveal.
+
+#### A dungeon floor's outline, fixed at entry (ENG-10a, proposed; ENG-10b builds it)
+
+The measured residue (#348's re-audits t-0077 and t-0082, D-208's record): with the outline emerging
+from the order of the moves, a modified client keeps a neighbour of the entry for the `N`-th reveal,
+where the exit still owed is forced, and puts the exit **1 chunk** from the entry, up to `N − 2` = 10
+chunks closer than the worst honest floor at `N` = 12. It blocks any non-test deployment until
+ENG-10b merges (the Overseer, 2026-10-07). SPK-17 reproduces it on ENG-05's merged engine
+(`test_residue_eng05`, below) and removes it.
+
+| | |
+|---|---|
+| **The rule** | A dungeon floor's chunks, the seams open between them, and every quota's host chunks, the exit's and the Heart's among them, are **drawn once at the instance's entry**, from its entry draw alone, and stored with the instance. A reveal reads them and draws none of them. The chunk set, each seam, each host, the exit's chunk and tile and its distance from the entry are then functions of the entry draw: **no order of moves changes them** |
+| **The draw** (`spikes/SPK-17-fixed-outline/src/outline.cairo`) | Seed `derive(entropy, domain(instance, 227, REVEAL), 0)`, the word of no chunk (0–224), nor of ENG-05's hosts (225), nor of an authored zone's (226, SPK-16). The floor starts as its entry chunk and grows one chunk at a time until it holds `N` (or its whole rectangle, when smaller: D-140): the chunk added is drawn uniformly among the **frontier**, the rectangle's chunks next to the floor and not in it. Of the new chunk's seams toward the floor one, drawn uniformly, is its **parent's** and is open, so the floor is connected; each other is open but with probability 1 in 7, ENG-05's law of a dungeon's side (`BORDER`). Draw `t` reads `poseidon(seed, t).low` modulo its bound, `t` growing across the whole draw |
+| **Distances** | A walk from the entry through the open seams, a layer a step (bit-parallel: a layer is a bitmap). The **farthest** chunks are its last layer |
+| **The exit and the Heart** | Their hosts are drawn as a zone's (`PlacementTrait::hosts`, D-208, D-210, D-220: an exact draw without replacement, the caps respected, seed `derive(entropy, domain(instance, 225, REVEAL), 0)`), **among the farthest chunks only**; the other quotas (a vein, a set piece, the tasks' landmarks) among the whole outline. In its chunk the exit, then the Heart, is laid **first**, before a set piece's own packs and objects, on a tile of the spine's **core** (rows and columns 3 to 11 of row 7 and column 7, 17 tiles) less the set piece's own tiles: the spine is floor in every generated chunk and the core is at least 3 tiles from the ring, so no opening comes within 2 of it whatever the seams, and the farthest chunks are never the entry's (its anchor). Both always land, on a tile drawn from the chunk's word: no order moves it. A Heart keeps the band's top level (D-208) |
+| **Stored** (ENG-01 §3.2) | **Three felts** a floor, `outline` `(slot, 0–2)`: its chunks (bit `15 cy + cx`), its open seams West (bit `c`: between `c` and `c + 1`) and North (bit `c`: between `c` and `c + 15`); and its hosts **as a zone's**, one `hosts` slot a quota with a count. Written at `create` (every entry that creates a floor), read by every invocation that reveals in a dungeon. Two felts would hold it all (the seams and the hosts by the chunks' rank in the outline, a floor having at most 12 chunks), but packing and unpacking cost more than the slots they save (measured, ENG-01 §10) |
+| **Class** | The draw at `create` joins `HostsLibrary` (D-210), called once at `create` in a dungeon as in a zone with a quota: the outline, its farthest chunks, the hosts and the entry reveal's masks in one call. The reveal's dungeon code shrinks: no border drawn, no frontier, no guard. Measured in SPK-17's build (ENG-01 §1.3) |
+| **A reveal** | A dungeon's chunk is **inside** when it is in its outline, and **revealable as a zone's is**: inside and not revealed, sight reveals it (no "faced by an open edge"). A side toward an outline chunk not yet revealed is open exactly when its seam is; toward any other chunk closed; toward a revealed chunk copied, as before. A dungeon's quotas are due on their hosts (the mask word's bits `225 + i`, set from the stored hosts as a zone's are, `PlacementTrait::with_hosts`), never forced. The open edges and the frontier's guard are gone. The bands keep their law (`d` the chunk's distance in chunks to the entry, `D = N − 1`) |
+| **The fog** | Unchanged in substance: since D-208 every chunk's word is fixed at entry and readable ("0 chunks deep" for a client that reads the chain). The outline adds nothing such a client could not already compute; an honest client shows a chunk when sight touches it, as in a zone. What changes is display only: a chunk of the outline beyond a closed seam is revealed when sight touches it, as a zone's chunk is |
+
+**What stays random, and why it is order-free.** The draws of the outline, of the seams and of the
+hosts read the entry draw only. Every chunk's word reads the entry draw only (D-208), so its base, its
+smoothing seed, its quotas' stream and its placement stream are fixed at entry too. What the order of
+the reveals still decides is **inside a chunk, never across chunks**, the state a zone accepts already:
+on a seam open between two chunks the first of the two revealed draws the openings' tiles (1 or 2,
+which tiles), the second copies them; through the openings and the smoothing at the copied ring, the
+floor's tiles near that seam; through those, which tiles are allowed for the placements other than the
+exit's and the Heart's (a pack's tile and goblins, a chest's tile). None of them changes a chunk, a
+seam's openness, a host, the exit's chunk or tile, the Heart's chunk or tile, nor any distance between
+chunks.
+
+**The zero-residue test** (deliverable 2, ENG-10b's merge gate): for a set of entropies and `N` in
+{6, 12}, every order of the reveals (by index, backward, nearest first, farthest first, which is
+t-0077's lever, and two drawn orders) gives the same chunk set (the outline), the same exit chunk (one
+exit, among the farthest), the same exit-to-entry distance through the revealed edges (the farthest
+distance), and the same edges in every chunk. SPK-17's `test_zero_residue_*` passes it on the changed
+engine (20 floors, 120 orders); `test_residue_eng05` runs the comparison on ENG-05's merged engine and
+**measures the residue there**: FIGURES_RESIDUE.
+
+**The shape this draw gives** (SPK-17 `test_outline_*`, 64 entropies each): the farthest distance,
+where the exit now lies, is FIGURES_SHAPE. A random growth gives compact floors; a corridor-like floor
+(the exit far down a winding path) is a growth law with a bias toward the last chunk added, a design
+choice left to ENG-11 (dungeon room kinds): any law drawn at entry keeps the residue at zero.
 
 #### Joining chunks
 

@@ -5,15 +5,21 @@
 //! **The draw** (`draw`), from `seed` (`seed`: `derive(entropy, domain(instance, 227, REVEAL), 0)`,
 //! the word of no chunk; 225 is the hosts', 226 an authored zone's hosts', SPK-16): the floor starts
 //! as its entry chunk and grows one chunk at a time until it holds `N` (or the whole rectangle,
-//! when smaller): the chunk added is drawn uniformly among the **frontier**, the chunks of the
-//! rectangle next to the floor and not in it (a random growth from the entry, an Eden growth). The
-//! chunk's seams toward the floor: one of them, drawn uniformly, its **parent**, is open, so the
-//! floor is connected; each other is open but with probability 1 in 7 (`BORDER`, ENG-05's law of a
-//! dungeon's side). Draw `t` reads `poseidon(seed, t).low` modulo its bound (a bias at most
-//! 225 / 2^128), `t` growing across the whole draw, so no word is read twice.
+//! when smaller: D-140). Its draws come from one stream, `hexx`'s `Rng` seeded with `seed` (as a
+//! chunk's placement): at each step a **member** of the floor, uniform by its rank in the order
+//! added, and a **side**, uniform of 4, are drawn; the chunk beyond is kept when it is in the
+//! rectangle and not in the floor (a random growth from the entry, each frontier chunk weighted by
+//! the floor's sides facing it), up to `TRIES` words, then the exact draw, uniform over the frontier.
+//! The member is the new chunk's **parent**: their seam is open, so the floor is connected; each
+//! other seam toward the floor is open but with probability 1 in 7 (`BORDER`, ENG-05's law of a
+//! dungeon's side). `draw_frontier`, the first law measured (uniform over the frontier at every
+//! step, a Poseidon word a draw), and `draw_winding` (the newest chunk as the member half the time)
+//! are kept for their figures.
 //!
-//! **Stored** as three felts (`Outline`): the chunks (bit `15 cy + cx`), the open seams West (bit
-//! `c`: between `c` and `c + 1`) and North (bit `c`: between `c` and `c + 15`).
+//! **In memory** as three felts (`Outline`): the chunks (bit `15 cy + cx`), the open seams West
+//! (bit `c`: between `c` and `c + 1`) and North (bit `c`: between `c` and `c + 15`). **Stored** as
+//! two (`pack`): the chunks, and one felt with the seams and the 14 quotas' hosts by the chunks'
+//! rank in the outline (a floor has at most 12 chunks).
 //!
 //! **Distances** (`far`, `distance`): a breadth-first walk from the entry through the open seams,
 //! bit-parallel (a layer is a bitmap); the floor is connected, so every chunk is reached within
@@ -21,6 +27,7 @@
 //! exit and the Heart are drawn (`engine::placement::PlacementTrait::hosts`).
 
 use core::poseidon::poseidon_hash_span;
+use hexx::board::rng::RngTrait;
 use grimworld_logic::fate::EntropyTrait;
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
 
@@ -29,10 +36,26 @@ use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
 pub const COUNTER: u8 = 227;
 /// A seam that is not a parent is a border with probability 1 in `BORDER` (ENG-05's `BORDER`).
 pub const BORDER: u128 = 7;
+/// Words drawn for a member and a side before the exact draw over the frontier (`draw`; as
+/// `placement::TRIES`).
+pub const TRIES: u8 = 16;
 /// Every chunk but those of column 0, of column 14, of row 0.
 const NOT_COLUMN_0: felt252 = 0x1fffbfff7ffefffdfffbfff7ffefffdfffbfff7ffefffdfffbfff7ffe;
 const NOT_COLUMN_14: felt252 = 0xfffdfffbfff7ffefffdfffbfff7ffefffdfffbfff7ffefffdfffbfff;
 const NOT_ROW_0: felt252 = 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffff8000;
+/// `1 / 2` and `1 / 2^15` in the field: a bitmap with no bit in column 0 (row 0) moved one chunk
+/// East (South) by a product, exact, as the board's shifts (`board.cairo`).
+const INV_2: felt252 = 0x400000000000008800000000000000000000000000000000000000000000001;
+const INV_32768: felt252 = 0x7fff00000000010ffde00000000000000000000000000000000000000000001;
+/// A stored floor holds at most 12 chunks (CM-9: `N` is 6 to 12): its seams and hosts are kept
+/// by rank in the outline (`pack`).
+pub const MAX_CHUNKS: u8 = 12;
+/// Quotas of an instance (`engine::placement::QUOTAS`).
+const QUOTAS: u8 = 14;
+
+pub mod errors {
+    pub const SIZE: felt252 = 'outline: more than 12 chunks';
+}
 
 /// A dungeon floor's outline (module doc), the three felts `create` stores.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -63,8 +86,133 @@ pub impl OutlineImpl of OutlineTrait {
     }
 
     /// The outline of a floor of `n` chunks entered at `entry`, in a `width × height` rectangle,
-    /// drawn from `seed` (module doc).
+    /// drawn from `seed` (module doc): at each step a member of the floor (uniform, by its rank in the
+    /// order added) and a side (uniform of 4), kept when the side's chunk is in the rectangle and not
+    /// in the floor, up to `TRIES` pairs (the chunk added then lies next to
+    /// the floor with a probability that grows with the floor's sides facing it); else, the exact
+    /// draw, uniform over the frontier (`count`, `nth`, dearer). The member is the chunk's parent:
+    /// their seam open; each other seam toward the floor open but a border in 7.
     fn draw(entry: u8, n: u8, width: u8, height: u8, seed: felt252) -> Outline {
+        Self::grow(entry, n, width, height, seed, false)
+    }
+
+    /// `draw` with the member drawn as the newest chunk with probability 1/2 (else uniform): a
+    /// winding floor, its farthest chunk farther (SPK-17's figures; ENG-11's choice).
+    fn draw_winding(entry: u8, n: u8, width: u8, height: u8, seed: felt252) -> Outline {
+        Self::grow(entry, n, width, height, seed, true)
+    }
+
+    fn grow(entry: u8, n: u8, width: u8, height: u8, seed: felt252, winding: bool) -> Outline {
+        let rectangle = Self::rectangle(width, height);
+        let area = BoardTrait::count(rectangle);
+        let target = if n < area {
+            n
+        } else {
+            area
+        };
+        let mut members: Array<u8> = array![entry];
+        let mut chunks = BoardTrait::pow(entry);
+        let mut west: felt252 = 0;
+        let mut north: felt252 = 0;
+        let mut rng = RngTrait::new(seed);
+        let mut count: u8 = 1;
+        while count < target {
+            // [Compute] The chunk added and its parent: a member and a side, or the exact draw
+            let mut found: Option<(u8, u8)> = Option::None;
+            let mut tries: u8 = 0;
+            while found.is_none() && tries != TRIES {
+                let newest = winding && rng.draw_byte(2) == 0;
+                let k = if newest {
+                    count - 1
+                } else {
+                    rng.draw_byte(count.try_into().unwrap())
+                };
+                let side = rng.draw_byte(4);
+                let member = *members[k.into()];
+                if let Option::Some(next) = Self::beside(member, side, width, height) {
+                    if !BoardTrait::has(chunks, next) {
+                        found = Option::Some((next, member));
+                    }
+                }
+                tries += 1;
+            }
+            let (chunk, parent) = match found {
+                Option::Some(pair) => pair,
+                Option::None => {
+                    let frontier = BoardTrait::minus(
+                        BoardTrait::and(Self::around(chunks), rectangle), chunks,
+                    );
+                    let chunk = BoardTrait::nth(
+                        frontier, rng.draw_byte(BoardTrait::count(frontier).try_into().unwrap()),
+                    );
+                    // Its parent: its first neighbour in the floor (ENG-01's order of the sides)
+                    let mut parent: u8 = 255;
+                    let mut side: u8 = 0;
+                    while side != 4 {
+                        if let Option::Some(next) = Self::beside(chunk, side, width, height) {
+                            if parent == 255 && BoardTrait::has(chunks, next) {
+                                parent = next;
+                            }
+                        }
+                        side += 1;
+                    }
+                    (chunk, parent)
+                },
+            };
+            // [Compute] Its seams toward the floor: the parent's open, each other but a border in 7
+            let mut side: u8 = 0;
+            while side != 4 {
+                if let Option::Some(next) = Self::beside(chunk, side, width, height) {
+                    if BoardTrait::has(chunks, next) {
+                        let border = rng.draw_byte(7) == 0;
+                        if next == parent || !border {
+                            if side == 0 {
+                                west += BoardTrait::pow(chunk);
+                            } else if side == 1 {
+                                west += BoardTrait::pow(next);
+                            } else if side == 2 {
+                                north += BoardTrait::pow(next);
+                            } else {
+                                north += BoardTrait::pow(chunk);
+                            }
+                        }
+                    }
+                }
+                side += 1;
+            }
+            chunks += BoardTrait::pow(chunk);
+            members.append(chunk);
+            count += 1;
+        }
+        Outline { chunks, west, north }
+    }
+
+    /// The chunk beyond `side` of `chunk` (West `+1`, East `−1`, South `−15`, North `+15`) in the
+    /// `width × height` rectangle.
+    fn beside(chunk: u8, side: u8, width: u8, height: u8) -> Option<u8> {
+        let (cy, cx) = DivRem::div_rem(chunk, 15);
+        if side == 0 {
+            if cx + 1 < width {
+                return Option::Some(chunk + 1);
+            }
+        } else if side == 1 {
+            if cx != 0 {
+                return Option::Some(chunk - 1);
+            }
+        } else if side == 2 {
+            if cy != 0 {
+                return Option::Some(chunk - 15);
+            }
+        } else if cy + 1 < height {
+            return Option::Some(chunk + 15);
+        }
+        Option::None
+    }
+
+    /// The first law measured (SPK-17, not proposed): the chunk added drawn uniformly over the
+    /// frontier by `count` and `nth` at every step (3.89 M at `N` = 12 in memory, against `draw`'s
+    /// figure in the README).
+    fn draw_frontier(entry: u8, n: u8, width: u8, height: u8, seed: felt252) -> Outline {
         let rectangle = Self::rectangle(width, height);
         let area = BoardTrait::count(rectangle);
         let target = if n < area {
@@ -131,11 +279,9 @@ pub impl OutlineImpl of OutlineTrait {
     /// The chunks next to `set` (West, East, South, North), within the 15 × 15 board.
     fn around(set: felt252) -> felt252 {
         let west = BoardTrait::and(set, NOT_COLUMN_14) * 2;
-        let wide: u256 = BoardTrait::and(set, NOT_COLUMN_0).into();
-        let east: felt252 = (wide / 2).try_into().unwrap();
+        let east = BoardTrait::and(set, NOT_COLUMN_0) * INV_2;
         let north = BoardTrait::and(set * 0x8000, BOARD);
-        let wide: u256 = BoardTrait::and(set, NOT_ROW_0).into();
-        let south: felt252 = (wide / 0x8000).try_into().unwrap();
+        let south = BoardTrait::and(set, NOT_ROW_0) * INV_32768;
         BoardTrait::or(BoardTrait::or(west, east), BoardTrait::or(north, south))
     }
 
@@ -143,11 +289,9 @@ pub impl OutlineImpl of OutlineTrait {
     fn step(self: @Outline, layer: felt252) -> felt252 {
         // West: `c + 1` when the seam `c` is open; East: `c − 1` when the seam `c − 1` is
         let west = BoardTrait::and(layer, *self.west) * 2;
-        let wide: u256 = BoardTrait::and(layer, NOT_COLUMN_0).into();
-        let east = BoardTrait::and((wide / 2).try_into().unwrap(), *self.west);
+        let east = BoardTrait::and(BoardTrait::and(layer, NOT_COLUMN_0) * INV_2, *self.west);
         let north = BoardTrait::and(layer, *self.north) * 0x8000;
-        let wide: u256 = BoardTrait::and(layer, NOT_ROW_0).into();
-        let south = BoardTrait::and((wide / 0x8000).try_into().unwrap(), *self.north);
+        let south = BoardTrait::and(BoardTrait::and(layer, NOT_ROW_0) * INV_32768, *self.north);
         BoardTrait::and(
             BoardTrait::or(BoardTrait::or(west, east), BoardTrait::or(north, south)), *self.chunks,
         )
@@ -186,6 +330,71 @@ pub impl OutlineImpl of OutlineTrait {
             }
         }
         found
+    }
+
+    /// The floor's second stored felt (ENG-10a's layout; the first is `chunks`): for the outline's
+    /// `k`-th chunk by index (`k` below 12), bit `2k` its West seam open, bit `2k + 1` its North
+    /// seam open; quota `i`'s hosts (`hosts`, one bitmap a quota, bit `15 cy + cx`) at `24 + 12 i +
+    /// k`, 14 quotas up to bit 191.
+    fn pack(self: @Outline, hosts: Span<felt252>) -> felt252 {
+        let count = BoardTrait::count(*self.chunks);
+        assert(count <= MAX_CHUNKS, errors::SIZE);
+        let mut word: felt252 = 0;
+        let mut k: u8 = 0;
+        while k != count {
+            let chunk = BoardTrait::nth(*self.chunks, k);
+            if BoardTrait::has(*self.west, chunk) {
+                word += BoardTrait::pow(2 * k);
+            }
+            if BoardTrait::has(*self.north, chunk) {
+                word += BoardTrait::pow(2 * k + 1);
+            }
+            let mut bit = 24 + k;
+            for host in hosts {
+                if *host != 0 && BoardTrait::has(*host, chunk) {
+                    word += BoardTrait::pow(bit);
+                }
+                bit += 12;
+            }
+            k += 1;
+        }
+        word
+    }
+
+    /// The outline and the 14 quotas' hosts from the two stored felts (`pack`).
+    fn unpack(chunks: felt252, word: felt252) -> (Outline, Array<felt252>) {
+        let count = BoardTrait::count(chunks);
+        let wide: u256 = word.into();
+        let mut west: felt252 = 0;
+        let mut north: felt252 = 0;
+        let mut members: Array<felt252> = array![];
+        let mut k: u8 = 0;
+        while k != count {
+            let bit = BoardTrait::pow(BoardTrait::nth(chunks, k));
+            members.append(bit);
+            if BoardTrait::has_wide(wide, 2 * k) {
+                west += bit;
+            }
+            if BoardTrait::has_wide(wide, 2 * k + 1) {
+                north += bit;
+            }
+            k += 1;
+        }
+        let mut out: Array<felt252> = array![];
+        let mut i: u8 = 0;
+        while i != QUOTAS {
+            let mut host: felt252 = 0;
+            let mut k: u8 = 0;
+            for bit in members.span() {
+                if BoardTrait::has_wide(wide, 24 + 12 * i + k) {
+                    host += *bit;
+                }
+                k += 1;
+            }
+            out.append(host);
+            i += 1;
+        }
+        (Outline { chunks, west, north }, out)
     }
 
     /// The outline whose seams are the open edges of revealed chunks (`Terrain.edges`: West, East,

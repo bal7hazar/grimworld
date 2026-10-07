@@ -433,7 +433,8 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 | `roster` | (slot, page 0–3) | 1 each | `Lanes16`: entity ids of goblins displaced from their spawn, alive or dead and not looted; a compact list of `header.roster_count` entries | a goblin is displaced, is looted or goes home |
 | `chunks` | (slot, chunk 0–224) | **2** each | `Chunk { terrain, features }` | reveal (both); a pack wakes or an object is used (`features`) |
 | `goblins` | (slot, entity) | **2** each | `Goblin { state, timers }` | a goblin leaves its first state, acts, dies, is looted |
-| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only, never in a dungeon | `create` and `leave` to a zone |
+| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only, never in a dungeon (**ENG-10a, proposed**: a dungeon floor's too, its exit and Heart among the outline's farthest chunks) | `create` and `leave` to a zone (ENG-10a: and to a dungeon floor) |
+| `outline` | (slot, 0–2) | 1 each | **ENG-10a, proposed (ENG-10b builds it)**: a dungeon floor's outline drawn at `create` (ADR-0006 §3, *A dungeon floor's outline, fixed at entry*): 0 its chunks, 1 its open West seams (bit `c`: between `c` and `c + 1`), 2 its open North seams (bit `c`: between `c` and `c + 15`), bits `15 cy + cx`; read by every invocation that reveals in a dungeon, never in a zone | `create` and `leave` to a dungeon floor |
 
 **`Placement`** (1 felt): slot 0–31 · generation 32–63 · member 64–71 · inside 72–79 · `LIVE`.
 
@@ -442,7 +443,7 @@ location 96–111 · status 112–119 (0 open, 1 returned, 2 defeated, 3 moved) 
 tasks 128–135 · revealed count 136–143 · roster count 144–151 · flags 152–159 (bit 0 sealed, Red
 Rift) · entry chunk 160–167 · entry tile 168–175 · gate 176–191 · `LIVE`.
 
-**`Quotas`** (1 felt): target `N` 0–7 (dungeon floor, 6–12; 0 in a zone) · open edges 8–15 · left
+**`Quotas`** (1 felt): target `N` 0–7 (dungeon floor, 6–12; 0 in a zone) · open edges 8–15 (**ENG-10a, proposed**: 0 in both kinds, a floor's outline being drawn, not emerging; the bits kept) · left
 to place of quota `i` at `16 + 8 i`, 14 quotas (the location's registry list first, then the
 snapshotted tasks' quotas). ADR-0006: "two counters per quota", the second being the chunks left,
 `N − revealed count`.

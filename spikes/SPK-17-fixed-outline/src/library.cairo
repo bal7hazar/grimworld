@@ -148,12 +148,16 @@ pub mod FixedRevealLibrary {
     }
 }
 
-/// The slots `create` writes for a floor, shaped as `Instances`' (`hosts` under `(slot, quota)`;
-/// the outline's three felts under `(slot, 0–2)`), to measure them apart.
+/// The slots `create` writes for a floor, to measure them apart: the outline's three felts under
+/// `(slot, 0–2)` and the hosts as a zone's (`Instances.hosts` under `(slot, quota)`), or ENG-10a's
+/// two felts.
 #[starknet::interface]
 pub trait ISlots<T> {
     fn write(ref self: T, slot: u32, outline: Outline, hosts: Span<felt252>);
     fn nothing(ref self: T, slot: u32, outline: Outline, hosts: Span<felt252>);
+    /// ENG-10a's layout: the floor's two felts (`OutlineTrait::pack`) under `(slot, 0–1)`.
+    fn write_packed(ref self: T, slot: u32, chunks: felt252, word: felt252);
+    fn nothing_packed(ref self: T, slot: u32, chunks: felt252, word: felt252);
 }
 
 #[starknet::contract]
@@ -185,5 +189,12 @@ pub mod Slots {
 
         /// The same call, writing nothing: the pair's baseline.
         fn nothing(ref self: ContractState, slot: u32, outline: Outline, hosts: Span<felt252>) {}
+
+        fn write_packed(ref self: ContractState, slot: u32, chunks: felt252, word: felt252) {
+            self.outline.write((slot, 0), chunks);
+            self.outline.write((slot, 1), word);
+        }
+
+        fn nothing_packed(ref self: ContractState, slot: u32, chunks: felt252, word: felt252) {}
     }
 }

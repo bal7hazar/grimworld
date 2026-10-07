@@ -1,0 +1,26 @@
+   Compiling test(spk17_unittest) spk17 v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0087-eng-10a-fixed-dungeon-outline/spikes/SPK-17-fixed-outline/Scarb.toml)
+   Compiling test(spk17_tests) spk17_tests v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0087-eng-10a-fixed-dungeon-outline/spikes/SPK-17-fixed-outline/Scarb.toml)
+    Finished `dev` profile target(s) in 31 seconds
+
+
+Collected 23 test(s) from spk17 package
+Running 23 test(s) from tests/
+[PASS] spk17_tests::test_cost::test_base_outline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~505386)
+[PASS] spk17_tests::test_cost::test_base_library (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~518396)
+[PASS] spk17_tests::test_cost::test_pair_outline_draw_6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2799537)
+[PASS] spk17_tests::test_cost::test_base_slots (l1_gas: ~0, l1_data_gas: ~96, l2_gas: ~8556093)
+[PASS] spk17_tests::test_cost::test_pair_outline_floor_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~5964215)
+ENG-05 floor: 12 chunks revealed
+[PASS] spk17_tests::test_cost::test_pair_reveal_eng05_floor (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~70644108)
+N = 6: the farthest distance over 64 entropies: min 2, max 4, sum 175
+[PASS] spk17_tests::test_outline::test_outline_n6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~563659724)
+[PASS] spk17_tests::test_outline::test_outline_small_rectangle (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2748837)
+ENG-05, entropy 0: honest exit 3 at 11 (1 exits); forcing order exit 97 at 1 (1 exits)
+N = 9: the farthest distance over 64 entropies: min 2, max 6, sum 238
+[PASS] spk17_tests::test_outline::test_outline_n9 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~863402727)
+ENG-05, entropy 1: honest exit 21 at 7 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 2: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 3: honest exit 4 at 10 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 4: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 5: honest exit 3 at 11 (1 exits); forcing order exit 111 at 1 (1 exits)
+ENG-05, entropy 6: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 exits)

@@ -53,6 +53,22 @@ fn test_pair_outline_draw_12() {
     assert(outline.chunks != 0, 'drawn');
 }
 
+#[test]
+fn test_pair_outline_winding_12() {
+    let (outline_seed, hosts_seed, plan) = inputs(12);
+    assert(outline_seed != hosts_seed && plan != (0, 0), 'inputs');
+    let outline = OutlineTrait::draw_winding(ENTRY, 12, 15, 15, outline_seed);
+    assert(outline.chunks != 0, 'drawn');
+}
+
+#[test]
+fn test_pair_outline_frontier_12() {
+    let (outline_seed, hosts_seed, plan) = inputs(12);
+    assert(outline_seed != hosts_seed && plan != (0, 0), 'inputs');
+    let outline = OutlineTrait::draw_frontier(ENTRY, 12, 15, 15, outline_seed);
+    assert(outline.chunks != 0, 'drawn');
+}
+
 /// What `create` computes for a floor of 12: the outline, its farthest chunks, the hosts of the
 /// exit, the vein and the Heart, the entry chunk's mask.
 #[test]
@@ -121,6 +137,55 @@ fn test_pair_slots_write() {
     let store = slots();
     let floor = create(ENTROPY, 12);
     store.write(1, floor.outline, floor.hosts);
+}
+
+/// ENG-10a's layout: the two felts.
+#[test]
+fn test_base_slots_packed() {
+    let store = slots();
+    let floor = create(ENTROPY, 12);
+    let word = floor.outline.pack(floor.hosts);
+    store.nothing_packed(1, floor.outline.chunks, word);
+}
+
+#[test]
+fn test_pair_slots_packed_write() {
+    let store = slots();
+    let floor = create(ENTROPY, 12);
+    let word = floor.outline.pack(floor.hosts);
+    store.write_packed(1, floor.outline.chunks, word);
+}
+
+// ---- The layout in memory: packed at `create`, unpacked at each invocation that reveals ----
+
+#[test]
+fn test_base_layout() {
+    let floor = create(ENTROPY, 12);
+    assert(floor.hosts.len() != 0, 'fixture');
+}
+
+#[test]
+fn test_pair_layout_pack() {
+    let floor = create(ENTROPY, 12);
+    assert(floor.hosts.len() != 0, 'fixture');
+    let word = floor.outline.pack(floor.hosts);
+    assert(word != 0, 'packed');
+}
+
+#[test]
+fn test_base_layout_packed() {
+    let floor = create(ENTROPY, 12);
+    let word = floor.outline.pack(floor.hosts);
+    assert(word != 0, 'fixture');
+}
+
+#[test]
+fn test_pair_layout_packed_unpack() {
+    let floor = create(ENTROPY, 12);
+    let word = floor.outline.pack(floor.hosts);
+    assert(word != 0, 'fixture');
+    let (outline, hosts) = OutlineTrait::unpack(floor.outline.chunks, word);
+    assert(outline.chunks != 0 && hosts.len() == 14, 'unpacked');
 }
 
 // ---- A reveal: ENG-05's engine against the changed one, N = 12 ----

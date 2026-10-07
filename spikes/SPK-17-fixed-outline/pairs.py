@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SPK-17 (SPK-16's, unchanged but for this line): every pair's difference from snforge's outputs (D-154: two clean builds, each run once).
+"""SPK-17 (SPK-16's script, without its one special base): every pair's difference from snforge's outputs (D-154: two clean builds, each run once).
 
     python3 pairs.py snforge-test-output-1.txt snforge-test-output-2.txt
 
