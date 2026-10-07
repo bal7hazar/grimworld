@@ -2,6 +2,9 @@
 //! (docs/architecture/ENG-01-interfaces.md). The order of every enum's variants is frozen: it is
 //! their encoding in calldata and events.
 
+/// The adventurer's action between two ticks: legality, costs, facing, resolution (design/19 §5.3,
+/// CBT-05b).
+pub mod action;
 /// The enumerations of combat that are not an entry's own fields (design/19, CBT-01).
 pub mod combat;
 /// The effect entry and its enumerations (design/19 §2, §3, CBT-01).
@@ -19,6 +22,8 @@ pub mod passive;
 pub mod reveal;
 /// The state and content a world tick reads and writes (CBT-02).
 pub mod tick;
+/// Traps: placing one, triggering one (design/19 §5.11, CBT-05b).
+pub mod trap;
 /// The game's geometry on the window: sight, reach, arcs, facing, shapes (ENG-02).
 pub mod window;
 /// The world of a tick's library call, and the pipeline (CBT-02).

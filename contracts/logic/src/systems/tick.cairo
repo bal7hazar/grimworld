@@ -30,7 +30,13 @@ pub mod TickLibrary {
         ) -> Words {
             let (mut world, sheets, index) = words.indexed(@content);
             let mut rules = Delegate {
-                board, cache: Default::default(), executor, content, index, placed: array![],
+                board,
+                cache: Default::default(),
+                executor,
+                content,
+                index,
+                placed: array![],
+                ground: array![],
             };
             TickTrait::run(ref world, @sheets, ticks, ref rules);
             world.store()

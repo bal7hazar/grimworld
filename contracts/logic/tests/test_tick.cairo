@@ -3555,6 +3555,7 @@ fn test_cost_route_c_tick() {
         content,
         index,
         placed: array![],
+        ground: array![],
     };
     TickTrait::tick(ref world, @sheets, ref rules);
     assert(rules.cache.hits == 8 && !world.defeated, 'eight hits');

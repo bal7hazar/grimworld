@@ -9,8 +9,8 @@
 use crate::helpers::signed::SignedTrait;
 use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
 use crate::packing::{
-    N16, N2, N28, N32, N56, N7, N8, P112, P16, P20, P24, P28, P32, P48, P52, P56, P64, P72, P8, P80,
-    P84, P96, field, limbs, peel,
+    N16, N2, N28, N32, N56, N7, N8, P112, P120, P16, P20, P24, P28, P32, P40, P48, P52, P56, P64,
+    P72, P8, P80, P84, P96, field, limbs, peel,
 };
 use crate::types::combat::{condition, damage, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
@@ -37,6 +37,16 @@ const F184: felt252 = 0x10000000000000000000000000000000000000000000000;
 const F192: felt252 = 0x1000000000000000000000000000000000000000000000000;
 const F212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
 const F112: felt252 = 0x10000000000000000000000000000;
+const F48: felt252 = 0x1000000000000;
+const F120: felt252 = 0x1000000000000000000000000000000;
+const F168: felt252 = 0x1000000000000000000000000000000000000000000;
+/// `MemberState`'s belt counts, 8 bits a slot from bit 128.
+const BELT_LANES: [felt252; 4] = [
+    F128, 0x10000000000000000000000000000000000, 0x1000000000000000000000000000000000000,
+    0x100000000000000000000000000000000000000,
+];
+/// 2^92: the second quick-cast pair in `MemberBar`'s high limb.
+const P92: u128 = 0x100000000000000000000000;
 /// `Member.bar_at`'s lanes: bar slot `s`'s position at bits `16 s` (CBT-02d: one `u128`, where
 /// eight `u32` made each copy of a member 7 felts longer).
 const BAR_LANES: [u128; 8] = [1, P16, P32, 0x1000000000000, P64, P80, P96, P112];
@@ -406,6 +416,47 @@ pub impl MemberWordsImpl of MemberWordsTrait {
         }
     }
 
+    /// Its facing (`MemberState` 48–55), which the action phase turns (design/19 §5.3 step 3).
+    fn set_facing(ref self: Member, facing: u8) {
+        let (_, _, old) = MemberSnapshotTrait::place(@self);
+        self.words.state += TickMathTrait::delta(old.into(), facing.into(), F48);
+    }
+
+    /// Quick-cast counter `k` (0: `MemberState.casts` 120–127; 1: `casts_2` 168–175; §5.12).
+    fn casts(self: @Member, k: u8) -> u8 {
+        let (low, high) = limbs(*self.words.state);
+        let value = if k == 0 {
+            field(low, P120, P8)
+        } else {
+            field(high, P40, P8)
+        };
+        value.try_into().unwrap()
+    }
+
+    fn set_casts(ref self: Member, k: u8, casts: u8) {
+        let old = self.casts(k);
+        let shift = if k == 0 {
+            F120
+        } else {
+            F168
+        };
+        self.words.state += TickMathTrait::delta(old.into(), casts.into(), shift);
+    }
+
+    /// The count left in belt slot 0–3 (`MemberState` 128 + 8 slot).
+    fn belt_count(self: @Member, slot: u8) -> u8 {
+        let (_, high) = limbs(*self.words.state);
+        field(high, *[1, P8, P16, P24].span()[slot.into()], P8).try_into().unwrap()
+    }
+
+    fn set_belt_count(ref self: Member, slot: u8, count: u8) {
+        let old = self.belt_count(slot);
+        self
+            .words
+            .state +=
+                TickMathTrait::delta(old.into(), count.into(), *BELT_LANES.span()[slot.into()]);
+    }
+
     /// The potion item of belt slot 0–3 (`MemberKit` bits `32 slot`).
     fn belt_item(self: @Member, slot: u16) -> u32 {
         let (low, _) = limbs(*self.words.kit);
@@ -476,6 +527,37 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     fn level(self: @Member) -> u8 {
         let (low, _) = limbs(*self.words.stats);
         field(low, P64, P8).try_into().unwrap()
+    }
+
+    /// Its primary profession and its primary attribute's rank (`MemberStats` 72–79, 80–87).
+    fn primary(self: @Member) -> (u8, u8) {
+        let (low, _) = limbs(*self.words.stats);
+        (field(low, P72, P8).try_into().unwrap(), field(low, P80, P8).try_into().unwrap())
+    }
+
+    /// Its weapon's tick cost `k` (`MemberStats` 104–111), at least 1 (design/04).
+    fn weapon_ticks(self: @Member) -> u8 {
+        let (low, _) = limbs(*self.words.stats);
+        let k: u8 = field(low, P104, P8).try_into().unwrap();
+        if k == 0 {
+            1
+        } else {
+            k
+        }
+    }
+
+    /// Its two quick-cast pairs (`MemberBar` 208–219, 220–231: the attribute's build-local
+    /// index 4 bits, N 8 bits; design/19 §5.12, D-157 A), `(attribute, N)` each.
+    fn quick_casts(self: @Member) -> [(u8, u8); 2] {
+        let (_, high) = limbs(*self.words.bar);
+        let first = field(high, P80, 0x1000);
+        let second = field(high, P92, 0x1000);
+        let (n0, a0) = DivRem::div_rem(first, 0x10);
+        let (n1, a1) = DivRem::div_rem(second, 0x10);
+        [
+            (a0.try_into().unwrap(), n0.try_into().unwrap()),
+            (a1.try_into().unwrap(), n1.try_into().unwrap()),
+        ]
     }
 
     /// Its weapon (`MemberStats`): class 88–95, damage 96–103, range 112–119, strength

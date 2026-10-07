@@ -51,6 +51,7 @@ use crate::models::member::{
     Member, MemberConditionTrait, MemberLifecycleTrait, MemberSnapshotTrait, MemberTrait,
     MemberWordsTrait,
 };
+use crate::types::action::Carry;
 use crate::types::combat::{Arc, HitClass, condition, skill_kind};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
 use crate::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BLOCK};
@@ -59,6 +60,7 @@ use crate::types::tick::{
     ABSENT, ABSENT_LANE, CASTE_KEY, CasteSheetTrait, Content, ENERGY_THIRDS, Held, Index,
     POTION_KEY, Sheets, SkillSheetTrait, ai, flag,
 };
+use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, Window, WindowTrait, range};
 use crate::types::world::{Actor, Pending, Rules, Words, World, WorldTrait};
 use crate::types::{FIRST_GOBLIN, MAX_CLOCK};
@@ -1140,6 +1142,8 @@ pub struct Executor {
     pub board: Board,
     pub cache: Cache,
     pub placed: Array<(u16, Actor)>,
+    /// The chunk objects a placement writes (CBT-05b, §5.11).
+    pub ground: Ground,
 }
 
 pub impl ExecutorRules of Rules<Executor> {
@@ -1148,21 +1152,56 @@ pub impl ExecutorRules of Rules<Executor> {
     fn resolve(
         ref self: Executor, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
     ) {
-        let lever = Levered {};
-        let mut cache = self.cache;
+        let carrier = ExecutorTrait::carrier(@world, sheets, actor, slot);
         let board = self.board;
-        let executed = ExecutorTrait::conclude(
-            @lever, ref cache, ref world, sheets, @board, actor, slot, target,
-        );
-        self.cache = cache;
-        if executed == Executed::Place {
-            self.placed.append((target, actor));
+        if !ExecutorTrait::legal(@Levered {}, @world, sheets, @board, actor, carrier, target) {
+            return;
         }
+        let t = world.clock;
+        let _ = self.carry(ref world, sheets, actor, slot, carrier, target, t);
     }
 
     fn act(ref self: Executor, ref world: World, sheets: @Sheets, index: u32) {}
 
     fn objectives(ref self: Executor, ref world: World) {}
+}
+
+pub impl ExecutorCarry of Carry<Executor> {
+    fn carry(
+        ref self: Executor,
+        ref world: World,
+        sheets: @Sheets,
+        source: Actor,
+        slot: u8,
+        carrier: Carrier,
+        address: u16,
+        t: u32,
+    ) -> Executed {
+        let lever = Levered {};
+        let mut cache = self.cache;
+        let board = self.board;
+        let executed = ExecutorTrait::execute(
+            @lever, ref cache, ref world, sheets, @board, source, carrier, address, t,
+        );
+        self.cache = cache;
+        if executed != Executed::Place {
+            return executed;
+        }
+        let placer = TrapTrait::placer(@world, source, slot);
+        if !TrapTrait::place(ref self.ground, @world, @board, board.tile(address), placer) {
+            return Executed::Illegal;
+        }
+        self.placed.append((address, source));
+        Executed::Place
+    }
+
+    fn board(self: @Executor) -> Board {
+        *self.board
+    }
+
+    fn ground(self: @Executor) -> @Ground {
+        self.ground
+    }
 }
 
 /// The rules of the tick's library class under route (c) (the project manager, 2026-10-02,
@@ -1183,6 +1222,8 @@ pub struct Delegate {
     pub content: Content,
     pub index: Index,
     pub placed: Array<(u16, Actor)>,
+    /// The chunk objects a placement writes (CBT-05b, §5.11).
+    pub ground: Ground,
 }
 
 pub impl DelegateRules of Rules<Delegate> {
@@ -1194,13 +1235,37 @@ pub impl DelegateRules of Rules<Delegate> {
         let board = self.board;
         // §5.9 in this class: the slot's carrier, and its target still legal (else nothing, the
         // costs stay paid); the carrier itself runs behind the call.
-        let lever = Levered {};
         let carrier = ExecutorTrait::carrier(@world, sheets, actor, slot);
-        if !ExecutorTrait::legal(@lever, @world, sheets, @board, actor, carrier, target) {
+        if !ExecutorTrait::legal(@Levered {}, @world, sheets, @board, actor, carrier, target) {
             return;
         }
+        let t = world.clock;
+        let _ = self.carry(ref world, sheets, actor, slot, carrier, target, t);
+    }
+
+    fn act(ref self: Delegate, ref world: World, sheets: @Sheets, index: u32) {}
+
+    fn objectives(ref self: Delegate, ref world: World) {}
+}
+
+pub impl DelegateCarry of Carry<Delegate> {
+    #[inline(never)]
+    fn carry(
+        ref self: Delegate,
+        ref world: World,
+        sheets: @Sheets,
+        source: Actor,
+        slot: u8,
+        carrier: Carrier,
+        address: u16,
+        t: u32,
+    ) -> Executed {
+        let board = self.board;
+        let actor = source;
+        let target = address;
+        let lever = Levered {};
         // §5.14 step 2 before any sub-world: a `TRAP` carrier places its trap if its guard
-        // holds (CBT-05b writes the object), and nothing else runs (CBT-05a's review).
+        // holds and the tile can take one (§5.11), and nothing else runs (CBT-05a's review).
         if let Carrier::Skill((at, _)) = carrier {
             let first = lever.entry(sheets, at, 0);
             if first.kind == kind::TRAP {
@@ -1209,10 +1274,15 @@ pub impl DelegateRules of Rules<Delegate> {
                     Actor::Member(i) => ExecutorTrait::guards(@world.member(i), entries),
                     Actor::Goblin(i) => ExecutorTrait::guards(@world.goblin(i), entries),
                 };
-                if held & 1 == 1 {
-                    self.placed.append((target, actor));
+                if held & 1 == 0 {
+                    return Executed::Skipped;
                 }
-                return;
+                let placer = TrapTrait::placer(@world, actor, slot);
+                if !TrapTrait::place(ref self.ground, @world, @board, board.tile(target), placer) {
+                    return Executed::Illegal;
+                }
+                self.placed.append((target, actor));
+                return Executed::Place;
             }
         }
         let (addressing, _) = ExecutorTrait::addressing(@lever, @world, sheets, actor, carrier);
@@ -1304,12 +1374,9 @@ pub impl DelegateRules of Rules<Delegate> {
             other => other,
         };
         let library = IExecutorLibraryLibraryDispatcher { class_hash: self.executor };
-        let (out, cache, place) = library
-            .execute(words, content, board, self.cache, sub, carrier, target, world.clock);
+        let (out, cache, _) = library
+            .execute(words, content, board, self.cache, sub, carrier, target, t);
         self.cache = cache;
-        if place {
-            self.placed.append((target, actor));
-        }
         let mut m = 0;
         for words in out.members {
             let member = MemberTrait::load(words, ref self.index, sheets);
@@ -1325,18 +1392,23 @@ pub impl DelegateRules of Rules<Delegate> {
         for entity in out.killed {
             world.killed.append(entity);
         }
+        Executed::Ran
     }
 
-    fn act(ref self: Delegate, ref world: World, sheets: @Sheets, index: u32) {}
+    fn board(self: @Delegate) -> Board {
+        *self.board
+    }
 
-    fn objectives(ref self: Delegate, ref world: World) {}
+    fn ground(self: @Delegate) -> @Ground {
+        self.ground
+    }
 }
 
 #[generate_trait]
 pub impl ExecutorImpl of ExecutorTrait {
     /// The executor's rules on `board`.
     fn new(board: Board) -> Executor {
-        Executor { board, cache: Default::default(), placed: array![] }
+        Executor { board, cache: Default::default(), placed: array![], ground: array![] }
     }
 
     /// Step 1 (§5.9): the activation of `actor`'s `slot` on `address` concluded (the pipeline set
@@ -2691,6 +2763,7 @@ mod tests {
             entry1: a.pack(),
             entry2: b.pack(),
             entry3: c.pack(),
+            ..Default::default(),
         }
     }
 
