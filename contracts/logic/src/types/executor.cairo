@@ -1352,8 +1352,9 @@ pub impl DelegateCarry of Carry<Delegate> {
             clock: world.clock, members, goblins, killed: array![], defeated: false,
         };
         // Option (3)'s lever (1): only the records the sub-world's loads need.
-        let content = ExecutorTrait::subcontent(@world, picked.span(), @self.content);
-        // The carrier's skill at its position in the trimmed content (the class loads that one).
+        let mut content = ExecutorTrait::subcontent(@world, picked.span(), @self.content);
+        // The carrier's skill at its position in the trimmed content (the class loads that one);
+        // a potion drunk in the action phase (CBT-05b) joins it if no held effect brought it.
         let carrier = match carrier {
             Carrier::Skill((
                 at, rank,
@@ -1370,6 +1371,31 @@ pub impl DelegateCarry of Carry<Delegate> {
                     k += 1;
                 }
                 Carrier::Skill((moved, rank))
+            },
+            Carrier::Potion((
+                at, slot,
+            )) => {
+                let sheet = *self.content.potions[at];
+                let mut moved: Option<u32> = None;
+                let mut k = 0;
+                for potion in content.potions {
+                    if *potion.id == sheet.id {
+                        moved = Some(k);
+                        break;
+                    }
+                    k += 1;
+                }
+                let moved = match moved {
+                    Some(k) => k,
+                    None => {
+                        let mut potions = array![];
+                        potions.append_span(content.potions);
+                        potions.append(sheet);
+                        content = Content { potions: potions.span(), ..content };
+                        k
+                    },
+                };
+                Carrier::Potion((moved, slot))
             },
             other => other,
         };

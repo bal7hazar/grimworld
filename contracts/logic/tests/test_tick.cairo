@@ -31,6 +31,8 @@ use grimworld_logic::types::window::WindowTrait;
 use grimworld_logic::types::world::{
     Actor, Idle, Rules, TickTrait, Words, WordsTrait, World, WorldStoreTrait, WorldTrait,
 };
+use grimworld_logic::actions::Action;
+use grimworld_logic::types::action::ActionTrait;
 use snforge_std::{DeclareResultTrait, declare};
 
 const LIVE: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
@@ -3755,4 +3757,128 @@ fn test_cost_rep_far_idle() {
 fn test_cost_rep_batch() {
     let words = rep_run(1, 10);
     assert(words.clock == 50, 'ten ticks');
+}
+
+// ---- The action phase with a bomb (CBT-05b; ENG-01 §9.2, D-207) --------------------------------
+// Scenario 1's state (8 awake goblins, one a tile, each concluding its attack skill on the member
+// at tick 41) and the worst content, the member's belt slot 0 a bomb: fire 30 on `DISC_1` around
+// a tile (`TILE`, `FOES`), range 6, strength 20 (FX-28, FX-35). The action phase runs in process
+// with `TickLibrary`'s rules (`Delegate`): the bomb's carrier, and each goblin's in the tick,
+// through `ExecutorLibrary`. Each figure less `test_cost_bomb_fixture`.
+
+fn bomb_content() -> Content {
+    let base = rep_content();
+    let bomb = EntryTrait::new(
+        kind::DAMAGE, 4, 30, 30, 0, 0, 0, target::TILE, shape::DISC_1, filter::FOES, 0, 0,
+    );
+    let mut potions = array![
+        PotionSheet { id: 100, regen: 0, entry: bomb.pack(), range: 6, strength: 20 },
+    ];
+    for potion in base.potions.slice(1, base.potions.len() - 1) {
+        potions.append(*potion);
+    }
+    Content { skills: base.skills, potions: potions.span(), castes: base.castes }
+}
+
+/// The ring tile around `AT` whose `DISC_1` holds the most goblins of scenario 1, as a location
+/// tile `x + 256 y` (the board at the origin), and how many goblins its `DISC_1` holds.
+fn bomb_tile() -> (u16, u32) {
+    let mut goblins: Array<u8> = array![];
+    for tile in ring(AT) {
+        goblins.append(*tile);
+    }
+    let mut position: u8 = 0;
+    let mut behind: u32 = 0;
+    while position < 240 && behind < 2 {
+        if WindowTrait::distance(position, AT) == 2 {
+            goblins.append(position);
+            behind += 1;
+        }
+        position += 1;
+    }
+    let mut best: u8 = 0;
+    let mut most: u32 = 0;
+    for centre in ring(AT) {
+        let mut count = 0;
+        for goblin in goblins.span() {
+            if WindowTrait::distance(*goblin, *centre) <= 1 {
+                count += 1;
+            }
+        }
+        if count > most {
+            most = count;
+            best = *centre;
+        }
+    }
+    ((best % 15).into() + 256 * (best / 15).into(), most)
+}
+
+fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
+    let mut words = rep_words(1);
+    let mut member = *words.members[0];
+    // Belt slot 0: one bomb (`MemberState` 128–135).
+    member.state += two(128);
+    words.members = array![member];
+    let content = bomb_content();
+    let (world, sheets, index) = words.indexed(@content);
+    let rules = grimworld_logic::types::executor::Delegate {
+        board: board(),
+        cache: Default::default(),
+        executor: executor(),
+        content,
+        index,
+        placed: array![],
+        ground: array![],
+    };
+    (world, sheets, rules)
+}
+
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_bomb_fixture() {
+    let (world, sheets, rules) = bomb_state();
+    let _ = bomb_tile();
+    assert(opaque(world.goblin_count()) == 8 && sheets.potions.len() == 4, 'fixture');
+    let _ = rules;
+}
+
+// The action phase's floor: a Wait (legality only).
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_bomb_wait() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let _ = bomb_tile();
+    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Wait);
+    assert(ticks == Ok(1), 'wait');
+}
+
+// The bomb alone: legality, the belt, facing, its carrier through `ExecutorLibrary`.
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_bomb_action() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let (tile, most) = bomb_tile();
+    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile)));
+    assert(ticks == Ok(1) && rules.cache.hits == most && most >= 3, 'bomb');
+}
+
+// The 8 goblins' tick alone, the same state (its pair).
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_bomb_goblins() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let _ = bomb_tile();
+    TickTrait::run(ref world, @sheets, 1, ref rules);
+    assert(rules.cache.hits == 8 && !world.defeated, 'eight carriers');
+}
+
+// The bomb and its tick: the action phase, then the 8 goblin carriers (the task's measure, D-207).
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_bomb_tick() {
+    let (mut world, sheets, mut rules) = bomb_state();
+    let (tile, most) = bomb_tile();
+    let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile))).unwrap();
+    TickTrait::run(ref world, @sheets, ticks, ref rules);
+    assert(rules.cache.hits == most + 8 && !world.defeated, 'bomb, then eight');
 }
