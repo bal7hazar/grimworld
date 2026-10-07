@@ -229,12 +229,19 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| `RevealLibrary` (ENG-10b: a dungeon's outline read, its frontier guard gone, D-224's seam stream) | 40,220 | **49.10 %** (41,109, 50.18 % before ENG-10b; D-209: at most 50.5 %) |
-| `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept; ENG-10b: a floor's `HostsLibrary::floor` call and outline slots, `chunk_kind` a bit test) | 41,617 | **50.80 %** (41,247, 50.35 % before ENG-10b; D-209: at most 51 %; 29.05 % before ENG-05) |
+| `RevealLibrary` (ENG-05b: a pack's goblins drawn from a bitmap, `Progress`' Serde straight-line) | 37,519 | **45.80 %** (40,220, 49.10 % after ENG-10b; 41,109, 50.18 % before; D-209's exception removed) |
+| `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept; ENG-10b: a floor's `HostsLibrary::floor` call and outline slots, `chunk_kind` a bit test; ENG-05b: `Progress`' Serde straight-line, `refuse` not specialised) | 40,283 | **49.17 %** (41,617, 50.80 % after ENG-10b; 41,247, 50.35 % before; D-209's exception removed; 29.05 % before ENG-05) |
 | `HostsLibrary` (D-210, D-220; ENG-10b: the floor's call, `floor`) | 13,809 | 16.86 % (6,580, 8.03 % before ENG-10b) |
 | `Registry` (ENG-10b: a `LOCATION`'s `N` at most 12) | 31,213 | 38.10 % |
 
 ENG-10b's figures: `class_sizes.py` on the VPS (Linux, Scarb 2.20.1), the PR's build.
+ENG-05b's figures: the same, at the PR's build. `HostsLibrary` is unchanged (13,809). Where
+`Instances`' 1,319 felts went (41,602 at the base in the same worktree's build; a per-function count of the class's CASM, from the Sierra program's
+statement offsets): the derived `Serde` of `Progress.left: [u8; 14]` deserialised the reveal's
+answer through one generic function a remaining length (about 1,100 felts); the hand-written one
+keeps the encoding (one felt a value, no length) and takes the 14 in one `multi_pop_front`, 62,780
+L2 gas cheaper a `create` in snforge. `refuse`, no longer inlined, stops two copies of the
+`Refused` event's serialisation specialised by their constant reason (about 500 felts).
 
 **Proposed by ENG-08 (SPK-16, not built): the authored path in a class of its own,
 `AuthoredLibrary`**, which ENG-09 builds: the hosts' draw among candidates at `create` and the
@@ -1974,6 +1981,33 @@ another terrain, other placements and another cost at each run of the probe (up 
 | `leave` to a dungeon floor | 8,276,640 | 8,276,640 | 2026-10-03 |
 | `leave` back into the zone | 11,320,640 | 11,640,640 | 2026-10-07 (the entry draw's spread); with a quota 2026-10-04 |
 
+**ENG-05b's reset of these ceilings** (the project manager, 2026-10-07: from at least six runs, the
+maximum plus 5 %, rounded up; `lifecycle_probe.py --floor on`, six runs without a quota and six
+with `--quotas on`, on the VPS at `7066ad2`). A proposed ceiling above the one in force is the project
+manager's to decide (D-144); none is applied here. Against ENG-10b's six runs, every reveal path is
+lower or within the draw's spread (later entry 6,902,400–7,022,400 → 6,862,400–6,942,400; first entry
+13,292,400–13,412,400 → 13,172,400–13,332,400; zone `leave` 10,680,640–10,920,640 →
+10,600,640–10,840,640); the excesses with a quota come from the spread that six runs show and three
+did not, not from a rise of the code (snforge: every `create` 62,780 to 2,478,598 cheaper,
+`test_lifecycle`). `enter` into a dungeon floor is a new case (the orchestrator, 2026-10-07): gate 7, a
+link from the start hub into the dungeon's first floor (`N` 6, its exit quota), adventurer 1's
+later entry; it has no ceiling yet.
+
+| Entrypoint | Quota | Six runs | Maximum | Maximum + 5 % (proposed) | In force | Proposed less in force |
+|---|---|---|---:|---:|---:|---:|
+| enter, the adventurer's first | without | 13,212,400 · 13,212,400 · 13,172,400 · 13,332,400 · 13,212,400 · 13,292,400 | 13,332,400 | 13,999,020 | 14,294,400 | -295,380 |
+| enter, the adventurer's first | with | 14,214,400 · 14,294,400 · 14,414,400 · 14,494,400 · 14,094,400 · 14,174,400 | 14,494,400 | 15,219,120 | 14,294,400 | +924,720 (+6.5 %) |
+| enter, a later entry | without | 6,862,400 · 6,862,400 · 6,862,400 · 6,902,400 · 6,902,400 · 6,942,400 | 6,942,400 | 7,289,520 | 7,302,400 | -12,880 |
+| enter, a later entry | with | 7,462,400 · 7,342,400 · 7,342,400 · 7,342,400 · 7,342,400 · 7,542,400 | 7,542,400 | 7,919,520 | 7,502,400 | +417,120 (+5.6 %) |
+| enter, a later entry, the belt's worst case | without | 7,662,400 · 7,582,400 · 7,622,400 · 7,622,400 · 7,662,400 · 7,742,400 | 7,742,400 | 8,129,520 | 8,102,400 | +27,120 (+0.3 %) |
+| enter, a later entry, the belt's worst case | with | 8,302,400 · 8,102,400 · 8,142,400 · 8,142,400 · 8,182,400 · 8,142,400 | 8,302,400 | 8,717,520 | 8,262,400 | +455,120 (+5.5 %) |
+| leave to a dungeon floor | without | 10,802,640 · 11,042,640 · 11,362,640 · 11,122,640 · 10,882,640 · 11,362,640 | 11,362,640 | 11,930,772 | 8,276,640 | +3,654,132 (+44.1 %) |
+| leave to a dungeon floor | with | 11,322,640 · 10,842,640 · 11,202,640 · 11,202,640 · 11,282,640 · 11,202,640 | 11,322,640 | 11,888,772 | 8,276,640 | +3,612,132 (+43.6 %) |
+| leave back into the zone | without | 10,720,640 · 10,800,640 · 10,600,640 · 10,680,640 · 10,840,640 · 10,800,640 | 10,840,640 | 11,382,672 | 11,320,640 | +62,032 (+0.5 %) |
+| leave back into the zone | with | 11,760,640 · 11,360,640 · 11,640,640 · 11,560,640 · 11,440,640 · 11,360,640 | 11,760,640 | 12,348,672 | 11,640,640 | +708,032 (+6.1 %) |
+| enter into a dungeon floor (new case) | without | 9,862,400 · 9,382,400 · 9,342,400 · 9,582,400 · 9,142,400 · 9,502,400 | 9,862,400 | 10,355,520 | — | — |
+| enter into a dungeon floor (new case) | with | 9,502,400 · 9,382,400 · 9,502,400 · 9,662,400 · 9,382,400 · 9,142,400 | 9,662,400 | 10,145,520 | — | — |
+
 **The worst legal plan of a zone's quota hosts (D-220)**: **98,153,254** L2 gas in snforge (`test_hosts_worst_half`, `contracts/logic/GAS.md`: 15 × 15, three object quotas, two Hearts and a set piece of 112 each, six passes of 112 draws, the complement draw), under D-220's 100,000,000; the content bound on a zone's total quota draws that keeps every legal plan there is ENG-08's R-30 (§3.5): with the snapshot's eight task quotas the same plan measures **99,673,404**, and at R-30's 640 draws 95,799,175 (SPK-16).
 
 **Proposed by ENG-08 (SPK-16, not built; snforge M, Linux, two clean builds equal to the unit,
@@ -2072,6 +2106,16 @@ about 15 %, mostly the loops compiled once instead of specialised copies, for D-
 most of the rest: many small integer operations (a pack member's tile, a tile drawn and tested,
 each about 7,000–14,000). Its next lever is a bit-parallel placement (the tiles within 2 and the
 allowed ones as bitmaps, members drawn from their intersection), measured in a lot of its own.
+**ENG-05b built it**: the allowed tiles within 2 of a pack's tile are one bitmap (a template of 18
+tiles for each parity, moved to the tile, against the allowed tiles: `PlacementTrait::near`), and
+the `j`-th candidate left is its `j`-th set bit, because `OFFSETS`' order is the tiles' order
+(`test_near_against_members`); the same draws, the same tiles (`reveal.jsonl`, `fate.jsonl` and
+ENG-10b's zero-residue test unchanged). snforge, before (`BUDGETS.md` at ENG-10b's head) and after:
+the worst chunk 3,952,688 → **3,277,979** meadow (−17.1 %), 4,069,269 → 3,840,619 forest, 4,054,705
+→ 3,981,005 cave, 3,965,172 → 3,911,827 ruin; three chunks 10,946,522 → 10,610,358; typical
+7,530,719 → 7,382,077 (each with its baseline, 197,870 → 185,860). The gain follows how many goblins
+are placed and how many candidates they have: most in the open meadow, least in a cave. The
+placement's own share was not profiled again (no profiler on the VPS).
 
 **Measured by CBT-02e** (D-168; the node's receipts net of 189,141, `contracts/tools/lifecycle_probe.py`;
 snforge for what the node cannot build yet). `enter` copies the stored snapshot. **CBT-02f** (D-169)
