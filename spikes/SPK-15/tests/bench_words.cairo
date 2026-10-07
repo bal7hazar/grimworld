@@ -17,7 +17,8 @@ use crate::fixtures::{load_content, load_words, opaque, representative};
 // on load's content (38 skills, 5 castes, 4 potions), its dictionary squashed at the end.
 
 #[test]
-#[available_gas(l2_gas: 655169)] // ceil(1.05 × 623970 measured)
+// gas: raised, CBT-05b: the skill sheet carries the header's energy and profession (D-222)
+#[available_gas(l2_gas: 703049)] // ceil(1.05 × 669570 measured)
 fn test_index_fixture() {
     let content = opaque(load_content());
     opaque(content);
