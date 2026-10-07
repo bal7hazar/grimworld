@@ -119,6 +119,33 @@
    "mutation": "the entry tile moved to chunk 0's first wall tile"
   },
   {
+   "case": "candidates_rewrite_count",
+   "id": "R-13",
+   "code": "zone: count above candidates",
+   "checked_at": "CANDIDATES (reverse check)",
+   "reads": "QUOTAS",
+   "rule": "A CANDIDATES write re-runs R-13 (and R-12, R-27, R-29, R-30) against the zone's QUOTAS (review t-0084, minor 1)",
+   "mutation": "quota 0's count 2 written over its two candidates, then its candidates rewritten to chunk 16 alone"
+  },
+  {
+   "case": "candidates_rewrite_tile",
+   "id": "R-14",
+   "code": "zone chunk: empty with a value",
+   "checked_at": "CANDIDATES (reverse check)",
+   "reads": "the ZONE_CHUNKs whose candidacy changed",
+   "rule": "A CANDIDATES write re-runs R-14 and R-15 against each chunk whose candidacy changed",
+   "mutation": "quota 0's candidates rewritten without chunk 1, whose record keeps its candidate tile"
+  },
+  {
+   "case": "pack_rewrite_heart",
+   "id": "R-27",
+   "code": "zone: heart template",
+   "checked_at": "PACK (reverse check)",
+   "reads": "a count of the Heart quotas naming the template (ENG-09, as caste_skills)",
+   "rule": "A PACK write that a Heart quota names re-runs R-27",
+   "mutation": "the raiders rewritten with every minimum 0 while quota 2, a Heart, names them"
+  },
+  {
    "case": "heart_template",
    "id": "R-27",
    "code": "zone: heart template",
@@ -273,7 +300,85 @@
    "case": "schema",
    "id": "E-31",
    "code": "export: schema",
-   "rule": "The file matches schema.json (format, version 1, fields and ranges)"
+   "rule": "The file matches schema.json (fields, types, ranges, anchored patterns)"
+  },
+  {
+   "case": "hex_outside_size",
+   "id": "E-32",
+   "code": "export: hex outside the size",
+   "rule": "Every painted hex, moved by the origin, lies within [0, 15 width) × [0, 15 height) (D-216)"
+  },
+  {
+   "case": "row_lengths",
+   "id": "E-33",
+   "code": "export: row lengths differ",
+   "rule": "A row's ground and outline, when given, are as long as its terrain"
+  },
+  {
+   "case": "field_missing",
+   "id": "E-34",
+   "code": "export: field missing",
+   "rule": "A zone gives location, region, biome, level_min, level_max and entry; a town or an outpost its location and region"
+  },
+  {
+   "case": "unknown_name",
+   "id": "E-35",
+   "code": "export: unknown name",
+   "rule": "Every name (location, region, gate, pack, collector, landmark, skill, spawn table, set piece) is in the content manifest (R-17's existence, OPS-01)"
+  },
+  {
+   "case": "candidate_of_no_quota",
+   "id": "E-36",
+   "code": "export: candidate of no quota",
+   "rule": "A candidate names a quota of the map's list"
+  },
+  {
+   "case": "object_outside_set",
+   "id": "R-24",
+   "code": "zone: chunk not in the set",
+   "rule": "A spawn point, feature, candidate, gate or bridge lies in a chunk of the zone"
+  },
+  {
+   "case": "set_piece_size",
+   "id": "E-37",
+   "code": "export: set piece size",
+   "rule": "A set piece is one chunk (1 × 1)"
+  },
+  {
+   "case": "set_piece_corner",
+   "id": "R-16",
+   "code": "set piece: corner not wall",
+   "rule": "A set piece keeps D-134's corners (SetPieceAssert; ruling 5 lifts them for authored zone chunks only)"
+  },
+  {
+   "case": "set_piece_tile",
+   "id": "E-38",
+   "code": "set piece: tile not floor",
+   "rule": "A set piece's packs and objects on its interior floor (SetPieceAssert)"
+  },
+  {
+   "case": "set_piece_caps",
+   "id": "E-39",
+   "code": "set piece: over its caps",
+   "rule": "A set piece holds at most 2 packs and 3 objects (its layout, E-3)"
+  },
+  {
+   "case": "malformed",
+   "id": "E-40",
+   "code": "export: malformed",
+   "rule": "Anything else the converter cannot read: a refusal line, never a traceback"
+  },
+  {
+   "case": "format",
+   "id": "E-41",
+   "code": "export: format",
+   "rule": "`format` is `grimworld-export`"
+  },
+  {
+   "case": "version",
+   "id": "E-42",
+   "code": "export: version",
+   "rule": "`version` is one this converter reads (1); a newer one is refused (the versioning rule of schema.json)"
   }
  ]
 }

@@ -1,3 +1,4 @@
+test_pair_hosts_bound_authored               95,035,380 /   95,035,380  (same; base test_base_hosts)
 test_pair_hosts_sample                          359,085 /      359,085  (same; base test_base_hosts)
 test_pair_hosts_worst_authored               83,829,748 /   83,829,748  (same; base test_base_hosts)
 test_pair_library_reveal                      2,701,253 /    2,701,253  (same; base test_base_library)

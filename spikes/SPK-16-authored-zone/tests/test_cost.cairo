@@ -377,6 +377,29 @@ fn test_pair_hosts_worst_authored() {
     assert(BoardTrait::count(*hosts[4]) == 112, 'five passes');
 }
 
+/// R-30's bound on the authored path (review t-0084, note 4): six quotas among 225 candidates
+/// each, five of 112 and one of 80, 640 draws (the draw alone: R-15 would refuse six all-chunk
+/// quotas in a real zone, so this is an upper bound of what R-30 lets through).
+#[test]
+fn test_pair_hosts_bound_authored() {
+    let z = load();
+    let _sets = z.sets();
+    let all = rectangle(15, 15);
+    let quotas = QuotaSet {
+        quotas: [
+            Quota { kind: quota::COLLECTOR, param: 1, count: 112 },
+            Quota { kind: quota::VEIN, param: 0, count: 112 },
+            Quota { kind: quota::LANDMARK, param: 1, count: 112 },
+            Quota { kind: quota::HEART, param: 1, count: 112 },
+            Quota { kind: quota::HEART, param: 2, count: 112 },
+            Quota { kind: quota::LANDMARK, param: 2, count: 80 },
+        ],
+    };
+    let sets = array![all, all, all, all, all, all].span();
+    let hosts = AuthoredTrait::hosts(@quotas, sets, AuthoredTrait::hosts_seed(ENTROPY, INSTANCE));
+    assert(BoardTrait::count(*hosts[5]) == 80, 'six passes');
+}
+
 // --- D-220: ENG-05's generated hosts, the worst legal plan with the snapshot's tasks -------------
 
 /// ENG-05's mixed plan (`mixed` in `types/reveal.cairo`): three object quotas, two Hearts and a

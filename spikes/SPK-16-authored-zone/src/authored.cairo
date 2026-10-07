@@ -7,10 +7,11 @@
 //!   0)`, ENG-05's law (`PlacementTrait::subset`, D-220's complement draw; draw `t` reads
 //!   `poseidon(seed, t)`); the hosted quota lays its object, or the Heart's pack, on the tile its
 //!   candidate names. ENG-05's generated hosts use counter 225, the chunks' words 0–224.
-//! - **each spawn point's level and count** (ruling 4): from `derive(entropy, domain(instance,
-//!   256 + chunk, REVEAL), 0)`: the level uniform in the zone's band, the template's offset added
-//!   and held in it; the count in the template's bounds, at least one, the goblins on walkable
-//!   tiles within 2 (`Placement::pack`, ENG-05's). A Heart's pack takes the band's top (D-208).
+//! - **each chunk's level, and each spawn point's count** (ruling 4): from `derive(entropy,
+//!   domain(instance, 256 + chunk, REVEAL), 0)`: one level a chunk, uniform in the zone's band,
+//!   which every spawn point of the chunk takes, its template's offset added and held in it; each
+//!   point's count in its template's bounds, at least one, the goblins on walkable tiles within 2
+//!   (`Placement::pack`, ENG-05's). A Heart's pack takes the band's top (D-208).
 //!
 //! No value read here depends on which chunks were revealed before, or in what order: the entropy
 //! is fixed at entry, every word is keyed by the chunk, and the hosts are drawn once (D-208).

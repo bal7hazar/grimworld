@@ -124,7 +124,7 @@
   "rows": {
    "type": "array",
    "minItems": 1,
-   "description": "The painted hexes as row spans, the editor's format 2: one row y from column x on, one character per hex, a space for an unpainted hex.",
+   "description": "The painted hexes as row spans, the editor's format 2: one row y from column x on, one character per hex, a space for an unpainted hex; `ground` and `outline`, when given, as long as `terrain` (the converter refuses otherwise: JSON Schema cannot say it).",
    "items": {
     "type": "object",
     "additionalProperties": false,
@@ -146,17 +146,17 @@
      },
      "terrain": {
       "type": "string",
-      "pattern": "[.# ]+",
+      "pattern": "^[.# ]+$",
       "description": "The walkable plane, the one layer on chain: `.` floor, `#` wall."
      },
      "ground": {
       "type": "string",
-      "pattern": "[gew ]+",
+      "pattern": "^[gew ]+$",
       "description": "Client-only: grass, earth, water."
      },
      "outline": {
       "type": "string",
-      "pattern": "[01 ]+",
+      "pattern": "^[01 ]+$",
       "description": "A zone's: 1 inside the zone, 0 outside (a wall)."
      }
     }

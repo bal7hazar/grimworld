@@ -16,7 +16,9 @@
    0 generated, 1 authored version 1). No record passes 3 parts: `bundle`'s bound holds. A later
    plane is a third part of `ZONE_CHUNK`, flagged in part 0's reserved bits.
 2. **The checks** (ENG-01 §3.5, the table R-11 … R-35; `spikes/SPK-16-authored-zone/map-format/
-   checks.json`): each rule between two records checked at the write of either; the editor
+   checks.json`): each rule between two records checked at the write of either, the reverse
+   check of each named in the table (ENG-09 builds them; the spike prototypes the `CANDIDATES` and
+   `PACK` ones, review t-0084); the editor
    reproduces the same table; the converter refuses the same cases and checks the pipeline's
    (reachability, seams, a deck connected).
 3. **R-30**: a location's quotas draw at most 640 times together at entry (D-220; generated

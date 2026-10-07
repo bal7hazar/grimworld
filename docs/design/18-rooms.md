@@ -37,7 +37,7 @@ Placed at generation, at least 2 tiles away from an opening to a neighbouring ch
 
 | Feature | Frequency | Rule |
 |---|---|---|
-| **Pack** | 0 to 2 per chunk, from the location's spawn table, within its level band. **Authored zone (D-215 ruling 4)**: on the author's spawn points (a tile and a template); each point's level (within the band) and count (within the template, at least 1) are drawn at entry | Members within 2 tiles of the pack's tile; asleep or on watch |
+| **Pack** | 0 to 2 per chunk, from the location's spawn table, within its level band. **Authored zone (D-215 ruling 4)**: on the author's spawn points (a tile and a template); each chunk's level (within the band, the same for every spawn point of the chunk) and each point's count (within the template, at least 1) are drawn at entry | Members within 2 tiles of the pack's tile; asleep or on watch |
 | **Remains** | Left by a dead goblin | Looting is a Fate draw and ends the queue and the batch |
 | **Chest** | 1 chunk in 6 | Opened once; content is a Fate draw |
 | **Vein** (Rifts only) | Quota: 1 per floor | 3 ticks to mine, interrupted by a hit; 1 stillstone |

@@ -5,7 +5,9 @@ each one exists there with the same code.
 
     python3 -m unittest discover -s map-format/tests -p 'test_*.py'
 """
+import contextlib
 import copy
+import io
 import json
 import os
 import re
@@ -175,6 +177,20 @@ def m_bridge_index(z):
     z["chunks"][15]["bridges"] = 0  # index 0 of a chunk holding 0 (Cairo: index 1 of 1)
 
 
+def m_candidates_rewrite_count(z):
+    z["quotas"][0] = (R.COLLECTOR_Q, 1, 2)
+    z["candidates"][0] = 1 << 16
+
+
+def m_candidates_rewrite_tile(z):
+    assert R.has(z["candidates"][0], 1)
+    z["candidates"][0] &= ~(1 << 1)
+
+
+def m_pack_rewrite_heart(z):
+    z["hearts"][2] = (0, 5)
+
+
 MUTATIONS = {name[2:]: f for name, f in globals().items() if name.startswith("m_")}
 
 
@@ -293,14 +309,108 @@ class Export(unittest.TestCase):
 
     def test_schema(self):
         export = load("zone.json")
-        export["version"] = 2
+        export["biome"] = "lava"
         self.refused(export, "export: schema")
+
+    def test_format(self):
+        export = load("zone.json")
+        export["format"] = "grimworld-map"
+        self.refused(export, "export: format")
+
+    def test_version(self):
+        export = load("zone.json")
+        export["version"] = 2
+        self.refused(export, "export: version")
+
+    def test_hex_outside_size(self):
+        export = load("zone.json")
+        export["size"]["width"] = 2
+        self.refused(export, "export: hex outside the size")
+
+    def test_row_lengths(self):
+        export = load("zone.json")
+        export["rows"][0]["outline"] = export["rows"][0]["outline"][:-1]
+        self.refused(export, "export: row lengths differ")
+
+    def test_row_lengths_through_main(self):
+        # The review's case: a short outline gives a refusal line and exit 1, no IndexError
+        export = load("zone.json")
+        export["rows"][0] = {"y": export["rows"][0]["y"], "x": export["rows"][0]["x"],
+                             "terrain": "...", "outline": "11"}
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "zone.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(export, f)
+            self.assertEqual(convert.main([path, "--manifest", os.path.join(SAMPLES, "manifest.json"),
+                                           "--out", os.path.join(out, "r.json")]), 1)
+
+    def test_field_missing(self):
+        export = load("zone.json")
+        del export["entry"]
+        self.refused(export, "export: field missing")
+
+    def test_unknown_name(self):
+        export = load("zone.json")
+        export["spawns"][0]["template"] = "dragons"
+        self.refused(export, "export: unknown name")
+
+    def test_candidate_of_no_quota(self):
+        export = load("zone.json")
+        export["candidates"][0]["quota"] = 5
+        self.refused(export, "export: candidate of no quota")
+
+    def test_object_outside_set(self):
+        # A chest on chunk 17 (cx 2, cy 1), outside the chunk set
+        export = load("zone.json")
+        export["features"][1]["x"] = export["origin"]["x"] + 33
+        export["features"][1]["y"] = export["origin"]["y"] + 20
+        self.refused(export, "zone: chunk not in the set")
+
+    def test_set_piece_size(self):
+        export = load("set_piece.json")
+        export["size"]["width"] = 2
+        self.refused(export, "export: set piece size")
+
+    def test_set_piece_corner(self):
+        export = load("set_piece.json")
+        export["rows"][0]["terrain"] = "." + export["rows"][0]["terrain"][1:]
+        self.refused(export, "set piece: corner not wall")
+
+    def test_set_piece_tile(self):
+        export = load("set_piece.json")
+        export["spawns"][0]["x"], export["spawns"][0]["y"] = 5, 5  # a wall of the arena
+        self.refused(export, "set piece: tile not floor")
+
+    def test_set_piece_caps(self):
+        export = load("set_piece.json")
+        export["features"] += [{"feature": "chest", "param": None, "x": 3, "y": 3},
+                               {"feature": "chest", "param": None, "x": 4, "y": 3}]
+        self.refused(export, "set piece: over its caps")
+
+    def test_malformed(self):
+        """A failure no check names (here forced inside the zone's build) is still one refusal line
+        and exit 1, never a traceback."""
+        original = convert.build_zone
+
+        def broken(*_):
+            raise IndexError("forced")
+
+        out = io.StringIO()
+        convert.build_zone = broken
+        try:
+            with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(out):
+                code = convert.main([os.path.join(SAMPLES, "zone.json"), "--manifest",
+                                     os.path.join(SAMPLES, "manifest.json"), "--out",
+                                     os.path.join(tmp, "r.json")])
+        finally:
+            convert.build_zone = original
+        self.assertEqual(code, 1)
+        self.assertTrue(out.getvalue().startswith("refused: export: malformed"), out.getvalue())
 
     def test_every_export_case_tested(self):
         names = {n[len("test_"):] for n in dir(self) if n.startswith("test_")}
         for case in TABLE["export"]:
             self.assertIn(case["case"], names)
-
 
 class Samples(unittest.TestCase):
     def test_samples_match_the_schema(self):
@@ -322,6 +432,29 @@ class Samples(unittest.TestCase):
                          "zone.golden.json", "zone.seed.json"):
                 with open(os.path.join(out, name), encoding="utf-8") as f:
                     self.assertEqual(json.load(f), load(name), name)
+
+    def test_footprint_unwalkable_but_its_door(self):
+        export = load("zone.json")
+        z = convert.build_zone(export, MANIFEST)
+        plane = z["plane"]
+        hut = export["buildings"][0]
+        door = plane.glob(*hut["door"])
+        self.assertIn(door, z["walk"], "the door walkable")
+        for h in hut["footprint"]:
+            g = plane.glob(*h)
+            if g != door:
+                self.assertNotIn(g, z["walk"], f"footprint hex {g} unwalkable")
+                self.assertTrue(plane.cells[g]["walk"], "painted floor under it")
+
+    def test_blocking_prop_unwalkable(self):
+        export = load("zone.json")
+        z = convert.build_zone(export, MANIFEST)
+        plane = z["plane"]
+        tree, bush = export["props"]
+        self.assertTrue(json.loads(read(os.path.join(FORMAT, "kinds.json")))["props"]["tree"]["blocks"])
+        self.assertNotIn(plane.glob(tree["x"], tree["y"]), z["walk"], "a tree blocks")
+        self.assertTrue(plane.cells[plane.glob(tree["x"], tree["y"])]["walk"], "on painted floor")
+        self.assertIn(plane.glob(bush["x"], bush["y"]), z["walk"], "a bush does not")
 
     def test_town_writes_only_its_location(self):
         writes, z = converted(load("town.json"))

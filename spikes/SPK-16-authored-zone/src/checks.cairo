@@ -3,7 +3,9 @@
 //! write reads; the ids are CLI-09 §5's (R-1 … R-20) and ENG-08's (R-21 …), one table with the
 //! converter's refusals (`map-format/checks.json`). A rule between two records is checked at the
 //! write of either, against the other when it exists, so the order of the writes never lets one
-//! through (CBT-02c's precedent); ENG-08's README gives the order the converter writes in.
+//! through (CBT-02c's precedent): ENG-01 §3.5 lists each rule's reverse check. Two are prototyped
+//! here (`assert_candidates_write`, `assert_pack_write`; review t-0084, minor 1); the others are
+//! ENG-09's. ENG-08's README gives the order the converter writes in.
 
 use grimworld_logic::models::gate::Gate;
 use grimworld_logic::models::location::{Location, kind as location_kind};
@@ -167,6 +169,38 @@ pub impl ZoneAssert of ZoneAssertTrait {
     fn assert_candidates(sets: Span<felt252>, chunk_set: felt252) {
         for set in sets {
             assert(BoardTrait::minus(*set, chunk_set) == 0, errors::CANDIDATES_OUTSIDE);
+        }
+    }
+
+    /// A `CANDIDATES` write (R-31), with its reverse checks when the zone's `QUOTAS` and chunks
+    /// exist: R-12, R-13, R-27, R-29 and R-30 re-run against `QUOTAS` (fewer candidates than a
+    /// count, or more draws), and R-14 and R-15 against each chunk whose candidacy changed (a
+    /// candidate tile left where the chunk is no longer named, or a chunk over its caps).
+    /// `chunks`: the records of the chunks whose bit changed, as the write reads them.
+    fn assert_candidates_write(
+        sets: Span<felt252>,
+        chunk_set: felt252,
+        quotas: Option<@QuotaSet>,
+        hearts: Span<Option<Pack>>,
+        chunks: Span<(u8, ZoneChunk)>,
+    ) {
+        Self::assert_candidates(sets, chunk_set);
+        if let Option::Some(quotas) = quotas {
+            Self::assert_quotas(quotas, chunk_set, sets, hearts);
+            for entry in chunks {
+                let (chunk, record) = *entry;
+                Self::assert_chunk(@record, chunk, sets, quotas);
+            }
+        }
+    }
+
+    /// R-27's reverse check, at a `PACK` write that a Heart quota of an authored zone names (ENG-09
+    /// keeps, per template, a count of the Heart quotas naming it, as `caste_skills` for DS-18):
+    /// the template still at least 1 at its fewest and at its most.
+    fn assert_pack_write(pack: @Pack, named_by_a_heart: bool) {
+        if named_by_a_heart {
+            let (low, high) = pack.bounds();
+            assert(low >= 1 && high >= 1, errors::HEART);
         }
     }
 

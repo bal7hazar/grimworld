@@ -51,7 +51,8 @@ def validate(value, schema, root=None, path="$"):
             raise R.Refused("export: schema", f"{path}: shorter than {schema['minLength']}")
         if "maxLength" in schema and len(value) > schema["maxLength"]:
             raise R.Refused("export: schema", f"{path}: longer than {schema['maxLength']}")
-        if "pattern" in schema and not re.fullmatch(schema["pattern"], value):
+        # JSON Schema's `pattern` is a search, not a full match: the schema anchors its patterns
+        if "pattern" in schema and not re.search(schema["pattern"], value):
             raise R.Refused("export: schema", f"{path}: does not match {schema['pattern']}")
     if isinstance(value, dict):
         for key in schema.get("required", []):

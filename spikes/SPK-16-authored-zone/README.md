@@ -34,11 +34,12 @@ python3 map-format/convert.py samples/set_piece.json --manifest samples/manifest
 python3 -m unittest discover -s map-format/tests -p 'test_*.py'
 ```
 
-Output, on the VPS (Linux, Scarb 2.20.1, snforge 0.64.0), 2026-10-07: both clean runs `Tests: 71
-passed, 0 failed`, peak resident memory 1,793,068 kB and 1,806,360 kB (`/usr/bin/time -v`, capped at
-8 GiB), 38 s and 40 s; every one of the 21 pairs equal to the unit in both (`pairs.txt`). The
+Output, on the VPS (Linux, Scarb 2.20.1, snforge 0.64.0), 2026-10-07, after review t-0084's
+fixes: both clean runs `Tests: 75 passed, 0 failed`, peak resident memory 1,792,868 kB and
+1,805,056 kB (`/usr/bin/time -v`, capped at 8 GiB), 39 s and 36 s; every one of the 22 pairs equal
+to the unit in both (`pairs.txt`). The
 converter: `14 records -> zone.records.json`, `1 records -> town.records.json`, `1 records ->
-set_piece.records.json`; `Ran 23 tests … OK`. The spike's class sizes, from the same build's
+set_piece.records.json`; `Ran 39 tests … OK`. The spike's class sizes, from the same build's
 artifacts: `AuthoredLibrary` 20,437 CASM felts (24.95 %), `ChunkSlots` 631, `Registry` 29,568
 (36.09 %, as main's).
 
@@ -84,21 +85,32 @@ hexes and two ends) and on chain (`BRIDGE`); a one-hex deck with its two ends is
 lies in one chunk in version 1. Its storage: **818,840** L2 gas a bridge written (1 felt), plus
 its share of the chunk's count. Its rules are ENG-08b's: the reveal of version 1 does not read it.
 The sample's bridge stands over a stream that a ford also crosses, so that reachability (P-1) does
-not depend on the deck's rules.
+not depend on the deck's rules: P-1 reads the walkable plane only, so **a map whose only crossing
+is a bridge is refused (`pipeline: unreachable tile`) until ENG-08b** gives the deck its rules.
 
 ## The checks (deliverable 2)
 
-`map-format/checks.json` is the one table: the registry's 23 cases (R-11 … R-35, CLI-09 §5's ids
-kept), the pipeline's 3 (P-1 reachability, P-2 seams, P-3 a deck connected) and the export's 7.
+`map-format/checks.json` is the one table: the registry's 26 cases (R-11 … R-35, CLI-09 §5's ids
+kept; three of them reverse checks, below), the pipeline's 3 (P-1 reachability, P-2 seams, P-3 a
+deck connected) and the export's 20 (every code the converter refuses with: the hex outside the
+size, unequal row lengths, a missing field, an unknown name, the format, the version, the set
+piece's, and `export: malformed` for anything else, never a traceback).
 Every registry case is a mutation of the sample, refused with its code by `tests/test_checks.cairo`
 (`test_refuse_<case>`, snforge) and by the converter (`map-format/tests/test_convert.py`, which
 also checks that each Cairo test exists with that code). The sample passes every check on both
-sides. ENG-01 §3.5 lists them with the record that checks each and what it reads.
+sides. ENG-01 §3.5 lists them with the record that checks each, what it reads, and **its reverse
+check**, what the other record's write re-runs, so that no rewrite lets a breach through (review
+t-0084, minor 1). ENG-09 builds every reverse check; two are prototyped here: a `CANDIDATES` write
+re-runs R-12, R-13, R-27, R-29 and R-30 against `QUOTAS` and R-14, R-15 against the chunks whose
+candidacy changed (`assert_candidates_write`; `test_refuse_candidates_rewrite_count`, the review's
+scenario, and `_tile`), and a `PACK` write a Heart names re-runs R-27 (`assert_pack_write`).
 
 **R-30, the bound of D-220**: ENG-05's worst legal plan (six passes of 112 draws, 98,153,254) **with
 the snapshot's eight task quotas** measures **99,673,404**: 0.33 % under D-220's 100,000,000, legal
 today. R-30 bounds the location's quotas to 640 draws together; with the tasks the worst plan then
-measures **95,799,175** (`test_pair_plan_bound_hosts`). It binds generated zones too (ENG-R1c).
+measures **95,799,175** (`test_pair_plan_bound_hosts`). On the authored path (tasks place nothing
+there), six quotas of 640 draws among 225 candidates measure **95,035,380**
+(`test_pair_hosts_bound_authored`). It binds generated zones too (D-221, ENG-R1c).
 
 ## Costs (deliverable 3)
 
@@ -114,7 +126,7 @@ measures **95,799,175** (`test_pair_plan_bound_hosts`). It binds generated zones
 | Decode a chunk · reveal the entry chunk · the fullest (every candidate hosted) · E-3's worst | 87,840 · 312,321 · 2,243,843 · 2,000,515 (+ decode) |
 | The library call of the fullest chunk | 2,701,253 (the call 457,410, E) |
 | The two words written into new slots (ruling 2) | 948,560 |
-| Hosts among candidates: the sample · R-15's worst (5 × 112 of 225) | 359,085 · 83,829,748 |
+| Hosts among candidates: the sample · R-15's worst (5 × 112 of 225) · R-30's bound (6 quotas, 640 draws) | 359,085 · 83,829,748 · 95,035,380 |
 
 Against ENG-05 at its merge (ENG-01 §10): a generated chunk in memory costs 2,830,905 typical,
 3.90–4.07 M worst; an authored one 0.31–2.24 M on the sample, 2.09 M at E-3's worst (E). In
@@ -127,14 +139,17 @@ ENG-09's to measure, after ENG-05b.
 
 The hosts: `derive(entropy, domain(instance, 226, REVEAL), 0)`, then ENG-05's draw
 (`PlacementTrait::subset`) among each quota's candidates, once at `create`; the spawn points:
-`derive(entropy, domain(instance, 256 + chunk, REVEAL), 0)`, the level uniform in the band, the
-count in the template's bounds (at least 1); a Heart at the band's top (D-208). Counters 226 and
+`derive(entropy, domain(instance, 256 + chunk, REVEAL), 0)`, one level a chunk, uniform in the
+band (every spawn point of the chunk takes it), each point's count in its template's bounds (at
+least 1); a Heart at the band's top (D-208). Counters 226 and
 256–480 are no chunk's word (0–224) and not ENG-05's hosts (225) (`test_domains_apart`).
 `test_authored_reveal_order_free`: the five chunks revealed in six orders over eight entropies give
 the same words; `test_authored_reveal_places_as_drawn`: over 16 entropies every quota placed exactly
-its count on its candidate tile. **What a modified client can still gain in an authored zone: 0
-chunks and 0 placements — no order of moves or reveals changes where a quota lands, which spawn
-point holds what level or count, or any tile, since the hosts are fixed at entry and every other
+its count on its candidate tile. The order test calls a pure function, so it holds the design rather
+than catching a fault: the real path's order-freeness rests on ENG-09 keeping `reveal` pure and the
+hosts drawn once (review t-0084, note 5), which the randomness lens reads. **What a modified client can still gain in an authored zone: 0
+chunks and 0 placements — no order of moves or reveals changes where a quota lands, which chunk's
+spawn points hold what level or count, or any tile, since the hosts are fixed at entry and every other
 draw is keyed by its chunk; what remains is the entry itself (a new instance, a new draw), as in
 every location.**
 

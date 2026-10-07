@@ -909,8 +909,12 @@ a lake hides what lies beyond it**, a known design limit accepted by the project
 calls). The converter writes in this order: `LOCATION` with the marker → the chunk set (`OUTLINE`,
 255) → `CANDIDATES` → `QUOTAS` → the border masks (`OUTLINE`) → each `ZONE_CHUNK` and its `BRIDGE`s
 → the `GATE`s. **Every rule between two records is checked at the write of either, against the
-other when it exists** (CBT-02c's precedent, DS-18), so no order lets a breach through; the order
-above only makes each write find what it checks against. A chunk of the set with no `ZONE_CHUNK`
+other when it exists** (CBT-02c's precedent, DS-18), so no order and no rewrite lets a breach
+through; the order above only makes each write find what it checks against. The table's
+*Reverse check* column names, for each rule, what the other record's write re-runs (review t-0084,
+minor 1): **ENG-09 implements every one**; the spike prototypes the two the review's scenario needs
+(`ZoneAssert::assert_candidates_write`, `assert_pack_write`, tested by `test_refuse_candidates_rewrite_count`,
+`_tile` and `test_refuse_pack_rewrite_heart`). A chunk of the set with no `ZONE_CHUNK`
 is the content pipeline's (every chunk written), and ENG-09 reveals it as wall.
 
 **The writer's checks of authored map records** (deliverable 2; `RegistryAssert::assert_content`,
@@ -919,37 +923,41 @@ codes as the spike panics with them). **The editor reproduces exactly these**: o
 `spikes/SPK-16-authored-zone/map-format/checks.json` (each case run by the spike's Cairo test and
 by the converter, with the same code):
 
-| Id | Rule | Checked at (reads) | Code |
-|---|---|---|---|
-| R-11 | The chunk set within the `width × height` rectangle (ENG-R1c bound 1, reused) | the chunk set's `OUTLINE` (`LOCATION`) | `zone: set outside rectangle` |
-| R-12 | A quota's count at most the zone's members (ENG-R1c bound 2) | `QUOTAS` (the chunk set) | `zone: count above members` |
-| R-13 | An authored zone's quota count at most its candidates (bound 2, authored form) | `QUOTAS` (`CANDIDATES`) | `zone: count above candidates` |
-| R-14 | Spawn points, objects and candidate tiles on walkable tiles, no two on one tile; an object of an authored kind, untouched; an empty entry all zeros, a candidate tile 0 where `CANDIDATES` does not name the chunk | `ZONE_CHUNK` (`CANDIDATES`) | `zone chunk: tile not floor`, `… tile taken`, `… object`, `… empty with a value` |
-| R-15 | Within E-3 with every candidate counted (an object quota's against 3 objects, a Heart's against 2 packs), so every draw fits | `ZONE_CHUNK` (`CANDIDATES`, `QUOTAS`) | `zone chunk: over its caps` |
-| R-16 | D-134's corners **lifted** for an authored chunk (ruling 5): no code but the generation and `SetPieceAssert` reads them (SPK-16, `test_corners.cairo`) | — | none |
-| R-18 | A gate's anchor walkable | `GATE` (its anchor's `ZONE_CHUNK`) | `zone: gate anchor not floor` |
-| R-20 | Every tile outside a border chunk's mask is a wall (ruling 6) | `ZONE_CHUNK` and the mask's `OUTLINE`, each the other | `zone: mask disagrees` |
-| R-24 | A `ZONE_CHUNK`'s chunk in the chunk set | `ZONE_CHUNK` (the chunk set) | `zone: chunk not in the set` |
-| R-25 | The anchor chunk names the gate among its two (the gate index) | `GATE` (its anchor's `ZONE_CHUNK`) | `zone: gate not indexed` |
-| R-26 | The entry tile walkable | `LOCATION` with the marker, and the entry chunk's `ZONE_CHUNK`, each the other | `zone: entry not floor` |
-| R-27 | A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended) | `QUOTAS` (the Heart's `PACK`) | `zone: heart template` |
-| R-28 | A dungeon floor's `width × height` above `N` (ENG-R1c bound 4; dungeons only) | `LOCATION` | `location: floor rectangle` |
-| R-29 | An authored zone's quotas place no exit and no set piece | `QUOTAS` (the marker) | `zone: quota kind` |
-| R-30 | **The location's quotas draw at most 640 times together at entry**, `min(count, members − count)` each (D-220; a generated zone's members, an authored zone's candidates) | `QUOTAS` (the chunk set, `CANDIDATES`) | `zone: quota draws` |
-| R-31 | Every candidate chunk in the zone | `CANDIDATES` (the chunk set) | `candidates: outside the set` |
-| R-33 | A bridge has a deck; two distinct ends off it | `BRIDGE` | `bridge: deck empty`, `bridge: end` |
-| R-34 | Each end walkable and next to a deck tile | `BRIDGE` (its `ZONE_CHUNK`) | `bridge: end not floor`, `bridge: end not by the deck` |
-| R-35 | A bridge's index below its chunk's count | `BRIDGE` (its `ZONE_CHUNK`) | `bridge: index` |
+| Id | Rule | Checked at (reads) | Reverse check (the other write re-runs it) | Code |
+|---|---|---|---|---|
+| R-11 | The chunk set within the `width × height` rectangle (ENG-R1c bound 1, reused) | the chunk set's `OUTLINE` (`LOCATION`) | a `LOCATION` rewrite, against the chunk set (ENG-09) | `zone: set outside rectangle` |
+| R-12 | A quota's count at most the zone's members (ENG-R1c bound 2) | `QUOTAS` (the chunk set) | a chunk set rewrite, against `QUOTAS` (ENG-09); a `CANDIDATES` write (spike) | `zone: count above members` |
+| R-13 | An authored zone's quota count at most its candidates (bound 2, authored form) | `QUOTAS` (`CANDIDATES`) | a `CANDIDATES` write, against `QUOTAS` (spike, `assert_candidates_write`) | `zone: count above candidates` |
+| R-14 | Spawn points, objects and candidate tiles on walkable tiles, no two on one tile; an object of an authored kind, untouched; an empty entry all zeros, a candidate tile 0 where `CANDIDATES` does not name the chunk | `ZONE_CHUNK` (`CANDIDATES`) | a `CANDIDATES` write, against each chunk whose candidacy changed (spike) | `zone chunk: tile not floor`, `… tile taken`, `… object`, `… empty with a value` |
+| R-15 | Within E-3 with every candidate counted (an object quota's against 3 objects, a Heart's against 2 packs), so every draw fits | `ZONE_CHUNK` (`CANDIDATES`, `QUOTAS`) | a `CANDIDATES` write, against those chunks (spike); a `QUOTAS` write that changes a kind, against its candidates' chunks (ENG-09) | `zone chunk: over its caps` |
+| R-16 | D-134's corners **lifted** for an authored chunk (ruling 5): no code but the generation and `SetPieceAssert` reads them (SPK-16, `test_corners.cairo`) | — | — | none |
+| R-18 | A gate's anchor walkable | `GATE` (its anchor's `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against the `GATE`s it names (ENG-09) | `zone: gate anchor not floor` |
+| R-20 | Every tile outside a border chunk's mask is a wall (ruling 6) | `ZONE_CHUNK` and the mask's `OUTLINE`, each the other | (both directions in the column before) | `zone: mask disagrees` |
+| R-24 | A `ZONE_CHUNK`'s chunk in the chunk set | `ZONE_CHUNK` (the chunk set) | a chunk set rewrite that drops a chunk with a `ZONE_CHUNK` (ENG-09) | `zone: chunk not in the set` |
+| R-25 | The anchor chunk names the gate among its two (the gate index) | `GATE` (its anchor's `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that drops a gate id whose `GATE` anchors there (the stored record read, ENG-09) | `zone: gate not indexed` |
+| R-26 | The entry tile walkable | `LOCATION` with the marker, and the entry chunk's `ZONE_CHUNK`, each the other | (both directions in the column before) | `zone: entry not floor` |
+| R-27 | A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended) | `QUOTAS` (the Heart's `PACK`) | a `PACK` write that a Heart quota names: ENG-09 keeps a count of them per template, as `caste_skills` (spike, `assert_pack_write`) | `zone: heart template` |
+| R-28 | A dungeon floor's `width × height` above `N` (ENG-R1c bound 4; dungeons only) | `LOCATION` | — (one record) | `location: floor rectangle` |
+| R-29 | An authored zone's quotas place no exit and no set piece | `QUOTAS` (the marker) | a `LOCATION` write that sets the marker, against `QUOTAS` (ENG-09) | `zone: quota kind` |
+| R-30 | **The location's quotas draw at most 640 times together at entry**, `min(count, members − count)` each (D-220; a generated zone's members, an authored zone's candidates) | `QUOTAS` (the chunk set, `CANDIDATES`) | a `CANDIDATES` write (spike) and a chunk set rewrite (ENG-09), against `QUOTAS` | `zone: quota draws` |
+| R-31 | Every candidate chunk in the zone | `CANDIDATES` (the chunk set) | a chunk set rewrite, against `CANDIDATES` (ENG-09) | `candidates: outside the set` |
+| R-33 | A bridge has a deck; two distinct ends off it | `BRIDGE` | — (one record) | `bridge: deck empty`, `bridge: end` |
+| R-34 | Each end walkable and next to a deck tile | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against its `BRIDGE`s (ENG-09) | `bridge: end not floor`, `bridge: end not by the deck` |
+| R-35 | A bridge's index below its chunk's count | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that lowers its count below a written `BRIDGE` (ENG-09) | `bridge: index` |
 
 **R-30, sized from the measure** (D-220): ENG-05's worst legal plan (six passes of 112, 98,153,254 in
 `test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,
 `test_pair_plan_tasks_hosts`), 0.33 % under 100,000,000; at 640 draws with the tasks, **95,799,175**
-(`test_pair_plan_bound_hosts`). Without R-30 a legal generated zone is one code change from the
+(`test_pair_plan_bound_hosts`); on the authored path (no task places anything there), six quotas of
+640 draws among 225 candidates measure **95,035,380** (`test_pair_hosts_bound_authored`, review
+t-0084 note 4). Without R-30 a legal generated zone is one code change from the
 bound; with it, 4.2 % below. R-30 binds generated zones too (D-221, the project manager,
 2026-10-07): ENG-R1c builds it beside its four bounds, ENG-09 reuses it. The layout's own bounds (at most 2 spawn points and 3 objects, one
 candidate a quota a chunk, two gates a chunk, 15 bridges a chunk, a bridge in one chunk) are
 refused by the converter before any record (`export: …` codes). What no record holds alone is
-**the content pipeline's and the converter's**: every walkable tile reachable from the entry (P-1),
+**the content pipeline's and the converter's**: every walkable tile reachable from the entry (P-1;
+over the walkable plane only, so **a map whose only crossing is a bridge is refused until ENG-08b**
+gives the deck its rules),
 the records re-assembled across their seams equal to the painted map (P-2), a bridge's deck
 connected (P-3); a spawn point's template, a collector's and a landmark's existence (R-17, OPS-01's
 manifest).
@@ -1939,7 +1947,7 @@ a proposed kind written through an existing kind of its part count (`ZONE_CHUNK`
 | The reveal in memory: the decode · the sample's entry chunk (a landmark) · its fullest chunk, every candidate hosted (a Heart, a collector, a spawn point, a lever) · E-3's worst (two spawn points of 2–5, three objects; without the decode) | 87,840 · 312,321 · **2,243,843** · **2,000,515** | `test_pair_reveal_*` |
 | The library call of the fullest chunk (`AuthoredLibrary`, its syscall and calldata) | 2,701,253: the call itself 457,410 (E) | `test_pair_library_reveal` |
 | The copy into the instance: the chunk's two words in two new slots (ruling 2) | **948,560** | `test_pair_slots_write` |
-| The draws at entry: the sample's three quotas among candidates · R-15's worst (five quotas of 112 among 225) | 359,085 · 83,829,748 | `test_pair_hosts_*` |
+| The draws at entry: the sample's three quotas among candidates · R-15's worst (five quotas of 112 among 225) · R-30's bound (six quotas, 640 draws) | 359,085 · 83,829,748 · **95,035,380** | `test_pair_hosts_*` |
 
 **Against ENG-05's generated reveal at its merge** (§10 above): in memory a generated chunk costs
 2,830,905 typical and 3,901,320–4,067,457 worst; an authored one 0.31–2.24 M on the sample and

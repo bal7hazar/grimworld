@@ -27,6 +27,9 @@ from schema_check import validate  # noqa: E402
 FORMAT = "grimworld-export"
 VERSION = 1
 RECORDS_FORMAT = "grimworld-records"
+# What a kind needs beyond the schema's required keys (JSON Schema's `if`/`then`, kept here).
+ZONE_FIELDS = ("location", "region", "biome", "level_min", "level_max", "entry")
+HUB_FIELDS = ("location", "region")
 
 
 def load_json(path):
@@ -57,6 +60,11 @@ class Plane:
         self.width, self.height = export["size"]["width"], export["size"]["height"]
         self.cells = {}
         for span in export["rows"]:
+            for layer in ("ground", "outline"):
+                if layer in span and len(span[layer]) != len(span["terrain"]):
+                    raise R.Refused("export: row lengths differ",
+                                    f"row y={span['y']}: {layer} {len(span[layer])}, "
+                                    f"terrain {len(span['terrain'])}")
             for i, t in enumerate(span["terrain"]):
                 if t == " ":
                     continue
@@ -322,11 +330,16 @@ def town_writes(export, manifest):
 
 def convert(export, manifest):
     """`(writes, zone)`: the records in their order, and the zone's dict (None but for a zone)."""
+    # The format and its version first, so that a newer file is told as such, not as a schema error
+    if not isinstance(export, dict) or export.get("format") != FORMAT:
+        raise R.Refused("export: format", "not a grimworld-export file")
+    if export.get("version") != VERSION:
+        raise R.Refused("export: version", f"{export.get('version')} (this converter reads {VERSION})")
     validate(export, load_json(os.path.join(HERE, "schema.json")))
-    if export["format"] != FORMAT:
-        raise R.Refused("export: format", export["format"])
-    if export["version"] != VERSION:
-        raise R.Refused("export: version", f"{export['version']} (this converter reads {VERSION})")
+    needed = {"zone": ZONE_FIELDS, "town": HUB_FIELDS, "outpost": HUB_FIELDS}.get(export["kind"], ())
+    missing = [key for key in needed if key not in export]
+    if missing:
+        raise R.Refused("export: field missing", f"a {export['kind']} needs {', '.join(missing)}")
     if export["kind"] in ("town", "outpost"):
         return town_writes(export, manifest), None
     if export["kind"] == "set_piece":
@@ -397,6 +410,10 @@ def main(argv=None):
         writes, z = convert(load_json(args.export), load_json(args.manifest))
     except R.Refused as refusal:
         print(f"refused: {refusal}")
+        return 1
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        # A file no check above names: still a refusal line, never a traceback (review t-0084)
+        print(f"refused: export: malformed: {type(error).__name__}: {error}")
         return 1
     out = {"format": RECORDS_FORMAT, "version": VERSION, "source": os.path.basename(args.export),
            "writes": [{"order": i, "kind": R.KIND_NAMES[k], "kind_id": k, "id": rid,

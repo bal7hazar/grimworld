@@ -228,6 +228,53 @@ fn test_refuse_entry_not_floor() {
     check(@z);
 }
 
+/// Review t-0084's scenario (minor 1): `QUOTAS` written while quota 0 has two candidate chunks
+/// (count 2 passes R-13), then `CANDIDATES` rewritten with one: the `CANDIDATES` write re-runs
+/// R-13.
+#[test]
+#[should_panic(expected: 'zone: count above candidates')]
+fn test_refuse_candidates_rewrite_count() {
+    let mut z = load();
+    let [_, q1, q2, q3, q4, q5] = z.quotas.quotas;
+    z.quotas.quotas = [Quota { kind: quota::COLLECTOR, param: 1, count: 2 }, q1, q2, q3, q4, q5];
+    ZoneAssert::assert_quotas(@z.quotas, z.chunk_set, z.sets(), z.hearts.span());
+    let [_, c1, c2] = z.candidates;
+    z.candidates = [BoardTrait::pow(16), c1, c2];
+    let chunks = array![(1, z.chunk(1)), (16, z.chunk(16))];
+    ZoneAssert::assert_candidates_write(
+        z.sets(), z.chunk_set, Option::Some(@z.quotas), z.hearts.span(), chunks.span(),
+    );
+}
+
+/// `CANDIDATES` rewritten without chunk 1 for quota 0 (its count still met by chunk 16): chunk 1's
+/// record keeps a candidate tile for a quota that no longer names it, R-14 re-run on it.
+#[test]
+#[should_panic(expected: 'zone chunk: empty with a value')]
+fn test_refuse_candidates_rewrite_tile() {
+    let mut z = load();
+    let [c0, c1, c2] = z.candidates;
+    assert(BoardTrait::has(c0, 1), 'chunk 1 named');
+    z.candidates = [c0 - BoardTrait::pow(1), c1, c2];
+    let chunks = array![(1, z.chunk(1))];
+    ZoneAssert::assert_candidates_write(
+        z.sets(), z.chunk_set, Option::Some(@z.quotas), z.hearts.span(), chunks.span(),
+    );
+}
+
+/// The raiders' `PACK` rewritten with every minimum 0 while quota 2, a Heart, names it.
+#[test]
+#[should_panic(expected: 'zone: heart template')]
+fn test_refuse_pack_rewrite_heart() {
+    let empty = Pack {
+        castes: [
+            PackCaste { caste: 1, min: 0, max: 2 }, PackCaste { caste: 2, min: 0, max: 3 },
+            Default::default(), Default::default(), Default::default(),
+        ],
+        level: 0,
+    };
+    ZoneAssert::assert_pack_write(@empty, true);
+}
+
 #[test]
 #[should_panic(expected: 'zone: heart template')]
 fn test_refuse_heart_template() {
