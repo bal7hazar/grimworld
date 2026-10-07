@@ -30,7 +30,7 @@ and the re-audit measures it so.
   (`RevealLibrary`), `fate.cairo` (`EntropyTrait::word`, `hosts`), `contracts/ephemeral/src/systems/
   instances.cairo` (`begin`, `site`, `chunk_kind`, `instance_region`) and `store.cairo`.
 - **The measured residue** (D-208's record): SPK-17's `test_residue_eng05` on ENG-05's merged engine
-  FIGURE_NEG.
+  puts the exit 1 chunk from the entry on 8 of 8 floors at `N` = 12, where the honest order put it at 7 to 11 chunks on five of them (45 chunks in all): the residue the gate removes.
 - **The cost rules**: D-144 (every rise on the expedition's path, `enter` and `leave` included, is
   the project manager's before the merge); D-200, D-209 (`RevealLibrary` ≤ 50.5 %, `Instances` ≤ 51 %),
   D-210 (`HostsLibrary` < 50 %). The ENG-05 ceilings of ENG-01 §10 (*The D-144 ceilings of ENG-05*).
@@ -42,7 +42,10 @@ and the re-audit measures it so.
 ## Scope
 - In:
   1. **The draw** in `grimworld_logic` (`types/reveal/outline.cairo` or the module the code layout
-     gives it, docs/CAIRO.md §7): `OutlineTrait::draw`, `far`, `distance` as SPK-17's; the seed
+     gives it, docs/CAIRO.md §7): `OutlineTrait::draw` (or `draw_winding`, as the project manager
+     rules on ENG-10a's open question 1), `far`, `distance` as SPK-17's; a lever to try first: SPK-17's
+     earlier build drew each step from one Poseidon word and measured about 2.50 M at `N` = 12 against
+     the `Rng` stream's 2.80 M (not kept, not re-measured); the seed
      `EntropyTrait::outline(entropy, instance)` = `derive(entropy, domain(instance, 227, REVEAL), 0)`;
      the test that 227 is no other counter's word (SPK-17 `test_entropy_word_apart`).
   2. **`HostsLibrary`** gains the dungeon's call at `create` (`IHostsLibrary::floor`, as SPK-17's
@@ -103,7 +106,7 @@ and the re-audit measures it so.
 | A3 | A zone is unchanged: every zone vector's output and every zone test's assertion unchanged; a zone's reveal gas within ±1 % (the kept draws) | `vectors/check.py`, the zone tests, GAS.md diff |
 | A4 | The exit and the Heart always land: over the A1 entropies, one exit and one Heart (on a last floor's content) on their host chunks; with a set piece hosted on the exit's chunk, both still land and the set piece's own elements keep their tiles; the Heart at the band's top | snforge |
 | A5 | D-140: no panic on any legal content; a rectangle smaller than `N` gives the whole rectangle, connected | snforge (SPK-17 `test_outline_small_rectangle`) |
-| A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: FIGURE_REVEAL_CLASS), `HostsLibrary` under 50 % (SPK-17: FIGURE_FLOOR_CLASS), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
+| A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: 39,878 felts, 48.68 %, against 41,109), `HostsLibrary` under 50 % (SPK-17: 11,372 felts, 13.88 %, against 6,580), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
 | A7 | Gas: the D-144 table below filled with node figures (`lifecycle_probe.py`, three runs each), sent to the project manager **before** the merge with the cause of each rise | the report, ENG-01 §10 |
 | A8 | The documents of scope item 7 | the PR's diff |
 
@@ -120,12 +123,15 @@ the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero
 ## D-144: the rises it expects (E, from SPK-17; the node's figures replace them)
 | Entrypoint | ENG-05's ceiling | What moves | Expected |
 |---|---:|---|---:|
-FIGURE_D144_ROWS
+| `leave` to a dungeon floor | 8,276,640 | `HostsLibrary::floor` (4.10 M in snforge), the outline's 3 slots and one `hosts` slot a quota with a count (about 0.48 M each when new), the entry reveal without the guard (less) | about +7.0 M when the slots are new: ≈ 15.3 M (E) |
+| `enter` or `enter_rift` into a dungeon floor (a gate whose destination has `N`) | no dungeon figure (the probe's `enter` is the zone's) | the same | the same rise over its own figure, measured first |
+| A reveal in play (ENG-07) in a dungeon | none yet | three slots read, the hosts' masks set; no guard | measured by ENG-07 |
+| A zone's `create`, `enter`, `leave` | ENG-05's | nothing (the kept draws) | 0 (A3) |
 
 ## Measure first
 Cairo builds and tests go through `scripts/lock.sh`, capped (`prlimit --as=8589934592`), with
 `--max-threads 2` (SPK-17 aborted on an 8 GiB allocation without it); SPK-17's whole suite peaked at
-FIGURE_PEAK. Keep generated tests small (FND-23): the zero-residue test is about 1.05 × 10⁹ L2 gas a
+2.15–2.22 GB resident (`/usr/bin/time -v`, two clean runs), 1 to 1.5 minutes. Keep generated tests small (FND-23): the zero-residue test is about 1.05 × 10⁹ L2 gas a
 group of four floors of 12 in SPK-17; split it by seeds.
 
 ## Report

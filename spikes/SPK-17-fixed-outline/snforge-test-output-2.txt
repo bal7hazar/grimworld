@@ -1,37 +1,28 @@
    Compiling test(spk17_unittest) spk17 v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0087-eng-10a-fixed-dungeon-outline/spikes/SPK-17-fixed-outline/Scarb.toml)
    Compiling test(spk17_tests) spk17_tests v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0087-eng-10a-fixed-dungeon-outline/spikes/SPK-17-fixed-outline/Scarb.toml)
-    Finished `dev` profile target(s) in 46 seconds
+    Finished `dev` profile target(s) in 43 seconds
 
 
 Collected 34 test(s) from spk17 package
 Running 34 test(s) from tests/
 [PASS] spk17_tests::test_cost::test_base_layout_packed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10181787)
 [PASS] spk17_tests::test_cost::test_base_layout (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~6923746)
-[PASS] spk17_tests::test_cost::test_pair_outline_frontier_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4399357)
-[PASS] spk17_tests::test_cost::test_pair_outline_winding_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2899565)
-[PASS] spk17_tests::test_cost::test_base_outline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~506056)
-[PASS] spk17_tests::test_cost::test_base_library (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~519066)
-[PASS] spk17_tests::test_cost::test_base_reveal_eng05 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4558352)
-[PASS] spk17_tests::test_cost::test_base_reveal_fixed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~14047401)
-[PASS] spk17_tests::test_cost::test_pair_reveal_fixed_one (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~16077188)
-[PASS] spk17_tests::test_cost::test_pair_slots_packed_write (l1_gas: ~0, l1_data_gas: ~288, l2_gas: ~11394887)
-[PASS] spk17_tests::test_cost::test_pair_slots_write (l1_gas: ~0, l1_data_gas: ~672, l2_gas: ~10053676)
-[PASS] spk17_tests::test_cost::test_pair_reveal_fixed_floor (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~50695805)
+[PASS] spk17_tests::test_cost::test_base_slots (l1_gas: ~0, l1_data_gas: ~96, l2_gas: ~7199616)
+[PASS] spk17_tests::test_cost::test_base_slots_packed (l1_gas: ~0, l1_data_gas: ~96, l2_gas: ~10446227)
+[PASS] spk17_tests::test_cost::test_entropy_word_apart (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4399183)
+[PASS] spk17_tests::test_cost::test_pair_layout_pack (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10181987)
+[PASS] spk17_tests::test_cost::test_pair_layout_packed_unpack (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~15476404)
 [PASS] spk17_tests::test_cost::test_pair_library_floor_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4623564)
-[PASS] spk17_tests::test_outline::test_layout_round_trip (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~123618189)
-[PASS] spk17_tests::test_cost::test_pair_outline_draw_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~3307502)
 N = 6: the farthest distance over 64 entropies: min 2, max 5, sum 180
 [PASS] spk17_tests::test_outline::test_outline_n6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~419255534)
-[PASS] spk17_tests::test_cost::test_pair_outline_draw_6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1718552)
-[PASS] spk17_tests::test_cost::test_pair_outline_floor_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4439584)
 [PASS] spk17_tests::test_outline::test_outline_small_rectangle (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2530567)
-N = 12: the farthest distance over 64 entropies: min 3, max 6, sum 269
-[PASS] spk17_tests::test_outline::test_outline_n12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~870333033)
+N = 9: the farthest distance over 64 entropies: min 2, max 6, sum 228
+[PASS] spk17_tests::test_outline::test_outline_n9 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~642055174)
 N = 6 (winding): the farthest distance over 64 entropies: min 2, max 5, sum 216
-N = 12 (winding): the farthest distance over 64 entropies: min 3, max 9, sum 330
 [PASS] spk17_tests::test_outline::test_outline_winding_n6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~424848276)
-[PASS] spk17_tests::test_outline::test_outline_winding_n12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~886425088)
 ENG-05, entropy 0: honest exit 3 at 11 (1 exits); forcing order exit 97 at 1 (1 exits)
+N = 12 (winding): the farthest distance over 64 entropies: min 3, max 9, sum 330
+[PASS] spk17_tests::test_outline::test_outline_winding_n12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~886425088)
 ENG-05, entropy 1: honest exit 21 at 7 (1 exits); forcing order exit 97 at 1 (1 exits)
 ENG-05, entropy 2: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 exits)
 ENG-05, entropy 3: honest exit 4 at 10 (1 exits); forcing order exit 97 at 1 (1 exits)
@@ -42,36 +33,45 @@ ENG-05, entropy 6: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 
 ENG-05, entropy 7: honest exit 5 at 11 (1 exits); forcing order exit 97 at 1 (1 exits)
 ENG-05: 5 of 8 floors differ; the forcing order's exit at 1 chunk on 8; chunks gained against the honest order in all 45
 [PASS] spk17_tests::test_residue::test_residue_eng05 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1559883052)
+[PASS] spk17_tests::test_cost::test_pair_outline_draw_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~3307502)
 [PASS] spk17_tests::test_residue::test_zero_residue_n12_1 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1058562637)
-[PASS] spk17_tests::test_cost::test_base_slots (l1_gas: ~0, l1_data_gas: ~96, l2_gas: ~7199616)
-[PASS] spk17_tests::test_cost::test_base_slots_packed (l1_gas: ~0, l1_data_gas: ~96, l2_gas: ~10446227)
-[PASS] spk17_tests::test_cost::test_entropy_word_apart (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4399183)
-[PASS] spk17_tests::test_cost::test_pair_layout_pack (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10181987)
-[PASS] spk17_tests::test_cost::test_pair_layout_packed_unpack (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~15476404)
-[PASS] spk17_tests::test_cost::test_pair_reveal_eng05_one (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~8352521)
+[PASS] spk17_tests::test_cost::test_pair_outline_draw_6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1718552)
+[PASS] spk17_tests::test_cost::test_pair_outline_floor_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4439584)
+[PASS] spk17_tests::test_outline::test_layout_round_trip (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~123618189)
 [PASS] spk17_tests::test_residue::test_zero_residue_n6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1068158226)
-N = 9: the farthest distance over 64 entropies: min 2, max 6, sum 228
+[PASS] spk17_tests::test_cost::test_base_reveal_eng05 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4558352)
+[PASS] spk17_tests::test_cost::test_base_outline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~506056)
 ENG-05 floor: 12 chunks revealed
-[PASS] spk17_tests::test_outline::test_outline_n9 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~642055174)
 [PASS] spk17_tests::test_cost::test_pair_reveal_eng05_floor (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~70412988)
+[PASS] spk17_tests::test_cost::test_base_reveal_fixed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~14047401)
+[PASS] spk17_tests::test_cost::test_pair_reveal_fixed_one (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~16077188)
+[PASS] spk17_tests::test_cost::test_pair_slots_packed_write (l1_gas: ~0, l1_data_gas: ~288, l2_gas: ~11394887)
+[PASS] spk17_tests::test_cost::test_pair_reveal_eng05_one (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~8352521)
+[PASS] spk17_tests::test_cost::test_pair_outline_winding_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2899565)
+[PASS] spk17_tests::test_cost::test_pair_outline_frontier_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4399357)
+[PASS] spk17_tests::test_cost::test_pair_reveal_fixed_floor (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~50695805)
+[PASS] spk17_tests::test_cost::test_pair_slots_write (l1_gas: ~0, l1_data_gas: ~672, l2_gas: ~10053676)
+[PASS] spk17_tests::test_cost::test_base_library (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~519066)
+N = 12: the farthest distance over 64 entropies: min 3, max 6, sum 269
+[PASS] spk17_tests::test_outline::test_outline_n12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~870333033)
 Running 0 test(s) from src/
 Tests: 34 passed, 0 failed, 0 ignored, 0 filtered out
 
 	Command being timed: "../../scripts/lock.sh --heavy snforge test --max-threads 2"
-	User time (seconds): 60.50
-	System time (seconds): 10.38
-	Percent of CPU this job got: 80%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:28.30
+	User time (seconds): 57.68
+	System time (seconds): 8.83
+	Percent of CPU this job got: 110%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:00.34
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 2147028
+	Maximum resident set size (kbytes): 2220216
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 0
-	Minor (reclaiming a frame) page faults: 418968
-	Voluntary context switches: 2035
-	Involuntary context switches: 4704
+	Minor (reclaiming a frame) page faults: 377801
+	Voluntary context switches: 3532
+	Involuntary context switches: 5002
 	Swaps: 0
 	File system inputs: 0
 	File system outputs: 113504

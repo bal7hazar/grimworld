@@ -1,0 +1,67 @@
+# SPK-17 — A dungeon floor's outline fixed at entry, measured
+
+ENG-10a (D-208's PLAN item; the Overseer's rule of 2026-10-07: the dungeon residue blocks any
+non-test deployment until ENG-10b merges, and ENG-10b's merge gate is a re-audit measuring it at
+zero). A spike: nothing here is production code; ENG-10b builds from it
+(`docs/briefs/ENG-10b-fixed-dungeon-outline.md`). The design is in ADR-0006 §3 (*A dungeon floor's
+outline, fixed at entry*) and ENG-01 §1.3, §3.2, §10, marked "ENG-10a, proposed". Built on
+`origin/main` at `44961f2` (ENG-05 and ENG-08 merged), `grimworld_logic` by path.
+
+| Path | What |
+|---|---|
+| `src/outline.cairo` | The draw at `create` (`draw`, `draw_winding`, and `draw_frontier`, the first law, kept for its figure), the distances through the open seams (`far`, `distance`), the outline read back from revealed edges (`from_edges`), and the rejected two-felt layout (`pack`, `unpack`) |
+| `src/engine.cairo`, `src/engine/placement.cairo` | ENG-05's engine (`grimworld_logic::types::reveal` at `44961f2`, its tests left out) with ENG-10a's changes, each marked `ENG-10a` |
+| `src/library.cairo` | `FloorLibrary` (`HostsLibrary` with the floor's call), `FixedRevealLibrary` (`RevealLibrary` on the changed engine), `Slots` (the new slots apart) |
+| `tests/test_residue.cairo` | **The zero-residue test** (`test_zero_residue_*`) and the negative control on ENG-05's merged engine (`test_residue_eng05`) |
+| `tests/test_outline.cairo` | The outline's properties over 64 entropies a size; the layout's round trip |
+| `tests/test_cost.cairo` | The pairs |
+| `pairs.py`, `pairs.txt`, `sizes.py`, `snforge-test-output-{1,2}.txt` | The measures |
+
+## Run it
+
+```
+cd spikes/SPK-17-fixed-outline
+prlimit --as=8589934592 ../../scripts/lock.sh --heavy scarb build && python3 sizes.py
+scarb clean && prlimit --as=8589934592 -- /usr/bin/time -v ../../scripts/lock.sh --heavy snforge test --max-threads 2   # twice (D-154)
+python3 pairs.py snforge-test-output-1.txt snforge-test-output-2.txt > pairs.txt
+```
+
+`--max-threads 2` is needed: without it a capped run aborted on a 512 MB allocation (`memory
+allocation of 536870912 bytes failed`, the 8 GiB address-space cap). Output, on the VPS (Linux, Scarb
+2.20.1, snforge 0.64.0), 2026-10-07: both clean runs `Tests: 34 passed, 0 failed`, peak resident
+memory 2,147,028 kB and 2,220,216 kB, 1:28 and 1:00; every one of the 14 pairs equal to the unit in
+both (`pairs.txt`). `sizes.py` on the same tree's build: `FixedRevealLibrary` 39,878 CASM felts
+(48.68 %), `FloorLibrary` 11,372 (13.88 %), `Slots` 1,563; ENG-05's `RevealLibrary` 41,109 (50.18 %)
+and `HostsLibrary` 6,580 (8.03 %), equal to ENG-01 §1.3.
+
+## The zero-residue test (deliverable 2)
+
+For 8 entropies at `N` = 6 and 8 at `N` = 12 (`test_zero_residue_n6`, `_n12_0`, `_n12_1`), a floor
+is created as ENG-10b's `create` would (outline, farthest chunks, hosts, masks), then revealed in six
+orders, the entry first: by index, backward, nearest first, farthest first (the entry's neighbours
+last: t-0077's lever), and two drawn. Every order must give the same chunk set (the outline), one exit
+on the same chunk (among the farthest), the same exit-to-entry distance read back from the revealed
+edges (the farthest distance), and the same edges in every chunk. It passes: 16 floors, 96 orders.
+The test calls the engine and the draw as pure functions, so it proves the design, not ENG-10b's
+wiring: ENG-10b's `test_zero_residue` runs the same comparison on the real path (its brief, A1, A2).
+
+**The negative control** (`test_residue_eng05`): the same comparison on ENG-05's merged engine, at
+`N` = 12, an honest order (the lowest revealable index first) against t-0077's forcing order (keep the
+entry's first open neighbour for the `N`-th reveal; avoid the chunks whose draw hits the exit). The
+forcing order puts the exit 1 chunk from the entry on **8 of 8** floors; the honest order put it at
+11, 7, 10, 11 and 11 chunks on five of them (45 chunks gained in all), and at 1 on the other three.
+The first measure of the residue (the re-audits' figure was a hand trace).
+
+## Costs (deliverable 3)
+
+| What | L2 gas (M) |
+|---|---:|
+| The outline at `N` = 6 · 12 · winding at 12 · uniform over the frontier at 12 | 1,212,496 · 2,801,446 · 2,393,509 · 3,893,301 |
+| `create`'s floor in memory (outline, farthest, three hosts, a mask) · through `FloorLibrary` | 3,933,528 · 4,104,498 |
+| Three outline felts and three hosts' bitmaps written new | 2,854,060 |
+| Rejected: two felts written · packed · unpacked | 948,660 · 3,258,241 · 5,294,617 |
+| One chunk next to the entry: ENG-05 · changed engine | 3,794,169 · 2,029,787 |
+| The other 11 chunks: ENG-05 (with the test's search) · changed engine | 65,854,636 · 36,648,404 |
+
+The outline's shape, 64 entropies a size (`test_outline_*`): the farthest distance 2–5 at `N` = 6
+(mean 2.81), 2–6 at 9 (3.56), 3–6 at 12 (4.20); winding 2–5 at 6 (3.38), 3–9 at 12 (5.16).

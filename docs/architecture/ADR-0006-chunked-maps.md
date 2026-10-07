@@ -259,7 +259,7 @@ ENG-10b merges (the Overseer, 2026-10-07). SPK-17 reproduces it on ENG-05's merg
 | | |
 |---|---|
 | **The rule** | A dungeon floor's chunks, the seams open between them, and every quota's host chunks, the exit's and the Heart's among them, are **drawn once at the instance's entry**, from its entry draw alone, and stored with the instance. A reveal reads them and draws none of them. The chunk set, each seam, each host, the exit's chunk and tile and its distance from the entry are then functions of the entry draw: **no order of moves changes them** |
-| **The draw** (`spikes/SPK-17-fixed-outline/src/outline.cairo`) | Seed `derive(entropy, domain(instance, 227, REVEAL), 0)`, the word of no chunk (0–224), nor of ENG-05's hosts (225), nor of an authored zone's (226, SPK-16). The floor starts as its entry chunk and grows one chunk at a time until it holds `N` (or its whole rectangle, when smaller: D-140): the chunk added is drawn uniformly among the **frontier**, the rectangle's chunks next to the floor and not in it. Of the new chunk's seams toward the floor one, drawn uniformly, is its **parent's** and is open, so the floor is connected; each other is open but with probability 1 in 7, ENG-05's law of a dungeon's side (`BORDER`). Draw `t` reads `poseidon(seed, t).low` modulo its bound, `t` growing across the whole draw |
+| **The draw** (`spikes/SPK-17-fixed-outline/src/outline.cairo`) | Seed `derive(entropy, domain(instance, 227, REVEAL), 0)`, the word of no chunk (0–224), nor of ENG-05's hosts (225), nor of an authored zone's (226, SPK-16); its draws one `hexx` `Rng` stream, as a chunk's placement. The floor starts as its entry chunk and grows one chunk at a time until it holds `N` (or its whole rectangle, when smaller: D-140): at each step a **member** of the floor (uniform by its rank in the order added) and a **side** (uniform of 4) are drawn, and the chunk beyond is kept when it is in the rectangle and not in the floor (each frontier chunk weighted by the floor's sides facing it), up to 16 pairs, then the exact draw, uniform over the frontier. The member is the new chunk's **parent**: their seam is open, so the floor is connected; each other seam toward the floor is open but with probability 1 in 7, ENG-05's law of a dungeon's side (`BORDER`) |
 | **Distances** | A walk from the entry through the open seams, a layer a step (bit-parallel: a layer is a bitmap). The **farthest** chunks are its last layer |
 | **The exit and the Heart** | Their hosts are drawn as a zone's (`PlacementTrait::hosts`, D-208, D-210, D-220: an exact draw without replacement, the caps respected, seed `derive(entropy, domain(instance, 225, REVEAL), 0)`), **among the farthest chunks only**; the other quotas (a vein, a set piece, the tasks' landmarks) among the whole outline. In its chunk the exit, then the Heart, is laid **first**, before a set piece's own packs and objects, on a tile of the spine's **core** (rows and columns 3 to 11 of row 7 and column 7, 17 tiles) less the set piece's own tiles: the spine is floor in every generated chunk and the core is at least 3 tiles from the ring, so no opening comes within 2 of it whatever the seams, and the farthest chunks are never the entry's (its anchor). Both always land, on a tile drawn from the chunk's word: no order moves it. A Heart keeps the band's top level (D-208) |
 | **Stored** (ENG-01 §3.2) | **Three felts** a floor, `outline` `(slot, 0–2)`: its chunks (bit `15 cy + cx`), its open seams West (bit `c`: between `c` and `c + 1`) and North (bit `c`: between `c` and `c + 15`); and its hosts **as a zone's**, one `hosts` slot a quota with a count. Written at `create` (every entry that creates a floor), read by every invocation that reveals in a dungeon. Two felts would hold it all (the seams and the hosts by the chunks' rank in the outline, a floor having at most 12 chunks), but packing and unpacking cost more than the slots they save (measured, ENG-01 §10) |
@@ -283,13 +283,17 @@ chunks.
 t-0077's lever, and two drawn orders) gives the same chunk set (the outline), the same exit chunk (one
 exit, among the farthest), the same exit-to-entry distance through the revealed edges (the farthest
 distance), and the same edges in every chunk. SPK-17's `test_zero_residue_*` passes it on the changed
-engine (20 floors, 120 orders); `test_residue_eng05` runs the comparison on ENG-05's merged engine and
-**measures the residue there**: FIGURES_RESIDUE.
+engine (16 floors, 96 orders); `test_residue_eng05` runs the comparison on ENG-05's merged engine and
+**measures the residue there**: on 8 floors at `N` = 12, t-0077's forcing order (keep the entry's first open neighbour for the `N`-th reveal, avoid the chunks whose draw hits the exit) puts the exit **1 chunk** from the entry on **8 of 8**, where the honest order (the lowest revealable index first) put it at 11, 7, 10, 11 and 11 chunks on five of them (45 chunks in all; on the other three the honest order also found it at 1). The forcing order is free: no kill, no health, no item.
 
 **The shape this draw gives** (SPK-17 `test_outline_*`, 64 entropies each): the farthest distance,
-where the exit now lies, is FIGURES_SHAPE. A random growth gives compact floors; a corridor-like floor
-(the exit far down a winding path) is a growth law with a bias toward the last chunk added, a design
-choice left to ENG-11 (dungeon room kinds): any law drawn at entry keeps the residue at zero.
+where the exit now lies, is 2 to 5 chunks at `N` = 6 (mean 2.81), 2 to 6 at `N` = 9 (3.56) and 3 to
+6 at `N` = 12 (4.20): a random growth gives compact floors. The **winding** variant (`draw_winding`:
+the newest chunk as the member half the time) gives 2 to 5 at `N` = 6 (mean 3.38) and 3 to 9 at
+`N` = 12 (5.16), and costs less (2,393,509 against 2,801,446 L2 gas at `N` = 12, ENG-01 §10). Which
+law ENG-10b builds is a design choice (the report's open question; the recommendation is the
+winding one); a corridor or room layout proper is ENG-11's (dungeon room kinds). **Any law drawn at
+entry keeps the residue at zero.**
 
 #### Joining chunks
 

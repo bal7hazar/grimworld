@@ -268,6 +268,24 @@ hosts above the board. `Instances` holds its class hash (`hosts_library`, §3.2)
 constructor and `set_contracts` and calls it **once at `create` in a zone with a quota** (none
 without), then writes the bitmaps (`hosts`, §3.2).
 
+**Proposed by ENG-10a (SPK-17, not built; ENG-10b builds it): a dungeon floor's outline at
+`create`.** ADR-0006 §3 (*A dungeon floor's outline, fixed at entry*): `HostsLibrary` gains the
+floor's call (`floor(entry, n, width, height, plan, pieces, chunks, outline_seed, hosts_seed) ->
+(outline, hosts, masks)`: the outline drawn, its farthest chunks, the hosts with the exit and the
+Heart among them, the entry reveal's masks), called once at `create` in a dungeon; `RevealLibrary`
+reads the outline instead of drawing borders, and loses `decide`'s frontier guard. Measured on the
+spike's build (Linux, Scarb 2.20.1, `spikes/SPK-17-fixed-outline/sizes.py`; ENG-05's two classes from
+the same build as `build-external-contracts`, equal to the table above to the felt):
+
+| Class (SPK-17) | CASM felts | Share | Against |
+|---|---:|---:|---|
+| `FixedRevealLibrary` (`RevealLibrary` on ENG-05's engine with ENG-10a's changes) | 39,878 | **48.68 %** | `RevealLibrary` 41,109, 50.18 %: −1,231, under D-200's 50 % again |
+| `FloorLibrary` (`HostsLibrary` with the floor's call) | 11,372 | **13.88 %** | `HostsLibrary` 6,580, 8.03 %: +4,792 |
+
+What `Instances` gains and loses (the floor's call and three slots in `begin`, the outline read in
+`site`; `chunk_kind`'s dungeon branch, which reads every revealed neighbour's terrain, replaced by a
+bit test) is not measured: ENG-10b measures it against D-209's 51 %.
+
 ---
 
 ## 2. Reusing an instance's slots
@@ -1959,6 +1977,27 @@ ENG-05. In `create`, an authored chunk adds its read (93,220), its reveal and it
 quotas adds 221,010 for `CANDIDATES` and the hosts' draw (359,085 on the sample). The authored path
 is no dearer than the generated one at any measured point; ENG-09's node figures go to the project
 manager under D-144 (the expedition's path).
+
+**Proposed by ENG-10a (SPK-17, not built; snforge M, Linux, two clean builds equal to the unit,
+each a pair of tests that differ by the measured call alone, `spikes/SPK-17-fixed-outline/pairs.txt`;
+E marks a derived figure).** A dungeon floor of `N` = 12 in a 15 × 15 rectangle, its quotas an exit,
+a vein and a Heart:
+
+| What | L2 gas | Source |
+|---|---:|---|
+| The outline drawn, in memory: `N` = 6 · `N` = 12 · the winding variant at 12 · the first law, uniform over the frontier, at 12 | 1,212,496 · **2,801,446** · 2,393,509 · 3,893,301 | `test_pair_outline_*` |
+| All `create` computes for the floor in memory: the outline, its farthest chunks, the three quotas' hosts, the entry chunk's mask | **3,933,528** | `test_pair_outline_floor_12` |
+| The same through the library class (`FloorLibrary::floor`, its syscall and calldata) | **4,104,498** (the call about 171,000, E) | `test_pair_library_floor_12` |
+| The slots: the outline's three felts and three hosts' bitmaps, new | **2,854,060** (about 475,700 a slot, E) | `test_pair_slots_write` |
+| The rejected layout: the floor in two felts (seams and hosts by rank) · its packing · its unpacking, which every invocation that reveals would pay | 948,660 · 3,258,241 · 5,294,617 | `test_pair_slots_packed_write`, `test_pair_layout_*` |
+| One chunk revealed next to the entry: ENG-05's engine (an emerging floor) · the changed engine (its outline) | 3,794,169 · **2,029,787** (not the same chunk nor content: E for the difference) | `test_pair_reveal_*_one` |
+| The other 11 chunks of the floor: ENG-05's (the test's search of a revealable chunk at each step included) · the changed engine's | 65,854,636 · **36,648,404** (3.33 M a chunk) | `test_pair_reveal_*_floor` |
+
+At `create` a floor adds (E) the library call, 4.10 M, and its new slots, 2.85 M when the slot is
+new (an overwritten slot costs less), against the entry chunk's reveal, which the guard no longer
+burdens: about +7.0 M on an entry that creates a floor before ENG-10b's own levers (the growth law,
+the number of hosts' slots). Every such rise is the project manager's under D-144; ENG-10b measures it
+on the node (`docs/briefs/ENG-10b-fixed-dungeon-outline.md`).
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
