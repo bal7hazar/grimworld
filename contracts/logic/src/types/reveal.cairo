@@ -90,7 +90,7 @@ pub mod errors {
 /// What the reveal reads of a location (the registry's records, read once an invocation).
 #[derive(Drop, Serde, Debug, PartialEq)]
 pub struct Site {
-    /// `N`, a dungeon floor's chunks; 0 for a zone (its outline is drawn, not emerging).
+    /// `N`, a dungeon floor's chunks; 0 for a zone.
     pub target: u8,
     pub biome: u8,
     pub level_min: u8,
@@ -130,7 +130,8 @@ pub struct Progress {
     /// Bit `15 cy + cx`.
     pub revealed: felt252,
     pub count: u8,
-    /// Open edges of a dungeon's frontier toward chunks not revealed.
+    /// ENG-05's open edges of a dungeon's frontier: 0 since ENG-10b (a floor's outline is drawn at
+    /// `create`), the field kept for the `Quotas` word's layout.
     pub open_edges: u8,
     /// Left to place of quota `i`: the location's 6, then the tasks' 8.
     pub left: [u8; 14],
@@ -147,7 +148,8 @@ pub struct Revealed {
 
 #[generate_trait]
 pub impl SiteImpl of SiteTrait {
-    /// Whether the outline emerges (a dungeon floor, `N` > 0).
+    /// Whether the site is a dungeon floor (`N` > 0; ENG-05's name, from when its outline emerged:
+    /// since ENG-10b it is drawn at `create`).
     #[inline(always)]
     fn emerging(self: @Site) -> bool {
         *self.target != 0
