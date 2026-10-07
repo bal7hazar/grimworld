@@ -30,6 +30,10 @@
 //! costs 2 and recovers until `B = T + 1` (§5.2, FX-15, unless a `MOVEMENT` effect is held, FX-18);
 //! entering a tile that holds an unused trap triggers it (`Enter`, §5.11), which ends the act.
 //!
+//! **The attackers' cap** (`MAX_ATTACKERS`, CBT-05d's lever 1): at most that many goblins attack
+//! in one step (a skill or a weapon used on the target); an Engaged goblin past it holds. 8, no
+//! cap, until the owner sets it (R-2).
+//!
 //! **Readings this lot fixed where the design is silent** (each in the report, reversible):
 //! - the caste sheets carry no AI profile (`CasteSheet` has none; design/05's seven are not
 //!   encoded anywhere): every caste runs the *Engaged* row above, design/04's own (the profiles
@@ -61,6 +65,11 @@ use crate::types::world::{Actor, Words, World, WorldTrait};
 
 /// The flood's depth (D-127): a goblin farther on foot holds its tile.
 pub const FLOOD_DEPTH: u8 = 15;
+
+/// The goblins that may attack in one step 2 (CBT-05d's lever 1, R-2: the owner's to set; the
+/// project manager, 2026-10-07): 8, the awake set's size, is no cap. An Engaged goblin past it
+/// holds its tile this tick.
+pub const MAX_ATTACKERS: u8 = 8;
 
 /// What a goblin's act calls besides the executor (`Carry`): the trap of the tile it entered
 /// (§5.11), through `TrapLibrary` in the class (`AiLibrary`), in process in the tests.
@@ -131,7 +140,18 @@ pub impl AiImpl of AiTrait {
     fn step<R, +Carry<R>, +Enter<R>, +Destruct<R>>(
         ref world: World, sheets: @Sheets, ref rules: R, resolved: u128,
     ) -> bool {
+        let (down, _) = Self::capped(ref world, sheets, ref rules, resolved, MAX_ATTACKERS);
+        down
+    }
+
+    /// The step with at most `cap` goblins attacking (`MAX_ATTACKERS`): an attack is a skill or a
+    /// weapon used on the target in the act. Returns whether the adventurer reached 0 and how many
+    /// attacked.
+    fn capped<R, +Carry<R>, +Enter<R>, +Destruct<R>>(
+        ref world: World, sheets: @Sheets, ref rules: R, resolved: u128, cap: u8,
+    ) -> (bool, u8) {
         let t = world.clock;
+        let mut attacks: u8 = 0;
         let woken = world.woken();
         let board = rules.board();
         let mut flood: Option<Flood> = None;
@@ -144,18 +164,23 @@ pub impl AiImpl of AiTrait {
                 && goblin.knocked < t
                 && goblin.is_alive()
                 && resolved & bit == 0 {
-                Self::act(ref world, sheets, ref rules, @board, ref flood, index, goblin, t);
+                if Self::act(
+                    ref world, sheets, ref rules, @board, ref flood, index, goblin, attacks < cap, t,
+                ) {
+                    attacks += 1;
+                }
                 if world.is_down() {
-                    return true;
+                    return (true, attacks);
                 }
             }
             bit *= 2;
             k += 1;
         }
-        false
+        (false, attacks)
     }
 
-    /// Goblin `index`'s act at `t` (design/04's state machine, the module's rules).
+    /// Goblin `index`'s act at `t` (design/04's state machine, the module's rules); an Engaged
+    /// goblin attacks only if `attack` (the cap), else holds. Whether it attacked.
     fn act<R, +Carry<R>, +Enter<R>, +Destruct<R>>(
         ref world: World,
         sheets: @Sheets,
@@ -164,20 +189,24 @@ pub impl AiImpl of AiTrait {
         ref flood: Option<Flood>,
         index: u32,
         goblin: Goblin,
+        attack: bool,
         t: u32,
-    ) {
+    ) -> bool {
         let state = goblin.ai;
         if state != ai::ENGAGED && state != ai::ALERTED && state != ai::FLEEING {
-            return;
+            return false;
         }
         let (target, target_at) = match Self::target(@world, board) {
             Some(found) => found,
-            None => { return; },
+            None => { return false; },
         };
         let source = Actor::Goblin(index);
         if state == ai::ENGAGED {
+            if !attack {
+                return false;
+            }
             if Self::skill(ref world, sheets, ref rules, board, source, goblin, target, target_at, t) {
-                return;
+                return true;
             }
             let carrier = Carrier::Weapon;
             if ExecutorTrait::legal(@Levered {}, @world, sheets, board, source, carrier, target) {
@@ -188,7 +217,7 @@ pub impl AiImpl of AiTrait {
                 goblin.recover(*(*sheets.kits)[goblin.caste_at].weapon_ticks, t);
                 world.set_goblin(index, goblin);
                 let _ = rules.carry(ref world, sheets, source, 0, carrier, target, t);
-                return;
+                return true;
             }
         }
         let away = state == ai::FLEEING;
@@ -198,6 +227,7 @@ pub impl AiImpl of AiTrait {
             goblin.ai = ai::ENGAGED;
             world.set_goblin(index, goblin);
         }
+        false
     }
 
     /// The first usable skill of the goblin's priority list, used on `target` (the module's

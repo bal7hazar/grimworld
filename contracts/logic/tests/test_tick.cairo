@@ -4490,3 +4490,39 @@ fn test_cost_lever_tick_uncapped() {
     let words = ticks_of(library, words, rep_content(), board(), 1);
     assert(words.clock == 41, 'one tick');
 }
+
+// The attackers' cap (`MAX_ATTACKERS`, CBT-05d's lever 1): the 8 Engaged goblins of the fight, each
+// able to attack with its weapon, make as many attacks as the cap allows and never more; with the
+// constant (8, no cap until the owner sets it, R-2) all 8 attack.
+fn cap_step(cap: u8) -> u8 {
+    let (words, _) = fight();
+    let content = rep_content();
+    let classes = classes();
+    let (mut world, sheets, index) = words.indexed(@content);
+    world.clock += 1;
+    let mut rules = grimworld_logic::types::executor::Delegate {
+        board: board(),
+        cache: Default::default(),
+        executor: classes.executor,
+        content,
+        index,
+        placed: array![],
+        ground: array![],
+        ai: classes.ai,
+        trap: classes.trap,
+        level: 10,
+        frozen: 0,
+    };
+    let (_, attacks) = grimworld_logic::types::ai::AiTrait::capped(
+        ref world, @sheets, ref rules, 0, cap,
+    );
+    attacks
+}
+
+#[test]
+fn test_attackers_cap() {
+    assert(cap_step(4) == 4, 'four attack');
+    assert(cap_step(1) == 1, 'one attacks');
+    let all = cap_step(grimworld_logic::types::ai::MAX_ATTACKERS);
+    assert(all <= grimworld_logic::types::ai::MAX_ATTACKERS && all == 8, 'eight attack');
+}
