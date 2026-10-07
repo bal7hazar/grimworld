@@ -64,6 +64,65 @@ describe("ENG-08's sample zone in the editor", () => {
   });
 });
 
+describe("D-215 Q9 on the sample (track game, 2026-10-07)", () => {
+  const errors = (doc: ReturnType<typeof opened>["doc"], check: string) =>
+    validate(doc, MANIFEST).filter((f) => f.check === check && f.severity === "error");
+
+  it("E-5: the sample's to_floor gate, a dungeon's entrance, is free inside the chunk set", () => {
+    const gate = [...opened().doc.objects.values()].find((o) => o.kind === "gate" && o.id === 3);
+    expect(gate?.at).toEqual({ x: 0, y: 8 });
+    expect(errors(opened().doc, "E-5")).toEqual([]);
+  });
+
+  it("E-5: a gate to another location inside the zone is refused", () => {
+    const { doc } = opened();
+    // The to_town gate moved onto the to_floor gate's inner floor, a row below.
+    for (const [id, o] of doc.objects) {
+      if (o.kind === "gate" && o.id === 2) doc.objects.set(id, { ...o, at: { x: 0, y: 9 } });
+    }
+    expect(errors(doc, "E-5").map((f) => f.message)).toEqual([
+      "Gate G1's anchor (0, 9) is not on the outline's border.",
+    ]);
+  });
+
+  const hut = (doc: ReturnType<typeof opened>["doc"], footprint: string) => {
+    for (const [id, o] of doc.objects) {
+      if (o.kind === "building") doc.objects.set(id, { ...o, footprint });
+    }
+  };
+
+  it("E-16: an authored footprint is one connected piece", () => {
+    const { doc } = opened();
+    expect(errors(doc, "E-16")).toEqual([]);
+    // The hut at (5, -2) given a hex three columns away.
+    hut(doc, "0,0;1,0;0,1;3,0");
+    expect(errors(doc, "E-16").map((f) => f.message)).toEqual([
+      "Building hut (5, -2): its footprint is not one piece (1 hexes apart).",
+    ]);
+  });
+
+  it("E-16: an authored footprint lies in the chunk set", () => {
+    const { doc } = opened();
+    // The hut moved into chunk 17 (cx 2, cy 1), which the sample's chunk set leaves out.
+    for (const [id, o] of doc.objects) {
+      if (o.kind === "building") doc.objects.set(id, { ...o, at: { x: 12, y: 3 } });
+    }
+    expect(errors(doc, "E-16").map((f) => f.message)).toContain(
+      "Building hut (12, 3) has 3 hexes outside the chunk set.",
+    );
+  });
+
+  it("E-20: the door stays on the footprint's border and walkable", () => {
+    const { doc } = opened();
+    for (const [id, o] of doc.objects) {
+      if (o.kind === "building") doc.objects.set(id, { ...o, door: "1,1" });
+    }
+    expect(validate(doc, MANIFEST).some((f) => f.check === "E-20" && f.severity === "error")).toBe(
+      true,
+    );
+  });
+});
+
 describe("what the import refuses, the open map untouched", () => {
   const problem = (raw: unknown, manifest = MANIFEST) => {
     const out = fromExport(raw, manifest);

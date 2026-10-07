@@ -283,15 +283,13 @@ describe("E checks: the editor's own", () => {
     fails(wall, "E-4");
   });
 
-  it("E-5: a gate anchor off the outline's border warns (the converter accepts it)", () => {
+  it("E-5: every gate anchor is on the outline's border", () => {
     passes(zone(), "E-5");
     const doc = zone();
     const [id, gate] = only(doc, "gate")[1]!;
     // The client's own anchor of gate 102, one hex inside.
     doc.objects.set(id, { ...gate, at: { x: 40, y: 7 } });
-    const found = findings(doc, "E-5");
-    expect(found.map((f) => f.severity)).toEqual(["warning"]);
-    expect(found[0]!.message).toContain("G2");
+    expect(fails(doc, "E-5")[0]!.message).toContain("G2");
   });
 
   /** A floor hex walled in by its six neighbours. */

@@ -67,7 +67,7 @@ address and sends it; the editor sends nothing.
 
 | Criterion | Shown by | Result |
 |---|---|---|
-| ENG-08's sample zone, loaded in the editor, validates | `export/document.test.ts` "validates: no error, the converter's checks included"; `verify-editor.mjs` "it validates: 0 errors · 2 warnings" | 0 errors (the warnings: E-12, the sample's walls on earth ground; E-5, its inner link gate) |
+| ENG-08's sample zone, loaded in the editor, validates | `export/document.test.ts` "validates: no error, the converter's checks included"; `verify-editor.mjs` "it validates: 0 errors · 2 warnings" | 0 errors (a warning: E-12, the sample's walls on earth ground) |
 | Its export equals the converter's output, felt for felt | `document.test.ts` "exports to the converter's records file, text for text": `recordsFile` = `samples/zone.records.json`, and `golden` = `samples/zone.golden.json`; `verify-editor.mjs` compares the downloaded file | equal, 14 writes; the records file equal text for text (but its `source`, the file's own name) |
 | The converter's port writes the committed outputs | `export/convert.test.ts`: zone, town and set piece records files, text for text; the golden file | equal |
 | Every case of `checks.json` refused or accepted as the converter does | `convert.test.ts`: each of the 26 registry cases by `test_convert.py`'s mutation, the 3 pipeline cases and the 20 export cases by its edits, each refused with its code; the sample accepted | 49 cases, each refused with its code |
@@ -112,14 +112,27 @@ refuse the paintable cases before the converter does:
   additive (format 2 kept, older files read). The records need the ids anyway, and R-27's Heart bounds
   need the manifest's `pack_bounds`. Reversible: holding names in the editor is a format 3 and an
   inspector change.
-- **E-5 is a warning.** ENG-08's sample zone anchors its link gate (`to_floor`) inside the zone, and
-  the converter and the Registry accept it. As an error, E-5 would refuse what the converter accepts.
-  ADR-0006's "anchors on the outline" stays as advice. Reversible: if the programme wants the rule
-  held, track game moves the sample's gate and E-5 becomes an error again.
-- **A building may keep a file's footprint.** The schema carries footprints, and the sample's hut
-  (`make_samples.py`: `(5, -2), (6, -2), (5, -1)`) is not the footprint the editor's kind table draws
-  for a hut at depth 1 (`(5, -2), (4, -1), (5, -1)`). Without it, the sample could not be opened as it
-  is.
+- **E-5 holds, with one exception** (track game's decision, D-215 Q9, 2026-10-07). A gate to another
+  location (zone to zone, zone to town) anchors on the outline: an error. A dungeon's entrance
+  (`to_floor`) is free inside the chunk set, as the sample's link gate at (0, 8) is.
+  - No record marks an entrance: GATE's `floor` kind is a floor-to-floor gate, and the sample's
+    entrance is a `link`. The editor therefore tells one by its name in the content manifest: `to_floor`
+    or a name that begins so (`validate.ts`, `dungeonEntrance`).
+  - With no manifest loaded, every gate is held to E-5, so the sample shows E-5 until its manifest is
+    loaded.
+  - Track game adds the same split to the converter and `checks.json` in ENG-09. The editor then
+    follows their criterion.
+  - Tests: the sample's `to_floor` gate passes; its `to_town` gate moved inside fails.
+- **Footprints are authored per building** (D-215 Q9). The kind table's footprint (visible width plus
+  depth) is the default proposed when a building is placed. A footprint read from a file is kept (the
+  sample's hut, `make_samples.py`: `(5, -2), (6, -2), (5, -1)`, is not the kind table's
+  `(5, -2), (4, -1), (5, -1)`). The checks that stay:
+  - E-16: the footprint is one connected piece (new);
+  - E-16: in a zone, its hexes are in the chunk set (new);
+  - E-16: its hexes are on land and overlap no other footprint;
+  - E-20: the door is on the footprint's border and walkable.
+
+  Each is tested on the sample (`export/document.test.ts`).
 - **A bridge may run West.** The sample's bridge runs along its row (ends `(-13, 6)` and `(-11, 6)`,
   deck `(-12, 6)`). An export bridge of another shape is refused on import, with its reason.
 - **Copies of the schema, the kind table and the checks** in the editor's folder, held equal to track
@@ -133,7 +146,8 @@ refuse the paintable cases before the converter does:
 
 ## Deviations
 
-- Brief §5 lists E-5 as an error; it is a warning (above).
+- E-5 exempts a dungeon's entrance, told by its manifest name (above). The rule is track game's; the
+  way the editor tells the gate is the lot's.
 - The editor's file gains fields within format 2 (region, gate id, feature param, bridge run, building
   footprint), each read as its default when absent; no format 3.
 - The committed fixtures (`fixtures/*.grimmap.json`) are rewritten by their own test to carry the new

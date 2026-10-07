@@ -23,7 +23,7 @@ import { doorSide } from "./palette";
 import { footprintOf, townCovers } from "./walkWorld";
 import checksText from "./export/checks.json?raw";
 import { type Manifest, convert } from "./export/convert";
-import { toExport } from "./export/document";
+import { nameOf, toExport } from "./export/document";
 import { Refused } from "./export/records";
 
 /**
@@ -267,15 +267,25 @@ export function validate(doc: MapDocument, manifest: Manifest | null = null): Fi
       `The painted hexes span more than ${FIT_SPAN_MAX} hexes: the checks of reach are not run.`,
     );
   }
-  if (zone) zoneChecks(doc, frame, span, out);
+  if (zone) zoneChecks(doc, frame, span, manifest, out);
   else townChecks(doc, span, out);
   // A town's footprints are checked with its places (E-16); a zone's are the pack's buildings.
-  if (zone) footprintChecks(doc, out);
+  if (zone) footprintChecks(doc, out, frame);
   packChecks(doc, out);
   groundChecks(doc, out);
   if (zone && manifest && frame && frame.problems.length === 0) converterChecks(doc, manifest, out);
   const rank: Record<Severity, number> = { error: 0, warning: 1, hint: 2 };
   return out.list.sort((a, b) => rank[a.severity] - rank[b.severity]);
+}
+
+/**
+ * Whether a gate is a dungeon's entrance, free of E-5 (D-215 Q9): its name in the content manifest
+ * is `to_floor` or begins so. No record says it: GATE's `floor` kind is a floor-to-floor gate, and
+ * the sample's entrance is a `link`. With no manifest, no gate is one. Track game gives the
+ * converter and `checks.json` the same split in ENG-09; this follows it then.
+ */
+export function dungeonEntrance(gateId: number, manifest: Manifest | null): boolean {
+  return manifest !== null && nameOf(manifest, "gates", gateId).startsWith("to_floor");
 }
 
 /** `checks.json`'s ids by refusal code: the first case of a code names it. */
@@ -329,7 +339,13 @@ function groundChecks(doc: MapDocument, out: Findings): void {
   }
 }
 
-function zoneChecks(doc: MapDocument, fit: Fitted | null, span: boolean, out: Findings): void {
+function zoneChecks(
+  doc: MapDocument,
+  fit: Fitted | null,
+  span: boolean,
+  manifest: Manifest | null,
+  out: Findings,
+): void {
   const plane = span ? new Plane(doc) : null;
   const cellAtKey = (key: number) => doc.hexes.get(key) ?? -1;
   const inside = (key: number) => isIn(cellAtKey(key));
@@ -427,13 +443,11 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, span: boolean, out: Fi
     for (let side = 0; side < 6; side++) {
       if (!inside(keyOf(sideOf(gate.at, side)))) border = true;
     }
-    // A warning since CLI-09c: ENG-08's converter and the Registry accept an inner anchor (the
-    // sample zone's link gate is one); ADR-0006's "anchors on the outline" is advice here.
-    if (!inside(keyOf(gate.at)) || !border) {
-      out.add(
+    // A gate to another location anchors on the outline; a dungeon's entrance (`to_floor`) is
+    // free inside the chunk set (track game, D-215 Q9).
+    if ((!inside(keyOf(gate.at)) || !border) && !dungeonEntrance(gate.id, manifest)) {
+      out.error(
         "E-5",
-        "E",
-        "warning",
         `${name}'s anchor ${where(gate.at)} is not on the outline's border.`,
         [gate.at],
         [id],
@@ -717,8 +731,11 @@ export function tally(findings: readonly Finding[]): { errors: number; warnings:
   };
 }
 
-/** E-16: every footprint on land, painted, and apart from the others (a town's, a zone's). */
-function footprintChecks(doc: MapDocument, out: Findings): void {
+/**
+ * E-16: every footprint on land, painted, one connected piece, and apart from the others (a town's,
+ * a zone's); a zone's in its chunk set (D-215 Q9: footprints are authored per building).
+ */
+function footprintChecks(doc: MapDocument, out: Findings, fit: Fitted | null = null): void {
   const water = GROUND_KINDS.indexOf("water");
   const owner = new Map<number, number>();
   const buildings = [...doc.objects]
@@ -739,6 +756,43 @@ function footprintChecks(doc: MapDocument, out: Findings): void {
         off,
         [id],
       );
+    }
+    const keys = new Set(feet.map(keyOf));
+    const reached = new Set([keyOf(feet[0]!)]);
+    const pending = [feet[0]!];
+    while (pending.length > 0) {
+      const t = pending.pop()!;
+      for (let side = 0; side < 6; side++) {
+        const k = keyOf(sideOf(t, side));
+        if (keys.has(k) && !reached.has(k)) {
+          reached.add(k);
+          pending.push(tileOfKey(k));
+        }
+      }
+    }
+    if (reached.size < keys.size) {
+      const apart = feet.filter((t) => !reached.has(keyOf(t)));
+      out.error(
+        "E-16",
+        `${name} ${what} ${where(b.at)}: its footprint is not one piece (${apart.length} hexes apart).`,
+        apart,
+        [id],
+      );
+    }
+    if (fit) {
+      const set = new Set(fit.chunkSet);
+      const outside = feet.filter((t) => {
+        const a = chunkAt(t, fit);
+        return a.cx < 0 || a.cy < 0 || a.cx >= CHUNK || !set.has(a.chunk);
+      });
+      if (outside.length > 0) {
+        out.error(
+          "E-16",
+          `${name} ${what} ${where(b.at)} has ${outside.length} hexes outside the chunk set.`,
+          outside,
+          [id],
+        );
+      }
     }
     for (const t of feet) {
       const other = owner.get(keyOf(t));
