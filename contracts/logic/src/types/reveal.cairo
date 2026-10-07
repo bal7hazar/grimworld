@@ -139,16 +139,28 @@ pub struct Progress {
 }
 
 /// `Progress`' Serde, the derived one's encoding (`left`'s 14 values one felt each, no length),
-/// its 14 values read by a loop: the derived `[u8; 14]` unrolled into ~1,100 CASM felts of
-/// `Instances` (ENG-05b, D-209).
+/// its 14 values taken in one `multi_pop_front`: the derived `[u8; 14]` went through one generic
+/// function a remaining length, ~1,100 CASM felts of `Instances` (ENG-05b, D-209).
 pub impl ProgressSerde of Serde<Progress> {
     fn serialize(self: @Progress, ref output: Array<felt252>) {
         output.append(*self.revealed);
         output.append((*self.count).into());
         output.append((*self.open_edges).into());
-        for value in self.left.span() {
-            output.append((*value).into());
-        }
+        let [l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13] = *self.left;
+        output.append(l0.into());
+        output.append(l1.into());
+        output.append(l2.into());
+        output.append(l3.into());
+        output.append(l4.into());
+        output.append(l5.into());
+        output.append(l6.into());
+        output.append(l7.into());
+        output.append(l8.into());
+        output.append(l9.into());
+        output.append(l10.into());
+        output.append(l11.into());
+        output.append(l12.into());
+        output.append(l13.into());
         output.append(*self.entropy);
     }
 
@@ -156,15 +168,22 @@ pub impl ProgressSerde of Serde<Progress> {
         let revealed = Serde::deserialize(ref serialized)?;
         let count = Serde::deserialize(ref serialized)?;
         let open_edges = Serde::deserialize(ref serialized)?;
-        let words = serialized.multi_pop_front::<14>()?;
-        let mut left: Array<u8> = array![];
-        for word in words.as_snapshot().unbox().span() {
-            left.append((*word).try_into()?);
-        }
+        let [l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13] = *serialized
+            .multi_pop_front::<14>()?
+            .as_snapshot()
+            .unbox();
         let entropy = Serde::deserialize(ref serialized)?;
         Option::Some(
             Progress {
-                revealed, count, open_edges, left: PlacementTrait::fixed(left.span()), entropy,
+                revealed,
+                count,
+                open_edges,
+                left: [
+                    l0.try_into()?, l1.try_into()?, l2.try_into()?, l3.try_into()?, l4.try_into()?,
+                    l5.try_into()?, l6.try_into()?, l7.try_into()?, l8.try_into()?, l9.try_into()?,
+                    l10.try_into()?, l11.try_into()?, l12.try_into()?, l13.try_into()?,
+                ],
+                entropy,
             },
         )
     }
