@@ -44,6 +44,11 @@ export type PackObject =
       readonly type: string;
       readonly depth: number;
       readonly door: string;
+      /**
+       * The hexes it covers as offsets from the anchor, `"dx,dy;dx,dy;…"`, when a file gave them
+       * (an export's footprint, CLI-09c); `""`: drawn from its kind and depth.
+       */
+      readonly footprint: string;
     }
   | { readonly kind: "npc"; readonly at: Tile; readonly type: string; readonly facing: number }
   | {
@@ -97,6 +102,22 @@ export function doorOf(object: Of<"building">): Tile | null {
   return m ? { x: object.at.x + Number(m[1]), y: object.at.y + Number(m[2]) } : null;
 }
 
+const OFFSETS = /^-?\d+,-?\d+(;-?\d+,-?\d+)*$/;
+
+/** A footprint as the offsets from its anchor the object keeps. */
+export function footprintOffsets(anchor: Tile, hexes: readonly Tile[]): string {
+  return hexes.map((t) => doorOffset(anchor, t)).join(";");
+}
+
+/** The hexes of a footprint the object keeps, or null when it has none (drawn from its kind). */
+function givenFootprint(object: Of<"building">): Tile[] | null {
+  if (!OFFSETS.test(object.footprint)) return null;
+  return object.footprint.split(";").map((o) => {
+    const [dx, dy] = o.split(",").map(Number) as [number, number];
+    return { x: object.at.x + dx, y: object.at.y + dy };
+  });
+}
+
 /** A door hex as the offset the object keeps. */
 export function doorOffset(anchor: Tile, door: Tile): string {
   return `${door.x - anchor.x},${door.y - anchor.y}`;
@@ -114,6 +135,7 @@ export function placementOf(object: PackObject): Placement {
         // An offset that is not one is refused by the record (off the border).
         door: door ?? { x: Number.NaN, y: Number.NaN },
         depth: object.depth,
+        ...(givenFootprint(object) ? { footprint: givenFootprint(object)! } : {}),
       };
     }
     case "npc":
@@ -157,8 +179,13 @@ export function recordFor(object: PackObject): RecordResult {
   return recordOf(placementOf(object));
 }
 
-/** A building's footprint, from its kind (its anchor alone for a kind the table lacks). */
+/**
+ * A building's footprint: the file's when it gave one, else from its kind (its anchor alone for a
+ * kind the table lacks).
+ */
 export function buildingFootprint(object: Of<"building">): Tile[] {
+  const given = givenFootprint(object);
+  if (given) return given;
   const kind = kindOf(object.type);
   if (kind?.category !== "building") return [object.at];
   const depth = Number.isInteger(object.depth) && object.depth <= 8 ? object.depth : kind.depth;
@@ -246,6 +273,20 @@ export const PACK_ROWS: { readonly [K in PackKind]: KindSpec<Of<K>> } = {
       typeField("Building", BUILDINGS),
       { key: "depth", label: "Depth (rows)", type: "number" },
       DOOR_FIELD,
+      {
+        key: "footprint",
+        label: "Footprint",
+        type: "choice",
+        // A file's footprint stays until the author draws it from the kind again.
+        options: (_meta: MapMeta, object) => [
+          ...(object?.kind === "building" && object.footprint
+            ? [[object.footprint, "As the file gives it"] as const]
+            : []),
+          ["", "Drawn from its kind"] as const,
+        ],
+        valid: (v) => v === "" || (typeof v === "string" && OFFSETS.test(v)),
+        fallback: "",
+      },
     ],
     note: "Its footprint is unwalkable but for its door (ENG-08).",
     create: (choice: PlaceChoice, at: Tile) => {
@@ -256,6 +297,7 @@ export const PACK_ROWS: { readonly [K in PackKind]: KindSpec<Of<K>> } = {
         type,
         depth: BUILDINGS.find((k) => k.id === type)!.depth,
         door: "0,0",
+        footprint: "",
       };
     },
     footprint: buildingFootprint,

@@ -215,14 +215,14 @@ describe("the committed fixtures (CLI-09b)", () => {
     expect(findings.filter((f) => f.severity === "error")).toEqual([]);
   });
 
-  it("the game's own anchor of gate 102 is refused by E-5 alone", () => {
+  it("the game's own anchor of gate 102 warns by E-5 alone (a warning since CLI-09c)", () => {
     const doc = fixture("seed-zone.grimmap.json");
     for (const [id, o] of doc.objects) {
       if (o.kind === "gate" && o.at.x === GATE_102_EDITOR.x)
         doc.objects.set(id, { ...o, at: GATE_102_GAME });
     }
-    const errors = validate(doc).filter((f) => f.severity === "error");
-    expect(errors.map((f) => f.check)).toEqual(["E-5"]);
+    const found = validate(doc).filter((f) => f.severity !== "hint" && f.check !== "E-12");
+    expect(found.map((f) => [f.check, f.severity])).toEqual([["E-5", "warning"]]);
   });
 
   it("the zone's preview world is the game's instance: the same terrain, revealed the same", () => {

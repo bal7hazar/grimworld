@@ -19,8 +19,8 @@ import { outsideMask } from "./overlay";
 import { type Finding, checkFitted, tally, validate } from "./validate";
 
 /**
- * §5's checks (CLI-09b's acceptance): each check that does not wait for ENG-08's spike has a
- * passing map and a failing one; each ○ check runs as a warning. The passing maps are the
+ * §5's checks (CLI-09b's acceptance): each check has a passing map and a failing one; the ○
+ * checks are settled by ENG-08's converter (CLI-09c). The passing maps are the
  * committed fixtures (the seed's zone, the town and the outpost, which validate with no error);
  * each failing map is one of them with one change.
  */
@@ -283,13 +283,15 @@ describe("E checks: the editor's own", () => {
     fails(wall, "E-4");
   });
 
-  it("E-5: every gate anchor is on the outline's border", () => {
+  it("E-5: a gate anchor off the outline's border warns (the converter accepts it)", () => {
     passes(zone(), "E-5");
     const doc = zone();
     const [id, gate] = only(doc, "gate")[1]!;
     // The client's own anchor of gate 102, one hex inside.
     doc.objects.set(id, { ...gate, at: { x: 40, y: 7 } });
-    expect(fails(doc, "E-5")[0]!.message).toContain("G2");
+    const found = findings(doc, "E-5");
+    expect(found.map((f) => f.severity)).toEqual(["warning"]);
+    expect(found[0]!.message).toContain("G2");
   });
 
   /** A floor hex walled in by its six neighbours. */
@@ -405,34 +407,38 @@ describe("E checks: the editor's own", () => {
   });
 });
 
-describe("○ checks: warnings until ENG-08's spike", () => {
-  const warns = (doc: MapDocument, check: string) => {
-    const found = findings(doc, check).filter((f) => f.source === "○");
-    expect(found.length, check).toBeGreaterThan(0);
-    for (const f of found) expect(f.severity).toBe("warning");
-  };
-
-  it("R-12 ○: a quota's count past the zone's members", () => {
+describe("the ○ checks, settled by ENG-08's converter (CLI-09c)", () => {
+  it("R-12: a quota's count past the zone's members, its chunks", () => {
     const doc = zone();
-    doc.meta = { ...doc.meta, quotas: [{ kind: "exit", param: 0, count: 5000 }] };
-    warns(doc, "R-12");
+    const chunks = (fitted(doc) as Fitted).chunkSet.length;
+    doc.meta = { ...doc.meta, quotas: [{ kind: "vein", param: 0, count: chunks + 1 }] };
+    expect(fails(doc, "R-12")[0]!.message).toContain(`${chunks} chunks`);
+    doc.meta = { ...doc.meta, quotas: [{ kind: "vein", param: 0, count: chunks }] };
+    passes(doc, "R-12");
   });
 
-  it("R-15 ○: a candidate counted against a chunk's three objects", () => {
+  it("R-15: a candidate counts against its chunk's three objects", () => {
     const doc = zone();
-    for (const x of [3, 4]) add(doc, { kind: "feature", at: { x, y: 4 }, feature: "node", param: 0 });
+    for (const x of [3, 4])
+      add(doc, { kind: "feature", at: { x, y: 4 }, feature: "node", param: 0 });
     for (const x of [5, 6]) add(doc, { kind: "candidate", at: { x, y: 4 }, quota: 0 });
-    warns(doc, "R-15");
-    expect(findings(doc, "R-15").every((f) => f.source === "○")).toBe(true);
+    expect(fails(doc, "R-15")[0]!.message).toMatch(/features and \d+ quota places: at most 3/);
   });
 
-  it("E-17 ○: two neighbouring chunks whose seam has no walkable crossing", () => {
-    passes(zone(), "E-17");
+  it("R-15: a Heart's candidate counts against its chunk's two packs", () => {
     const doc = zone();
-    // Walls on both sides of the seam between chunks 15 and 16 (x 14 and 15, y 15 to 29).
+    doc.meta = { ...doc.meta, quotas: [...doc.meta.quotas, { kind: "heart", param: 1, count: 1 }] };
+    const heart = doc.meta.quotas.length - 1;
+    for (const x of [3, 4]) add(doc, { kind: "spawn", at: { x, y: 4 }, template: 1 });
+    add(doc, { kind: "candidate", at: { x: 5, y: 4 }, quota: heart });
+    expect(fails(doc, "R-15")[0]!.message).toMatch(/spawn points and 1 Heart quota places/);
+  });
+
+  it("E-17: a seam with no walkable crossing is not refused, as the converter does not", () => {
+    const doc = zone();
     for (let y = 15; y < 30; y++) for (const x of [14, 15]) set(doc, { x, y }, WALL);
-    warns(doc, "E-17");
-    expect(findings(doc, "E-17")[0]!.message).toContain("Chunks 15 and 16");
+    expect(findings(doc, "E-17")).toEqual([]);
+    expect(validate(doc).some((f) => f.source === "○")).toBe(false);
   });
 });
 

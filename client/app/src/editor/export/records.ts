@@ -361,7 +361,7 @@ function assertSet(chunkSet: bigint, width: number, height: number): void {
 
 function assertOutline(chunk: number, walls: bigint, chunkSet: bigint, mask: bigint): void {
   if (!has(chunkSet, chunk)) throw new Refused("zone: chunk not in the set", `chunk ${chunk}`);
-  if (mask && (BOARD & ~mask) & ~walls) {
+  if (mask && BOARD & ~mask & ~walls) {
     throw new Refused("zone: mask disagrees", `chunk ${chunk}`);
   }
 }

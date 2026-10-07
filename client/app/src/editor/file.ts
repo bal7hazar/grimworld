@@ -101,7 +101,7 @@ function objectOut(object: MapObject): Record<string, unknown> {
 }
 
 /** One span per painted row, from its lowest `x` to its highest, the rows by `y`. */
-function spans(doc: MapDocument): RowSpan[] {
+export function spans(doc: MapDocument): RowSpan[] {
   const byRow = new Map<number, Map<number, Cell>>();
   for (const [key, cell] of doc.hexes) {
     const { x, y } = tileOfKey(key);

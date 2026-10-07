@@ -241,18 +241,28 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
   for (const c of tilesOf.keys()) {
     let walls = R.BOARD;
     for (let t = 0; t < 225; t++) if (walk.has(gkey(Plane.of(c, t)))) walls &= ~R.bit(t);
-    chunks.set(c, { walls, spawns: [], objects: [], tiles: [0, 0, 0, 0, 0, 0], bridges: 0, gates: [0, 0] });
+    chunks.set(c, {
+      walls,
+      spawns: [],
+      objects: [],
+      tiles: [0, 0, 0, 0, 0, 0],
+      bridges: 0,
+      gates: [0, 0],
+    });
   }
 
   const chunkOf = (x: number, y: number, what: string): [number, number] => {
     const [c, t] = Plane.chunkTile(plane.glob(x, y));
-    if (!chunks.has(c)) throw new R.Refused("zone: chunk not in the set", `${what} at (${x}, ${y})`);
+    if (!chunks.has(c))
+      throw new R.Refused("zone: chunk not in the set", `${what} at (${x}, ${y})`);
     return [c, t];
   };
 
   for (const s of e.spawns ?? []) {
     const [c, t] = chunkOf(s.x, s.y, "spawn point");
-    chunks.get(c)!.spawns.push({ tile: t, template: resolve(manifest, "packs", s.template, "pack") });
+    chunks
+      .get(c)!
+      .spawns.push({ tile: t, template: resolve(manifest, "packs", s.template, "pack") });
   }
   for (const f of e.features ?? []) {
     const [c, t] = chunkOf(f.x, f.y, "feature");
@@ -269,7 +279,8 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     if (q.kind === "heart") {
       param = resolve(manifest, "packs", q.param, "pack");
       const bounds = manifest.pack_bounds ?? {};
-      const template = typeof q.param === "string" && Object.hasOwn(bounds, q.param) ? bounds[q.param] : undefined;
+      const template =
+        typeof q.param === "string" && Object.hasOwn(bounds, q.param) ? bounds[q.param] : undefined;
       hearts.set(i, template && template.length > 0 ? [template[0]!, template[1]!] : null);
     } else if (q.kind === "collector") {
       param = resolve(manifest, "collectors", q.param, "collector");
@@ -386,7 +397,10 @@ export function pipeline(z: BuiltZone): void {
   const differ = [...assembled].filter((k) => !z.walk.has(k));
   differ.push(...[...z.walk].filter((k) => !assembled.has(k)));
   if (differ.length > 0) {
-    throw new R.Refused("pipeline: seam", `records and map differ at ${differ.slice(0, 3).join(" ")}`);
+    throw new R.Refused(
+      "pipeline: seam",
+      `records and map differ at ${differ.slice(0, 3).join(" ")}`,
+    );
   }
   // P-1: every walkable tile reachable from the entry
   const start = Plane.of(z.location.entry_chunk, z.location.entry_tile);
@@ -405,8 +419,18 @@ const ascending = <V>(m: Map<number, V>): [number, V][] => [...m].sort(([a], [b]
 export function zoneWrites(z: R.Zone): Write[] {
   const lid = z.id;
   const out: Write[] = [
-    { kind: R.LOCATION, id: lid, parts: R.packLocation(z.location), what: "LOCATION, the marker set" },
-    { kind: R.OUTLINE, id: lid * 256 + R.CHUNK_SET, parts: R.packOutline(z.chunk_set), what: "the chunk set" },
+    {
+      kind: R.LOCATION,
+      id: lid,
+      parts: R.packLocation(z.location),
+      what: "LOCATION, the marker set",
+    },
+    {
+      kind: R.OUTLINE,
+      id: lid * 256 + R.CHUNK_SET,
+      parts: R.packOutline(z.chunk_set),
+      what: "the chunk set",
+    },
   ];
   const cands = [...z.candidates, ...Array<bigint>(Math.max(0, 6 - z.candidates.length)).fill(0n)];
   for (let k = 0; k < 2; k++) {
@@ -424,10 +448,20 @@ export function zoneWrites(z: R.Zone): Write[] {
     out.push({ kind: R.QUOTAS, id: lid, parts: R.packQuotas(z.quotas), what: "the quotas" });
   }
   for (const [c, mask] of ascending(z.masks)) {
-    out.push({ kind: R.OUTLINE, id: lid * 256 + c, parts: R.packOutline(mask), what: `chunk ${c}'s mask` });
+    out.push({
+      kind: R.OUTLINE,
+      id: lid * 256 + c,
+      parts: R.packOutline(mask),
+      what: `chunk ${c}'s mask`,
+    });
   }
   for (const [c, chunk] of ascending(z.chunks)) {
-    out.push({ kind: R.ZONE_CHUNK, id: lid * 256 + c, parts: R.packZoneChunk(chunk), what: `chunk ${c}` });
+    out.push({
+      kind: R.ZONE_CHUNK,
+      id: lid * 256 + c,
+      parts: R.packZoneChunk(chunk),
+      what: `chunk ${c}`,
+    });
     (z.bridges.get(c) ?? []).forEach((b, k) => {
       out.push({
         kind: R.BRIDGE,
@@ -473,7 +507,14 @@ function setPieceWrites(e: ExportFile, manifest: Manifest): Write[] {
   }));
   if (spawns.length > 2 || objects.length > 3) throw new R.Refused("set piece: over its caps");
   const pid = resolve(manifest, "set_pieces", e.name, "set piece");
-  return [{ kind: R.SET_PIECE, id: pid, parts: R.packSetPiece({ walls, spawns, objects }), what: "the set piece" }];
+  return [
+    {
+      kind: R.SET_PIECE,
+      id: pid,
+      parts: R.packSetPiece({ walls, spawns, objects }),
+      what: "the set piece",
+    },
+  ];
 }
 
 /** A town or an outpost: client-only (D-03, D-202). Only `LOCATION` (no map: 0 × 0, entry 0). */
@@ -496,7 +537,9 @@ function townWrites(e: ExportFile, manifest: Manifest): Write[] {
     entry_chunk: 0,
     entry_tile: 0,
   };
-  return [{ kind: R.LOCATION, id: lid, parts: R.packLocation(loc), what: "LOCATION (a hub: no map)" }];
+  return [
+    { kind: R.LOCATION, id: lid, parts: R.packLocation(loc), what: "LOCATION (a hub: no map)" },
+  ];
 }
 
 export interface Converted {
@@ -513,7 +556,10 @@ export function convertStrict(raw: unknown, manifest: Manifest): Converted {
     throw new R.Refused("export: format", "not a grimworld-export file");
   }
   if (file!.version !== VERSION) {
-    throw new R.Refused("export: version", `${String(file!.version)} (this converter reads ${VERSION})`);
+    throw new R.Refused(
+      "export: version",
+      `${String(file!.version)} (this converter reads ${VERSION})`,
+    );
   }
   validate(raw);
   const e = raw as ExportFile;
@@ -522,7 +568,8 @@ export function convertStrict(raw: unknown, manifest: Manifest): Converted {
   if (missing.length > 0) {
     throw new R.Refused("export: field missing", `a ${e.kind} needs ${missing.join(", ")}`);
   }
-  if (e.kind === "town" || e.kind === "outpost") return { writes: townWrites(e, manifest), zone: null };
+  if (e.kind === "town" || e.kind === "outpost")
+    return { writes: townWrites(e, manifest), zone: null };
   if (e.kind === "set_piece") return { writes: setPieceWrites(e, manifest), zone: null };
   const z = buildZone(e, manifest);
   R.checkZone(z);
@@ -577,7 +624,10 @@ export function golden(writes: readonly Write[]) {
     const c = w.id % 256;
     const rec = R.unpackZoneChunk(w.parts);
     const sp = [...rec.spawns, ...Array(2 - rec.spawns.length).fill({ tile: 0, template: 0 })];
-    const ob = [...rec.objects, ...Array(3 - rec.objects.length).fill({ tile: 0, kind: 0, param: 0 })];
+    const ob = [
+      ...rec.objects,
+      ...Array(3 - rec.objects.length).fill({ tile: 0, kind: 0, param: 0 }),
+    ];
     fields.push(c, ...limbs32(rec.walls));
     for (const s of sp) fields.push(s.tile, s.template);
     for (const o of ob) fields.push(o.tile, o.kind, o.param);

@@ -34,6 +34,8 @@ export interface BuildingPlacement {
   readonly door?: Tile;
   /** The rows covered behind the base row, 0 to 8; the kind's when absent (the hubs' `depth`). */
   readonly depth?: number;
+  /** The hexes it covers when a file gave them (CLI-09c); drawn from the kind when absent. */
+  readonly footprint?: readonly Tile[];
 }
 
 export interface PropPlacement {
@@ -218,7 +220,9 @@ function buildingRecord(p: BuildingPlacement, kind: BuildingKind): RecordResult 
   if (!(Number.isInteger(depth) && depth >= 0 && depth <= 8)) {
     return { problem: `depth ${String(depth)} is not 0 to 8` };
   }
-  const footprint = footprintAt(kind, p.anchor, depth);
+  const footprint = p.footprint
+    ? p.footprint.map((t) => ({ x: t.x, y: t.y }))
+    : footprintAt(kind, p.anchor, depth);
   const door = p.door ?? p.anchor;
   if (doorSide(footprint, door) === null) {
     return { problem: `the door (${door.x}, ${door.y}) is not on the footprint's border` };

@@ -21,12 +21,23 @@ import { type MapObject, OBJECT_NAMES, QUOTA_NAMES, kindOf, servicesOf } from ".
 import { doorOf, isPack } from "./pack";
 import { doorSide } from "./palette";
 import { footprintOf, townCovers } from "./walkWorld";
+import checksText from "./export/checks.json?raw";
+import { type Manifest, convert } from "./export/convert";
+import { toExport } from "./export/document";
+import { Refused } from "./export/records";
 
 /**
  * The validation (CLI-09b, brief §5): ENG-08's content checks for map records (**R**), the editor's
- * own (**E**), and the checks whose exact rule waits for ENG-08's spike (**○**, warnings until
- * then). It runs on the **fitted** map (D-216): chunk and tile indices in the fitted map's
- * coordinates. A tool's checks, not game rules (mandate §6): they live in the editor's folder.
+ * own (**E**), and the checks whose exact rule waited for ENG-08's spike (**○**). It runs on the
+ * **fitted** map (D-216): chunk and tile indices in the fitted map's coordinates. A tool's checks,
+ * not game rules (mandate §6): they live in the editor's folder.
+ *
+ * CLI-09c settles the ○ checks by ENG-08's converter: R-12's members are the zone's chunks, a
+ * candidate counts against its chunk's caps (a Heart's against the 2 packs, the others' against the
+ * 3 objects), E-17's seams hold by construction (P-2) and a seam with no crossing is not refused.
+ * With a content manifest, the converter itself runs on the map's export (`export/convert.ts`): its
+ * refusal is a finding under its check's id (`checks.json`), so that the editor refuses what the
+ * converter refuses.
  *
  * Reachability is connectivity by hex neighbours over walkable hexes (`SIDE_STEPS`, the drawing's
  * neighbours), the reach `placeholders.ts`'s finder walks until CLI-02 gives `client/sim` its own.
@@ -226,8 +237,8 @@ export function checkFitted(doc: MapDocument, fit: Fitted, out = new Findings())
   return out.list;
 }
 
-/** Every finding of the map, errors first. */
-export function validate(doc: MapDocument): Finding[] {
+/** Every finding of the map, errors first; the converter's too when a manifest is given. */
+export function validate(doc: MapDocument, manifest: Manifest | null = null): Finding[] {
   const out = new Findings();
   const fit = fitted(doc);
   const zone = isZone(doc);
@@ -262,8 +273,40 @@ export function validate(doc: MapDocument): Finding[] {
   if (zone) footprintChecks(doc, out);
   packChecks(doc, out);
   groundChecks(doc, out);
+  if (zone && manifest && frame && frame.problems.length === 0) converterChecks(doc, manifest, out);
   const rank: Record<Severity, number> = { error: 0, warning: 1, hint: 2 };
   return out.list.sort((a, b) => rank[a.severity] - rank[b.severity]);
+}
+
+/** `checks.json`'s ids by refusal code: the first case of a code names it. */
+const CHECK_IDS: ReadonlyMap<string, string> = (() => {
+  const table = JSON.parse(checksText) as Record<string, unknown>;
+  const ids = new Map<string, string>();
+  for (const group of ["registry", "pipeline", "export"]) {
+    for (const c of table[group] as { id: string; code: string }[]) {
+      if (!ids.has(c.code)) ids.set(c.code, c.id);
+    }
+  }
+  return ids;
+})();
+
+/**
+ * The converter's verdict on the map's export (CLI-09c): its refusal, under its check's id. What the
+ * editor cannot export at all (a record the pack cannot write) is E-20's or E-23's, said there.
+ */
+function converterChecks(doc: MapDocument, manifest: Manifest, out: Findings): void {
+  const file = toExport(doc, manifest);
+  if ("problem" in file) return;
+  const verdict = convert(file.file, manifest);
+  if (!(verdict instanceof Refused)) return;
+  const check = CHECK_IDS.get(verdict.code) ?? "E-40";
+  const detail = verdict.detail ? ` (${verdict.detail})` : "";
+  out.add(
+    check,
+    check.startsWith("R") ? "R" : "E",
+    "error",
+    `The converter refuses the export: ${verdict.code}${detail}.`,
+  );
 }
 
 /** E-12: ground agrees with terrain (`world.ts:14-16`): water only on walls, earth only on floor. */
@@ -384,9 +427,13 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, span: boolean, out: Fi
     for (let side = 0; side < 6; side++) {
       if (!inside(keyOf(sideOf(gate.at, side)))) border = true;
     }
+    // A warning since CLI-09c: ENG-08's converter and the Registry accept an inner anchor (the
+    // sample zone's link gate is one); ADR-0006's "anchors on the outline" is advice here.
     if (!inside(keyOf(gate.at)) || !border) {
-      out.error(
+      out.add(
         "E-5",
+        "E",
+        "warning",
         `${name}'s anchor ${where(gate.at)} is not on the outline's border.`,
         [gate.at],
         [id],
@@ -430,7 +477,7 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, span: boolean, out: Fi
     }
   }
 
-  // R-10, R-13, R-12 ○: the quota list and its candidates.
+  // R-10, R-13, R-12: the quota list and its candidates.
   if (quotas.length > QUOTAS_MAX) {
     out.error("R-10", `The zone has ${quotas.length} quotas: at most ${QUOTAS_MAX}.`);
   }
@@ -445,12 +492,11 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, span: boolean, out: Fi
         mine.map(([id]) => id),
       );
     }
-    if (quota.count > walkableCount) {
-      out.add(
+    // Settled by ENG-08's converter: a zone's members are its chunks.
+    if (fit && quota.count > fit.chunkSet.length) {
+      out.error(
         "R-12",
-        "○",
-        "warning",
-        `${name} counts ${quota.count}, more than the zone's ${walkableCount} walkable hexes (what "members" counts waits for ENG-08's spike).`,
+        `${name} counts ${quota.count}, more than the zone's ${fit.chunkSet.length} chunks (its members).`,
       );
     }
   });
@@ -533,88 +579,47 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, span: boolean, out: Fi
     }
   });
 
-  // R-15 per chunk, and its ○ part: whether a candidate counts against the three objects.
+  // R-15 per chunk, settled by ENG-08's converter: every candidate counts, a Heart's against the
+  // 2 packs, the others' against the 3 objects.
   const perChunk = new Map<
     number,
-    { spawns: number[]; features: number[]; candidates: number[] }
+    { spawns: number[]; features: number[]; hearts: number[]; places: number[] }
   >();
   const chunkOf = (o: MapObject) => chunkAt(o.at, fit).chunk;
   const bucket = (chunk: number) => {
     let b = perChunk.get(chunk);
-    if (!b) perChunk.set(chunk, (b = { spawns: [], features: [], candidates: [] }));
+    if (!b) perChunk.set(chunk, (b = { spawns: [], features: [], hearts: [], places: [] }));
     return b;
   };
-  const lists = { spawn: "spawns", object: "features", candidate: "candidates" } as const;
   for (const [id, o] of [...doc.objects].sort(([a], [b]) => a - b)) {
     const counted = kindOf(o).perChunk;
-    if (counted) bucket(chunkOf(o))[lists[counted]].push(id);
+    if (!counted) continue;
+    const b = bucket(chunkOf(o));
+    if (counted === "spawn") b.spawns.push(id);
+    else if (counted === "object") b.features.push(id);
+    else if (o.kind === "candidate" && quotas[o.quota]?.kind === "heart") b.hearts.push(id);
+    else b.places.push(id);
   }
   const tilesOf = (ids: number[]) => ids.map((id) => doc.objects.get(id)!.at);
   for (const [chunk, b] of [...perChunk].sort(([a], [z]) => a - z)) {
-    if (b.spawns.length > SPAWNS_PER_CHUNK) {
+    if (b.spawns.length + b.hearts.length > SPAWNS_PER_CHUNK) {
+      const ids = [...b.spawns, ...b.hearts];
+      const places = b.hearts.length > 0 ? ` and ${b.hearts.length} Heart quota places` : "";
       out.error(
         "R-15",
-        `Chunk ${chunk} holds ${b.spawns.length} spawn points: at most ${SPAWNS_PER_CHUNK}.`,
-        tilesOf(b.spawns),
-        b.spawns,
-      );
-    }
-    if (b.features.length > OBJECTS_PER_CHUNK) {
-      out.error(
-        "R-15",
-        `Chunk ${chunk} holds ${b.features.length} features: at most ${OBJECTS_PER_CHUNK}.`,
-        tilesOf(b.features),
-        b.features,
-      );
-    } else if (b.features.length + b.candidates.length > OBJECTS_PER_CHUNK) {
-      const ids = [...b.features, ...b.candidates];
-      out.add(
-        "R-15",
-        "○",
-        "warning",
-        `Chunk ${chunk} holds ${b.features.length} features and ${b.candidates.length} quota places: more than ${OBJECTS_PER_CHUNK} if a candidate counts as an object (ENG-08's spike).`,
+        `Chunk ${chunk} holds ${b.spawns.length} spawn points${places}: at most ${SPAWNS_PER_CHUNK}.`,
         tilesOf(ids),
         ids,
       );
     }
-  }
-
-  // E-17 ○: two neighbouring chunks of the set with no walkable crossing on their seam.
-  if (!plane) return;
-  const crossings = new Set<string>();
-  const chunkOfIndex = (i: number) => {
-    const x = (i % plane.w) + plane.x0 - fit.x0;
-    const y = Math.floor(i / plane.w) + plane.y0 - fit.y0;
-    return CHUNK * Math.floor(y / CHUNK) + Math.floor(x / CHUNK);
-  };
-  const edge = (n: number) => {
-    const m = ((n % CHUNK) + CHUNK) % CHUNK;
-    return m === 0 || m === CHUNK - 1;
-  };
-  for (let i = 0; i < plane.cells.length; i++) {
-    if (!isWalkable(plane.cells[i]!)) continue;
-    // Only a hex on its chunk's edge has a neighbour in another chunk.
-    const x = (i % plane.w) + plane.x0 - fit.x0;
-    const y = Math.floor(i / plane.w) + plane.y0 - fit.y0;
-    if (!edge(x) && !edge(y)) continue;
-    const a = chunkOfIndex(i);
-    for (let side = 0; side < 6; side++) {
-      const next = plane.side(i, side);
-      if (next < 0 || !isWalkable(plane.cells[next]!)) continue;
-      const b = chunkOfIndex(next);
-      if (a !== b) crossings.add(`${Math.min(a, b)} ${Math.max(a, b)}`);
-    }
-  }
-  const set = new Set(fit.chunkSet);
-  for (const chunk of fit.chunkSet) {
-    const cx = chunk % CHUNK;
-    for (const next of [cx + 1 < CHUNK ? chunk + 1 : -1, chunk + CHUNK]) {
-      if (!set.has(next) || crossings.has(`${chunk} ${next}`)) continue;
-      out.add(
-        "E-17",
-        "○",
-        "warning",
-        `Chunks ${chunk} and ${next} share a seam with no walkable crossing (what "consistent" means waits for ENG-08's spike).`,
+    if (b.features.length + b.places.length > OBJECTS_PER_CHUNK) {
+      const ids = [...b.features, ...b.places];
+      const places = b.places.length > 0 ? ` and ${b.places.length} quota places` : "";
+      out.error(
+        "R-15",
+        `Chunk ${chunk} holds ${b.features.length} features${places}: at most ${OBJECTS_PER_CHUNK}.`,
+        tilesOf(ids),
+        ids,
       );
     }
   }

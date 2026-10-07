@@ -276,7 +276,9 @@ describe("the converter's port (ENG-08's samples)", () => {
     for (const name of ["zone", "town", "set_piece"]) {
       const out = convert(load(`${name}.json`), MANIFEST);
       if (out instanceof R.Refused) throw out;
-      expect(recordsFile(out.writes, `${name}.json`), name).toBe(read(`samples/${name}.records.json`));
+      expect(recordsFile(out.writes, `${name}.json`), name).toBe(
+        read(`samples/${name}.records.json`),
+      );
     }
   });
 
