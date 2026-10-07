@@ -1,0 +1,40 @@
+[package]
+name = "spk17"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.20"
+
+[dependencies]
+starknet = "2.20"
+hexx = "0.1.0-rc.2"
+# The game's package by path, main's code at the spike's base (ENG-05 and ENG-08 merged, 44961f2),
+# as SPK-12, SPK-15 and SPK-16 do: the models, `Board`, the entropy, and ENG-05's reveal engine as
+# it is (the negative control and the baselines).
+grimworld_logic = { path = "../../contracts/logic" }
+
+[dev-dependencies]
+snforge_std = "0.64"
+assert_macros = "2.20"
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+# ENG-05's two classes from the same build, the baselines of the spike's classes (D-200).
+build-external-contracts = [
+    "grimworld_logic::systems::reveal::RevealLibrary",
+    "grimworld_logic::systems::hosts::HostsLibrary",
+]
+
+[lib]
+
+[cairo]
+sierra-replace-ids = true
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
+
+[tool.snforge]
+max_n_steps = 4000000000

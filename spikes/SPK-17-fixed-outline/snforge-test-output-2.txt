@@ -1,0 +1,161 @@
+   Compiling test(spk17_unittest) spk17 v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0087-eng-10a-fixed-dungeon-outline/spikes/SPK-17-fixed-outline/Scarb.toml)
+   Compiling test(spk17_tests) spk17_tests v0.1.0 (/home/claude/.herdr/worktrees/grimworld/hp-grimworld-game-t-0087-eng-10a-fixed-dungeon-outline/spikes/SPK-17-fixed-outline/Scarb.toml)
+    Finished `dev` profile target(s) in 46 seconds
+
+
+Collected 48 test(s) from spk17 package
+Running 48 test(s) from tests/
+[PASS] spk17_tests::test_cost::test_base_hosts_zone (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~22614)
+[PASS] spk17_tests::test_cost::test_entropy_word_apart (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4399183)
+[PASS] spk17_tests::test_cost::test_base_layout (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~7498782)
+[PASS] spk17_tests::test_cost::test_base_layout_packed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10806223)
+[PASS] spk17_tests::test_cost::test_base_library (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~511466)
+[PASS] spk17_tests::test_cost::test_base_outline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~498456)
+[PASS] spk17_tests::test_cost::test_base_reveal_eng05 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4567572)
+[PASS] spk17_tests::test_cost::test_base_slots (l1_gas: ~0, l1_data_gas: ~96, l2_gas: ~7774852)
+[PASS] spk17_tests::test_cost::test_base_reveal_fixed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~16448161)
+[PASS] spk17_tests::test_cost::test_base_slots_packed (l1_gas: ~0, l1_data_gas: ~96, l2_gas: ~11070663)
+[PASS] spk17_tests::test_outline::test_outline_small_rectangle (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2530567)
+N = 6 (winding): the farthest distance over 64 entropies: min 2, max 5, sum 216
+[PASS] spk17_tests::test_outline::test_outline_winding_n6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~424848276)
+floor 114: the old order leaves the exit 0 and the Heart 0 (0: no host)
+floor 115: the old order leaves the exit 0 and the Heart 0 (0: no host)
+floor 118: the old order leaves the exit 0 and the Heart 0 (0: no host)
+the old order fails on 3 of 32 floors; the new one on none
+[PASS] spk17_tests::test_residue::test_piece_old_order (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~297625817)
+N = 12 (winding): the farthest distance over 64 entropies: min 3, max 9, sum 330
+[PASS] spk17_tests::test_outline::test_outline_winding_n12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~886425088)
+ENG-05, entropy 0: honest exit 3 at 11 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 1: honest exit 21 at 7 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 2: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 3: honest exit 4 at 10 (1 exits); forcing order exit 97 at 1 (1 exits)
+floor 0 (N = 12): the exit at 86 to 86 tiles
+ENG-05, entropy 4: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05, entropy 5: honest exit 3 at 11 (1 exits); forcing order exit 111 at 1 (1 exits)
+floor 1 (N = 12): the exit at 55 to 55 tiles
+N = 12: the largest spread in tiles over the orders of a floor: 0
+ENG-05, entropy 6: honest exit 97 at 1 (1 exits); forcing order exit 97 at 1 (1 exits)
+[PASS] spk17_tests::test_residue::test_zero_residue_n12_0 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1493358037)
+ENG-05, entropy 7: honest exit 5 at 11 (1 exits); forcing order exit 97 at 1 (1 exits)
+ENG-05: 5 of 8 floors differ; the forcing order's exit at 1 chunk on 8; 45 chunks gained in all
+[PASS] spk17_tests::test_residue::test_residue_eng05 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2190105090)
+floor 2 (N = 12): the exit at 80 to 80 tiles
+floor 4 (N = 12): the exit at 69 to 69 tiles
+floor 3 (N = 12): the exit at 70 to 70 tiles
+N = 12: the largest spread in tiles over the orders of a floor: 0
+[PASS] spk17_tests::test_residue::test_zero_residue_n12_1 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1518028512)
+floor 5 (N = 12): the exit at 53 to 53 tiles
+N = 12: the largest spread in tiles over the orders of a floor: 0
+[PASS] spk17_tests::test_residue::test_zero_residue_n12_2 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1373822067)
+floor 0 (N = 6): the exit at 86 to 86 tiles
+floor 6 (N = 12): the exit at 74 to 74 tiles
+floor 1 (N = 6): the exit at 59 to 59 tiles
+floor 2 (N = 6): the exit at 59 to 59 tiles
+floor 7 (N = 12): the exit at 90 to 90 tiles
+N = 12: the largest spread in tiles over the orders of a floor: 0
+[PASS] spk17_tests::test_residue::test_zero_residue_n12_3 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1480160753)
+floor 3 (N = 6): the exit at 82 to 82 tiles
+N = 6: the largest spread in tiles over the orders of a floor: 0
+[PASS] spk17_tests::test_residue::test_zero_residue_n6_0 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1479095897)
+floor 4 (N = 6): the exit at 30 to 30 tiles
+ENG-05, entropy 0: order 1 differs (exit 219 at 11, against 3 at 11)
+floor 5 (N = 6): the exit at 45 to 45 tiles
+ENG-05, entropy 0: order 2 differs (exit 96 at 2, against 3 at 11)
+floor 6 (N = 6): the exit at 61 to 61 tiles
+ENG-05, entropy 0: order 4 differs (exit 96 at 2, against 3 at 11)
+ENG-05, entropy 0: order 5 differs (exit 96 at 2, against 3 at 11)
+ENG-05, entropy 0: order 6 differs (exit 97 at 1, against 3 at 11)
+ENG-05, entropy 0: 5 of 6 orders differ from the first
+[PASS] spk17_tests::test_residue::test_zero_residue_on_eng05_0 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1070977189)
+floor 7 (N = 6): the exit at 80 to 80 tiles
+N = 6: the largest spread in tiles over the orders of a floor: 0
+[PASS] spk17_tests::test_residue::test_zero_residue_n6_1 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1349728615)
+ENG-05, entropy 2: order 1 differs (exit 143 at 3, against 97 at 1)
+ENG-05, entropy 1: order 1 differs (exit 217 at 11, against 21 at 7)
+ENG-05, entropy 2: order 2 differs (exit 97 at 1, against 97 at 1)
+ENG-05, entropy 1: order 2 differs (exit 142 at 2, against 21 at 7)
+ENG-05, entropy 2: order 4 differs (exit 114 at 2, against 97 at 1)
+ENG-05, entropy 2: order 5 differs (exit 97 at 1, against 97 at 1)
+ENG-05, entropy 1: order 4 differs (exit 99 at 3, against 21 at 7)
+ENG-05, entropy 2: order 6 differs (exit 97 at 1, against 97 at 1)
+ENG-05, entropy 2: 5 of 6 orders differ from the first
+[PASS] spk17_tests::test_residue::test_zero_residue_on_eng05_2 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~800867502)
+ENG-05, entropy 1: order 5 differs (exit 99 at 3, against 21 at 7)
+ENG-05, entropy 1: order 6 differs (exit 97 at 1, against 21 at 7)
+ENG-05, entropy 1: 5 of 6 orders differ from the first
+[PASS] spk17_tests::test_residue::test_zero_residue_on_eng05_1 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1052274469)
+floor 100 (N = 12): the set piece on chunk 111
+ENG-05, entropy 3: order 1 differs (exit 188 at 6, against 4 at 10)
+ENG-05, entropy 3: order 2 differs (exit 128 at 2, against 4 at 10)
+ENG-05, entropy 3: order 3 differs (exit 4 at 10, against 4 at 10)
+ENG-05, entropy 3: order 4 differs (exit 83 at 3, against 4 at 10)
+ENG-05, entropy 3: order 5 differs (exit 127 at 1, against 4 at 10)
+floor 100 (N = 12): the exit at 87 to 87 tiles
+floor 101 (N = 12): the set piece on chunk 63
+ENG-05, entropy 3: order 6 differs (exit 97 at 1, against 4 at 10)
+ENG-05, entropy 3: 6 of 6 orders differ from the first
+[PASS] spk17_tests::test_residue::test_zero_residue_on_eng05_3 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1043789963)
+floor 100 (N = 6): the set piece on chunk 112
+floor 100 (N = 6): the exit at 57 to 57 tiles
+floor 101 (N = 6): the set piece on chunk 96
+floor 101 (N = 6): the exit at 55 to 55 tiles
+floor 102 (N = 6): the set piece on chunk 112
+floor 101 (N = 12): the exit at 126 to 126 tiles
+N = 12: the largest spread in tiles over the orders of a floor: 0
+[PASS] spk17_tests::test_residue::test_zero_residue_piece_n12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1684788989)
+floor 102 (N = 6): the exit at 41 to 41 tiles
+floor 103 (N = 6): the set piece on chunk 111
+N = 6: the farthest distance over 64 entropies: min 2, max 5, sum 180
+[PASS] spk17_tests::test_outline::test_outline_n6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~419255534)
+floor 103 (N = 6): the exit at 47 to 47 tiles
+N = 6: the largest spread in tiles over the orders of a floor: 0
+[PASS] spk17_tests::test_residue::test_zero_residue_piece_n6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1396372445)
+[PASS] spk17_tests::test_cost::test_pair_reveal_fixed_one (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~18652811)
+[PASS] spk17_tests::test_cost::test_pair_reveal_fixed_floor (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~53678551)
+N = 12: the farthest distance over 64 entropies: min 3, max 6, sum 269
+[PASS] spk17_tests::test_outline::test_outline_n12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~870333033)
+[PASS] spk17_tests::test_cost::test_pair_layout_pack (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~10806423)
+[PASS] spk17_tests::test_cost::test_pair_hosts_zone_main (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1426018)
+N = 9: the farthest distance over 64 entropies: min 2, max 6, sum 228
+[PASS] spk17_tests::test_cost::test_pair_hosts_zone_spike (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1570548)
+[PASS] spk17_tests::test_outline::test_outline_n9 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~642055174)
+[PASS] spk17_tests::test_cost::test_pair_slots_packed_write (l1_gas: ~0, l1_data_gas: ~288, l2_gas: ~12019323)
+[PASS] spk17_tests::test_cost::test_pair_outline_frontier_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4391757)
+[PASS] spk17_tests::test_cost::test_pair_slots_write (l1_gas: ~0, l1_data_gas: ~672, l2_gas: ~10628912)
+[PASS] spk17_tests::test_cost::test_pair_outline_draw_6 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1710952)
+[PASS] spk17_tests::test_cost::test_pair_outline_floor_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4395152)
+[PASS] spk17_tests::test_cost::test_pair_outline_winding_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2891965)
+[PASS] spk17_tests::test_cost::test_pair_layout_packed_unpack (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~16173410)
+ENG-05 floor: 12 chunks revealed
+[PASS] spk17_tests::test_cost::test_pair_reveal_eng05_floor (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~70211352)
+[PASS] spk17_tests::test_cost::test_pair_library_floor_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~4573592)
+[PASS] spk17_tests::test_cost::test_pair_reveal_eng05_one (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~8372561)
+[PASS] spk17_tests::test_cost::test_hosts_zone_unchanged (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2981032)
+[PASS] spk17_tests::test_cost::test_pair_outline_draw_12 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~3299902)
+[PASS] spk17_tests::test_outline::test_layout_round_trip (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~122652753)
+Running 0 test(s) from src/
+Tests: 48 passed, 0 failed, 0 ignored, 0 filtered out
+
+	Command being timed: "../../scripts/lock.sh --heavy snforge test --max-threads 2"
+	User time (seconds): 102.83
+	System time (seconds): 16.66
+	Percent of CPU this job got: 119%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:39.86
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2826584
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 582832
+	Voluntary context switches: 3008
+	Involuntary context switches: 1082
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 122112
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
