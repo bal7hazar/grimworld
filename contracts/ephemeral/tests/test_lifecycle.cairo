@@ -682,8 +682,8 @@ fn test_create_refusals() {
 
 // A sealed destination sets the header's flag (design/17).
 #[test]
-// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
-#[available_gas(l2_gas: 34257287)] // ceil(1.05 × 32625987 measured)
+// gas: raised, ENG-10b: a Rift floor is a dungeon floor, its outline and hosts drawn at create
+#[available_gas(l2_gas: 37235321)] // ceil(1.05 × 35462210 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -919,8 +919,8 @@ fn test_leave_to_a_hub() {
 // entropy, revealed, quotas, the 4 transient member words, the placement: 9 overwritten; and the
 // entry reveal (ENG-05): floor 1's entry chunk 112, its 2 words new in this slot.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 59583506)] // ceil(1.05 × 56746196 measured)
+// gas: raised, ENG-10b: the link enters a dungeon floor, its outline and hosts drawn and stored
+#[available_gas(l2_gas: 64714018)] // ceil(1.05 × 61632398 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -1155,8 +1155,8 @@ fn test_refused_gate() {
 
 // A sealed Red Rift: no travel back (design/17).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 36103682)] // ceil(1.05 × 34384459 measured)
+// gas: raised, ENG-10b: a Rift floor is a dungeon floor, its outline and hosts drawn at create
+#[available_gas(l2_gas: 40781479)] // ceil(1.05 × 38839503 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1286,7 +1286,7 @@ fn template() -> Pack {
 // reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
 // question 6); `instance_region` tells void, not yet revealed and revealed apart.
 #[test]
-#[available_gas(l2_gas: 56358721)] // ceil(1.05 × 53674972 measured)
+#[available_gas(l2_gas: 56203458)] // ceil(1.05 × 53527102 measured)
 fn test_entry_reveal_through_the_engine() {
     let world = setup();
     let mask = zone_content(world);
@@ -1459,7 +1459,8 @@ fn reveal_rest(
 // engine on the stored state then reveals the rest in two orders, by index and backward: the same
 // words in every chunk, one exit, on a chunk of the farthest layer.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+// gas: raised, ENG-10b: A2, the stored floor against the pure draw, revealed in two orders
+#[available_gas(l2_gas: 77260722)] // ceil(1.05 × 73581640 measured)
 fn test_entry_reveal_of_a_dungeon() {
     let world = setup();
     let records = IRecordsDispatcher { contract_address: world.registry };
@@ -1581,7 +1582,7 @@ fn test_entry_reveal_of_a_dungeon() {
 // outline, the hosts, the three outline slots and the hosts written, the entry chunk revealed), to
 // read next to `test_cost_create_reveals`' zone entries (the node's figures: `lifecycle_probe.py`).
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 41302152)] // ceil(1.05 × 39335382 measured)
 fn test_cost_create_floor() {
     let world = setup();
     let records = IRecordsDispatcher { contract_address: world.registry };

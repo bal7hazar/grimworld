@@ -390,8 +390,8 @@ mod layout_tests {
 
     // Every map is named and keyed as documented: slot first (M-1), adventurer only for placements.
     #[test]
-    // gas: raised, ENG-05: D-208, a zone's quota hosts (drawn at entry, carried above the masks)
-    #[available_gas(l2_gas: 206115)] // ceil(1.05 × 196300 measured)
+    // gas: raised, ENG-10b: the outline map's address checked too
+    #[available_gas(l2_gas: 227105)] // ceil(1.05 × 216290 measured)
     fn test_instances_storage_addresses() {
         let state = @Instances::contract_state_for_testing();
         assert(

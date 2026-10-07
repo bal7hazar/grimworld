@@ -155,7 +155,8 @@ fn test_set_record_new_sequential() {
 
 // An existing record's values change (design/01 rule 2: ids are append-only, values are not).
 #[test]
-#[available_gas(l2_gas: 5006789)] // ceil(1.05 × 4768370 measured)
+// gas: raised, ENG-10b: a LOCATION record's content check (N at most 12)
+#[available_gas(l2_gas: 5355273)] // ceil(1.05 × 5100260 measured)
 fn test_set_record_existing_changes() {
     let r = Fixture::deploy();
     r.admin.set_record(LOCATION, 1, Felts::two(5, 6));
@@ -386,7 +387,7 @@ fn test_bundle_version_and_order() {
 // ENG-10b (CM-9; D-223, ruling 5): a dungeon floor holds at most 12 chunks. A `LOCATION` whose
 // `N` (bits 72–79 of part 0) is 12 is accepted, 13 refused, the record kept.
 #[test]
-#[available_gas(l2_gas: 10000000)]
+#[available_gas(l2_gas: 4419190)] // ceil(1.05 × 4208752 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_floor_size() {
     let r = Fixture::deploy();

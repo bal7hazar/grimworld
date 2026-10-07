@@ -530,97 +530,97 @@ fn zero_residue(n: u8, first: u32, skip: u32, piece: bool) {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 357528137)] // ceil(1.05 × 340502987 measured)
 fn test_zero_residue_n6_0() {
     zero_residue(6, 0, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 417347153)] // ceil(1.05 × 397473479 measured)
 fn test_zero_residue_n6_1() {
     zero_residue(6, 1, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 378750434)] // ceil(1.05 × 360714699 measured)
 fn test_zero_residue_n6_2() {
     zero_residue(6, 2, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 357843496)] // ceil(1.05 × 340803329 measured)
 fn test_zero_residue_n6_3() {
     zero_residue(6, 3, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 380987694)] // ceil(1.05 × 362845422 measured)
 fn test_zero_residue_n6_4() {
     zero_residue(6, 4, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 343104161)] // ceil(1.05 × 326765867 measured)
 fn test_zero_residue_n6_5() {
     zero_residue(6, 5, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 375345605)] // ceil(1.05 × 357472004 measured)
 fn test_zero_residue_n6_6() {
     zero_residue(6, 6, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 323071231)] // ceil(1.05 × 307686886 measured)
 fn test_zero_residue_n6_7() {
     zero_residue(6, 7, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 641884492)] // ceil(1.05 × 611318563 measured)
 fn test_zero_residue_n12_0() {
     zero_residue(12, 0, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 715981542)] // ceil(1.05 × 681887182 measured)
 fn test_zero_residue_n12_1() {
     zero_residue(12, 1, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 724748507)] // ceil(1.05 × 690236673 measured)
 fn test_zero_residue_n12_2() {
     zero_residue(12, 2, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 781371956)] // ceil(1.05 × 744163767 measured)
 fn test_zero_residue_n12_3() {
     zero_residue(12, 3, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 791629418)] // ceil(1.05 × 753932779 measured)
 fn test_zero_residue_n12_4() {
     zero_residue(12, 4, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 708333589)] // ceil(1.05 × 674603418 measured)
 fn test_zero_residue_n12_5() {
     zero_residue(12, 5, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 881666351)] // ceil(1.05 × 839682239 measured)
 fn test_zero_residue_n12_6() {
     zero_residue(12, 6, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 796703264)] // ceil(1.05 × 758765013 measured)
 fn test_zero_residue_n12_7() {
     zero_residue(12, 7, 0, false);
 }
@@ -629,37 +629,37 @@ fn test_zero_residue_n12_7() {
 // listed before the exit and the Heart; both placed, in every order: four floors of 6, two of 12.
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 328709593)] // ceil(1.05 × 313056755 measured)
 fn test_zero_residue_piece_n6_0() {
     zero_residue(6, 100, 0, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 411967712)] // ceil(1.05 × 392350201 measured)
 fn test_zero_residue_piece_n6_1() {
     zero_residue(6, 100, 1, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 393650582)] // ceil(1.05 × 374905316 measured)
 fn test_zero_residue_piece_n6_2() {
     zero_residue(6, 100, 2, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 404354289)] // ceil(1.05 × 385099322 measured)
 fn test_zero_residue_piece_n6_3() {
     zero_residue(6, 100, 3, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 689582464)] // ceil(1.05 × 656745203 measured)
 fn test_zero_residue_piece_n12_0() {
     zero_residue(12, 100, 0, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 736344354)] // ceil(1.05 × 701280337 measured)
 fn test_zero_residue_piece_n12_1() {
     zero_residue(12, 100, 1, true);
 }

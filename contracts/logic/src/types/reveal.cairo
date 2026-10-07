@@ -952,7 +952,8 @@ pub mod tests {
     // The order of the edges (ENG-01: West, East, South, North) against `hexx`'s sides: a dungeon
     // chunk's edge bit `s` is open exactly when side `s` of its ring holds an opening.
     #[test]
-    #[available_gas(l2_gas: 46703143)] // ceil(1.05 × 44479183 measured)
+    // gas: raised, ENG-10b: each floor built as create makes it, its outline and hosts first
+    #[available_gas(l2_gas: 109963038)] // ceil(1.05 × 104726702 measured)
     fn test_edges_against_hexx_sides() {
         let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed: felt252 = 0;
@@ -1220,13 +1221,13 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 348332855)] // ceil(1.05 × 331745576 measured)
     fn test_dungeon_revealed_whole_n_6() {
         check_dungeon(6, 0, 4);
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 286317413)] // ceil(1.05 × 272683250 measured)
     fn test_dungeon_revealed_whole_n_12() {
         check_dungeon(12, 50, 2);
     }
@@ -1235,7 +1236,7 @@ pub mod tests {
     // the outline that no open seam joins to a revealed chunk (beyond a closed seam) is revealable,
     // as a zone's chunk is when sight touches it (D-223, ruling 3); a chunk outside it is void.
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 228852147)] // ceil(1.05 × 217954425 measured)
     fn test_dungeon_revealable_is_the_outline() {
         let mut seed: felt252 = 0;
         while seed != 8 {
@@ -1293,7 +1294,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 9400985)] // ceil(1.05 × 8953319 measured)
     fn test_cost_seams_derived_n12() {
         let site = dungeon(12, no_quotas(), 'seams');
         seams_life(@site, 'seams');
@@ -1306,7 +1307,7 @@ pub mod tests {
 
     // The derivation's part that storing would save: the outline's seed, once a chunk revealed.
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 5893393)] // ceil(1.05 × 5612755 measured)
     fn test_cost_seams_seeds_n12() {
         let site = dungeon(12, no_quotas(), 'seams');
         let count = BoardTrait::count(site.chunk_set);
@@ -1318,7 +1319,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 5641261)] // ceil(1.05 × 5372629 measured)
     fn test_cost_seams_baseline_n12() {
         let _site = dungeon(12, no_quotas(), 'seams');
     }
@@ -1326,7 +1327,7 @@ pub mod tests {
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
     // revealed, whatever the order.
     #[test]
-    #[available_gas(l2_gas: 52552666)] // ceil(1.05 × 50050158 measured)
+    #[available_gas(l2_gas: 52421643)] // ceil(1.05 × 49925374 measured)
     fn test_zone_quotas_all_placed() {
         let quotas = QuotaSet {
             quotas: [
@@ -1570,7 +1571,7 @@ pub mod tests {
     // orders every chunk holds exactly the quotas it hosts, nothing forced, nothing owed at the
     // end.
     #[test]
-    #[available_gas(l2_gas: 335672705)] // ceil(1.05 × 319688290 measured)
+    #[available_gas(l2_gas: 334452089)] // ceil(1.05 × 318525799 measured)
     fn test_zone_quota_hosts_order_free() {
         let quotas = QuotaSet {
             quotas: [
@@ -1715,7 +1716,7 @@ pub mod tests {
     // dropped. A 2 × 1 zone, a Heart (template 3: one caste, 0 to 2) and a collector of 2, so the
     // Heart shares its host with a collector: revealed in both orders, the Heart is laid each time.
     #[test]
-    #[available_gas(l2_gas: 58133025)] // ceil(1.05 × 55364785 measured)
+    #[available_gas(l2_gas: 58031639)] // ceil(1.05 × 55268227 measured)
     fn test_heart_on_a_min_zero_template() {
         let quotas = QuotaSet {
             quotas: [
@@ -1922,7 +1923,8 @@ pub mod tests {
     // its host drawn first, among the outline's farthest chunks, and laid first in its chunk, so
     // that chunk's first pack is the Heart (template 2, which the spawn table names too).
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    // gas: raised, ENG-10b: the floor revealed whole, the Heart hosted at the farthest
+    #[available_gas(l2_gas: 130924552)] // ceil(1.05 × 124690049 measured)
     fn test_heart_at_the_band_top() {
         let quotas = QuotaSet {
             quotas: [
@@ -2288,7 +2290,7 @@ pub mod tests {
     /// Part 2: a dungeon floor of `N` 6, its outline drawn at `create` (ENG-10b), revealed whole
     /// by index; a zone's quotas on their hosts (D-208), a set piece, a task's landmark.
     #[test]
-    #[available_gas(l2_gas: 320278864)] // ceil(1.05 × 305027489 measured)
+    #[available_gas(l2_gas: 315472759)] // ceil(1.05 × 300450246 measured)
     fn test_vectors_2() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_2;

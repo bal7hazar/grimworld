@@ -347,26 +347,26 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 609523253)] // ceil(1.05 × 580498336 measured)
     fn test_outline_n6() {
         sweep(6, 64);
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 948137184)] // ceil(1.05 × 902987794 measured)
     fn test_outline_n9() {
         sweep(9, 64);
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 1322695790)] // ceil(1.05 × 1259710276 measured)
     fn test_outline_n12() {
         sweep(12, 64);
     }
 
     // A rectangle smaller than `N`: the floor is the whole rectangle, connected (no panic, D-140).
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 20806198)] // ceil(1.05 × 19815426 measured)
     fn test_outline_small_rectangle() {
         let mut i: felt252 = 0;
         while i != 8 {
@@ -403,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 39683107)] // ceil(1.05 × 37793435 measured)
     fn test_cost_outline_n12() {
         for seed in seeds() {
             OutlineTrait::draw(ENTRY, 12, 15, 15, seed);
@@ -411,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 449491)] // ceil(1.05 × 428086 measured)
     fn test_cost_outline_baseline() {
         let _seeds = seeds();
     }
@@ -504,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4000000000)]
+    #[available_gas(l2_gas: 40038737)] // ceil(1.05 × 38132130 measured)
     fn test_cost_outline_stepped() {
         for seed in seeds() {
             draw_stepped(ENTRY, 12, 15, 15, seed);
