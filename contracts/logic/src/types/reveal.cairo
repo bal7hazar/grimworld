@@ -125,7 +125,7 @@ pub struct Site {
 
 /// What a reveal reads and writes of an instance: the revealed set and count, a dungeon's open
 /// edges, what each quota has left to place, and the entropy.
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+#[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Progress {
     /// Bit `15 cy + cx`.
     pub revealed: felt252,
@@ -136,6 +136,38 @@ pub struct Progress {
     /// Left to place of quota `i`: the location's 6, then the tasks' 8.
     pub left: [u8; 14],
     pub entropy: felt252,
+}
+
+/// `Progress`' Serde, the derived one's encoding (`left`'s 14 values one felt each, no length),
+/// its 14 values read by a loop: the derived `[u8; 14]` unrolled into ~1,100 CASM felts of
+/// `Instances` (ENG-05b, D-209).
+pub impl ProgressSerde of Serde<Progress> {
+    fn serialize(self: @Progress, ref output: Array<felt252>) {
+        output.append(*self.revealed);
+        output.append((*self.count).into());
+        output.append((*self.open_edges).into());
+        for value in self.left.span() {
+            output.append((*value).into());
+        }
+        output.append(*self.entropy);
+    }
+
+    fn deserialize(ref serialized: Span<felt252>) -> Option<Progress> {
+        let revealed = Serde::deserialize(ref serialized)?;
+        let count = Serde::deserialize(ref serialized)?;
+        let open_edges = Serde::deserialize(ref serialized)?;
+        let words = serialized.multi_pop_front::<14>()?;
+        let mut left: Array<u8> = array![];
+        for word in words.as_snapshot().unbox().span() {
+            left.append((*word).try_into()?);
+        }
+        let entropy = Serde::deserialize(ref serialized)?;
+        Option::Some(
+            Progress {
+                revealed, count, open_edges, left: PlacementTrait::fixed(left.span()), entropy,
+            },
+        )
+    }
 }
 
 /// A chunk revealed: its two words.
@@ -2371,6 +2403,33 @@ pub mod tests {
     const PART_2: u32 = 186;
     const DIGEST_0: felt252 =
         1099007504077458561703646988744304604964174275844371738808055141155867483297;
+    // ENG-05b: `Progress`' hand-written Serde keeps the derived encoding, `left` one felt a value
+    // with no length, and refuses a value above a byte.
+    #[test]
+    fn test_progress_serde() {
+        let progress = Progress {
+            revealed: 0x10001,
+            count: 2,
+            open_edges: 0,
+            left: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 255],
+            entropy: 'entropy',
+        };
+        let mut out: Array<felt252> = array![];
+        progress.serialize(ref out);
+        let expected = array![
+            0x10001, 2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 255, 'entropy',
+        ];
+        assert(out == expected, 'encoding');
+        let mut words = out.span();
+        assert(Serde::<Progress>::deserialize(ref words) == Option::Some(progress), 'decoded');
+        assert(words.len() == 0, 'consumed');
+        let mut wrong = array![0x10001, 2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 256, 'e']
+            .span();
+        assert(Serde::<Progress>::deserialize(ref wrong).is_none(), 'byte');
+        let mut short = array![0x10001, 2, 0, 1, 2].span();
+        assert(Serde::<Progress>::deserialize(ref short).is_none(), 'short');
+    }
+
     const DIGEST_1: felt252 =
         3406219353955151080332403134172067514426351653970253477291706690989101018180;
     const DIGEST_2: felt252 =
