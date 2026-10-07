@@ -249,9 +249,9 @@ pub impl PlacementImpl of PlacementTrait {
         Self::hosts_with(zone, width, height, plan, pieces, seed, layers, true)
     }
 
-    /// `hosts`, with `exit_first` false the order of `a2d740b`'s predecessor (c240f76, review t-0088's
-    /// major 1): the exit and the Heart in the list's order. Kept to show the fixture fails there
-    /// (SPK-17's `test_piece_old_order`); not ENG-10b's.
+    /// `hosts`, with `exit_first` false the order of `a2d740b`'s predecessor (c240f76, review
+    /// t-0088's major 1): the exit and the Heart in the list's order. Kept to show the fixture
+    /// fails there (SPK-17's `test_piece_old_order`); not ENG-10b's.
     fn hosts_with(
         zone: felt252,
         width: u8,
