@@ -1975,25 +1975,26 @@ another terrain, other placements and another cost at each run of the probe (up 
 
 | Entrypoint (on the node, `lifecycle_probe.py`) | Without a quota | With a zone quota | Decided |
 |---|---:|---:|---|
-| `enter`, the adventurer's first | 14,294,400 | 14,294,400 | 2026-10-04 (D-210's `HostsLibrary` call) |
-| `enter`, a later entry | 7,302,400 | 7,502,400 | 2026-10-03; with a quota 2026-10-04 |
-| `enter`, a later entry, the belt's worst case | 8,102,400 | 8,262,400 | idem |
-| `leave` to a dungeon floor | 8,276,640 | 8,276,640 | 2026-10-03 |
-| `leave` back into the zone | 11,320,640 | 11,640,640 | 2026-10-07 (the entry draw's spread); with a quota 2026-10-04 |
+| `enter`, the adventurer's first | 13,999,020 | 15,219,120 | **D-231** (the project manager, 2026-10-07: ENG-05b's six runs, the maximum + 5 %); before, 14,294,400 both (2026-10-04) |
+| `enter`, a later entry | 7,289,520 | 7,919,520 | **D-231**; before, 7,302,400 · 7,502,400 |
+| `enter`, a later entry, the belt's worst case | 8,129,520 | 8,717,520 | **D-231**; before, 8,102,400 · 8,262,400 |
+| `leave` to a dungeon floor | 11,930,772 | 11,888,772 | **D-231** (replaces D-228's 11,890,000); before ENG-10b, 8,276,640 |
+| `leave` back into the zone | 11,382,672 | 12,348,672 | **D-231**; before, 11,320,640 · 11,640,640 |
+| `enter` into a dungeon floor (`--floor on`, new with ENG-05b) | 10,355,520 | 10,145,520 | **D-231** (the case added by the orchestrator, 2026-10-07) |
 
 **ENG-05b's reset of these ceilings** (the project manager, 2026-10-07: from at least six runs, the
 maximum plus 5 %, rounded up; `lifecycle_probe.py --floor on`, six runs without a quota and six
-with `--quotas on`, on the VPS at `7066ad2`). A proposed ceiling above the one in force is the project
-manager's to decide (D-144); none is applied here. Against ENG-10b's six runs, every reveal path is
+with `--quotas on`, on the VPS at `7066ad2`). Every proposed ceiling was accepted by the project manager
+(**D-231**, 2026-10-07, D-144), and is the table above. Against ENG-10b's six runs, every reveal path is
 lower or within the draw's spread (later entry 6,902,400–7,022,400 → 6,862,400–6,942,400; first entry
 13,292,400–13,412,400 → 13,172,400–13,332,400; zone `leave` 10,680,640–10,920,640 →
 10,600,640–10,840,640); the excesses with a quota come from the spread that six runs show and three
 did not, not from a rise of the code (snforge: every `create` 62,780 to 2,478,598 cheaper,
 `test_lifecycle`). `enter` into a dungeon floor is a new case (the orchestrator, 2026-10-07): gate 7, a
 link from the start hub into the dungeon's first floor (`N` 6, its exit quota), adventurer 1's
-later entry; it has no ceiling yet.
+later entry; its first ceiling is D-231's.
 
-| Entrypoint | Quota | Six runs | Maximum | Maximum + 5 % (proposed) | In force | Proposed less in force |
+| Entrypoint | Quota | Six runs | Maximum | Maximum + 5 % (D-231) | Before D-231 | D-231 less before |
 |---|---|---|---:|---:|---:|---:|
 | enter, the adventurer's first | without | 13,212,400 · 13,212,400 · 13,172,400 · 13,332,400 · 13,212,400 · 13,292,400 | 13,332,400 | 13,999,020 | 14,294,400 | -295,380 |
 | enter, the adventurer's first | with | 14,214,400 · 14,294,400 · 14,414,400 · 14,494,400 · 14,094,400 · 14,174,400 | 14,494,400 | 15,219,120 | 14,294,400 | +924,720 (+6.5 %) |
