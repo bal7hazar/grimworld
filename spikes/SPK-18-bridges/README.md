@@ -8,18 +8,19 @@ builds on it.
 
 | Part | What | Status |
 |---|---|---|
-| `reach.py`, `test_reach.py` | The plane the converter writes (the painted floor and every deck tile, ADR-0008 rule 1), P-1 on it (rule 6), R-37 (no authored content on a deck or an end, rule 5) | **current**: `python3 reach.py`, 5 tests |
+| `reach.py`, `test_reach.py` | The plane the converter writes (the painted floor and every deck tile, ADR-0008 rule 1), P-1 on it (rule 6), the refusals of a deck outside the zone or on a blocked hex (rule 1), R-37 (no authored content on a deck or an end, rule 5) | **current**: `python3 reach.py`, 7 tests |
 | `src/level.cairo`, `src/movement.cairo`, `tests/*.cairo`, `pairs.py`, `pairs.txt`, `snforge-test-output-{1,2}.txt` | The two-level prototype: a position's level beside it, the two-level movement check, against a one-level check | **superseded by D-227**, history |
 
 ## The P-1 prototype (current)
 
     python3 reach.py
 
-Ran 5 tests, OK:
+Ran 7 tests, OK:
 - the editor's bridge geometry (CLI-09e: both ends in one column);
 - a river crossed only by a bridge: refused with the deck left as water (SPK-16's converter today), accepted with the deck written walkable;
 - a two-tile deck over a two-row river;
-- a floor tile beyond the bridge that nothing reaches: refused;
+- an end with no floor beside it but the deck: the deck and the end are reached, the far bank is not, refused as `pipeline: unreachable tile`;
+- a deck tile outside the zone (`export: deck outside the zone`) and on a blocked hex (`export: deck blocked`): refused before the plane is written;
 - R-37 on the deck and on each end.
 
 ## History: the two-level prototype (superseded by D-227)

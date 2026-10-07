@@ -25,9 +25,16 @@ def neighbours(x, y):
             (x + d + 1, y + 1)]
 
 
-def plane(painted, bridges):
-    """The walkable plane the converter writes: the painted floor and every deck tile (rule 1)."""
-    return set(painted) | {d for b in bridges for d in b["deck"]}
+def plane(painted, bridges, zone=None, blocked=()):
+    """The walkable plane the converter writes: the painted floor and every deck tile (rule 1). A
+    deck tile outside the zone (`zone`, its tiles; `None`: every tile) or on a blocked hex (a
+    building's footprint, a blocking prop: `convert.py`'s `blocked`) is refused first."""
+    decks = {d for b in bridges for d in b["deck"]}
+    if zone is not None and decks - set(zone):
+        raise Refused("export: deck outside the zone", f"{sorted(decks - set(zone))[:3]}")
+    if decks & set(blocked):
+        raise Refused("export: deck blocked", f"{sorted(decks & set(blocked))[:3]}")
+    return set(painted) | decks
 
 
 def assert_content(bridges, taken):

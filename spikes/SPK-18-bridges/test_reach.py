@@ -1,7 +1,7 @@
 """P-1 with bridges on one level and R-37 (`reach.py`; ADR-0008 rules 1, 5, 6): `python3 reach.py`."""
 import unittest
 
-from reach import Refused, neighbours, p1, plane, assert_content
+from reach import Refused, assert_content, connected, neighbours, p1, plane
 
 W, H = 12, 12
 
@@ -42,12 +42,34 @@ class Reach(unittest.TestCase):
         p1(plane(painted, [b]), (0, 0))
 
     def test_end_cut_off(self):
-        # A deck whose northern bank is an island walled in: refused, as any unreachable tile
-        painted = river({6}) - {(x, y) for y in range(7, H) for x in range(W) if (x, y) != (6, 7)}
-        painted |= {(0, 10)}  # a floor tile beyond, reachable from nothing
+        # The northern end (6, 7) has no floor beside it but the deck: its other neighbours are
+        # walls, so the far bank is unreachable although the deck and the end are reached
         b = editor_bridge((6, 6))
-        with self.assertRaises(Refused):
-            p1(plane(painted, [b]), (0, 0))
+        north = b["ends"][1]
+        painted = river({6}) - (set(neighbours(*north)) - {(6, 6)})
+        walk = plane(painted, [b])
+        self.assertEqual([n for n in neighbours(*north) if n in walk], [(6, 6)])
+        with self.assertRaises(Refused) as e:
+            p1(walk, (0, 0))
+        self.assertEqual(e.exception.code, "pipeline: unreachable tile")
+        # The deck and the end are reached; the far bank is not
+        reached = connected(walk, (0, 0))
+        self.assertIn((6, 6), reached)
+        self.assertIn(north, reached)
+        self.assertNotIn((0, 11), reached)
+
+    def test_deck_outside_the_zone(self):
+        b = editor_bridge((6, 6))
+        zone = {t for t in river(set())} - {(6, 6)}
+        with self.assertRaises(Refused) as e:
+            plane(river({6}), [b], zone=zone)
+        self.assertEqual(e.exception.code, "export: deck outside the zone")
+
+    def test_deck_blocked(self):
+        b = editor_bridge((6, 6))
+        with self.assertRaises(Refused) as e:
+            plane(river({6}), [b], blocked={(6, 6)})
+        self.assertEqual(e.exception.code, "export: deck blocked")
 
     def test_content_off_the_bridge(self):
         b = editor_bridge((6, 6))
