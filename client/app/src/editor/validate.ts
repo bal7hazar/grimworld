@@ -18,9 +18,9 @@ import {
   tileOfKey,
 } from "./model";
 import { type MapObject, OBJECT_NAMES, QUOTA_NAMES, kindOf, servicesOf } from "./objects";
-import { doorOf, isPack } from "./pack";
+import { bridgeHexes, doorOf, isPack } from "./pack";
 import { doorSide } from "./palette";
-import { footprintOf, townCovers } from "./walkWorld";
+import { deckKeys, footprintOf, townCovers } from "./walkWorld";
 import checksText from "./export/checks.json?raw";
 import { type Manifest, convert } from "./export/convert";
 import { nameOf, toExport } from "./export/document";
@@ -41,6 +41,8 @@ import { Refused } from "./export/records";
  *
  * Reachability is connectivity by hex neighbours over walkable hexes (`SIDE_STEPS`, the drawing's
  * neighbours), the reach `placeholders.ts`'s finder walks until CLI-02 gives `client/sim` its own.
+ * A bridge's deck inside the outline is walkable there (D-227, ADR-0008 rule 1: the converter
+ * writes it so), whatever is painted under it.
  */
 
 export type Source = "R" | "E" | "○";
@@ -179,6 +181,16 @@ export function planeFits(doc: MapDocument): boolean {
   return !box || (box.x1 - box.x0 < FIT_SPAN_MAX && box.y1 - box.y0 < FIT_SPAN_MAX);
 }
 
+/** The plane's indices of the bridges' decks (1), as the converter writes them walkable. */
+function deckIndices(plane: Plane, doc: MapDocument): Uint8Array {
+  const out = new Uint8Array(plane.cells.length);
+  for (const key of deckKeys(doc)) {
+    const i = plane.index(tileOfKey(key));
+    if (i >= 0) out[i] = 1;
+  }
+  return out;
+}
+
 /** Cell predicates over the plane's values (-1 unpainted). */
 const isIn = (cell: number) => cell >= 0 && !isOutside(cell);
 const isWalkable = (cell: number) => isIn(cell) && terrainOf(cell) === FLOOR;
@@ -272,6 +284,7 @@ export function validate(doc: MapDocument, manifest: Manifest | null = null): Fi
   // A town's footprints are checked with its places (E-16); a zone's are the pack's buildings.
   if (zone) footprintChecks(doc, out, frame);
   packChecks(doc, out);
+  bridgeChecks(doc, out);
   groundChecks(doc, out);
   if (zone && manifest && frame && frame.problems.length === 0) converterChecks(doc, manifest, out);
   const rank: Record<Severity, number> = { error: 0, warning: 1, hint: 2 };
@@ -525,10 +538,14 @@ function zoneChecks(
     }
   }
 
-  // E-6 and E-7: reachable from the entry over walkable hexes inside the outline.
+  // E-6 and E-7: reachable from the entry over walkable hexes inside the outline, bridges' decks
+  // included.
   const entry = entries.length === 1 ? entries[0]![1] : null;
   if (plane && entry && walkable(keyOf(entry.at))) {
-    const reached = plane.reach(entry.at, isWalkable);
+    const decks = deckIndices(plane, doc);
+    const passable = (cell: number, i: number) =>
+      isWalkable(cell) || (decks[i] === 1 && isIn(cell));
+    const reached = plane.reach(entry.at, passable);
     const unreached = [...gates, ...candidates].filter(([, o]) => {
       const i = plane.index(o.at);
       return i < 0 || !reached[i];
@@ -543,7 +560,7 @@ function zoneChecks(
     }
     const sealed: Tile[] = [];
     for (let i = 0; i < plane.cells.length; i++) {
-      if (isWalkable(plane.cells[i]!) && !reached[i]) sealed.push(plane.tile(i));
+      if (passable(plane.cells[i]!, i) && !reached[i]) sealed.push(plane.tile(i));
     }
     if (sealed.length > 0) {
       out.error(
@@ -704,9 +721,10 @@ function townChecks(doc: MapDocument, span: boolean, out: Findings): void {
       const i = plane.index(tileOfKey(key));
       if (i >= 0) covered[i] = 1;
     }
+    const decks = deckIndices(plane, doc);
     const reached = plane.reach(
       arrival.at,
-      (cell, i) => cell >= 0 && terrainOf(cell) === FLOOR && !covered[i],
+      (cell, i) => cell >= 0 && (terrainOf(cell) === FLOOR || decks[i] === 1) && !covered[i],
     );
     const shut = places.filter(([, p]) => {
       const i = plane.index(p.at);
@@ -883,6 +901,100 @@ function packChecks(doc: MapDocument, out: Findings): void {
         break;
       case "bridge":
         break;
+    }
+  }
+}
+
+/**
+ * A bridge's checks (CLI-09f; D-227, ADR-0008), on a zone or a town, for each bridge whose record
+ * can be written (E-23 names the others). The converter's codes, where ADR-0008 names them (ENG-09
+ * adds them to `checks.json`):
+ *
+ * - R-37 (`bridge: tile taken`), widened to the deck: no object stands on a bridge's ends or deck
+ *   (an entry, a gate, a spawn point, a quota place, a feature, a character, a prop, a building's
+ *   footprint, another bridge).
+ * - E-24 (`export: deck outside the zone`): every deck hex painted, inside the outline.
+ * - E-25 (`export: deck blocked`): no deck hex blocked (a building's footprint but its door, a
+ *   blocking prop); and every deck hex over water (D-227: walkable ground drawn over water).
+ * - R-34 (`bridge: end not floor`): each end walkable land: a painted floor hex inside the outline,
+ *   not water, that no object blocks.
+ */
+function bridgeChecks(doc: MapDocument, out: Findings): void {
+  const zone = isZone(doc);
+  const water = GROUND_KINDS.indexOf("water");
+  const covers = townCovers(doc);
+  const inside = (t: Tile) => {
+    const cell = doc.hexes.get(keyOf(t));
+    return cell !== undefined && !(zone && isOutside(cell));
+  };
+  const objects = [...doc.objects].sort(([a], [b]) => a - b);
+  /** The hexes an object stands on: a footprint, a bridge's hexes, else its hex. */
+  const standsOn = (o: MapObject): Tile[] => {
+    if (o.kind === "bridge") {
+      const h = bridgeHexes(o);
+      return h ? [h.ends[0], ...h.deck, h.ends[1]] : [o.at];
+    }
+    return footprintOf(o).length > 0 ? footprintOf(o) : [o.at];
+  };
+  for (const [id, o] of objects) {
+    if (o.kind !== "bridge") continue;
+    const hexes = bridgeHexes(o);
+    if (!hexes) continue;
+    const name = `The ${o.type} ${where(o.at)}`;
+    const mine = new Set([hexes.ends[0], ...hexes.deck, hexes.ends[1]].map(keyOf));
+    for (const [other, p] of objects) {
+      if (other === id) continue;
+      const taken = standsOn(p).filter((t) => mine.has(keyOf(t)));
+      if (taken.length > 0) {
+        const what = isPack(p) ? `the ${p.type}` : OBJECT_NAMES[p.kind].toLowerCase();
+        out.error(
+          "R-37",
+          `${name}: ${what} ${where(p.at)} stands on its deck or ends (bridge: tile taken).`,
+          taken,
+          [id, other],
+        );
+      }
+    }
+    const outside = hexes.deck.filter((t) => !inside(t));
+    if (outside.length > 0) {
+      out.error(
+        "E-24",
+        `${name}: ${outside.length} deck hexes lie outside the zone (export: deck outside the zone).`,
+        outside,
+        [id],
+      );
+    }
+    const blocked = hexes.deck.filter((t) => inside(t) && covers.has(keyOf(t)));
+    if (blocked.length > 0) {
+      out.error(
+        "E-25",
+        `${name}: ${blocked.length} deck hexes are blocked by a building or a prop (export: deck blocked).`,
+        blocked,
+        [id],
+      );
+    }
+    const dry = hexes.deck.filter(
+      (t) => inside(t) && groundOfCell(doc.hexes.get(keyOf(t))!) !== water,
+    );
+    if (dry.length > 0) {
+      out.error("E-25", `${name}: ${dry.length} deck hexes are not over water.`, dry, [id]);
+    }
+    const ends = hexes.ends.filter((t) => {
+      const cell = doc.hexes.get(keyOf(t));
+      return !(
+        inside(t) &&
+        terrainOf(cell!) === FLOOR &&
+        groundOfCell(cell!) !== water &&
+        !covers.has(keyOf(t))
+      );
+    });
+    if (ends.length > 0) {
+      out.error(
+        "R-34",
+        `${name}: ${ends.length === 1 ? "an end is" : "both ends are"} not walkable land (bridge: end not floor).`,
+        ends,
+        [id],
+      );
     }
   }
 }

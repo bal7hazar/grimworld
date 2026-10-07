@@ -272,6 +272,8 @@ export interface KindSpec<O extends MapObject = MapObject> {
   readonly covers?: (object: O) => Tile[];
   /** How the renderer draws it (a building, a prop or a character); none for a marker only. */
   readonly look?: (object: O) => StructureLook;
+  /** The hexes its look is drawn on: `at` when absent; several for a repeated sprite (a bridge). */
+  readonly drawnAt?: (object: O) => Tile[];
   /** The record ENG-08's export writes for it, or what is wrong with it (a pack object). */
   readonly record?: (object: O) => RecordResult;
 }

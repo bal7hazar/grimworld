@@ -1,0 +1,169 @@
+{
+  "format": "grimworld-map",
+  "version": 2,
+  "editor": "fixture",
+  "map": {
+    "kind": "zone",
+    "name": "Bridge pond",
+    "location": 2,
+    "region": 1,
+    "biome": "meadow",
+    "levelMin": 1,
+    "levelMax": 3,
+    "rank": 0,
+    "spawnTable": 0,
+    "quotas": []
+  },
+  "rows": [
+    {
+      "y": -1,
+      "x": -1,
+      "terrain": "#################",
+      "ground": "wwwwwwwwwwwwwwwww",
+      "outline": "00000000000000000"
+    },
+    {
+      "y": 0,
+      "x": -1,
+      "terrain": "#...............#",
+      "ground": "wgggggggggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 1,
+      "x": -1,
+      "terrain": "#...............#",
+      "ground": "wgggggggggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 2,
+      "x": -1,
+      "terrain": "#...............#",
+      "ground": "wgggggggggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 3,
+      "x": -1,
+      "terrain": "#......#........#",
+      "ground": "wggggggwggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 4,
+      "x": -1,
+      "terrain": "#......###......#",
+      "ground": "wggggggwwwggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 5,
+      "x": -1,
+      "terrain": "#......###......#",
+      "ground": "wggggggwwwggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 6,
+      "x": -1,
+      "terrain": "#......###......#",
+      "ground": "wggggggwwwggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 7,
+      "x": -1,
+      "terrain": "#......#........#",
+      "ground": "wggggggwggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 8,
+      "x": -1,
+      "terrain": "#...............#",
+      "ground": "wgggggggggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 9,
+      "x": -1,
+      "terrain": "#...............#",
+      "ground": "wgggggggggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 10,
+      "x": -1,
+      "terrain": "#....###........#",
+      "ground": "wggggwwwggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 11,
+      "x": -1,
+      "terrain": "#....##.........#",
+      "ground": "wggggwwgggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 12,
+      "x": -1,
+      "terrain": "#....###........#",
+      "ground": "wggggwwwggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 13,
+      "x": -1,
+      "terrain": "#...............#",
+      "ground": "wgggggggggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 14,
+      "x": -1,
+      "terrain": "#...............#",
+      "ground": "wgggggggggggggggw",
+      "outline": "01111111111111110"
+    },
+    {
+      "y": 15,
+      "x": -1,
+      "terrain": "#################",
+      "ground": "wwwwwwwwwwwwwwwww",
+      "outline": "00000000000000000"
+    }
+  ],
+  "chunks": {
+    "x": 0,
+    "y": 0,
+    "how": "fitted"
+  },
+  "obstacles": [],
+  "objects": [
+    {
+      "kind": "entry",
+      "x": 1,
+      "y": 1
+    },
+    {
+      "kind": "bridge",
+      "x": 7,
+      "y": 3,
+      "type": "stone_bridge",
+      "mirror": false,
+      "run": "north",
+      "deck": 3
+    },
+    {
+      "kind": "bridge",
+      "x": 3,
+      "y": 11,
+      "type": "covered_bridge",
+      "mirror": false,
+      "run": "west",
+      "deck": 2
+    }
+  ]
+}
