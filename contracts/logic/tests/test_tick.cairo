@@ -3883,3 +3883,49 @@ fn test_cost_bomb_tick() {
     TickTrait::run(ref world, @sheets, ticks, ref rules);
     assert(rules.cache.hits == most + 8 && !world.defeated, 'bomb, then eight');
 }
+
+// The same through `TickLibrary::act` (D-222): the whole call, its fixture the same arguments and
+// classes without the call. `act_wait` against `rep_idle` (one idle tick through `run`) prices the
+// action phase's entrypoint per action.
+fn act_words() -> Words {
+    let mut words = rep_words(1);
+    let mut member = *words.members[0];
+    member.state += two(128);
+    words.members = array![member];
+    words
+}
+
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_act_fixture() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let _ = executor();
+    let words = act_words();
+    let content = bomb_content();
+    let (tile, _) = bomb_tile();
+    assert(opaque(words.goblins.len()) > 0 && content.potions.len() == 4 && tile > 0, 'fixture');
+}
+
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_act_bomb() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (tile, _) = bomb_tile();
+    let (words, _, illegal) = library
+        .act(act_words(), bomb_content(), board(), executor(), array![], Action::Item((0, tile)));
+    assert(illegal.is_none() && words.clock == 41, 'bomb, one tick');
+}
+
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_cost_act_wait() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (tile, _) = bomb_tile();
+    let _ = tile;
+    let (words, _, illegal) = library
+        .act(rep_words(0), bomb_content(), board(), executor(), array![], Action::Wait);
+    assert(illegal.is_none() && words.clock == 41, 'wait, one tick');
+}
