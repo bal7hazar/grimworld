@@ -29,7 +29,7 @@ use crate::models::goblin::GoblinPlaceTrait;
 use crate::models::member::{MemberSnapshotTrait, MemberTrait, MemberWordsTrait};
 use crate::types::combat::{Placer, PlacerTrait};
 use crate::types::effect::{Entry, kind, shape};
-use crate::types::executor::{Board, BoardTrait, Body, Cache, ExecutorTrait, Levers};
+use crate::types::executor::{Board, BoardTrait, Body, Cache, ExecutorTrait, Levers, ORIGIN};
 use crate::types::infliction::Infliction;
 use crate::types::tick::{ABSENT_LANE, Sheets};
 use crate::types::window::{FAR, WindowTrait};
@@ -64,8 +64,16 @@ pub impl TrapImpl of TrapTrait {
         }
         // The window's 15 columns, the chunk's 15 tiles a side (`WIDTH`, `CHUNK_SIDE`).
         let (dy, dx) = DivRem::div_rem(position, 15);
+        // The location's tile: the board's origin is held plus `ORIGIN` (a negative origin near
+        // the West or South edge, D-134): a tile before the location's first is in none.
         let x: u16 = (*board.x).into() + dx.into();
         let y: u16 = (*board.y).into() + dy.into();
+        let origin: u16 = ORIGIN.into();
+        if x < origin || y < origin {
+            return None;
+        }
+        let x = x - origin;
+        let y = y - origin;
         let side: u16 = CHUNK_SIDE.into();
         let (cy, ly) = DivRem::div_rem(y, 15);
         let (cx, lx) = DivRem::div_rem(x, 15);
@@ -566,7 +574,7 @@ mod tests {
     fn test_locate() {
         let board = board();
         assert(TrapTrait::locate(@board, SPOT) == Some((0, 142)), 'chunk 0');
-        let moved = crate::types::executor::Board { x: 10, y: 14, ..board };
+        let moved = crate::types::executor::BoardTrait::new(board.window, 10, 14);
         // (7, 9) + (10, 14) = (17, 23): chunk 15 + 1 = 16, tile 15 × 8 + 2 = 122.
         assert(TrapTrait::locate(@moved, SPOT) == Some((16, 122)), 'chunk 16');
         assert(TrapTrait::locate(@board, 240) == None, 'outside');

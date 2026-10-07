@@ -51,7 +51,7 @@ use crate::types::effect::{kind, target};
 use crate::interface::{ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
 use crate::models::member::MemberTrait;
 use crate::types::executor::{
-    Board, BoardTrait, Carrier, Delegate, ExecutorTrait, Levered, Levers,
+    Board, BoardTrait, Carrier, Delegate, ExecutorTrait, Levered, Levers, ORIGIN,
 };
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::tick::{ABSENT, Sheets, ai};
@@ -354,7 +354,11 @@ pub impl AiImpl of AiTrait {
         let dy = to / WIDTH;
         let dx = to % WIDTH;
         let mut goblin = goblin;
-        goblin.set_place(*board.x + dx, *board.y + dy, WindowTrait::facing(from, to, facing));
+        // A step is a walkable tile, inside the location: its origin less `ORIGIN` is not negative.
+        goblin
+            .set_place(
+                *board.x + dx - ORIGIN, *board.y + dy - ORIGIN, WindowTrait::facing(from, to, facing),
+            );
         let cost = goblin.move_ticks(t, Self::movement(@goblin, sheets, t));
         goblin.recover(cost, t);
         world.set_goblin(index, goblin);

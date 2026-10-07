@@ -81,14 +81,23 @@ pub mod errors {
 }
 
 /// The board of a tick (ENG-07 assembles it, D-120): the window and the location's tile at its
-/// position 0. A tile `(x, y)` of the location is the window's position `15 (y − y0) + (x −
-/// x0)`, the location's axis orientation kept (ENG-02's note to ENG-07); outside it, `FAR`.
+/// position 0, `(x0, y0)`, each held plus `ORIGIN` so that a window near the location's West or
+/// South edge, whose origin is negative (down to −8), is not clamped (D-134; ENG-07, the
+/// orchestrator's ruling of escalation 3). A tile `(x, y)` of the location is the window's
+/// position `15 (y − y0) + (x − x0)`, the location's axis orientation kept (ENG-02's note to
+/// ENG-07); outside it, `FAR`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Board {
     pub window: Window,
+    /// `x0 + ORIGIN`.
     pub x: u8,
+    /// `y0 + ORIGIN`.
     pub y: u8,
 }
+
+/// What `Board` adds to its origin's coordinates: a chunk's side, so that every origin of a
+/// location's window (at least −8) is held in a `u8`.
+pub const ORIGIN: u8 = 15;
 
 /// A carrier the executor runs (§5.14's dispatch).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -297,13 +306,19 @@ pub impl NaiveLevers of Levers<Naive> {
 
 #[generate_trait]
 pub impl BoardImpl of BoardTrait {
+    /// The board of `window` whose position 0 is the location's tile `(x, y)` (a non-negative
+    /// origin; a negative one is written into `Board`'s fields as `x0 + ORIGIN`).
     fn new(window: Window, x: u8, y: u8) -> Board {
-        Board { window, x, y }
+        Board { window, x: x + ORIGIN, y: y + ORIGIN }
     }
 
-    /// The window's position of the location's tile `(x, y)`; `FAR` outside the window.
-    #[inline(always)]
+    /// The window's position of the location's tile `(x, y)`; `FAR` outside the window. Not
+    /// inlined (ENG-07): with `ORIGIN` added at every call site, inlined, `ExecutorLibrary` measured
+    /// 80,542 felts, above D-200's 80,420; a call measured +23,100 to +43,200 L2 gas a carrier.
+    #[inline(never)]
     fn position(self: @Board, x: u8, y: u8) -> u8 {
+        let x = x + ORIGIN;
+        let y = y + ORIGIN;
         if x < *self.x || y < *self.y {
             return FAR;
         }
