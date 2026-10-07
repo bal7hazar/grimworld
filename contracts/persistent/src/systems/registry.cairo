@@ -24,6 +24,8 @@ pub mod errors {
     pub const NOT_NEXT: felt252 = 'registry: id not next';
     pub const NO_PARENT: felt252 = 'registry: no parent';
     pub const OUTLINE_CHUNK: felt252 = 'registry: outline chunk';
+    /// A `LOCATION` whose dungeon floor holds more than 12 chunks (ENG-10b, CM-9).
+    pub const FLOOR_SIZE: felt252 = 'registry: floor over 12 chunks';
     /// `records` and `bundle` past their bound (ENG-01 §4.5).
     pub const TOO_MANY: felt252 = 'registry: too many records';
 }
@@ -82,7 +84,7 @@ pub mod Registry {
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
-    use grimworld_logic::models::location::INDEX_BOUND;
+    use grimworld_logic::models::location::{INDEX_BOUND, LocationRecord};
     use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
     use grimworld_logic::models::outline::CHUNK_SET;
     use grimworld_logic::models::pack::{PackAssert, PackRecord};
@@ -91,6 +93,7 @@ pub mod Registry {
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
+    use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::models::versions::{Versions, VersionsTrait};
@@ -250,9 +253,13 @@ pub mod Registry {
         ///   most 5 at its fewest, E-3; a set piece's corners wall, D-134, and its placements on
         ///   its interior's floor). That the ids they name exist is the content pipeline's
         ///   (OPS-01).
+        /// - `LOCATION`: a dungeon floor's `N` at most 12 (`MAX_CHUNKS`, CM-9; ENG-10b: the outline
+        ///   drawn at `create` and its bit-parallel walks assume it).
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
-            if kind == MODIFIER {
+            if kind == LOCATION {
+                assert(LocationRecord::unpack(record).target <= MAX_CHUNKS, errors::FLOOR_SIZE);
+            } else if kind == MODIFIER {
                 ModifierRecord::unpack(record).assert_legal();
             } else if kind == ARMOR_SET {
                 ArmorSetRecord::unpack(record).assert_legal();

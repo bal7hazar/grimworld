@@ -37,6 +37,7 @@
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
 use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage};
+use grimworld_logic::types::reveal::outline::Outline;
 use starknet::storage::{
     StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersMutForward,
 };
@@ -198,7 +199,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.quotas.entry(slot).write(StoredTrait::new(quotas))
     }
 
-    /// A zone's host chunks of `quota` (D-208).
+    /// A location's host chunks of `quota` (D-208; a dungeon floor's, ENG-10b).
     #[inline(always)]
     fn get_hosts(self: @InstancesState, slot: u32, quota: u8) -> felt252 {
         self.hosts.entry((slot, quota)).read()
@@ -207,6 +208,21 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     #[inline(always)]
     fn set_hosts(ref self: InstancesState, slot: u32, quota: u8, hosts: felt252) {
         self.hosts.entry((slot, quota)).write(hosts)
+    }
+
+    /// A dungeon floor's outline (ENG-10b): its three felts.
+    fn get_outline(self: @InstancesState, slot: u32) -> Outline {
+        Outline {
+            chunks: self.outline.entry((slot, 0)).read(),
+            west: self.outline.entry((slot, 1)).read(),
+            north: self.outline.entry((slot, 2)).read(),
+        }
+    }
+
+    fn set_outline(ref self: InstancesState, slot: u32, outline: @Outline) {
+        self.outline.entry((slot, 0)).write(*outline.chunks);
+        self.outline.entry((slot, 1)).write(*outline.west);
+        self.outline.entry((slot, 2)).write(*outline.north);
     }
 
     /// The first `pages` task pages as stored, in order: the view's. Bound: 4 pages (`MAX_TASKS`).
@@ -407,6 +423,12 @@ mod layout_tests {
                 state.hosts.entry((7, 3)).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("hosts"), array![7, 3].span()),
             'hosts',
+        );
+        assert(
+            address_of(
+                state.outline.entry((7, 2)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("outline"), array![7, 2].span()),
+            'outline',
         );
         assert(
             address_of(

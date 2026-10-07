@@ -27,6 +27,9 @@
 use hexx::board::rng::RngTrait;
 use super::board::{BOARD, BoardTrait};
 
+/// A dungeon floor holds at most 12 chunks (CM-9, `N` 6 to 12): the registry refuses a `LOCATION`
+/// whose `N` is above it (ENG-10b; D-223, ruling 5).
+pub const MAX_CHUNKS: u8 = 12;
 /// Words drawn for a member and a side before the exact draw over the frontier (`draw`; as
 /// `placement::TRIES`).
 pub const TRIES: u8 = 16;
