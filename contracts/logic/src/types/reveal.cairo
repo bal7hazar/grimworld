@@ -1,5 +1,7 @@
 //! The chunk reveal engine (ENG-05; ADR-0006 §2–§3, design/18): **one engine for zones and
-//! dungeons**. A chunk is generated when sight first touches it, from a random word that does not
+//! dungeons**. Since D-214 (the owner, 2026-10-05) zones are authored, not generated: a dungeon's
+//! chunks and a zone not yet authored (no `LOCATION` marker, D-215 ruling 7) are generated here;
+//! an authored zone's are copied from the registry by ENG-09's path (ENG-08's format). A chunk is generated when sight first touches it, from a random word that does not
 //! exist before the reveal (ADR-0006 option C, D-111: the entry draw and the player entropy,
 //! `fate::EntropyTrait::word`) and from the edges of its revealed neighbours, in design/18's order:
 //!
