@@ -281,7 +281,7 @@ the same build as `build-external-contracts`, equal to the table above to the fe
 | Class (SPK-17) | CASM felts | Share | Against |
 |---|---:|---:|---|
 | `FixedRevealLibrary` (`RevealLibrary` on ENG-05's engine with ENG-10a's changes) | 39,878 | **48.68 %** | `RevealLibrary` 41,109, 50.18 %: −1,231, under D-200's 50 % again |
-| `FloorLibrary` (`HostsLibrary` with the floor's call) | 11,372 | **13.88 %** | `HostsLibrary` 6,580, 8.03 %: +4,792 |
+| `FloorLibrary` (`HostsLibrary` with the floor's call; the exit's and the Heart's hosts first, review t-0088) | 12,346 | **15.07 %** | `HostsLibrary` 6,580, 8.03 %: +5,766 |
 
 What `Instances` gains and loses (the floor's call and three slots in `begin`, the outline read in
 `site`; `chunk_kind`'s dungeon branch, which reads every revealed neighbour's terrain, replaced by a
@@ -1982,20 +1982,20 @@ manager under D-144 (the expedition's path).
 **Proposed by ENG-10a (SPK-17, not built; snforge M, Linux, two clean builds equal to the unit,
 each a pair of tests that differ by the measured call alone, `spikes/SPK-17-fixed-outline/pairs.txt`;
 E marks a derived figure).** A dungeon floor of `N` = 12 in a 15 × 15 rectangle, its quotas an exit,
-a vein and a Heart. The rows of `create`'s floor and the library call were measured with uniform
-growth, before D-223 made the winding growth the law (0.41 M cheaper in memory at `N` = 12):
+a vein and a Heart; the winding growth (D-223), the exit's and the Heart's hosts drawn first (review
+t-0088, major 1):
 
 | What | L2 gas | Source |
 |---|---:|---|
 | The outline drawn, in memory: uniform growth (measured, not kept) at `N` = 6 · at `N` = 12 · **the winding growth at 12, the law (D-223)** · the first law, uniform over the frontier, at 12 | 1,212,496 · 2,801,446 · **2,393,509** · 3,893,301 | `test_pair_outline_*` |
-| All `create` computes for the floor in memory: the outline, its farthest chunks, the three quotas' hosts, the entry chunk's mask | **3,933,528** | `test_pair_outline_floor_12` |
-| The same through the library class (`FloorLibrary::floor`, its syscall and calldata) | **4,104,498** (the call about 171,000, E) | `test_pair_library_floor_12` |
+| All `create` computes for the floor in memory: the outline, its layers by distance, the three quotas' hosts, the entry chunk's mask | **3,906,826** | `test_pair_outline_floor_12` |
+| The same through the library class (`FloorLibrary::floor`, its syscall and calldata) | **4,072,056** (the call about 165,000, E) | `test_pair_library_floor_12` |
 | The slots: the outline's three felts and three hosts' bitmaps, new | **2,854,060** (about 475,700 a slot, E) | `test_pair_slots_write` |
-| The rejected layout: the floor in two felts (seams and hosts by rank) · its packing · its unpacking, which every invocation that reveals would pay | 948,660 · 3,258,241 · 5,294,617 | `test_pair_slots_packed_write`, `test_pair_layout_*` |
-| One chunk revealed next to the entry: ENG-05's engine (an emerging floor) · the changed engine (its outline) | 3,794,169 · **2,029,787** (not the same chunk nor content: E for the difference) | `test_pair_reveal_*_one` |
-| The other 11 chunks of the floor: ENG-05's (the test's search of a revealable chunk at each step included) · the changed engine's | 65,854,636 · **36,648,404** (3.33 M a chunk) | `test_pair_reveal_*_floor` |
+| The rejected layout: the floor in two felts (seams and hosts by rank) · its packing · its unpacking, which every invocation that reveals would pay | 948,660 · 3,307,641 · 5,367,187 | `test_pair_slots_packed_write`, `test_pair_layout_*` |
+| One chunk revealed next to the entry: ENG-05's engine (an emerging floor) · the changed engine (its outline) | 3,804,989 · **2,115,878** (not the same chunk nor content: E for the difference) | `test_pair_reveal_*_one` |
+| The other 11 chunks of the floor: ENG-05's (the test's search of a revealable chunk at each step included) · the changed engine's | 65,643,780 · **37,807,769** (3.44 M a chunk) | `test_pair_reveal_*_floor` |
 
-At `create` a floor adds (E) the library call, 4.10 M, and its new slots, 2.85 M when the slot is
+At `create` a floor adds (E) the library call, 4.07 M, and its new slots, 2.85 M when the slot is
 new (an overwritten slot costs less), against the entry chunk's reveal, which the guard no longer
 burdens: about +7.0 M on an entry that creates a floor before ENG-10b's own levers (the growth law,
 the number of hosts' slots). Every such rise is the project manager's under D-144; ENG-10b measures it

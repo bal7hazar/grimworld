@@ -10,10 +10,9 @@ use grimworld_logic::models::location::biome;
 use grimworld_logic::models::pack::{Pack, PackCaste};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, kind as quota};
 use grimworld_logic::models::set_piece::{SetPack, SetPiece};
-use grimworld_logic::types::reveal::board::{BOARD, INTERIOR};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable};
 use grimworld_logic::types::reveal as eng05;
-use grimworld_logic::types::reveal::board::BoardTrait;
+use grimworld_logic::types::reveal::board::{BOARD, BoardTrait, INTERIOR};
 use spk17::engine::placement::PlacementTrait;
 use spk17::engine::{Progress, ProgressTrait, RevealTrait, Revealed, Site};
 use spk17::outline::{Outline, OutlineTrait};
@@ -181,8 +180,8 @@ pub struct Floor {
 }
 
 /// What `create` computes for a floor of `n` chunks from `entropy` (the winding law, D-223): the
-/// outline, its farthest chunks, the hosts (the exit and the Heart first, in the farthest layer with
-/// room), and every chunk's mask with its hosts.
+/// outline, its farthest chunks, the hosts (the exit and the Heart first, in the farthest layer
+/// with room), and every chunk's mask with its hosts.
 pub fn create(entropy: felt252, n: u8) -> Floor {
     create_with(entropy, n, false)
 }
@@ -248,8 +247,8 @@ pub fn reveal_in_order(
 
 /// What a revealed floor shows, whatever the order (the zero-residue test's terms): the chunks
 /// revealed, the exit's chunk (255 when none) and how many exits, the Heart's chunk and how many
-/// Hearts (packs of `HEART`), the edges of every chunk (a sum of hashes, a set), the exit's distance
-/// in chunks from the entry through the revealed edges (255 when not reached).
+/// Hearts (packs of `HEART`), the edges of every chunk (a sum of hashes, a set), the exit's
+/// distance in chunks from the entry through the revealed edges (255 when not reached).
 #[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Outcome {
     pub revealed: felt252,
@@ -314,10 +313,11 @@ fn global(chunk: u8, tile: u8) -> (u32, u32) {
 }
 
 /// The walked distance in tiles from the entry chunk's tile `from` to `chunk`'s tile `to`, on the
-/// revealed floor; 65535 when not reached. A breadth-first walk, bit-parallel: each chunk's layer grows
-/// by `BoardTrait::dilate` (the engine's hex neighbours with the chunk's row parity) within its floor,
-/// and the layer's ring tiles cross the seams one by one, by their global neighbours (odd-r: an even
-/// global row's northern and southern neighbours are `x − 1` and `x`, an odd row's `x` and `x + 1`;
+/// revealed floor; 65535 when not reached. A breadth-first walk, bit-parallel: each chunk's layer
+/// grows by `BoardTrait::dilate` (the engine's hex neighbours with the chunk's row parity) within
+/// its floor, and the layer's ring tiles cross the seams one by one, by their global neighbours
+/// (odd-r: an even global row's northern and southern neighbours are `x − 1` and `x`, an odd
+/// row's `x` and `x + 1`;
 /// a corner is wall, so no step reaches a diagonal chunk).
 pub fn walk(
     ref walls: Felt252Dict<felt252>, revealed: felt252, entry: u8, from: u8, chunk: u8, to: u8,

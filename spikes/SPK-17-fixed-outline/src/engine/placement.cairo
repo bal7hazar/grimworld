@@ -2,8 +2,8 @@
 //! tests left out), changed where a dungeon's outline is fixed at entry, each change marked
 //! `ENG-10a`:** `due` takes a dungeon's quotas from its hosts as a zone's (no forced window);
 //! `hosts` takes `layers`, the outline's chunks by distance from the entry, farthest first: a
-//! dungeon's exit and Heart are drawn first of all the quotas, in the farthest layer with an allowed
-//! chunk (review t-0088, major 1);
+//! dungeon's exit and Heart are drawn first of all the quotas, in the farthest layer with an
+//! allowed chunk (review t-0088, major 1);
 //! `place` lays a dungeon's exit and Heart first, on the spine's core (`CORE`). The original
 //! documentation follows, as it was; where it speaks of a dungeon's forced quotas, the marked
 //! changes replace it.
@@ -323,8 +323,7 @@ pub impl PlacementImpl of PlacementTrait {
                         let mut found: felt252 = 0;
                         for layer in layers {
                             if found == 0 {
-                                found =
-                                    BoardTrait::minus(BoardTrait::and(zone, *layer), blocked);
+                                found = BoardTrait::minus(BoardTrait::and(zone, *layer), blocked);
                             }
                         }
                         found

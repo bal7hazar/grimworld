@@ -41,7 +41,7 @@ and the re-audit measures it so.
   (`RevealLibrary`), `fate.cairo` (`EntropyTrait::word`, `hosts`), `contracts/ephemeral/src/systems/
   instances.cairo` (`begin`, `site`, `chunk_kind`, `instance_region`) and `store.cairo`.
 - **The measured residue** (D-208's record): SPK-17's `test_residue_eng05` on ENG-05's merged engine
-  puts the exit 1 chunk from the entry on 8 of 8 floors at `N` = 12, where the honest order put it at 7 to 11 chunks on five of them (45 chunks gained in all): the residue the gate removes.
+  puts the exit 1 chunk from the entry on 8 of 8 floors at `N` = 12, where the honest order put it at 7 to 11 chunks on five of them (45 chunks gained in all): the residue the gate removes; the zero-residue comparison with the seven orders fails on 4 of 4 floors there (`test_zero_residue_on_eng05_*`).
 - **The cost rules**: D-144 (every rise on the expedition's path, `enter` and `leave` included, is
   the project manager's before the merge); D-200, D-209 (`RevealLibrary` ≤ 50.5 %, `Instances` ≤ 51 %),
   D-210 (`HostsLibrary` < 50 %). The ENG-05 ceilings of ENG-01 §10 (*The D-144 ceilings of ENG-05*).
@@ -118,7 +118,7 @@ and the re-audit measures it so.
 | A3 | A zone is unchanged: every zone vector's output and every zone test's assertion unchanged; a zone's reveal gas within ±1 % (the kept draws) | `vectors/check.py`, the zone tests, GAS.md diff |
 | A4 | The exit and the Heart always land (review t-0088, major 1; the orchestrator: their hosts drawn **first**, before every other quota, in the farthest layer with an allowed chunk, never owed): over the A1 entropies, one exit and one Heart on their host chunks, in the farthest layer; **and a fixture of its own in the zero-residue test: floors whose farthest layer is a single chunk, with a set piece (2 packs, 3 objects) listed before the exit and the Heart, both placed in every order** (SPK-17 `test_zero_residue_piece_*`); with a set piece hosted on the exit's chunk, the set piece's own elements keep their tiles; the Heart at the band's top | snforge |
 | A5 | D-140: no panic on any legal content; a rectangle smaller than `N` gives the whole rectangle, connected | snforge (SPK-17 `test_outline_small_rectangle`) |
-| A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: 39,878 felts, 48.68 %, against 41,109), `HostsLibrary` under 50 % (SPK-17: 11,372 felts, 13.88 %, against 6,580), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
+| A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: 39,878 felts, 48.68 %, against 41,109), `HostsLibrary` under 50 % (SPK-17: 12,346 felts, 15.07 %, against 6,580), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
 | A7 | Gas (D-223, ruling 4): the entry that creates a floor measured on the node (`lifecycle_probe.py`, three runs each), after the one-Poseidon-word lever is tried; the D-144 table below filled with those figures and sent to the project manager **before** the merge with the cause of each rise | the report, ENG-01 §10 |
 | A8 | The documents of scope item 7 | the PR's diff |
 
@@ -129,7 +129,7 @@ dungeon**: **zero in chunks** (no chunk, seam, host, exit chunk or exit-to-entry
 that an order of moves changes) **and, in tiles, at most the measured bound** (review t-0088, minor
 2: the openings' tiles on a seam are drawn by whichever of its chunks is revealed first, so the walked
 distance from the entry tile to the exit's tile moves with the order: SPK-17 measured at most
-TILES_X tiles over the required orders; the re-audit re-measures it on the real path and states it
+**24 tiles** (the largest spread over the seven orders of one floor, 22 floors); the re-audit re-measures it on the real path and states it
 as such, never as zero). A residue above zero in chunks stops the merge; the tile figure goes to
 the project manager, who takes it to the Overseer. It checks: the seeds (227 for the outline, 225 for the hosts) read the entry
 draw only and are computed once; nothing a reveal reads is written after `create` but by the reveal's
@@ -140,7 +140,7 @@ the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero
 ## D-144: the rises it expects (E, from SPK-17; accepted in principle, D-223; the node's figures replace them before the merge)
 | Entrypoint | ENG-05's ceiling | What moves | Expected |
 |---|---:|---|---:|
-| `leave` to a dungeon floor | 8,276,640 | `HostsLibrary::floor` (4.10 M in snforge), the outline's 3 slots and one `hosts` slot a quota with a count (about 0.48 M each when new), the entry reveal without the guard (less) | about +7.0 M when the slots are new: ≈ 15.3 M (E) |
+| `leave` to a dungeon floor | 8,276,640 | `HostsLibrary::floor` (4.07 M in snforge), the outline's 3 slots and one `hosts` slot a quota with a count (about 0.48 M each when new), the entry reveal without the guard (less) | about +7.0 M when the slots are new: ≈ 15.3 M (E) |
 | `enter` or `enter_rift` into a dungeon floor (a gate whose destination has `N`) | no dungeon figure (the probe's `enter` is the zone's) | the same | the same rise over its own figure, measured first |
 | A reveal in play (ENG-07) in a dungeon | none yet | three slots read, the hosts' masks set; no guard | measured by ENG-07 |
 | A zone's `create`, `enter`, `leave` | ENG-05's | nothing (the kept draws) | 0 (A3) |
@@ -148,8 +148,7 @@ the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero
 ## Measure first
 Cairo builds and tests go through `scripts/lock.sh`, capped (`prlimit --as=8589934592`), with
 `--max-threads 2` (SPK-17 aborted on an 8 GiB allocation without it); SPK-17's whole suite peaked at
-2.15–2.22 GB resident (`/usr/bin/time -v`, two clean runs), 1 to 1.5 minutes. Keep generated tests small (FND-23): the zero-residue test is about 1.05 × 10⁹ L2 gas a
-group of four floors of 12 in SPK-17; split it by seeds.
+2.42–2.64 GB resident (`/usr/bin/time -v`, two clean runs), about 1.5 minutes. Keep generated tests small (FND-23): a zero-residue test of two floors of 12 with the tile walk is about 1.5 × 10⁹ L2 gas in SPK-17, and a dictionary walk of tiles took one such test to 3.4 × 10⁹ and the capped suite to a refused 1 GiB allocation; split by seeds and walk bit-parallel.
 
 ## Report
 The repository's thread report, with: each acceptance criterion and its evidence; the class sizes;

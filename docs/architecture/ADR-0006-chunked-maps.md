@@ -279,12 +279,29 @@ seam's openness, a host, the exit's chunk or tile, the Heart's chunk or tile, no
 chunks.
 
 **The zero-residue test** (deliverable 2, ENG-10b's merge gate): for a set of entropies and `N` in
-{6, 12}, every order of the reveals (by index, backward, nearest first, farthest first, which is
-t-0077's lever, and two drawn orders) gives the same chunk set (the outline), the same exit chunk (one
-exit, among the farthest), the same exit-to-entry distance through the revealed edges (the farthest
-distance), and the same edges in every chunk. SPK-17's `test_zero_residue_*` passes it on the changed
-engine (16 floors, 96 orders); `test_residue_eng05` runs the comparison on ENG-05's merged engine and
-**measures the residue there**: on 8 floors at `N` = 12, t-0077's forcing order (keep the entry's first open neighbour for the `N`-th reveal, avoid the chunks whose draw hits the exit) puts the exit **1 chunk** from the entry on **8 of 8**, where the honest order (the lowest revealable index first) put it at 11, 7, 10, 11 and 11 chunks on five of them (45 chunks gained in all; on the other three the honest order also found it at 1). The forcing order is free: no kill, no health, no item.
+{6, 12}, every one of seven orders of the reveals (by index, backward, nearest first, farthest first,
+two drawn, and **t-0077's forcing order**, the entry's first neighbour kept for the last reveal; review
+t-0088, minor 3), the entry first, gives the same chunk set (the outline), the same exit chunk and
+Heart chunk (one each, in the farthest layer), the same exit-to-entry distance in chunks through the
+revealed edges (the farthest distance), and the same edges in every chunk. SPK-17's
+`test_zero_residue_*` passes it on the changed engine: 16 floors, and 6 more whose farthest layer is
+one chunk with a set piece of 2 packs and 3 objects listed before the exit and the Heart (review
+t-0088, major 1), 154 orders in all. **The same comparison with the same seven orders fails on
+ENG-05's merged engine** (`test_zero_residue_on_eng05_*`, `N` = 12, four floors: 5, 5, 5 and 6 of
+the six other orders differ from the first). There, t-0077's forcing order (keep the entry's first
+open neighbour for the `N`-th reveal, avoid the chunks whose draw hits the exit) puts the exit **1
+chunk** from the entry on **8 of 8** floors, where the honest order (the lowest revealable index
+first) put it at 11, 7, 10, 11 and 11 chunks on five of them, **45 chunks gained in all**, and at 1 on
+the other three (`test_residue_eng05`). The forcing order is free: no kill, no health, no item.
+
+**The residue in tiles** (review t-0088, minor 2): the residue is **zero in chunks**, not in tiles.
+The openings' tiles on a seam are drawn by whichever of its two chunks is revealed first, so the
+walked distance from the entry tile to the exit's tile moves with the order. Measured once in
+SPK-17 (a breadth-first walk on the revealed floor, every order of the 22 floors above): the largest
+spread over the orders of one floor is **24 tiles** (73 to 97 tiles, `N` = 12); the spreads run from
+1 to 24, the walked distances from 29 to 124 tiles. A modified client can therefore shorten its walk
+to the exit by at most that much, not the floor: the exit's chunk, its tile and the chunks between
+stay fixed.
 
 **The shape this draw gives** (SPK-17 `test_outline_*`, 64 entropies each). **The law is the
 winding growth** (D-223, the project manager, 2026-10-07; SPK-17's `draw_winding`): the farthest

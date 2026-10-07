@@ -2,21 +2,22 @@
 //! 2026-10-07): for a set of entropies, every required order of the reveals gives the same chunk
 //! set, the same exit chunk and the same exit-to-entry distance in chunks (and the same edges, one
 //! exit and one Heart, in the outline's farthest layer). ENG-10b keeps it as `test_zero_residue` on
-//! the real path. The required orders: by index, backward, nearest first, farthest first, two drawn,
-//! and **t-0077's forcing order** (the entry's first neighbour kept for the last reveal; review
-//! t-0088, minor 3). Review t-0088's major 1 is a fixture of its own (`test_zero_residue_piece_*`):
-//! floors whose farthest layer is one chunk, with a set piece of 2 packs and 3 objects listed before
-//! the exit and the Heart.
+//! the real path. The required orders: by index, backward, nearest first, farthest first, two
+//! drawn, and **t-0077's forcing order** (the entry's first neighbour kept for the last reveal;
+//! review t-0088, minor 3). Review t-0088's major 1 is a fixture of its own
+//! (`test_zero_residue_piece_*`):
+//! floors whose farthest layer is one chunk, with a set piece of 2 packs and 3 objects listed
+//! before the exit and the Heart.
 //!
 //! **The tiles** (review t-0088, minor 2): the walked distance in tiles from the entry tile to the
 //! exit's tile is measured in every order, not compared: the openings' tiles on a seam are drawn by
-//! whichever of its two chunks is revealed first. Each test prints its largest spread over the orders
-//! of one floor.
+//! whichever of its two chunks is revealed first. Each test prints its largest spread over the
+//! orders of one floor.
 //!
 //! **The same assertions on ENG-05's engine** (`test_zero_residue_on_eng05_*`, a floor a test): the
 //! seven orders as strategies over what ENG-05 makes revealable, the comparison of `zero_residue`
-//! applied; it fails there, and each test asserts that it does. `test_residue_eng05` prints the honest order against the
-//! forcing one (the residue's figure).
+//! applied; it fails there, and each test asserts that it does. `test_residue_eng05` prints the
+//! honest order against the forcing one (the residue's figure).
 
 use core::poseidon::poseidon_hash_span;
 use grimworld_logic::fate::EntropyTrait;
@@ -93,8 +94,8 @@ fn orders(outline: @spk17::outline::Outline, entropy: felt252) -> Array<Array<u8
 
 /// ENG-10b's gate on the spike's engine, over `floors` floors of `n` chunks from the entropies
 /// counted from `first`; with review t-0088's set piece when `piece`, keeping only the floors whose
-/// farthest layer is one chunk. Returns the largest spread of the walked tile distance, entry tile to
-/// exit tile, over the orders of one floor.
+/// farthest layer is one chunk. Returns the largest spread of the walked tile distance, entry tile
+/// to exit tile, over the orders of one floor.
 fn zero_residue(n: u8, first: u32, floors: u32, piece: bool) -> u32 {
     let mut spread: u32 = 0;
     let mut done: u32 = 0;
@@ -235,8 +236,8 @@ pub mod order {
 /// ENG-05's floor revealed by one of the seven orders, as a strategy over what ENG-05 makes
 /// revealable at each step (its outline emerges, so no list of chunks is fixed in advance): the
 /// lowest or highest index, the nearest or farthest from the entry chunk, a drawn one, or t-0077's
-/// forcing order (keep `X`, the lowest open neighbour of the entry, for the `N`-th reveal; avoid the
-/// chunks whose `u` hits the exit; reveal `X` when nothing else can be).
+/// forcing order (keep `X`, the lowest open neighbour of the entry, for the `N`-th reveal; avoid
+/// the chunks whose `u` hits the exit; reveal `X` when nothing else can be).
 fn eng05_floor(entropy: felt252, n: u8, strategy: u8) -> Outcome {
     let site = eng05_site(n);
     let mut progress = eng05::ProgressTrait::new(@site, entropy);
@@ -291,9 +292,9 @@ fn eng05_floor(entropy: felt252, n: u8, strategy: u8) -> Outcome {
             } else {
                 let mut pick: Option<u8> = Option::None;
                 // `X` as the `N`-th chunk, where the exit still owed is forced
-                if kept != 255
-                    && progress.count + 1 == n
-                    && eng05::RevealTrait::revealable(@site, @progress, known.span(), kept) {
+                if kept != 255 && progress.count
+                    + 1 == n
+                        && eng05::RevealTrait::revealable(@site, @progress, known.span(), kept) {
                     pick = Option::Some(kept);
                 }
                 for c in others.span() {
@@ -317,9 +318,9 @@ fn eng05_floor(entropy: felt252, n: u8, strategy: u8) -> Outcome {
 }
 
 /// Review t-0088, minor 3: `zero_residue`'s comparison (the same chunk set, exit chunk and distance
-/// in chunks in every order) with the seven orders, once on ENG-05's merged engine, `N` = 12, on the
-/// four entropies of `test_zero_residue_n12_0` and `_1`, a floor a test: it fails there. Prints the
-/// orders whose outcome differs from the first; returns how many.
+/// in chunks in every order) with the seven orders, once on ENG-05's merged engine, `N` = 12, on
+/// the four entropies of `test_zero_residue_n12_0` and `_1`, a floor a test: it fails there. Prints
+/// the orders whose outcome differs from the first; returns how many.
 fn on_eng05(i: u32) -> u32 {
     let entropy = poseidon_hash_span(['spk17 residue', i.into()].span());
     let first = eng05_floor(entropy, 12, order::ASCENDING);
