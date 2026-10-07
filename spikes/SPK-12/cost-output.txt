@@ -43,3 +43,12 @@ Batches: D-172 stops a batch before a tick that would pass the limit, so each wo
 | the floor (representative:1), M | 37.4-37.5 s | 19-42 s | 0.20-0.46 % | 2.7-5.9 % |
 | busy:40, M | 70.8-78.1 s | 35-87 s | 0.39-0.95 % | 5.0-12.3 % |
 | 23 full worst ticks, ~4.3 M steps (T1 = 65 s x 2.6-3.1, E) | 170.4-203.9 s | 85-227 s | 0.93-2.48 % | 12.1-32.2 % |
+
+## S1 on ENG-07's measured batches (D-158): 30 batches, k of them a fight
+
+| batches | L2 gas | S1 | against 663 M |
+|---|--:|--:|--:|
+| 30 exploration batches, 4 reveals (E: the mix) | 618,994,859 | $0.545 | 0.93x |
+| 27 exploration + 3 fights at real health (4 ticks each) (E: the mix) | 1,134,539,477 | $1.000 | 1.71x |
+| 27 exploration + 3 whole fights (10 ticks of 8 attackers) (E: the mix) | 2,017,623,461 | $1.778 | 3.04x |
+| 27 exploration + 3 whole fights, lever 1 (at most 4 attackers) (E: the mix) | 1,665,397,859 | $1.467 | 2.51x |

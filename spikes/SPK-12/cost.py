@@ -158,5 +158,34 @@ def phone() -> None:
               f"{100 * SEGMENTS * b_hi:.1f} % |")
 
 
+# --- ENG-07 (D-233 to D-236): S1 on `play`'s measured batches ------------------------------------
+# Every input M: the node's six runs of `lifecycle_probe.py --play on` (the maximum), snforge for the
+# fight (`test_tick::test_cost_segment_fight*` less their fixtures, the segment in process: its call,
+# 1,409,090 M, added), ENG-05's accepted rises on `enter` and `leave` (PLAN's ENG-05 row).
+EXPLORATION_BATCH = 18_992_640  # 10 Moves, every tick on the fast path (node, M)
+REVEAL_IN_PLAY = 8_025_600  # one chunk revealed by a Move, end to end (node, M: 14,818,240 - 6,792,640)
+FIGHT_BATCH_REAL = 189_431_756 + 1_409_090  # 8 goblins attacking a tick, the member at 480: 4 ticks (M)
+FIGHT_BATCH_WHOLE = 483_793_084 + 1_409_090  # the same, the member standing 10 ticks (M)
+FIGHT_BATCH_CAP4 = 366_384_550 + 1_409_090  # lever 1, at most 4 attacking (M, the cap stood in for)
+ENTER_ENG05 = ENTER + 3_520_000  # ENG-05's rise, its worst (M, accepted under D-144)
+LEAVE_ENG05 = LEAVE + 6_730_000
+
+
+def eng07() -> None:
+    print("\n## S1 on ENG-07's measured batches (D-158): 30 batches, k of them a fight\n")
+    print("| batches | L2 gas | S1 | against 663 M |")
+    print("|---|--:|--:|--:|")
+    for k, name, fight in (
+        (0, "30 exploration batches, 4 reveals", 0),
+        (3, "27 exploration + 3 fights at real health (4 ticks each)", FIGHT_BATCH_REAL),
+        (3, "27 exploration + 3 whole fights (10 ticks of 8 attackers)", FIGHT_BATCH_WHOLE),
+        (3, "27 exploration + 3 whole fights, lever 1 (at most 4 attackers)", FIGHT_BATCH_CAP4),
+    ):
+        total = (30 - k) * EXPLORATION_BATCH + k * fight + 4 * REVEAL_IN_PLAY + ENTER_ENG05 \
+            + LEAVE_ENG05
+        print(f"| {name} (E: the mix) | {total:,.0f} | {usd(total)} | {total / S1_BATCHES:.2f}x |")
+
+
 if __name__ == "__main__":
     main()
+    eng07()

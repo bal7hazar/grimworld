@@ -1639,6 +1639,35 @@ That is an **upper bound**, not a demonstrated reachability (corrected in fix lo
 This is still an upper bound: it assumes runs spread over every index they can reach. Each dungeon
 run adds at most 12 × 22 = 264 keys ($0.11), only for indexes no earlier run of the slot used.
 
+**ENG-07's line (D-233 to D-236, measured; snforge on the VPS capped, each test less its fixture;
+the node the maximum of six runs of `lifecycle_probe.py --play on`).** The chain of a fight tick:
+`Instances.play` → `PlayLibrary` (in `Instances`' context) → `SegmentLibrary` (once a segment) →
+`ActionLibrary` (a combat action) and `TickLibrary` (a tick with a fight) → `AiLibrary` (step 2) →
+`ExecutorLibrary` (a carrier).
+
+| Figure | L2 gas | Source |
+|---|---:|---|
+| `AiLibrary`'s call alone, 8 awake goblins doing nothing | 3,954,544 | `test_cost_ai_call_returning` |
+| A tick with that call against the same tick with no call (accepted, D-233 #2) | 4,559,107 | `test_cost_ai_tick_returning` − `_busy` |
+| A tick with no goblin free in the window | no call | D-225 |
+| `SegmentLibrary`'s call, once a batch (D-236 #3) | 1,388,870 (exploration), 1,409,090 (fight) | `test_cost_segment_call_*` − `test_cost_segment_*` |
+| One tick, the 8 goblins attacking with their weapons in step 2 | ≈ 42,117,272 (42,636,642 at the rebased head) | `test_cost_ai_tick_attacks`, `test_cost_lever_tick_uncapped` |
+| The member's activation (Cinder Ring) in the same tick as the 8 attacks: **the worst tick measured** | **51,894,364** | `test_cost_landing` |
+| The fight batch, 10 Attacks, 8 goblins attacking every tick, the member at 20,000 (every tick a worst-case one) | **485,147,384** (snforge, in process); 485,202,174 through `SegmentLibrary` | `test_cost_segment_fight_whole`, `test_cost_segment_call_fight` |
+| The same at the member's real health (480): defeated on its 4th tick | 189,431,756 | `test_cost_segment_fight` |
+| Lever 1 (at most 4 attackers, the cap stood in for): a tick; the batch at real health; whole | 26,435,796; 253,005,613; 366,384,550 | `test_cost_lever_*` |
+| The exploration batch, 10 Moves, every tick on the fast path (node) | 18,992,640 (+ 5 %: 19,942,272) | `lifecycle_probe.py --play on` |
+| One Move, legal; refused (a wall) (node) | 6,792,640; 5,392,640 | the same |
+| A reveal in play, one chunk, end to end (node: a 1-Move walk revealing less a 1-Move batch) | 8,025,600 | the same |
+
+The fixed cost of a fight tick's chain before any hit (D-236 #4), from the calls measured: the
+`ActionLibrary` call with the whole words (2,578,020 to 3,323,680, this section's library call) +
+the `TickLibrary` call (≈ 4.17 M with 8 goblins, `rep_idle` − `rep_fixture` at CBT-05b's head) +
+`AiLibrary`'s 4,559,107: **≈ 11.3 M to 12.1 M a tick**; once a batch, `SegmentLibrary`'s ≈ 1.4 M and
+`PlayLibrary`'s reads and writes (the node's refused Move, 5,392,640, holds them with the
+transaction's base). **E-12's weight stays 2** (D-225: measured end to end): a reveal, 8,025,600,
+is about a sixth of a representative fight tick (≈ 47.4 M at real health).
+
 ### 9.3 Every public entrypoint: its complete write set
 
 Re-enumerated in fix loop 3 (F-2, F-3, F-4) as **sets of physical keys**. Every write is a key
