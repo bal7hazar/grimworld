@@ -12,7 +12,9 @@
 // failed and fixed (E-20), the map saved and opened again from its file. CLI-09c: ENG-08's sample
 // zone is refused without its content manifest, opens with it, validates, is exported for the chain
 // to the converter's records file, and its grimworld-export JSON opens again and exports the same.
-// Run by hand, not by CI:
+// CLI-09f: the bridge fixture validates; a bridge placed from the menu on a pond's bank spans the
+// water (a deck of 3); a character on its deck is refused (R-37) and undone; the walker walks onto
+// the deck. Run by hand, not by CI:
 // `node verify-editor.mjs`. Starts the dev server as its own process group and sends SIGTERM to that
 // recorded group in `finally`. The server inherits GRIMWORLD_ART_OUT (the built atlas, D-73: never
 // committed).
@@ -22,7 +24,8 @@
 //
 // Env: VERIFY_PORT (default 5199), VERIFY_CHANNEL, VERIFY_ROOT (the checkout whose dev server runs;
 // default this one), VERIFY_SHOTS_DIR, VERIFY_PACK_ONLY=1 (the pack's phase alone, after the map
-// list), VERIFY_EXPORT_ONLY=1 (the export's phase alone).
+// list), VERIFY_EXPORT_ONLY=1 (the export's phase alone), VERIFY_BRIDGE_ONLY=1 (the bridges'
+// phase alone).
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
@@ -167,9 +170,11 @@ async function run(browser, look) {
   await page.reload();
   await page.locator('[data-screen="list"]').waitFor();
   ok(await page.getByText("No draft yet.").isVisible(), "the map list opens, no draft");
-  if (process.env.VERIFY_PACK_ONLY === "1" || process.env.VERIFY_EXPORT_ONLY === "1") {
+  const alone = ["VERIFY_PACK_ONLY", "VERIFY_EXPORT_ONLY", "VERIFY_BRIDGE_ONLY"];
+  if (alone.some((name) => process.env[name] === "1")) {
     if (process.env.VERIFY_PACK_ONLY === "1") await packPhase(page, look, shot);
-    else await exportPhase(page, look, shot);
+    else if (process.env.VERIFY_EXPORT_ONLY === "1") await exportPhase(page, look, shot);
+    else await bridgePhase(page, look, shot);
     ok(foreign.length === 0, `no request beyond the page's origin (${foreign.length})`);
     ok(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
     await context.close();
@@ -354,6 +359,8 @@ async function run(browser, look) {
   await packPhase(page, look, shot);
   await page.getByRole("button", { name: "◂ Maps" }).click();
   await exportPhase(page, look, shot);
+  await page.getByRole("button", { name: "◂ Maps" }).click();
+  await bridgePhase(page, look, shot);
 
   // Below 700 px: one line.
   await page.setViewportSize({ width: 600, height: 900 });
@@ -817,6 +824,79 @@ async function packPhase(page, look, shot) {
   const after = JSON.stringify((await objectsOf(page)).map((o) => ({ ...o, id: 0 })));
   ok(after === before, "opened again from its file: the same objects");
   await shot("17-reloaded");
+}
+
+/**
+ * CLI-09f: bridges of one level (D-227, ADR-0008). The committed fixture (two ponds, a stone bridge
+ * North over 3 deck hexes, a covered bridge West over 2) validates; its stone bridge removed and
+ * placed again from the menu on the pond's southern bank spans the water; a character placed on its
+ * deck fails R-37 and is undone; the walker walks onto the deck, a water hex under it.
+ */
+async function bridgePhase(page, look, shot) {
+  console.log(`--- ${look}: bridges, one level (CLI-09f) ---`);
+  const exported = JSON.parse(
+    readFileSync(join(here, "src/editor/fixtures/bridge-zone.export.json"), "utf8"),
+  );
+  const [stone] = exported.bridges;
+  const [south] = stone.ends.map(([x, y]) => ({ x, y }));
+  const deck = stone.deck.map(([x, y]) => ({ x, y }));
+  const middle = deck[1];
+  await openFixture(page, "bridge-zone.grimmap.json");
+  for (const check of ["R-37", "E-24", "E-25", "R-34", "E-7"]) {
+    ok((await listed(page, check)) === 0, `the bridge fixture: no ${check}`);
+  }
+  await shot("18-bridges");
+
+  // The stone bridge removed, then placed again from the menu on the pond's southern bank.
+  await page.evaluate((at) => {
+    const s = window.__editor.session;
+    const [id] = [...s.doc.objects].find(
+      ([, o]) => o.kind === "bridge" && o.at.x === at.x && o.at.y === at.y,
+    );
+    s.select({ hexes: new Set(), objects: new Set([id]) });
+    s.deleteSelection();
+  }, south);
+  ok(
+    (await objectsOf(page)).filter((o) => o.kind === "bridge").length === 1,
+    "the stone bridge removed",
+  );
+  await page.locator('[data-category="bridge"]').click();
+  await page.locator('.ed-palette-grid [data-kind="stone_bridge"]').click();
+  const p = await hexAt(page, south);
+  await page.mouse.move(p.x, p.y);
+  await page.waitForTimeout(300);
+  await shot("19-bridge-preview");
+  await page.mouse.click(p.x, p.y);
+  await page.waitForTimeout(300);
+  const placed = (await objectsOf(page)).find(
+    (o) => o.kind === "bridge" && o.at.x === south.x && o.at.y === south.y,
+  );
+  ok(
+    placed?.type === "stone_bridge" && placed.deck === deck.length,
+    `placed on the bank: it spans the pond, a deck of ${placed?.deck} hexes`,
+  );
+  for (const check of ["R-37", "E-24", "E-25", "R-34"]) {
+    ok((await listed(page, check)) === 0, `placed: no ${check}`);
+  }
+  await shot("20-bridge-placed");
+
+  // Refused: a character on the deck (R-37), then undone.
+  await page.locator('[data-category="npc"]').click();
+  await page.locator('.ed-palette-grid [data-kind="pawn"]').click();
+  await clickHex(page, middle);
+  await page.waitForTimeout(400);
+  ok((await listed(page, "R-37")) === 1, "a character on the deck: R-37 fails");
+  await page.keyboard.press("y");
+  await page.locator('[data-finding="R-37"]').waitFor();
+  await shot("21-bridge-r37");
+  await page.locator('.ed-validation button[aria-label="Close the panel"]').click();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  ok((await listed(page, "R-37")) === 0, "undone: R-37 passes");
+
+  // The walk: onto the deck, over the water.
+  await walkPhase(page, look, shot, "bridge", middle);
 }
 
 /** ENG-08's samples (track game's, read only). */

@@ -80,7 +80,7 @@ function pond(doc: MapDocument, object: Extract<PackObject, { kind: "bridge" }>)
 
 /**
  * The fixture: chunk (0, 0) inside the outline, grass floor, one ring of water outside it so that
- * the outline is closed (E-3); two ponds, each crossed by a bridge; the entry in a corner.
+ * the outline is closed (E-3); two ponds, each crossed by a bridge; the entry South of the stone bridge.
  */
 function bridgeZone(): MapDocument {
   const doc = createMap({ kind: "zone", name: "Bridge pond", location: 2, biome: "meadow" });
@@ -95,7 +95,8 @@ function bridgeZone(): MapDocument {
   const covered = bridge(COVERED_EAST, "covered_bridge", 2, "west");
   pond(doc, stone);
   pond(doc, covered);
-  add(doc, { kind: "entry", at: { x: 1, y: 1 } });
+  // Two hexes South of the stone bridge: the walk's start sees its deck.
+  add(doc, { kind: "entry", at: { x: 7, y: 1 } });
   add(doc, stone);
   add(doc, covered);
   doc.origin = { x: 0, y: 0, how: "fitted" };
@@ -194,6 +195,8 @@ describe("the committed bridge fixture", () => {
     const doc = fixture();
     expect(errors(doc)).toEqual([]);
     for (const check of ["R-37", "E-24", "E-25", "R-34", "E-6", "E-7"]) passes(doc, check);
+    // With the content manifest, the converter's own checks run on its export too.
+    expect(validate(doc, MANIFEST).filter((f) => f.severity === "error")).toEqual([]);
   });
 });
 
@@ -351,7 +354,7 @@ describe("the deck is walkable (ADR-0008 rule 1)", () => {
   it("the preview walk's world: the deck is floor, its ground still water", () => {
     const doc = fixture();
     const frame = { x0: 0, y0: 0, width: 1, height: 1 };
-    const world = walkWorld(doc, frame, { start: { x: 1, y: 1 }, fog: false });
+    const world = walkWorld(doc, frame, { start: { x: 7, y: 1 }, fog: false });
     const [stone, covered] = bridgesOf(doc);
     for (const t of [...stone!.deck, ...covered!.deck]) {
       const i = t.y * CHUNK + t.x;
