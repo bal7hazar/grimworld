@@ -307,10 +307,15 @@ pub mod Instances {
         pub chunks: Map<(u32, u8), Chunk>,
         /// `(slot, entity)`: two consecutive slots each.
         pub goblins: Map<(u32, u16), Goblin>,
-        /// `(slot, quota)`: a zone's quota hosts, a chunk bitmap per quota with a count, drawn once
-        /// at the generation's start (D-208, ENG-05); never read in a dungeon, stale beyond the
-        /// current generation's quotas.
+        /// `(slot, quota)`: a location's quota hosts, a chunk bitmap per quota with a count, drawn
+        /// once at the generation's start (D-208, ENG-05; a dungeon floor's over its outline,
+        /// ENG-10b); stale beyond the current generation's quotas.
         pub hosts: Map<(u32, u8), felt252>,
+        /// `(slot, 0–2)`: a dungeon floor's outline, drawn once at the generation's start
+        /// (ENG-10b;
+        /// ADR-0006 §3, *A dungeon floor's outline, fixed at entry*): 0 its chunks, 1 its open
+        /// West seams, 2 its open North seams (`Outline`); never read in a zone.
+        pub outline: Map<(u32, u8), felt252>,
     }
 
     #[event]
@@ -554,12 +559,11 @@ pub mod Instances {
         /// Chunks `first .. first + count` of the instance (`count` at most `REGION_PAGE`; past
         /// chunk 224 nothing): each one's kind (design/02 *How the views tell them apart*: void,
         /// not yet revealed, revealed; the engine's rule, `RevealTrait::kind`, read here without
-        /// building a `Site`: `InternalTrait::kind`) and a revealed one's two words as stored. A
-        /// chunk not revealed is never read (§2.1). An id whose generation is not the slot's
-        /// current one answers nothing. The location's record (and a zone's chunk set) is read
-        /// once; a dungeon's chunk not revealed reads its revealed neighbours' terrain (their
-        /// edges). Each chunk's goblins are ENG-07's (the roster, `touched`): empty here (ENG-05
-        /// Open question 5).
+        /// building a `Site`: `InternalTrait::chunk_kind`) and a revealed one's two words as
+        /// stored. A chunk not revealed is never read (§2.1). An id whose generation is not the
+        /// slot's current one answers nothing. The location's record and a zone's chunk set, or a
+        /// dungeon floor's outline (ENG-10b), are read once. Each chunk's goblins are ENG-07's (the
+        /// roster, `touched`): empty here (ENG-05 Open question 5).
         fn instance_region(
             self: @ContractState, instance_id: InstanceId, first: u8, count: u8,
         ) -> Span<RegionChunk> {
@@ -574,12 +578,13 @@ pub mod Instances {
             let location: Location = LocationRecord::unpack(
                 registry.record(LOCATION, header.location.into()),
             );
+            // A zone's chunk set, a dungeon floor's outline (ENG-10b)
             let chunk_set = if location.target == 0 {
                 InternalTrait::bitmap(
                     registry.record(OUTLINE, OutlineTrait::id(header.location, CHUNK_SET)),
                 )
             } else {
-                0
+                self.get_outline_chunks(slot)
             };
             let revealed = self.get_revealed(slot).model().bits;
             let last: u16 = first.into() + count.into();
@@ -594,14 +599,7 @@ pub mod Instances {
                     let (terrain, features) = self.get_chunk_words(slot, chunk);
                     (ChunkKind::Revealed, terrain, features)
                 } else {
-                    (
-                        self
-                            .chunk_kind(
-                                slot, @location, chunk_set, revealed, header.revealed_count, chunk,
-                            ),
-                        0,
-                        0,
-                    )
+                    (InternalTrait::chunk_kind(@location, chunk_set, chunk), 0, 0)
                 };
                 out
                     .append(
@@ -806,12 +804,35 @@ pub mod Instances {
                 );
             let entropy = derive(word, draw, 0);
             // A zone's quota hosts, drawn once (D-208), carried above each chunk's mask; none to
-            // draw without a quota
+            // draw without a quota. A dungeon floor's outline and hosts, drawn once (ENG-10b),
+            // whether it has a quota or not
             let progress = ProgressTrait::new(@site, entropy);
             let mut site = site;
             let mut hosts: Span<felt252> = array![].span();
             let plan = QuotaPlacementTrait::plan(@site, progress.left.span());
-            if *location.target == 0 && plan != (0, 0) {
+            if *location.target != 0 {
+                let (drawn, floor, masks) = IHostsLibraryLibraryDispatcher {
+                    class_hash: self.get_hosts_library(),
+                }
+                    .floor(
+                        site.entry_chunk,
+                        site.target,
+                        site.width,
+                        site.height,
+                        plan,
+                        site.pieces,
+                        chunks.span(),
+                        entropy,
+                        id.into(),
+                    );
+                hosts = floor;
+                site.chunk_set = drawn.chunks;
+                site.west = drawn.west;
+                site.north = drawn.north;
+                site.masks = masks;
+                // [Effect] The floor's outline, once (its hosts with the zone's, below)
+                self.set_outline(slot, @drawn);
+            } else if plan != (0, 0) {
                 let seed = EntropyTrait::hosts(entropy, id.into());
                 let (drawn, masks) = IHostsLibraryLibraryDispatcher {
                     class_hash: self.get_hosts_library(),
@@ -974,6 +995,8 @@ pub mod Instances {
                 height: *location.height,
                 entry_chunk,
                 chunk_set,
+                west: 0,
+                north: 0,
                 masks: masks.span(),
                 anchors: array![(entry_chunk, entry_tile)].span(),
                 quotas,
@@ -985,59 +1008,14 @@ pub mod Instances {
         }
 
         /// The kind of a chunk not revealed (`RevealTrait::kind`'s rule, which the tests hold it
-        /// against): void outside the location's rectangle or a zone's chunk set; in a zone, not
-        /// yet revealed; in a dungeon, void once `N` chunks are revealed, or when revealed
-        /// neighbours face it and every one with a border, else not yet revealed.
-        fn chunk_kind(
-            self: @ContractState,
-            slot: u32,
-            location: @Location,
-            chunk_set: felt252,
-            revealed: felt252,
-            count: u8,
-            chunk: u8,
-        ) -> ChunkKind {
+        /// against): void outside the location's rectangle or its chunk set (a zone's, 0 for the
+        /// whole rectangle; a dungeon floor's outline, ENG-10b), else not yet revealed.
+        fn chunk_kind(location: @Location, chunk_set: felt252, chunk: u8) -> ChunkKind {
             let (cy, cx) = DivRem::div_rem(chunk, 15);
-            let target = *location.target;
             let inside = cx < *location.width
                 && cy < *location.height
-                && (target != 0 || chunk_set == 0 || BoardTrait::has(chunk_set, chunk));
-            if !inside {
-                return ChunkKind::Void;
-            }
-            if target == 0 {
-                return ChunkKind::Unrevealed;
-            }
-            if count >= target {
-                return ChunkKind::Void;
-            }
-            // [Compute] Its neighbours `(chunk, the bit of their edge facing it)`: West, East,
-            // South, North, those inside the rectangle
-            let mut faced = false;
-            let mut open = false;
-            let mut around: Array<(u8, u8)> = array![];
-            if cx + 1 < *location.width {
-                around.append((chunk + 1, 2));
-            }
-            if cx != 0 {
-                around.append((chunk - 1, 1));
-            }
-            if cy != 0 {
-                around.append((chunk - 15, 8));
-            }
-            if cy + 1 < *location.height {
-                around.append((chunk + 15, 4));
-            }
-            for entry in around.span() {
-                let (next, bit) = *entry;
-                if BoardTrait::has(revealed, next) {
-                    faced = true;
-                    if (self.get_terrain(slot, next).edges / bit) % 2 == 1 {
-                        open = true;
-                    }
-                }
-            }
-            if open || !faced {
+                && (chunk_set == 0 || BoardTrait::has(chunk_set, chunk));
+            if inside {
                 ChunkKind::Unrevealed
             } else {
                 ChunkKind::Void

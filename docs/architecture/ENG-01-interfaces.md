@@ -229,9 +229,12 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| `RevealLibrary` | 41,109 | **50.18 %** (D-209: at most 50.5 %) |
-| `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept) | 41,247 | **50.35 %** (D-209: at most 51 %; 29.05 % before ENG-05) |
-| `HostsLibrary` (D-210, D-220) | 6,580 | 8.03 % |
+| `RevealLibrary` (ENG-10b: a dungeon's outline read, its frontier guard gone, D-224's seam stream) | 40,220 | **49.10 %** (41,109, 50.18 % before ENG-10b; D-209: at most 50.5 %) |
+| `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept; ENG-10b: a floor's `HostsLibrary::floor` call and outline slots, `chunk_kind` a bit test) | 41,617 | **50.80 %** (41,247, 50.35 % before ENG-10b; D-209: at most 51 %; 29.05 % before ENG-05) |
+| `HostsLibrary` (D-210, D-220; ENG-10b: the floor's call, `floor`) | 13,809 | 16.86 % (6,580, 8.03 % before ENG-10b) |
+| `Registry` (ENG-10b: a `LOCATION`'s `N` at most 12) | 31,213 | 38.10 % |
+
+ENG-10b's figures: `class_sizes.py` on the VPS (Linux, Scarb 2.20.1), the PR's build.
 
 **Proposed by ENG-08 (SPK-16, not built): the authored path in a class of its own,
 `AuthoredLibrary`**, which ENG-09 builds: the hosts' draw among candidates at `create` and the
@@ -276,24 +279,20 @@ hosts above the board. `Instances` holds its class hash (`hosts_library`, §3.2)
 constructor and `set_contracts` and calls it **once at `create` in a zone with a quota** (none
 without), then writes the bitmaps (`hosts`, §3.2).
 
-**Proposed by ENG-10a (SPK-17, not built; ENG-10b builds it): a dungeon floor's outline at
-`create`.** ADR-0006 §3 (*A dungeon floor's outline, fixed at entry*): `HostsLibrary` gains the
-floor's call (`floor(entry, n, width, height, plan, pieces, chunks, outline_seed, hosts_seed) ->
-(outline, hosts, masks)`: the outline drawn (the winding law, D-223), its layers by distance, the
-hosts with the exit's and the Heart's drawn first in the farthest layer with room, the entry
-reveal's masks), called once at `create` in a dungeon; `RevealLibrary`
-reads the outline instead of drawing borders, and loses `decide`'s frontier guard. Measured on the
-spike's build (Linux, Scarb 2.20.1, `spikes/SPK-17-fixed-outline/sizes.py`; ENG-05's two classes from
-the same build as `build-external-contracts`, equal to the table above to the felt):
-
-| Class (SPK-17) | CASM felts | Share | Against |
-|---|---:|---:|---|
-| `FixedRevealLibrary` (`RevealLibrary` on ENG-05's engine with ENG-10a's changes, D-224's seam openings included) | 40,220 | **49.10 %** | `RevealLibrary` 41,109, 50.18 %: −889, under D-200's 50 % again |
-| `FloorLibrary` (`HostsLibrary` with the floor's call; the exit's and the Heart's hosts first, review t-0088) | 12,436 | **15.18 %** | `HostsLibrary` 6,580, 8.03 %: +5,856 |
-
-What `Instances` gains and loses (the floor's call and three slots in `begin`, the outline read in
-`site`; `chunk_kind`'s dungeon branch, which reads every revealed neighbour's terrain, replaced by a
-bit test) is not measured: ENG-10b measures it against D-209's 51 %.
+**Built by ENG-10b (ENG-10a's design, SPK-17): a dungeon floor's outline at `create`.** ADR-0006
+§3 (*A dungeon floor's outline, fixed at entry*): `HostsLibrary` has the floor's call,
+`floor(entry, n, width, height, plan, pieces, chunks, entropy, instance_id) -> (outline, hosts,
+masks)`: the outline drawn (`types::reveal::outline::OutlineTrait::draw`, the winding law, D-223,
+seeded by `EntropyTrait::outline`, counter 227), its layers by distance from the entry, the hosts
+(`PlacementTrait::floor_hosts`, seeded by `EntropyTrait::hosts`: the exit's and the Heart's drawn
+first in the farthest layer with room, then the others; a zone's `hosts` keeps its single pass) and
+the masks of the chunks the entry reveals. `Instances::begin` calls it once at `create` (and `leave`
+to a floor) in every dungeon floor, with or without a quota, and writes the outline's three felts
+(`outline`, §3.2) and the hosts. SPK-17's `floor(…, outline_seed, hosts_seed)` takes the entropy and
+the instance id instead: the two seeds derived in `Instances` put it at 51.01 % (D-209's 51 % passed
+by 6 felts), derived in the library 50.80 %. `RevealLibrary` reads the outline (`Site.chunk_set`,
+`west`, `north`) instead of drawing borders, and has lost `decide`'s frontier guard
+(`grows`, `opens_growth`, `widen`, `faced_open`). The classes are in the table above.
 
 ---
 
@@ -460,8 +459,8 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 | `roster` | (slot, page 0–3) | 1 each | `Lanes16`: entity ids of goblins displaced from their spawn, alive or dead and not looted; a compact list of `header.roster_count` entries | a goblin is displaced, is looted or goes home |
 | `chunks` | (slot, chunk 0–224) | **2** each | `Chunk { terrain, features }` | reveal (both); a pack wakes or an object is used (`features`) |
 | `goblins` | (slot, entity) | **2** each | `Goblin { state, timers }` | a goblin leaves its first state, acts, dies, is looted |
-| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only, never in a dungeon (**ENG-10a, proposed**: a dungeon floor's too, its exit's and Heart's drawn first of all the quotas, in the outline's farthest layer with an allowed chunk, the entry's left out, never owed for a count of 1: reviews t-0088, major 1, and t-0089, note 4) | `create` and `leave` to a zone (ENG-10a: and to a dungeon floor) |
-| `outline` | (slot, 0–2) | 1 each | **ENG-10a, proposed (ENG-10b builds it)**: a dungeon floor's outline drawn at `create` (ADR-0006 §3, *A dungeon floor's outline, fixed at entry*): 0 its chunks, 1 its open West seams (bit `c`: between `c` and `c + 1`), 2 its open North seams (bit `c`: between `c` and `c + 15`), bits `15 cy + cx`; read by every invocation that reveals in a dungeon, never in a zone | `create` and `leave` to a dungeon floor |
+| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only; a dungeon floor's too (ENG-10b), its exit's and Heart's drawn first of all the quotas, in the outline's farthest layer with an allowed chunk, the entry's left out, never owed for a count of 1 (reviews t-0088, major 1, and t-0089, note 4) | `create` and `leave` to a zone or a dungeon floor |
+| `outline` | (slot, 0–2) | 1 each | **ENG-10b** (ENG-10a's design): a dungeon floor's outline drawn at `create` (ADR-0006 §3, *A dungeon floor's outline, fixed at entry*): 0 its chunks, 1 its open West seams (bit `c`: between `c` and `c + 1`), 2 its open North seams (bit `c`: between `c` and `c + 15`), bits `15 cy + cx`; read by every invocation that reveals in a dungeon, never in a zone | `create` and `leave` to a dungeon floor |
 
 **`Placement`** (1 felt): slot 0–31 · generation 32–63 · member 64–71 · inside 72–79 · `LIVE`.
 
@@ -470,7 +469,7 @@ location 96–111 · status 112–119 (0 open, 1 returned, 2 defeated, 3 moved) 
 tasks 128–135 · revealed count 136–143 · roster count 144–151 · flags 152–159 (bit 0 sealed, Red
 Rift) · entry chunk 160–167 · entry tile 168–175 · gate 176–191 · `LIVE`.
 
-**`Quotas`** (1 felt): target `N` 0–7 (dungeon floor, 6–12; 0 in a zone) · open edges 8–15 (**ENG-10a, proposed**: 0 in both kinds, a floor's outline being drawn, not emerging; the bits kept) · left
+**`Quotas`** (1 felt): target `N` 0–7 (dungeon floor, 6–12; 0 in a zone) · open edges 8–15 (**ENG-10b**: 0 in both kinds, a floor's outline being drawn, not emerging; the bits kept) · left
 to place of quota `i` at `16 + 8 i`, 14 quotas (the location's registry list first, then the
 snapshotted tasks' quotas). ADR-0006: "two counters per quota", the second being the chunks left,
 `N − revealed count`.
@@ -2008,7 +2007,7 @@ quotas adds 221,010 for `CANDIDATES` and the hosts' draw (359,085 on the sample)
 is no dearer than the generated one at any measured point; ENG-09's node figures go to the project
 manager under D-144 (the expedition's path).
 
-**Proposed by ENG-10a (SPK-17, not built; snforge M, Linux, two clean builds equal to the unit,
+**Measured by ENG-10a on SPK-17 (before ENG-10b's build; snforge M, Linux, two clean builds equal to the unit,
 each a pair of tests that differ by the measured call alone, `spikes/SPK-17-fixed-outline/pairs.txt`;
 E marks a derived figure).** A dungeon floor of `N` = 12 in a 15 × 15 rectangle, its quotas an exit,
 a vein and a Heart; the winding growth (D-223), the exit's and the Heart's hosts drawn first (review
@@ -2032,6 +2031,38 @@ the number of hosts' slots). Every such rise is the project manager's under D-14
 on the node (`docs/briefs/ENG-10b-fixed-dungeon-outline.md`). **D-223** (the project manager,
 2026-10-07): accepted in principle; ENG-10b tries the one-Poseidon-word-a-step lever first and brings
 the node's figure before its merge.
+
+**Built by ENG-10b** (snforge on the VPS, Linux, Scarb 2.20.1, snforge 0.64.0; the node's figures
+from `contracts/tools/lifecycle_probe.py`, six runs, three before and three after merging CBT-05b,
+starknet-devnet 0.10.0; E marks a derived figure):
+
+| What | L2 gas | Source |
+|---|---:|---|
+| The outline at `N` = 12, the stream (the law kept) · the lever of D-223, ruling 4 (each step's draws from its own word, `mix(seed, step)`), not kept | **2,335,334** · 2,356,503 (+0.9 %), the mean of the same 16 seeds | `types::reveal::outline::tests::test_cost_outline_*` |
+| A floor's seam openings derived over its whole life (`N` = 12, 13 open seams): the outline's seed at each of 12 reveals · the 13 seams' streams and openings | **3,580,690**: 240,126 · 3,340,564 | `types::reveal::tests::test_cost_seams_*` |
+| `create` into a dungeon floor of 6 with an exit, a Heart and a vein (`HostsLibrary::floor`, the outline's three slots and the hosts written, the entry chunk revealed) | 8,847,412 | `test_lifecycle::test_cost_create_floor` |
+| A zone's hosts, single-pass as merged (the per-quota draw now an inlined function shared with the floor's): `test_hosts_worst_plan` · `_draws` · `_mixed` · `_half` | 1,988,734 · 2,641,840 · 1,888,481 · 98,157,254 (+4,000 to +4,200 each, +0.0 % to +0.2 %) | `types::reveal::tests` |
+
+**D-224 as amended (the project manager, 2026-10-07): derived.** Storing the openings would draw the
+same 13 seams at `create` (3,340,564 there, on the expedition's path) and add a slot written (about
+475,700 new, SPK-17), its packing and a read and an unpacking at every reveal, to save 240,126 of
+seeds over the floor's life: dearer by at least 235,000 over the life (E) and by about 3.8 M at
+`create` (E).
+
+On the node, against ENG-05's D-144 ceilings (above): the only rise is the entry that creates a
+floor; every zone figure stays under its ceiling (the probe's zone has its collector quota):
+
+| Entrypoint (`lifecycle_probe.py`) | ENG-05's ceiling | ENG-05's figures (#348) | ENG-10b, six runs | Rise |
+|---|---:|---:|---:|---|
+| `leave` to a dungeon floor (gate 6, floor 1: `N` 6, its exit quota) | 8,276,640 | 7,756,640–8,236,640 | **10,962,640 · 11,202,640 · 11,282,640 · 11,162,640 · 10,962,640 · 11,322,640** | **+3,046,000** over the ceiling at the maximum (+37 %); cause: `HostsLibrary::floor`'s call (the outline of 6, its layers, the exit's host drawn first) and the outline's three slots, written new, less the frontier guard. SPK-17's estimate was +7.0 M (at `N` = 12) |
+| `enter`, the adventurer's first | 14,294,400 | | 13,292,400 to 13,412,400 | none |
+| `enter`, a later entry | 7,502,400 | | 6,902,400 to 7,022,400 | none |
+| `enter`, a later entry, the belt's worst case | 8,262,400 | | 7,622,400 to 7,862,400 | none |
+| `leave` back into the zone | 11,640,640 | | 10,680,640 to 10,920,640 | none |
+
+`enter` (or `enter_rift`) into a dungeon floor is not a case of the probe (its `enter` is the zone's):
+in snforge, `create` into a floor of 6 costs 8,847,412 (above). The rise of `leave` to a floor goes
+to the project manager under D-144 before the merge (D-223, ruling 4).
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M

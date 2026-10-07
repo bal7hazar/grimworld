@@ -82,6 +82,15 @@ pub impl EntropyImpl of EntropyTrait {
     fn hosts(entropy: felt252, instance_id: felt252) -> felt252 {
         Self::word(entropy, instance_id, 225)
     }
+
+    /// The seed of a dungeon floor's outline (ENG-10a, D-223, `reveal::outline::OutlineTrait`),
+    /// drawn once at `create`: `derive(entropy, domain(instance_id, 227, REVEAL), 0)`, the word of
+    /// no chunk (0–224), nor of the hosts (225), nor of an authored zone's hosts (226, SPK-16).
+    /// A seam's openings are drawn from it too (D-224).
+    #[inline]
+    fn outline(entropy: felt252, instance_id: felt252) -> felt252 {
+        Self::word(entropy, instance_id, 227)
+    }
 }
 
 /// The vector table for the TypeScript mirror (VEC-01) is printed by `tests::test_vectors` and kept

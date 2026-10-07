@@ -68,6 +68,8 @@ fn site(kind: u8, heavy: bool) -> Site {
         height: 3,
         entry_chunk: 0,
         chunk_set: 0,
+        west: 0,
+        north: 0,
         masks: array![].span(),
         anchors: array![].span(),
         quotas,

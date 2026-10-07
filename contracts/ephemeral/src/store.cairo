@@ -37,6 +37,7 @@
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
 use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage};
+use grimworld_logic::types::reveal::outline::Outline;
 use starknet::storage::{
     StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersMutForward,
 };
@@ -209,7 +210,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.quotas.entry(slot).write(StoredTrait::new(quotas))
     }
 
-    /// A zone's host chunks of `quota` (D-208).
+    /// A location's host chunks of `quota` (D-208; a dungeon floor's, ENG-10b).
     #[inline(always)]
     fn get_hosts(self: @InstancesState, slot: u32, quota: u8) -> felt252 {
         self.hosts.entry((slot, quota)).read()
@@ -218,6 +219,20 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     #[inline(always)]
     fn set_hosts(ref self: InstancesState, slot: u32, quota: u8, hosts: felt252) {
         self.hosts.entry((slot, quota)).write(hosts)
+    }
+
+    /// A dungeon floor's chunks (ENG-10b): its outline's first felt, what the views read.
+    #[inline(always)]
+    fn get_outline_chunks(self: @InstancesState, slot: u32) -> felt252 {
+        self.outline.entry((slot, 0)).read()
+    }
+
+    /// A dungeon floor's outline (ENG-10b): its three felts, written once at the generation's
+    /// start.
+    fn set_outline(ref self: InstancesState, slot: u32, outline: @Outline) {
+        self.outline.entry((slot, 0)).write(*outline.chunks);
+        self.outline.entry((slot, 1)).write(*outline.west);
+        self.outline.entry((slot, 2)).write(*outline.north);
     }
 
     /// The first `pages` task pages as stored, in order: the view's. Bound: 4 pages (`MAX_TASKS`).
@@ -385,8 +400,8 @@ mod layout_tests {
 
     // Every map is named and keyed as documented: slot first (M-1), adventurer only for placements.
     #[test]
-    // gas: raised, ENG-05: D-208, a zone's quota hosts (drawn at entry, carried above the masks)
-    #[available_gas(l2_gas: 206115)] // ceil(1.05 × 196300 measured)
+    // gas: raised, ENG-10b: the outline map's address checked too
+    #[available_gas(l2_gas: 227105)] // ceil(1.05 × 216290 measured)
     fn test_instances_storage_addresses() {
         let state = @Instances::contract_state_for_testing();
         assert(
@@ -418,6 +433,12 @@ mod layout_tests {
                 state.hosts.entry((7, 3)).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("hosts"), array![7, 3].span()),
             'hosts',
+        );
+        assert(
+            address_of(
+                state.outline.entry((7, 2)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("outline"), array![7, 2].span()),
+            'outline',
         );
         assert(
             address_of(

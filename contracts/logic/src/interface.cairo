@@ -8,6 +8,7 @@ use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::action::Illegal;
 use crate::types::executor::{Board, Cache, Carrier};
+use crate::types::reveal::outline::Outline;
 use crate::types::reveal::{Progress, Site};
 use crate::types::tick::Content;
 use crate::types::world::{Actor, Words};
@@ -181,9 +182,9 @@ pub trait IFlattenLibrary<T> {
     ) -> (felt252, felt252, felt252);
 }
 
-/// A zone's quota hosts as a library class (ENG-01 §1.3, ENG-05, D-210): `Instances` calls it
-/// through `IHostsLibraryLibraryDispatcher` once at `create` in a zone with quotas, the class hash
-/// being its configuration.
+/// A location's quota hosts as a library class (ENG-01 §1.3, ENG-05, D-210): `Instances` calls it
+/// through `IHostsLibraryLibraryDispatcher` once at `create`, in a zone with quotas (`hosts`) or in
+/// a dungeon floor (`floor`, ENG-10b), the class hash being its configuration.
 #[starknet::interface]
 pub trait IHostsLibrary<T> {
     /// The host chunks of each of the 14 quotas of `plan` (`PlacementTrait::plan`) in the zone
@@ -201,6 +202,25 @@ pub trait IHostsLibrary<T> {
         masks: Span<(u8, felt252)>,
         seed: felt252,
     ) -> (Span<felt252>, Span<(u8, felt252)>);
+    /// A dungeon floor at `create` (ENG-10b; ADR-0006 §3, *A dungeon floor's outline, fixed at
+    /// entry*): its outline of `n` chunks entered at `entry` in the `width × height` rectangle,
+    /// drawn from the instance's `entropy` (`OutlineTrait::draw`, seeded by
+    /// `EntropyTrait::outline`); the host chunks of each quota of `plan` over it
+    /// (`PlacementTrait::hosts`, seeded by `EntropyTrait::hosts`: the exit and the Heart first,
+    /// among its farthest chunks); and the masks of `chunks`, the chunks the entry reveals, with
+    /// the quotas each hosts above the board.
+    fn floor(
+        self: @T,
+        entry: u8,
+        n: u8,
+        width: u8,
+        height: u8,
+        plan: (felt252, felt252),
+        pieces: Span<(u16, SetPiece)>,
+        chunks: Span<u8>,
+        entropy: felt252,
+        instance_id: felt252,
+    ) -> (Outline, Span<felt252>, Span<(u8, felt252)>);
 }
 
 /// The chunk reveal's library class (ENG-01 §1.3, ENG-05): `Instances` calls it through

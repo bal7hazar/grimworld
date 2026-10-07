@@ -1,30 +1,25 @@
 //! The constraints and the placement of a reveal (ADR-0006 §3, design/18 *Features*): the quotas
-//! (a zone's on hosts drawn at entry, a dungeon's hit or forced), the band of a chunk, then the
-//! packs and the objects in the `Features` word.
+//! (on hosts drawn at entry, a zone's and a dungeon floor's), the band of a chunk, then the packs
+//! and the objects in the `Features` word.
 //!
-//! - **Quotas** (`due`). **In a zone** (D-208, D-210, D-220, the project manager): each quota's
-//!   host chunks are drawn once at `create` by `HostsLibrary` (`hosts`): its `count` members of
-//!   the zone among those it would not push past a chunk's caps (3 objects, 2 packs, one set
-//!   piece, a set piece's own objects and packs counted), an exact draw without replacement from
-//!   the instance's entropy, no cap on the draws (a quota stops when no allowed member is left;
-//!   above half of them, the members to leave out are drawn, `subset`); one bitmap per quota,
-//!   carried above each chunk's mask (bit `225 + i`). A chunk holds the quota exactly when it
-//!   hosts it, and nothing is ever forced on "the last chunks": no order of moves chooses where a
-//!   zone's quota lands. A quota with fewer allowed members than its count keeps fewer hosts, the
-//!   rest owed for good, never placed; a set-piece quota whose piece is not in the registry stays
-//!   owed; a host whose chunk has no allowed tile left (the terrain, which no draw at entry
-//!   knows) does not lay it. A pack, the Heart's included, holds at least one goblin. **In a
-//!   dungeon**, whose chunks are not known before they are revealed, each quota with a count draws
-//!   `u = draw(N)` from the chunk's own word and is due when `u < count` and something is left,
-//!   and is **forced** when
-//!   what is left reaches the chunks left (`left ≥ chunks left`, "chunks left" counting this one:
-//!   `N − revealed`), so the last chunks hold what is still owed; never placed with nothing left.
-//!   At most one of each quota a chunk. **A dungeon's quotas stay order-dependent** (D-208,
-//!   accepted as the dungeon's nature): its outline emerges from the order of the moves, so the
-//!   forced window (at most the last `count` chunks), a quota whose draws hit more chunks than its
-//!   count (the first revealed take it) and the `N`-th chunk follow that order; an exit's position
-//!   with them. A Heart's pack takes the band's top level wherever it lands, so that no order
-//!   lowers the boss.
+//! - **Quotas** (`due`). Each quota's host chunks are drawn once at `create` by `HostsLibrary`
+//!   (`hosts`; a zone's: D-208, D-210, D-220, the project manager; a dungeon floor's over its
+//!   outline, drawn at the same `create`: ENG-10a, D-223, ENG-10b): its `count` members of the
+//!   zone or the outline among those it would not push past a chunk's caps (3 objects, 2 packs,
+//!   one set piece, a set piece's own objects and packs counted), an exact draw without
+//!   replacement from the instance's entropy, no cap on the draws (a quota stops when no allowed
+//!   member is left; above half of them, the members to leave out are drawn, `subset`); one
+//!   bitmap per quota, carried above each chunk's mask (bit `225 + i`). A chunk holds the quota
+//!   exactly when it hosts it, and nothing is ever forced on "the last chunks": no order of moves
+//!   chooses where a quota lands. A quota with fewer allowed members than its count keeps fewer
+//!   hosts, the rest owed for good, never placed; a set-piece quota whose piece is not in the
+//!   registry stays owed; a host whose chunk has no allowed tile left (the terrain, which no draw
+//!   at entry knows) does not lay it. A pack, the Heart's included, holds at least one goblin.
+//!   **In a dungeon** (D-223, review t-0088, major 1) the exit's and the Heart's hosts are drawn
+//!   first, before every other quota, among the outline's farthest chunks from the entry (the
+//!   farthest layer that has an allowed chunk, the entry's left out: never owed for a count of
+//!   1), and in their chunk they are laid first, on the spine's core (`CORE`), whatever the seams;
+//!   a Heart's pack takes the band's top level (D-208).
 //! - **Bands** (`level`): `level_min + (level_max − level_min) × min(d, D) / D`, `d` the chunk's
 //!   distance in chunks to the entry chunk (`|dcx| + |dcy|`), `D` the farthest a chunk can be (a
 //!   zone: `width + height − 2`; a dungeon: `N − 1`); a pack adds its template's offset, held
@@ -61,6 +56,11 @@ pub const QUOTAS: u8 = 14;
 pub const LOCATION_QUOTAS: u8 = 6;
 /// Draws of a tile by rejection before the exact draw (`PlacementTrait::tile`).
 pub const TRIES: u8 = 16;
+/// The spine's core, rows and columns 3 to 11 of row 7 and column 7 (17 tiles): floor in every
+/// generated chunk (`BoardTrait::lines` lays the spine, the centre's component holds it) and at
+/// least 3 from the ring, so never within 2 of an opening; a dungeon's exit and Heart are laid on
+/// it (`place`, ENG-10b).
+pub const CORE: felt252 = 0x100020004000801ff002000400080010000000000000;
 
 /// What a reveal places in a chunk, built in order.
 #[derive(Drop)]
@@ -128,12 +128,6 @@ pub impl PlacementImpl of PlacementTrait {
     /// another.
     fn due(site: @Site, progress: @Progress, mask: felt252, ref rng: Rng) -> u16 {
         let total = site.total();
-        let revealed = *progress.count;
-        let chunks: u8 = if total > revealed {
-            total - revealed
-        } else {
-            1
-        };
         let bound: u128 = if total == 0 {
             1
         } else {
@@ -157,7 +151,6 @@ pub impl PlacementImpl of PlacementTrait {
                 0
             });
         }
-        let emerging = site.emerging();
         let mut lefts = progress.left.span();
         let mut due: u16 = 0;
         let mut bit: u16 = 1;
@@ -168,14 +161,11 @@ pub impl PlacementImpl of PlacementTrait {
                 Option::None => { break; },
             };
             if count != 0 {
-                let u = rng.draw(bound);
-                // A zone's quota on its hosts alone (D-208): never forced on the last chunks
-                let hit = if emerging {
-                    u < count.into() || left >= chunks
-                } else {
-                    BoardTrait::has(mask, host)
-                };
-                if left != 0 && hit {
+                // ENG-05's draw kept, unread, so that a zone's streams do not move
+                let _u = rng.draw(bound);
+                // A quota on its hosts alone (D-208; ENG-10b: a dungeon's too, drawn at `create`
+                // over its outline): never forced on the last chunks
+                if left != 0 && BoardTrait::has(mask, host) {
                     due += bit;
                 }
             }
@@ -215,7 +205,8 @@ pub impl PlacementImpl of PlacementTrait {
         (low, high)
     }
 
-    /// A zone's quota hosts (D-208, D-210, module doc), drawn once at `create` by `HostsLibrary`:
+    /// A zone's quota hosts (D-208, D-210, module doc), drawn once at `create` by
+    /// `HostsLibrary`:
     /// for each quota of the plan (`plan`), in order, its `count` chunks of the zone (`zone`, its
     /// chunk set within the `width × height` rectangle, or 0 for the whole rectangle), an exact
     /// draw without replacement from `seed` (`EntropyTrait::hosts`) over the quota's **allowed**
@@ -275,73 +266,180 @@ pub impl PlacementImpl of PlacementTrait {
             }
             let (above, count) = DivRem::div_rem(entry, 0x100);
             let (param, kind) = DivRem::div_rem(above, 0x100);
-            let count: u8 = count.try_into().unwrap();
-            let need = Self::need(kind.try_into().unwrap(), param.try_into().unwrap(), pieces);
-            let (rest_need, n_objects) = DivRem::div_rem(need, 4);
-            let (n_pieces, n_packs) = DivRem::div_rem(rest_need, 4);
-            // [Compute] The allowed members: not at a level the quota would pass
-            let [o1, o2, o3] = objects;
-            let [p1, p2] = packs;
-            let mut blocked: felt252 = 0;
-            if n_objects == 1 {
-                blocked = o3;
-            } else if n_objects == 2 {
-                blocked = o2;
-            } else if n_objects >= 3 {
-                blocked = o1;
-            }
-            if n_packs == 1 {
-                blocked = BoardTrait::or(blocked, p2);
-            } else if n_packs >= 2 {
-                blocked = BoardTrait::or(blocked, p1);
-            }
-            if n_pieces != 0 {
-                blocked = BoardTrait::or(blocked, piece);
-            }
-            let allowed = BoardTrait::minus(zone, blocked);
-            let left: u8 = BoardTrait::count(allowed);
-            // [Compute] The indices the draw takes: as many as the subset or its complement holds
-            let wide: u16 = count.into() * 2;
-            let draws: u8 = if count >= left {
-                0
-            } else if wide > left.into() {
-                left - count
-            } else {
-                count
-            };
-            let mut indices: Array<u8> = array![];
-            let mut k: u8 = 0;
-            while k != draws {
-                let word: u256 = poseidon_hash_span([seed, t].span()).into();
-                t += 1;
-                let bound: u128 = (left - k).into();
-                let (_, j) = DivRem::div_rem(word.low, bound.try_into().unwrap());
-                indices.append(j.try_into().unwrap());
-                k += 1;
-            }
-            let mask = Self::subset(allowed, left, count, indices.span());
-            // [Compute] The levels after this quota's hosts
-            let [mut o1, mut o2, mut o3] = objects;
-            for _ in 0..n_objects {
-                let at_two = BoardTrait::and(mask, o2);
-                let at_one = BoardTrait::and(mask, o1);
-                o3 = BoardTrait::or(o3, at_two);
-                o2 = BoardTrait::or(o2, at_one);
-                o1 = BoardTrait::or(o1, mask);
-            }
-            objects = [o1, o2, o3];
-            let [mut p1, mut p2] = packs;
-            for _ in 0..n_packs {
-                p2 = BoardTrait::or(p2, BoardTrait::and(mask, p1));
-                p1 = BoardTrait::or(p1, mask);
-            }
-            packs = [p1, p2];
-            if n_pieces != 0 {
-                piece = BoardTrait::or(piece, mask);
-            }
+            let mask = Self::draw_hosts(
+                zone,
+                array![].span(),
+                false,
+                count.try_into().unwrap(),
+                Self::need(kind.try_into().unwrap(), param.try_into().unwrap(), pieces),
+                seed,
+                ref t,
+                ref objects,
+                ref packs,
+                ref piece,
+            );
             out.append(mask);
         }
         out
+    }
+
+    /// A dungeon floor's quota hosts (ENG-10b; D-223, review t-0088, major 1; the orchestrator),
+    /// drawn once at `create` by `HostsLibrary::floor`, as a zone's (`hosts`) over the floor's
+    /// `outline` (its chunks), but in two passes: first the exit's and the Heart's, each in the
+    /// farthest of `layers` (the outline's chunks by distance from the entry, farthest first, the
+    /// entry's left out: `OutlineTrait::layers`) that has an allowed member, so that no cap set by
+    /// a quota listed before them blocks them (never owed for a count of 1); then every other quota
+    /// in its order, among the whole outline. One stream of draws (`t`) for both passes.
+    fn floor_hosts(
+        outline: felt252,
+        plan: (felt252, felt252),
+        pieces: Span<(u16, SetPiece)>,
+        seed: felt252,
+        layers: Span<felt252>,
+    ) -> Array<felt252> {
+        let mut objects: [felt252; 3] = [0, 0, 0];
+        let mut packs: [felt252; 2] = [0, 0];
+        let mut piece: felt252 = 0;
+        let mut early: Array<felt252> = array![];
+        let mut t: felt252 = 0;
+        let mut out: Array<felt252> = array![];
+        for pass in 0..2_u8 {
+            let (first, second) = plan;
+            let mut rest: u256 = first.into();
+            let mut next: u256 = second.into();
+            let mut i: u8 = 0;
+            while rest != 0 || next != 0 {
+                if i == 7 {
+                    rest = next;
+                    next = 0;
+                }
+                i += 1;
+                let (above, entry) = DivRem::div_rem(rest, 0x100000000);
+                rest = above;
+                let (above, count) = DivRem::div_rem(entry, 0x100);
+                let (param, kind) = DivRem::div_rem(above, 0x100);
+                let kind: u8 = kind.try_into().unwrap();
+                let restricted = entry != 0 && (kind == quota::EXIT || kind == quota::HEART);
+                if pass == 1 && restricted {
+                    out.append(early.pop_front().unwrap());
+                } else if pass == 1 && entry == 0 {
+                    out.append(0);
+                } else if pass == 1 || restricted {
+                    let mask = Self::draw_hosts(
+                        outline,
+                        layers,
+                        restricted,
+                        count.try_into().unwrap(),
+                        Self::need(kind, param.try_into().unwrap(), pieces),
+                        seed,
+                        ref t,
+                        ref objects,
+                        ref packs,
+                        ref piece,
+                    );
+                    if pass == 0 {
+                        early.append(mask);
+                    } else {
+                        out.append(mask);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// One quota's hosts (`hosts`): its `count` members drawn among those allowed, the members of
+    /// `zone` not at a cap its `need` (`need`) would pass; for a dungeon's exit or Heart
+    /// (`restricted`), those of the farthest layer of `layers` that has one. The caps then raised
+    /// by the hosts drawn. Inlined, so that a zone's draw keeps its cost before ENG-10b.
+    #[inline(always)]
+    fn draw_hosts(
+        zone: felt252,
+        layers: Span<felt252>,
+        restricted: bool,
+        count: u8,
+        need: u8,
+        seed: felt252,
+        ref t: felt252,
+        ref objects: [felt252; 3],
+        ref packs: [felt252; 2],
+        ref piece: felt252,
+    ) -> felt252 {
+        let (rest_need, n_objects) = DivRem::div_rem(need, 4);
+        let (n_pieces, n_packs) = DivRem::div_rem(rest_need, 4);
+        // [Compute] The allowed members: not at a level the quota would pass
+        let [o1, o2, o3] = objects;
+        let [p1, p2] = packs;
+        let mut blocked: felt252 = 0;
+        if n_objects == 1 {
+            blocked = o3;
+        } else if n_objects == 2 {
+            blocked = o2;
+        } else if n_objects >= 3 {
+            blocked = o1;
+        }
+        if n_packs == 1 {
+            blocked = BoardTrait::or(blocked, p2);
+        } else if n_packs >= 2 {
+            blocked = BoardTrait::or(blocked, p1);
+        }
+        if n_pieces != 0 {
+            blocked = BoardTrait::or(blocked, piece);
+        }
+        // ENG-10b: a dungeon's exit and Heart in the farthest layer that has an allowed member
+        // (`layers`, farthest first, the entry's left out): never owed for a count of 1
+        let allowed = if restricted {
+            let mut found: felt252 = 0;
+            for layer in layers {
+                if found == 0 {
+                    found = BoardTrait::minus(BoardTrait::and(zone, *layer), blocked);
+                }
+            }
+            found
+        } else {
+            BoardTrait::minus(zone, blocked)
+        };
+        let left: u8 = BoardTrait::count(allowed);
+        // [Compute] The indices the draw takes: as many as the subset or its complement holds
+        let wide: u16 = count.into() * 2;
+        let draws: u8 = if count >= left {
+            0
+        } else if wide > left.into() {
+            left - count
+        } else {
+            count
+        };
+        let mut indices: Array<u8> = array![];
+        let mut k: u8 = 0;
+        while k != draws {
+            let word: u256 = poseidon_hash_span([seed, t].span()).into();
+            t += 1;
+            let bound: u128 = (left - k).into();
+            let (_, j) = DivRem::div_rem(word.low, bound.try_into().unwrap());
+            indices.append(j.try_into().unwrap());
+            k += 1;
+        }
+        let mask = Self::subset(allowed, left, count, indices.span());
+        // [Compute] The levels after this quota's hosts
+        let [mut o1, mut o2, mut o3] = objects;
+        for _ in 0..n_objects {
+            let at_two = BoardTrait::and(mask, o2);
+            let at_one = BoardTrait::and(mask, o1);
+            o3 = BoardTrait::or(o3, at_two);
+            o2 = BoardTrait::or(o2, at_one);
+            o1 = BoardTrait::or(o1, mask);
+        }
+        objects = [o1, o2, o3];
+        let [mut p1, mut p2] = packs;
+        for _ in 0..n_packs {
+            p2 = BoardTrait::or(p2, BoardTrait::and(mask, p1));
+            p1 = BoardTrait::or(p1, mask);
+        }
+        packs = [p1, p2];
+        if n_pieces != 0 {
+            piece = BoardTrait::or(piece, mask);
+        }
+        mask
     }
 
     /// The `count` members of `allowed` (`left` of them) a draw takes (`hosts`, D-220): all of them
@@ -652,6 +750,81 @@ pub impl PlacementImpl of PlacementTrait {
             odd,
             level: Self::level(site, chunk),
         };
+        // [Compute] ENG-10b: a dungeon's exit and Heart first, each on a tile of the spine's core
+        // (`CORE`), which no opening and no anchor of a chunk that is not the entry's comes within
+        // 2 of, whatever the seams, less the set piece's own tiles: both always land, on a tile
+        // that no order of the reveals moves (the Heart's goblins beyond goblin 0 among the
+        // allowed tiles, as before)
+        let mut first: u16 = 0;
+        if site.emerging() {
+            let mut reserved: felt252 = 0;
+            if let Option::Some((_, set)) = piece {
+                for entry in set.packs.span() {
+                    if *entry.template != 0 {
+                        reserved = BoardTrait::or(reserved, BoardTrait::pow(*entry.tile));
+                    }
+                }
+                for entry in set.objects.span() {
+                    if *entry.kind != 0 {
+                        reserved = BoardTrait::or(reserved, BoardTrait::pow(*entry.tile));
+                    }
+                }
+            }
+            let mut core = BoardTrait::minus(CORE, reserved);
+            let mut i: u8 = 0;
+            let mut rest = due;
+            while i != QUOTAS {
+                let (above, bit) = DivRem::div_rem(rest, 2);
+                rest = above;
+                if bit == 1 {
+                    let (kind, param) = Self::slot(site, i);
+                    if kind == quota::EXIT || kind == quota::HEART {
+                        // The tile drawn among the core's, then taken from what is allowed
+                        let allowed = placement.allowed;
+                        placement.allowed = core;
+                        let drawn = placement.tile(ref rng);
+                        core = placement.allowed;
+                        placement.allowed = BoardTrait::minus(allowed, reserved);
+                        let done = match drawn {
+                            Option::None => false,
+                            Option::Some(tile) => {
+                                if kind == quota::EXIT {
+                                    if placement.take(tile) {
+                                        placement
+                                            .objects
+                                            .append(
+                                                Object {
+                                                    tile, kind: object::EXIT, state: 0, param,
+                                                },
+                                            );
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                } else {
+                                    let band = placement.level;
+                                    placement.level = *site.level_max;
+                                    let done = placement
+                                        .pack(ref rng, site, param, Option::Some(tile));
+                                    placement.level = band;
+                                    done
+                                }
+                            },
+                        };
+                        placement
+                            .allowed =
+                                BoardTrait::or(
+                                    placement.allowed, BoardTrait::and(allowed, reserved),
+                                );
+                        if done {
+                            placement.placed += Self::bit(i);
+                        }
+                        first += Self::bit(i);
+                    }
+                }
+                i += 1;
+            }
+        }
         // [Compute] The set piece's own packs and objects
         if let Option::Some((slot, set)) = piece {
             placement.placed += Self::bit(slot);
@@ -668,9 +841,9 @@ pub impl PlacementImpl of PlacementTrait {
                 }
             }
         }
-        // [Compute] The quotas due, in order
+        // [Compute] The quotas due, in order (ENG-10b: but those laid first)
         let mut i: u8 = 0;
-        let mut rest = due;
+        let mut rest = due - first;
         while i != QUOTAS {
             let (above, bit) = DivRem::div_rem(rest, 2);
             rest = above;

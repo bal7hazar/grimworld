@@ -42,8 +42,8 @@ use grimworld_logic::types::passive::{
     Passive, PassiveTrait, Source, errors as passive_errors, id as passive_id,
 };
 use grimworld_persistent::systems::registry::errors::{
-    NOT_ADMIN, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT, TOO_MANY, ZERO_ADMIN,
-    ZERO_ID,
+    FLOOR_SIZE, NOT_ADMIN, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT, TOO_MANY,
+    ZERO_ADMIN, ZERO_ID,
 };
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait, IRegistryAdminSafeDispatcher,
@@ -155,7 +155,8 @@ fn test_set_record_new_sequential() {
 
 // An existing record's values change (design/01 rule 2: ids are append-only, values are not).
 #[test]
-#[available_gas(l2_gas: 5006789)] // ceil(1.05 × 4768370 measured)
+// gas: raised, ENG-10b: a LOCATION record's content check (N at most 12)
+#[available_gas(l2_gas: 5355273)] // ceil(1.05 × 5100260 measured)
 fn test_set_record_existing_changes() {
     let r = Fixture::deploy();
     r.admin.set_record(LOCATION, 1, Felts::two(5, 6));
@@ -381,6 +382,20 @@ fn test_bundle_version_and_order() {
     assert(v == 4 && records == Felts::one(7), 'after a change');
     let (v, _, records) = r.read.bundle(array![].span());
     assert(v == 4 && records.len() == 0, 'no request');
+}
+
+// ENG-10b (CM-9; D-223, ruling 5): a dungeon floor holds at most 12 chunks. A `LOCATION` whose
+// `N` (bits 72–79 of part 0) is 12 is accepted, 13 refused, the record kept.
+#[test]
+#[available_gas(l2_gas: 4419190)] // ceil(1.05 × 4208752 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_floor_size() {
+    let r = Fixture::deploy();
+    let n: felt252 = 0x1000000000000000000;
+    assert_accepted(try_write(r, LOCATION, Felts::two(12 * n, 0)));
+    assert_refused(r.safe.set_record(LOCATION, 1, Felts::two(13 * n, 0)), FLOOR_SIZE);
+    assert_refused(try_write(r, LOCATION, Felts::two(255 * n, 0)), FLOOR_SIZE);
+    assert(r.read.record(LOCATION, 1) == Felts::two(12 * n, 0), 'location kept');
 }
 
 /// An ingredient worth `value`: an `ITEM` record, not a potion.
