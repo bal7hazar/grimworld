@@ -243,8 +243,9 @@ pub impl PlayImpl of PlayTrait {
         }
         let mut potion_sheets: Array<PotionSheet> = array![];
         for id in potions.span() {
-            let record = parts.slice(at, 2);
-            at += 2;
+            // An `ITEM` record is one part.
+            let record = parts.slice(at, 1);
+            at += 1;
             if exists(record) {
                 potion_sheets.append(PotionSheetTrait::read(*id, record));
             }

@@ -371,6 +371,8 @@ fn setup() -> World {
     // ENG-05: into the zone at chunk 16's tile 16 (`(16, 16)`), next to its South-East corner:
     // sight touches chunks 0, 1, 15 and 16.
     records.set(GATE, 14, gate(TOWN, ZONE, (0, 0), (16, 16), gate_kind::HUB, 0, 0));
+    // ENG-07: into the zone on chunk 16's tile 32 (`(17, 17)`), a floor tile of its terrain.
+    records.set(GATE, 15, gate(TOWN, ZONE, (0, 0), (16, 32), gate_kind::HUB, 0, 0));
     World { instances, registry, fate, hub }
 }
 
@@ -1661,4 +1663,111 @@ fn test_cost_create_reveals() {
     println!("gas create revealing 1 chunk: {}", create_gas(INTO_ZONE, 1));
     println!("gas create revealing 2 chunks: {}", create_gas(FLOOR_TO_ZONE, 2));
     println!("gas create revealing 4 chunks: {}", create_gas(14, 4));
+}
+
+// ---- ENG-07: `play` (D-233 to D-236) ------------------------------------------------------------
+// `Instances.play` calls `PlayLibrary` in its context; the segment runs in `SegmentLibrary`, a tick
+// with a fight in `TickLibrary`. The member's bar skills (11, 12) and belt potions (41, 42) are
+// registered so that its load finds them.
+
+fn play_classes(world: World) {
+    let classes: Array<starknet::ClassHash> = array![
+        *declare("PlayLibrary").unwrap().contract_class().class_hash,
+        *declare("TickLibrary").unwrap().contract_class().class_hash,
+        *declare("AiLibrary").unwrap().contract_class().class_hash,
+        *declare("ActionLibrary").unwrap().contract_class().class_hash,
+        *declare("ExecutorLibrary").unwrap().contract_class().class_hash,
+        *declare("SegmentLibrary").unwrap().contract_class().class_hash,
+    ];
+    start_cheat_caller_address(world.instances, addr(ADMIN));
+    let admin = grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
+        contract_address: world.instances,
+    };
+    let mut key: u8 = 0;
+    for class in classes {
+        grimworld_ephemeral::systems::instances::IInstancesAdminDispatcherTrait::set_play_class(
+            admin, key, class,
+        );
+        key += 1;
+    }
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let skill = grimworld_logic::models::skill::SkillTrait::new(
+        1, 1, 1, 0, 0, 0, 0, 1, 1, false, [Default::default(); 3],
+    );
+    records.set(grimworld_logic::content::SKILL, 11, grimworld_logic::models::skill::SkillRecord::pack(@skill));
+    records.set(grimworld_logic::content::SKILL, 12, grimworld_logic::models::skill::SkillRecord::pack(@skill));
+}
+
+fn batch(actions: Span<grimworld_logic::actions::Action>) -> felt252 {
+    grimworld_logic::actions::encode_batch(actions).unwrap()
+}
+
+/// The `BatchPlayed` of the call: `(played, stop, sequence, clock)`, the stop as its variant index.
+fn batch_played(ref spy: snforge_std::EventSpy, world: World) -> (felt252, felt252, felt252, felt252) {
+    let events = spy.get_events().emitted_by(world.instances);
+    let mut found = (0, 0, 0, 0);
+    for (_, event) in events.events.span() {
+        if event.keys.len() == 2 && event.data.len() == 7 {
+            found = (*event.data[2], *event.data[3], *event.data[4], *event.data[5]);
+        }
+    }
+    found
+}
+
+// Two Moves (West, then East back) from a floor tile: each one tick on the fast path, the facing
+// the direction, the sequence and the clock moved by two, `BatchPlayed` with no stop (A2, A3).
+#[test]
+fn test_play_moves() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', 15, 0);
+    let mut spy = spy_events();
+    let actions = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
+    ];
+    play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
+    let (played, stop, sequence, clock) = batch_played(ref spy, world);
+    assert(played == 2 && stop == 0 && sequence == 2 && clock == 2, 'two moves');
+    let header = header_of(world, 1);
+    let after = state_of(world, 1);
+    assert(header.sequence == 2 && header.clock == 2, 'header');
+    assert(after.x == 17 && after.y == 17 && after.facing == 0, 'back, facing East');
+}
+
+// A Move into a wall is illegal: the batch stops there, the two Moves before it kept (A2, A3).
+#[test]
+fn test_play_move_blocked() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', 15, 0);
+    let mut spy = spy_events();
+    let actions = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(5),
+        grimworld_logic::actions::Action::Move(5),
+    ];
+    play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
+    let (played, stop, sequence, _) = batch_played(ref spy, world);
+    let after = state_of(world, 1);
+    assert(played == 2 && stop == 2 && sequence == 2, 'stopped invalid');
+    assert(after.x == 18 && after.y == 16, 'two moves kept');
+}
+
+// A stale sequence, a different content version and an Interact (Open question 6) run nothing.
+#[test]
+fn test_play_refusals() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', 15, 0);
+    let mut spy = spy_events();
+    let one = batch(array![grimworld_logic::actions::Action::Wait].span());
+    play(world, 'alice').play(id, 7, 3, 0, one);
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 1, 'sequence');
+    play(world, 'alice').play(id, 7, 0, 9, one);
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 6, 'version');
+    play(world, 'alice').play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Interact(0)].span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 2, 'interact refused');
+    assert(header_of(world, 1).sequence == 0, 'nothing ran');
 }

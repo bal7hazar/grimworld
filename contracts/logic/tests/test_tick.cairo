@@ -4526,3 +4526,31 @@ fn test_attackers_cap() {
     let all = cap_step(grimworld_logic::types::ai::MAX_ATTACKERS);
     assert(all <= grimworld_logic::types::ai::MAX_ATTACKERS && all == 8, 'eight attack');
 }
+
+// The window of the segment (ADR-0006 §4): the adventurer at (16, 16), on chunks every one walkable,
+// stands on local (7, 8) (an even row) and its six neighbours are open.
+#[test]
+fn test_segment_window_open() {
+    let mut member = member_at(400);
+    member.words.state += 0; // placed below
+    let mut spec = Fixture::spec();
+    spec.health = 400;
+    let mut m = Fixture::member(spec);
+    m.words.state += 16 * two(32) + 16 * two(40);
+    let world = Fixture::world(40, array![m], array![]);
+    let area = open_area();
+    let board = grimworld_logic::types::play::SegmentTrait::board(@area, @world);
+    let (x, y, _) = grimworld_logic::models::member::MemberSnapshotTrait::place(@world.member(0));
+    let at = board.position(x, y);
+    println!("board x {} y {} at {} open {}", board.x, board.y, at, board.window.open());
+    assert(at == 15 * 8 + 7, 'local (7, 8)');
+    let mut d: u8 = 0;
+    while d < 6 {
+        let to = hexx::board::layout::LayoutTrait::neighbor(
+            15, 16, at, grimworld_logic::types::window::WindowAssert::direction(d),
+        )
+            .unwrap();
+        assert(board.window.near(shape::SINGLE, to) != 0, 'neighbour open');
+        d += 1;
+    }
+}
