@@ -234,7 +234,8 @@ the same build 29,568, 36.09 %, as main). It cannot join `RevealLibrary` (50.18 
 the reveal's placement into the class `create` calls once for the hosts: a class of its own is
 proposed. What `Instances` gains (the marker read, the authored branch of `begin`, the reads of
 `ZONE_CHUNK` and `CANDIDATES`, one more class hash) is not measured: D-209's condition holds it, so
-**ENG-09 starts after ENG-05b** has brought `Instances` under 50 %, or goes to the project manager.
+**ENG-09 starts after ENG-05b** has brought `Instances` under 50 % (D-221, the project manager,
+2026-10-07).
 
 Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
 bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cost the library about
@@ -899,8 +900,10 @@ A zone of `C` chunks with `B` bridges and `M` border chunks writes `C` + `B` + `
 | Sight and the window's assembly | the chunks' walls, a void chunk all wall | ADR-0006 §4, D-120, D-134 (ENG-07) |
 | The generation (dungeons, a zone not authored) | its own board, openings, the corners (D-134) | ADR-0006 §3; `types::reveal` |
 
-Water, a cliff or a fence is a wall in the walkable plane, so it blocks sight as walls do: if a rule
-ever needs sight across water, it becomes a reserved plane (part 2), never a client guess (D-215).
+Water, a cliff or a fence is a wall in the walkable plane, so it blocks sight as walls do: **in v1
+a lake hides what lies beyond it**, a known design limit accepted by the project manager (D-221,
+2026-10-07; design/18). If a playtest asks for sight across water, it becomes a reserved plane
+(part 2), never a client guess (D-215).
 
 **Registration** (ruling 10: no batched entrypoint; an account's multicall writes many `set_record`
 calls). The converter writes in this order: `LOCATION` with the marker → the chunk set (`OUTLINE`,
@@ -942,8 +945,8 @@ by the converter, with the same code):
 `test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,
 `test_pair_plan_tasks_hosts`), 0.33 % under 100,000,000; at 640 draws with the tasks, **95,799,175**
 (`test_pair_plan_bound_hosts`). Without R-30 a legal generated zone is one code change from the
-bound; with it, 4.2 % below. R-30 binds generated zones too: ENG-R1c builds it beside its four
-bounds, ENG-09 reuses it. The layout's own bounds (at most 2 spawn points and 3 objects, one
+bound; with it, 4.2 % below. R-30 binds generated zones too (D-221, the project manager,
+2026-10-07): ENG-R1c builds it beside its four bounds, ENG-09 reuses it. The layout's own bounds (at most 2 spawn points and 3 objects, one
 candidate a quota a chunk, two gates a chunk, 15 bridges a chunk, a bridge in one chunk) are
 refused by the converter before any record (`export: …` codes). What no record holds alone is
 **the content pipeline's and the converter's**: every walkable tile reachable from the entry (P-1),
@@ -958,7 +961,7 @@ draw); each chunk's spawn points' level (uniform in the band, the template's off
 count (in the template's bounds, at least 1) from `derive(entropy, domain(instance, 256 + chunk,
 REVEAL), 0)`; a Heart at the band's top (D-208). No reveal reads another's result: **no order of
 moves or reveals changes where anything lands or what it holds** (`test_authored_reveal_order_free`).
-A snapshot's task quota places nothing in an authored zone (its landmarks are the author's).
+A snapshot's task quota places nothing in an authored zone (its landmarks are the author's; D-221).
 
 ---
 

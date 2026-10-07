@@ -97,5 +97,6 @@ first, and the side one arrives from decides both.
 
 | # | Question |
 |---|---|
+| — | **Known design limit of version 1 (D-221, the project manager, 2026-10-07)**: sight reads the walkable plane, so water, like any wall, blocks sight on chain: **in v1 a lake hides what lies beyond it**. A sight plane (a third part of an authored chunk's record, ENG-01 §3.5) comes only if a playtest asks |
 | TP-1 | Walkable shares and pack frequencies per biome, after the first playable |
 | TP-2 | ~~Does a zone show its outline on the map before being explored?~~ **Answered (D-214)**: yes. An authored zone's outline and terrain are public records before any instance; the world map draws them. What the client shows inside an instance still follows D-213 (a tile drawn once it has entered sight) |
