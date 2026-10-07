@@ -73,6 +73,8 @@ export type MapObject =
   | {
       readonly kind: "gate";
       readonly at: Tile;
+      /** The gate's own registry id (`GATE`'s id; CLI-09c). */
+      readonly id: number;
       /** The destination's location id (by id until ENG-08's schema names it, §10). */
       readonly to: number;
       readonly gate: GateKind;
@@ -84,7 +86,13 @@ export type MapObject =
       readonly entryTile: number;
     }
   | { readonly kind: "candidate"; readonly at: Tile; readonly quota: number }
-  | { readonly kind: "feature"; readonly at: Tile; readonly feature: FeatureKind }
+  | {
+      readonly kind: "feature";
+      readonly at: Tile;
+      readonly feature: FeatureKind;
+      /** A landmark's or a terrain trap's skill's registry id; 0 for the others (CLI-09c). */
+      readonly param: number;
+    }
   | { readonly kind: "spawn"; readonly at: Tile; readonly template: number }
   | {
       readonly kind: "place";
@@ -200,7 +208,13 @@ export interface PlaceChoice {
  * - `toggle`: on or off.
  */
 export type FieldSpec =
-  | { readonly key: string; readonly label: string; readonly type: "number" }
+  | {
+      readonly key: string;
+      readonly label: string;
+      readonly type: "number";
+      /** What a file without the field reads (a field added after the file was written). */
+      readonly fallback?: number;
+    }
   | {
       readonly key: string;
       readonly label: string;
@@ -213,6 +227,7 @@ export type FieldSpec =
       /** The value is a number written as the option's value. */
       readonly numeric?: boolean;
       readonly valid?: (value: unknown) => boolean;
+      readonly fallback?: string;
     }
   | { readonly key: string; readonly label: string; readonly type: "toggle" };
 
@@ -314,6 +329,7 @@ export const KINDS: { readonly [K in ObjectKind]: KindSpec<Of<K>> } = {
     name: "Gate",
     letters: (_, { gate }) => `G${gate}`,
     fields: [
+      { key: "id", label: "Gate id", type: "number", fallback: 0 },
       whole("to", "Destination id"),
       {
         key: "gate",
@@ -329,6 +345,7 @@ export const KINDS: { readonly [K in ObjectKind]: KindSpec<Of<K>> } = {
     create: (_, at) => ({
       kind: "gate",
       at,
+      id: 0,
       to: 0,
       gate: "hub",
       rank: 0,
@@ -371,8 +388,9 @@ export const KINDS: { readonly [K in ObjectKind]: KindSpec<Of<K>> } = {
         type: "choice",
         options: named(FEATURE_KINDS, (f) => FEATURE_NAMES[f]),
       },
+      { key: "param", label: "Landmark or trap skill id", type: "number", fallback: 0 },
     ],
-    create: (choice, at) => ({ kind: "feature", at, feature: choice.feature ?? "chest" }),
+    create: (choice, at) => ({ kind: "feature", at, feature: choice.feature ?? "chest", param: 0 }),
     onWalkable: true,
     perChunk: "object",
   },
@@ -552,7 +570,7 @@ export function objectFrom(
 ): MapObject | null {
   const out: Record<string, unknown> = { kind, at };
   for (const field of KINDS[kind].fields) {
-    const v = raw[field.key];
+    const v = raw[field.key] === undefined && "fallback" in field ? field.fallback : raw[field.key];
     if (field.type === "number") {
       if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return null;
     } else if (field.type === "toggle") {

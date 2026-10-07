@@ -6,6 +6,7 @@
     "kind": "town",
     "name": "Town A",
     "location": 1,
+    "region": 0,
     "biome": null,
     "levelMin": 1,
     "levelMax": 1,

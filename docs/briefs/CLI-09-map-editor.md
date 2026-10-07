@@ -688,6 +688,9 @@ them to `tools/map-format/` (ENG-08 ruling 9, l.145).
 
 ## 10. Export format — ENG-08's, folded in
 
+**Status: done in CLI-09c** (`docs/reports/CLI-09c-export.md`): the export for the chain writes
+ENG-08's records file, and the ○ items below are settled there.
+
 **The export is the on-chain encoding, not JSON** (owner's request, 2026-10-05). CLI-09c's export
 writes **the packed felts as the Registry records them** (`records: Map<(kind, id, part), felt252>`,
 one `set_record` per record, ruling 10): **calldata** for those calls, or a **multicall file** holding

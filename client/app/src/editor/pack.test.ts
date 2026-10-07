@@ -84,6 +84,7 @@ const building = (at: Tile, type = "house1", door = "0,0", depth = 1): PackObjec
   type,
   depth,
   door,
+  footprint: "",
 });
 const npc = (at: Tile, type = "pawn", facing = 0): PackObject => ({
   kind: "npc",
@@ -104,6 +105,7 @@ const bridge = (at: Tile, type = "stone_bridge", mirror = false): PackObject => 
   at,
   type,
   mirror,
+  run: "north",
 });
 
 describe("the pack's rows (CLI-09e part 2)", () => {
@@ -521,6 +523,7 @@ describe("the pack in the file (CLI-09e part 2)", () => {
       type: "castle",
       depth: 2,
       door: "1,0",
+      footprint: "",
     });
   });
 

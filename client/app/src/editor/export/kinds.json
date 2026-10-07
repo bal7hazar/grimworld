@@ -1,0 +1,157 @@
+{
+  "$comment": "The kind table of the export (ENG-08, from track CV's proposal in docs/reports/CLI-09e-palette.md \u00a74 and client/app/src/editor/palette/kinds.ts at 9ffd4ff). From ENG-08 on, the schema owns it: a change of an id, a prop's blocks or a building's footprint rule goes through it, and the palette follows. On chain a kind reaches only the walkable plane: a blocking prop's hex and a building's footprint but its door are walls; NPCs, sprites, doors, variants and facings stay client-only.",
+  "props": {
+    "tree": {
+      "variants": 4,
+      "blocks": true,
+      "turn": "flip"
+    },
+    "bush": {
+      "variants": 4,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "rock": {
+      "variants": 4,
+      "blocks": true,
+      "turn": "flip"
+    },
+    "stump": {
+      "variants": 4,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "gold_stone": {
+      "variants": 6,
+      "blocks": true,
+      "turn": "flip"
+    },
+    "water_rock": {
+      "variants": 4,
+      "blocks": true,
+      "turn": "flip"
+    },
+    "skull_spike": {
+      "variants": 2,
+      "blocks": true,
+      "turn": "flip"
+    },
+    "bones": {
+      "variants": 3,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "tool": {
+      "variants": 4,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "gold": {
+      "variants": 1,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "meat": {
+      "variants": 1,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "logs": {
+      "variants": 1,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "duck": {
+      "variants": 1,
+      "blocks": false,
+      "turn": "flip"
+    },
+    "cannon": {
+      "variants": 1,
+      "blocks": true,
+      "turn": "facing"
+    }
+  },
+  "buildings": [
+    "castle",
+    "barracks",
+    "archery",
+    "monastery",
+    "tower",
+    "house1",
+    "house2",
+    "house3",
+    "abbey",
+    "acueduct",
+    "arbor",
+    "barn",
+    "bourgeois_house",
+    "church",
+    "cloister",
+    "cottage",
+    "farm",
+    "forge",
+    "fortress",
+    "grain_silo",
+    "hall_of_the_gods",
+    "hotel",
+    "hut",
+    "inn",
+    "market_hall",
+    "pigsty",
+    "postal_relay",
+    "rural_house",
+    "sacrificial_house",
+    "small_house",
+    "stable",
+    "straw_hut",
+    "tavern",
+    "treehouse",
+    "urban_house",
+    "urban_inn",
+    "washhouse",
+    "watchtower",
+    "watermill",
+    "windmill",
+    "cave",
+    "dead_tree",
+    "fish_hut",
+    "gnome_hut",
+    "gnome_tower",
+    "goblin_hut",
+    "pirate_tower"
+  ],
+  "npcs": [
+    "pawn",
+    "pawn_axe",
+    "pawn_gold",
+    "pawn_hammer",
+    "pawn_knife",
+    "pawn_meat",
+    "pawn_pickaxe",
+    "pawn_wood",
+    "lancer",
+    "trainee",
+    "laborer",
+    "expert",
+    "master",
+    "warrior",
+    "archer",
+    "monk",
+    "thief",
+    "spear_goblin",
+    "torch_goblin",
+    "hex_shaman",
+    "troll",
+    "sheep",
+    "pig"
+  ],
+  "bridges": {
+    "stone_bridge": {
+      "deck": 1
+    },
+    "covered_bridge": {
+      "deck": 1
+    }
+  }
+}

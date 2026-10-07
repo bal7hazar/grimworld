@@ -6,6 +6,7 @@
     "kind": "zone",
     "name": "Seed meadow",
     "location": 2,
+    "region": 0,
     "biome": "meadow",
     "levelMin": 1,
     "levelMax": 3,
@@ -266,6 +267,7 @@
       "kind": "gate",
       "x": 0,
       "y": 7,
+      "id": 2,
       "to": 1,
       "gate": "hub",
       "rank": 0,
@@ -277,6 +279,7 @@
       "kind": "gate",
       "x": 41,
       "y": 7,
+      "id": 102,
       "to": 101,
       "gate": "hub",
       "rank": 0,
@@ -324,7 +327,8 @@
       "kind": "feature",
       "x": 33,
       "y": 2,
-      "feature": "chest"
+      "feature": "chest",
+      "param": 0
     }
   ]
 }

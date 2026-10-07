@@ -44,6 +44,8 @@ export interface MapMeta {
   readonly kind: MapKind;
   readonly name: string;
   readonly location: number;
+  /** The region's id (CLI-09c: the `LOCATION` record carries it; 0 until typed). */
+  readonly region: number;
   /** A zone's; null for a town or an outpost. */
   readonly biome: Biome | null;
   readonly levelMin: number;
@@ -154,6 +156,7 @@ export function createMap(fields: NewMap): MapDocument {
       kind: fields.kind,
       name: fields.name.trim(),
       location: fields.location,
+      region: 0,
       biome: fields.kind === "zone" ? fields.biome : null,
       levelMin: 1,
       levelMax: 1,
