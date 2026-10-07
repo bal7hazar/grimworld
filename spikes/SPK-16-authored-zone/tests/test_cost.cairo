@@ -429,6 +429,8 @@ fn generated(tasks: u32, last: u8) -> Site {
         height: 15,
         entry_chunk: 0,
         chunk_set: 0,
+        west: 0,
+        north: 0,
         masks: array![].span(),
         anchors: array![].span(),
         quotas,

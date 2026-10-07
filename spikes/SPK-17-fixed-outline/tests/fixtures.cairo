@@ -160,6 +160,8 @@ pub fn eng05_site(n: u8) -> eng05::Site {
         height: 15,
         entry_chunk: ENTRY,
         chunk_set: 0,
+        west: 0,
+        north: 0,
         masks: array![].span(),
         anchors: array![(ENTRY, 112)].span(),
         quotas: quotas(),

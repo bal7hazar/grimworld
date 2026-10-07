@@ -397,21 +397,37 @@ fn on_eng05(i: u32) -> u32 {
 }
 
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_zero_residue_on_eng05_0() {
     assert(on_eng05(0) != 0, 'it fails on ENG-05');
 }
 
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_zero_residue_on_eng05_1() {
     assert(on_eng05(1) != 0, 'it fails on ENG-05');
 }
 
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_zero_residue_on_eng05_2() {
     assert(on_eng05(2) != 0, 'it fails on ENG-05');
 }
 
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_zero_residue_on_eng05_3() {
     assert(on_eng05(3) != 0, 'it fails on ENG-05');
 }
@@ -419,6 +435,10 @@ fn test_zero_residue_on_eng05_3() {
 /// The residue on ENG-05's engine, measured: over 8 entropies at `N` = 12, the exit's distance on
 /// the honest order and on the forcing order.
 #[test]
+// ENG-10b (#385) replaced ENG-05's emerging engine in `grimworld_logic`, which this spike reads by
+// path: this test measured that engine; its figures are in `snforge-test-output-{1,2}.txt`
+// (41d9009).
+#[ignore]
 fn test_residue_eng05() {
     let mut differ: u32 = 0;
     let mut gain: u32 = 0;

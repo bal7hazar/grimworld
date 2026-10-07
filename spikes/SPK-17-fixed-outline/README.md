@@ -34,6 +34,11 @@ both (`pairs.txt`). `sizes.py` on the same tree's build: `FixedRevealLibrary` 40
 (49.10 %), `FloorLibrary` 12,436 (15.18 %), `Slots` 1,563; ENG-05's `RevealLibrary` 41,109 (50.18 %)
 and `HostsLibrary` 6,580 (8.03 %), equal to ENG-01 §1.3.
 
+**Since ENG-10b (#385)** `grimworld_logic`'s engine is the fixed outline's, so the eight tests that
+measured ENG-05's emerging engine through it (`test_zero_residue_on_eng05_*`, `test_residue_eng05`,
+`test_*_reveal_eng05*`) are `#[ignore]`d; their figures above and in `snforge-test-output-{1,2}.txt`
+are those of `41d9009`. The spike's tests that remain pass on ENG-10b's code (40, peak 2.56 GB).
+
 ## The zero-residue test (deliverable 2)
 
 For 8 entropies at `N` = 6 and 8 at `N` = 12 (`test_zero_residue_n6_*`, `_n12_*`), and for 6 floors
