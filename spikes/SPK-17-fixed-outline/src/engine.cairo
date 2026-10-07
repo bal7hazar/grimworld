@@ -61,10 +61,7 @@
 //! a placement without room or tile is skipped. A neighbour revealed but not given in `known` is
 //! the caller's error (asserted).
 
-
 pub mod placement;
-use hexx::board::bits::Bits;
-use hexx::board::rng::{Rng, RngTrait};
 use grimworld_logic::fate::EntropyTrait;
 use grimworld_logic::models::chunk::{Features, Object, PackPlacement, Terrain};
 use grimworld_logic::models::pack::Pack;
@@ -74,6 +71,8 @@ use grimworld_logic::models::spawn_table::SpawnTable;
 use grimworld_logic::snapshot::TaskEntry;
 use grimworld_logic::types::ChunkKind;
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
+use hexx::board::bits::Bits;
+use hexx::board::rng::{Rng, RngTrait};
 use crate::engine::placement::PlacementTrait;
 
 /// The sides of a chunk, in ENG-01's order of the edges (`Terrain.edges` bit `side`).
@@ -289,7 +288,9 @@ pub impl RevealImpl of RevealTrait {
 
     /// Whether `chunk` can be revealed now: not revealed, and inside the location (ENG-10a: a
     /// dungeon's outline, as a zone's chunk set; sight reveals it).
-    fn revealable(site: @Site, progress: @Progress, _known: Span<(u8, Terrain)>, chunk: u8) -> bool {
+    fn revealable(
+        site: @Site, progress: @Progress, _known: Span<(u8, Terrain)>, chunk: u8,
+    ) -> bool {
         !progress.is_revealed(chunk) && site.inside(chunk)
     }
 
@@ -432,9 +433,9 @@ pub impl RevealImpl of RevealTrait {
                         edges += bit;
                     }
                 } else if site.inside(next) {
-                    // [Compute] ENG-10a: a zone's side is open; a dungeon's is open exactly when its
-                    // seam is, drawn at `create`. ENG-05's border draw is kept, unread, so that a
-                    // zone's streams do not move; a side the mask cuts whole is no side to open
+                    // [Compute] ENG-10a: a zone's side is open; a dungeon's is open exactly when
+                    // its seam is, drawn at `create`. ENG-05's border draw is kept, unread, so that
+                    // a zone's streams do not move; a side the mask cuts whole is no side to open
                     let _border = draws.draw(BORDER.try_into().unwrap());
                     if BoardTrait::and(BoardTrait::side(side), mask) != 0
                         && (!emerging || site.seam(chunk, side, next)) {

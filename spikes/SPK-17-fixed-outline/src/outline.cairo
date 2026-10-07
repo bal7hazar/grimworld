@@ -3,13 +3,14 @@
 //! instance's entry draw alone, so that no order of moves changes it.
 //!
 //! **The draw** (`draw`), from `seed` (`seed`: `derive(entropy, domain(instance, 227, REVEAL), 0)`,
-//! the word of no chunk; 225 is the hosts', 226 an authored zone's hosts', SPK-16): the floor starts
-//! as its entry chunk and grows one chunk at a time until it holds `N` (or the whole rectangle,
-//! when smaller: D-140). Its draws come from one stream, `hexx`'s `Rng` seeded with `seed` (as a
-//! chunk's placement): at each step a **member** of the floor, uniform by its rank in the order
-//! added, and a **side**, uniform of 4, are drawn; the chunk beyond is kept when it is in the
-//! rectangle and not in the floor (a random growth from the entry, each frontier chunk weighted by
-//! the floor's sides facing it), up to `TRIES` words, then the exact draw, uniform over the frontier.
+//! the word of no chunk; 225 is the hosts', 226 an authored zone's hosts', SPK-16): the floor
+//! starts as its entry chunk and grows one chunk at a time until it holds `N` (or the whole
+//! rectangle, when smaller: D-140). Its draws come from one stream, `hexx`'s `Rng` seeded with
+//! `seed` (as a chunk's placement): at each step a **member** of the floor, uniform by its rank in
+//! the order added, and a **side**, uniform of 4, are drawn; the chunk beyond is kept when it is in
+//! the rectangle and not in the floor (a random growth from the entry, each frontier chunk weighted
+//! by the floor's sides facing it), up to `TRIES` words, then the exact draw, uniform over the
+//! frontier.
 //! The member is the new chunk's **parent**: their seam is open, so the floor is connected; each
 //! other seam toward the floor is open but with probability 1 in 7 (`BORDER`, ENG-05's law of a
 //! dungeon's side). `draw_frontier`, the first law measured (uniform over the frontier at every
@@ -27,9 +28,9 @@
 //! exit and the Heart are drawn (`engine::placement::PlacementTrait::hosts`).
 
 use core::poseidon::poseidon_hash_span;
-use hexx::board::rng::RngTrait;
 use grimworld_logic::fate::EntropyTrait;
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
+use hexx::board::rng::RngTrait;
 
 /// The counter of the outline's seed: the word of no chunk (0–224), nor of ENG-05's hosts (225),
 /// nor of an authored zone's (226, SPK-16).
@@ -86,9 +87,9 @@ pub impl OutlineImpl of OutlineTrait {
     }
 
     /// The outline of a floor of `n` chunks entered at `entry`, in a `width × height` rectangle,
-    /// drawn from `seed` (module doc): at each step a member of the floor (uniform, by its rank in the
-    /// order added) and a side (uniform of 4), kept when the side's chunk is in the rectangle and not
-    /// in the floor, up to `TRIES` pairs (the chunk added then lies next to
+    /// drawn from `seed` (module doc): at each step a member of the floor (uniform, by its rank in
+    /// the order added) and a side (uniform of 4), kept when the side's chunk is in the rectangle
+    /// and not in the floor, up to `TRIES` pairs (the chunk added then lies next to
     /// the floor with a probability that grows with the floor's sides facing it); else, the exact
     /// draw, uniform over the frontier (`count`, `nth`, dearer). The member is the chunk's parent:
     /// their seam open; each other seam toward the floor open but a border in 7.
@@ -187,8 +188,8 @@ pub impl OutlineImpl of OutlineTrait {
         Outline { chunks, west, north }
     }
 
-    /// The chunk beyond `side` of `chunk` (West `+1`, East `−1`, South `−15`, North `+15`) in the
-    /// `width × height` rectangle.
+    /// The chunk beyond `side` of `chunk` (West `+1`, East `−1`, South `−15`, North `+15`) in
+    /// the `width × height` rectangle.
     fn beside(chunk: u8, side: u8, width: u8, height: u8) -> Option<u8> {
         let (cy, cx) = DivRem::div_rem(chunk, 15);
         if side == 0 {

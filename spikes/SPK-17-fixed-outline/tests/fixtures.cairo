@@ -153,7 +153,9 @@ pub fn chunks(set: felt252) -> Array<u8> {
 }
 
 /// Reveals `order` one chunk a call on the changed engine, every revealed chunk known.
-pub fn reveal_in_order(site: @Site, entropy: felt252, order: Span<u8>) -> (Progress, Array<Revealed>) {
+pub fn reveal_in_order(
+    site: @Site, entropy: felt252, order: Span<u8>,
+) -> (Progress, Array<Revealed>) {
     let mut progress = ProgressTrait::new(site, entropy);
     let mut known: Array<(u8, Terrain)> = array![];
     let mut out: Array<Revealed> = array![];

@@ -20,7 +20,8 @@ use crate::fixtures::{
 };
 
 /// The orders of one floor: by index, backward, nearest first, farthest first (the entry's
-/// neighbours last, t-0077's lever), and two drawn; the entry first in each, as `create` reveals it.
+/// neighbours last, t-0077's lever), and two drawn; the entry first in each, as `create` reveals
+/// it.
 fn orders(outline: @spk17::outline::Outline, entropy: felt252) -> Array<Array<u8>> {
     let all = chunks(*outline.chunks);
     let mut rest: Array<u8> = array![];
@@ -169,9 +170,9 @@ fn eng05_floor(entropy: felt252, n: u8, force: bool) -> Outcome {
             } else {
                 let mut pick: Option<u8> = Option::None;
                 // `X` as the `N`-th chunk, where the exit still owed is forced
-                if kept != 255
-                    && progress.count + 1 == n
-                    && eng05::RevealTrait::revealable(@site, @progress, known.span(), kept) {
+                if kept != 255 && progress.count
+                    + 1 == n
+                        && eng05::RevealTrait::revealable(@site, @progress, known.span(), kept) {
                     pick = Option::Some(kept);
                 }
                 for c in others.span() {

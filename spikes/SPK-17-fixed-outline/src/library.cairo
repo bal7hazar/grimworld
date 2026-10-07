@@ -112,7 +112,9 @@ pub trait IFixedRevealLibrary<T> {
 /// `grimworld_logic::systems::reveal::RevealLibrary` on the changed engine, line for line.
 #[starknet::contract]
 pub mod FixedRevealLibrary {
-    use grimworld_logic::models::chunk::{Features, FeaturesStorePacking, Terrain, TerrainStorePacking};
+    use grimworld_logic::models::chunk::{
+        Features, FeaturesStorePacking, Terrain, TerrainStorePacking,
+    };
     use starknet::storage_access::StorePacking;
     use crate::engine::{Progress, RevealTrait, Site};
     use super::IFixedRevealLibrary;
@@ -149,8 +151,8 @@ pub mod FixedRevealLibrary {
 }
 
 /// The slots `create` writes for a floor, to measure them apart: the outline's three felts under
-/// `(slot, 0–2)` and the hosts as a zone's (`Instances.hosts` under `(slot, quota)`), or ENG-10a's
-/// two felts.
+/// `(slot, 0–2)` and the hosts as a zone's (`Instances.hosts` under `(slot, quota)`), or
+/// ENG-10a's two felts.
 #[starknet::interface]
 pub trait ISlots<T> {
     fn write(ref self: T, slot: u32, outline: Outline, hosts: Span<felt252>);

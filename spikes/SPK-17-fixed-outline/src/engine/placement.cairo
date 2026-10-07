@@ -3,8 +3,8 @@
 //! `ENG-10a`:** `due` takes a dungeon's quotas from its hosts as a zone's (no forced window);
 //! `hosts` takes `far`, the outline's farthest chunks, where a dungeon's exit and Heart are drawn;
 //! `place` lays a dungeon's exit and Heart first, on the spine's core (`CORE`). The original
-//! documentation follows, as it was; where it speaks of a dungeon's forced quotas, the marked changes
-//! replace it.
+//! documentation follows, as it was; where it speaks of a dungeon's forced quotas, the marked
+//! changes replace it.
 //!
 //! The constraints and the placement of a reveal (ADR-0006 §3, design/18 *Features*): the quotas
 //! (a zone's on hosts drawn at entry, a dungeon's hit or forced), the band of a chunk, then the
@@ -50,17 +50,19 @@
 //!   another.
 
 use core::poseidon::poseidon_hash_span;
-use hexx::board::bits::Bits;
-use hexx::board::rng::{Rng, RngTrait};
 use grimworld_logic::content::CRITERION_REACH_LANDMARK;
-use grimworld_logic::models::chunk::{CENTRE, NEAR, Object, PackPlacement, PackPlacementTrait, object};
+use grimworld_logic::models::chunk::{
+    CENTRE, NEAR, Object, PackPlacement, PackPlacementTrait, object,
+};
 use grimworld_logic::models::location::biome;
 use grimworld_logic::models::pack::PackTrait;
 use grimworld_logic::models::quotas::kind as quota;
 use grimworld_logic::models::set_piece::SetPiece;
 use grimworld_logic::models::spawn_table::SpawnTableTrait;
-use grimworld_logic::types::{MAX_OBJECTS_PER_CHUNK, MAX_PACKS_PER_CHUNK};
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
+use grimworld_logic::types::{MAX_OBJECTS_PER_CHUNK, MAX_PACKS_PER_CHUNK};
+use hexx::board::bits::Bits;
+use hexx::board::rng::{Rng, RngTrait};
 use super::{Progress, Site, SiteTrait};
 
 /// Quotas of an instance: the location's 6, then 8 for the snapshotted tasks (ENG-01 §3.2).
@@ -71,8 +73,8 @@ pub const LOCATION_QUOTAS: u8 = 6;
 pub const TRIES: u8 = 16;
 /// ENG-10a: the spine's core, rows and columns 3 to 11 of row 7 and column 7 (17 tiles): floor in
 /// every generated chunk (`BoardTrait::lines` lays the spine, the centre's component holds it) and
-/// at least 3 from the ring, so never within 2 of an opening; a dungeon's exit and Heart are laid on
-/// it (`place`).
+/// at least 3 from the ring, so never within 2 of an opening; a dungeon's exit and Heart are laid
+/// on it (`place`).
 pub const CORE: felt252 = 0x100020004000801ff002000400080010000000000000;
 
 /// What a reveal places in a chunk, built in order.
@@ -707,7 +709,9 @@ pub impl PlacementImpl of PlacementTrait {
                                         placement
                                             .objects
                                             .append(
-                                                Object { tile, kind: object::EXIT, state: 0, param },
+                                                Object {
+                                                    tile, kind: object::EXIT, state: 0, param,
+                                                },
                                             );
                                         true
                                     } else {
