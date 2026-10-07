@@ -654,8 +654,8 @@ fn test_create_reuses_the_slot() {
 }
 
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 42295437)] // ceil(1.05 × 40281368 measured)
+// gas: raised, ENG-10b: a larger Instances deployed, a zone's Site two felts longer
+#[available_gas(l2_gas: 44578521)] // ceil(1.05 × 42455734 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };

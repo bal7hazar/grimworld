@@ -2033,8 +2033,8 @@ on the node (`docs/briefs/ENG-10b-fixed-dungeon-outline.md`). **D-223** (the pro
 the node's figure before its merge.
 
 **Built by ENG-10b** (snforge on the VPS, Linux, Scarb 2.20.1, snforge 0.64.0; the node's figures
-from `contracts/tools/lifecycle_probe.py`, three runs, starknet-devnet 0.10.0; E marks a derived
-figure):
+from `contracts/tools/lifecycle_probe.py`, six runs, three before and three after merging CBT-05b,
+starknet-devnet 0.10.0; E marks a derived figure):
 
 | What | L2 gas | Source |
 |---|---:|---|
@@ -2052,13 +2052,13 @@ seeds over the floor's life: dearer by at least 235,000 over the life (E) and by
 On the node, against ENG-05's D-144 ceilings (above): the only rise is the entry that creates a
 floor; every zone figure stays under its ceiling (the probe's zone has its collector quota):
 
-| Entrypoint (`lifecycle_probe.py`) | ENG-05's ceiling | ENG-05's figures (#348) | ENG-10b, three runs | Rise |
+| Entrypoint (`lifecycle_probe.py`) | ENG-05's ceiling | ENG-05's figures (#348) | ENG-10b, six runs | Rise |
 |---|---:|---:|---:|---|
-| `leave` to a dungeon floor (gate 6, floor 1: `N` 6, its exit quota) | 8,276,640 | 7,756,640–8,236,640 | **10,962,640 · 11,202,640 · 11,282,640** | **+3,006,000** over the ceiling at the maximum (+36 %); cause: `HostsLibrary::floor`'s call (the outline of 6, its layers, the exit's host drawn first) and the outline's three slots, written new, less the frontier guard. SPK-17's estimate was +7.0 M (at `N` = 12) |
-| `enter`, the adventurer's first | 14,294,400 | | 13,372,400 · 13,292,400 · 13,332,400 | none |
-| `enter`, a later entry | 7,502,400 | | 6,982,400 · 6,902,400 · 6,982,400; again 7,022,400 · 6,942,400 · 6,942,400 | none |
-| `enter`, a later entry, the belt's worst case | 8,262,400 | | 7,742,400 · 7,742,400 · 7,702,400; again 7,702,400 · 7,662,400 · 7,622,400 | none |
-| `leave` back into the zone | 11,640,640 | | 10,880,640 · 10,680,640 · 10,920,640 | none |
+| `leave` to a dungeon floor (gate 6, floor 1: `N` 6, its exit quota) | 8,276,640 | 7,756,640–8,236,640 | **10,962,640 · 11,202,640 · 11,282,640 · 11,162,640 · 10,962,640 · 11,322,640** | **+3,046,000** over the ceiling at the maximum (+37 %); cause: `HostsLibrary::floor`'s call (the outline of 6, its layers, the exit's host drawn first) and the outline's three slots, written new, less the frontier guard. SPK-17's estimate was +7.0 M (at `N` = 12) |
+| `enter`, the adventurer's first | 14,294,400 | | 13,292,400 to 13,412,400 | none |
+| `enter`, a later entry | 7,502,400 | | 6,902,400 to 7,022,400 | none |
+| `enter`, a later entry, the belt's worst case | 8,262,400 | | 7,622,400 to 7,862,400 | none |
+| `leave` back into the zone | 11,640,640 | | 10,680,640 to 10,920,640 | none |
 
 `enter` (or `enter_rift`) into a dungeon floor is not a case of the probe (its `enter` is the zone's):
 in snforge, `create` into a floor of 6 costs 8,847,412 (above). The rise of `leave` to a floor goes
