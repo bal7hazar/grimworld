@@ -501,6 +501,138 @@ if OPTIONS.get("--floor") == "on":
     invoke("enter, later entry, into a dungeon floor (gate 7: the outline and its hosts drawn)",
            hub, "enter", 1, 7)
 
+# ENG-07 (`--play on`, D-235, D-236): `play` on the node. The classes `play` calls are declared and
+# registered (`set_play_class`, keys `PLAY` … `SEGMENT`); adventurer 1, inside the zone (`fifth`),
+# looks for an open direction from its entry tile with one-Move batches (a wall refuses the Move:
+# `BatchPlayed` with `Stop::Invalid`, nothing written), then plays the exploration batch: 10 Moves
+# back and forth across that edge, its ticks on the fast path, the chunks sight touches revealed
+# between segments (E-12). Each batch is one record; `BatchPlayed`'s data and the count of
+# `ChunkRevealed` go with it.
+if OPTIONS.get("--play") == "on":
+    keys = [("ephemeral", "PlayLibrary"), ("logic", "TickLibrary"), ("logic", "AiLibrary"),
+            ("logic", "ActionLibrary"), ("logic", "ExecutorLibrary"), ("logic", "SegmentLibrary")]
+    for key, (package, name) in enumerate(keys):
+        invoke(f"set_play_class {name}", instances, "set_play_class", key, declare(package, name),
+               record=False)
+
+    def batch(actions):
+        """`actions::encode_batch`: the count at bits 0-3, action `i` (24 bits: kind 0-2, the
+        direction 3-5 for a Move) at `4 + 24 i` for `i` 0-4 and `128 + 24 (i - 5)` after."""
+        word = len(actions)
+        for i, direction in enumerate(actions):
+            shift = 4 + 24 * i if i < 5 else 128 + 24 * (i - 5)
+            word += (direction * 8) << shift
+        return word
+
+    def played(receipt):
+        """`BatchPlayed`'s data (adventurer, from, played, stop, sequence, clock, version) and the
+        count of `ChunkRevealed` (one key felt after its selector, no data but the chunk)."""
+        data, reveals = None, 0
+        for event in receipt["events"]:
+            if int(event["from_address"], 16) != int(instances, 16):
+                continue
+            if len(event["data"]) == 7:
+                data = [int(d, 16) for d in event["data"]]
+            elif len(event["keys"]) == 2 and len(event["data"]) == 1:
+                reveals += 1
+        return data, reveals
+
+    # The registry's content version, which a batch carries (D-141, E-5).
+    out = sncast("persistent", "call", "--url", URL, "--contract-address", registry, "--function",
+                 "content_version", "--block-id", "latest")
+    version = int(re.search(r"Response Raw:\s*\[([^\]]*)\]", out).group(1).strip(), 16)
+    sequence, direction = 0, None
+    for d in range(6):
+        receipt = invoke(f"play, one Move ({d})", instances, "play", fifth, 1, sequence, version,
+                         batch([d]))
+        data, reveals = played(receipt)
+        emit({"batch": f"one Move ({d})", "played": data, "chunks_revealed": reveals})
+        if data and data[2] == 1:
+            sequence, direction = data[4], d
+            break
+    if direction is not None:
+        back = (direction + 3) % 6
+        moves = [back if i % 2 == 0 else direction for i in range(10)]
+        receipt = invoke("play, exploration: 10 Moves (fast path)", instances, "play", fifth, 1,
+                         sequence, version, batch(moves))
+        data, reveals = played(receipt)
+        sequence = data[4]
+        emit({"batch": "exploration", "played": data, "chunks_revealed": reveals})
+
+        # E-12: a walk that brings sight onto a chunk not revealed. The tiles of the revealed
+        # chunks (`instance_region`), the moves by hexx's rule (`LayoutTrait::neighbor`, the row's
+        # parity global: the window's origin row is even), sight by hex distance (axial
+        # `q = x - floor(y / 2)`, `r = y`).
+        def step(x, y, d):
+            odd = y % 2 == 1
+            return [(x - 1, y), (x, y + 1) if odd else (x - 1, y + 1),
+                    (x + 1, y + 1) if odd else (x, y + 1), (x + 1, y),
+                    (x + 1, y - 1) if odd else (x, y - 1), (x, y - 1) if odd else (x - 1, y - 1)][d]
+
+        def distance(a, b):
+            (ax, ay), (bx, by) = a, b
+            aq, bq = ax - ay // 2, bx - by // 2
+            dq, dr = bq - aq, by - ay
+            return (abs(dq) + abs(dr) + abs(dq + dr)) // 2
+
+        raw = view("instance_region", fifth, 0, 16)
+        walkable, unrevealed = set(), set()
+        i = 1
+        while i < len(raw):
+            # `RegionChunk`: chunk, kind (0 void, 1 not revealed, 2 revealed), terrain, features,
+            # goblins (a span, empty until a view lists them)
+            chunk, kind, terrain, goblins = raw[i], raw[i + 1], raw[i + 2], raw[i + 4]
+            assert goblins == 0, "instance_region: goblins listed"
+            i += 5
+            cx, cy = chunk % 15, chunk // 15
+            if kind == 2:
+                walls = terrain % (1 << 225)
+                for t in range(225):
+                    if not (walls >> t) & 1:
+                        walkable.add((cx * 15 + t % 15, cy * 15 + t // 15))
+            elif kind == 1:
+                unrevealed.add(chunk)
+        # `InstanceView`: id, header, entropy, revealed, quotas, the task words (a span), the
+        # members' words (a span, `MemberState` first: x 32-39, y 40-47)
+        state = view("instance_state", fifth)
+        word = state[6 + state[5] + 1]
+        at = ((word >> 32) % 256, (word >> 40) % 256)
+
+        def sees_new(tile):
+            for chunk in unrevealed:
+                cx, cy = chunk % 15, chunk // 15
+                for t in range(225):
+                    if distance(tile, (cx * 15 + t % 15, cy * 15 + t // 15)) <= 6:
+                        return True
+            return False
+
+        path = None
+        if True:
+            frontier, seen = [(at, [])], {at}
+            while frontier and path is None:
+                nxt = []
+                for tile, moves_so_far in frontier:
+                    if len(moves_so_far) >= 8:
+                        continue
+                    for d in range(6):
+                        n = step(*tile, d)
+                        if n in walkable and n not in seen:
+                            seen.add(n)
+                            if sees_new(n):
+                                path = moves_so_far + [d]
+                                break
+                            nxt.append((n, moves_so_far + [d]))
+                    if path is not None:
+                        break
+                frontier = nxt
+        emit({"reveal_walk": path, "from": at, "unrevealed": sorted(unrevealed)})
+        if path is not None:
+            receipt = invoke(f"play, a walk of {len(path)} Moves revealing in play (E-12)",
+                             instances, "play", fifth, 1, sequence, version, batch(path))
+            data, reveals = played(receipt)
+            emit({"batch": "reveal walk", "played": data, "chunks_revealed": reveals})
+            sequence = data[4]
+
 # CBT-02e fix loop 1 (AC-5): a snapshot word's overwrite on the node. Three `set_build` of
 # adventurer 2 with the same reads and the same computation (two potions, pages 0 and 1): the
 # belt's counts changed (the belt word overwritten; the snapshot's words written with the values
