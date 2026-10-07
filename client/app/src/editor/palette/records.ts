@@ -34,6 +34,8 @@ export interface BuildingPlacement {
   readonly door?: Tile;
   /** The rows covered behind the base row, 0 to 8; the kind's when absent (the hubs' `depth`). */
   readonly depth?: number;
+  /** The hexes it covers when a file gave them (CLI-09c); drawn from the kind when absent. */
+  readonly footprint?: readonly Tile[];
 }
 
 export interface PropPlacement {
@@ -51,11 +53,16 @@ export interface PropPlacement {
 export interface BridgePlacement {
   readonly category: "bridge";
   readonly kind: string;
-  /** The southern end hex. */
+  /** The southern end hex (the eastern one for a bridge that runs West). */
   readonly south: Tile;
-  /** The deck leans North-West first instead of North-East. */
+  /** The deck leans North-West first instead of North-East (runs East instead of West). */
   readonly mirrored?: boolean;
+  /** North (the default) or along the row, West (CLI-09c: ENG-08's sample bridge runs so). */
+  readonly run?: BridgeRun;
 }
+
+export type BridgeRun = "north" | "west";
+export const BRIDGE_RUNS: readonly BridgeRun[] = ["north", "west"];
 
 export type Placement = NpcPlacement | BuildingPlacement | PropPlacement | BridgePlacement;
 
@@ -148,15 +155,25 @@ export function doorChoices(footprint: readonly Tile[]): Tile[] {
   return footprint.filter((tile) => doorSide(footprint, tile) !== null);
 }
 
-/** A bridge's hexes from its southern end: `deck` deck hexes, then the northern end. */
+/**
+ * A bridge's hexes from its southern end: `deck` deck hexes, then the northern end. One that runs
+ * West goes along the row from its eastern end (East when mirrored).
+ */
 export function bridgeAt(
   kind: BridgeKind,
   south: Tile,
   mirrored = false,
+  run: BridgeRun = "north",
 ): { deck: Tile[]; ends: [Tile, Tile] } {
   // North-South on pointy-top rows: North-East then North-West (or the reverse), so the ends stay
   // in one column on screen.
-  const lean = mirrored ? [SIDE.northWest, SIDE.northEast] : [SIDE.northEast, SIDE.northWest];
+  const along = mirrored ? SIDE.east : SIDE.west;
+  const lean =
+    run === "west"
+      ? [along, along]
+      : mirrored
+        ? [SIDE.northWest, SIDE.northEast]
+        : [SIDE.northEast, SIDE.northWest];
   const deck: Tile[] = [];
   let tile = south;
   for (let i = 0; i < kind.deck; i++) {
@@ -203,7 +220,9 @@ function buildingRecord(p: BuildingPlacement, kind: BuildingKind): RecordResult 
   if (!(Number.isInteger(depth) && depth >= 0 && depth <= 8)) {
     return { problem: `depth ${String(depth)} is not 0 to 8` };
   }
-  const footprint = footprintAt(kind, p.anchor, depth);
+  const footprint = p.footprint
+    ? p.footprint.map((t) => ({ x: t.x, y: t.y }))
+    : footprintAt(kind, p.anchor, depth);
   const door = p.door ?? p.anchor;
   if (doorSide(footprint, door) === null) {
     return { problem: `the door (${door.x}, ${door.y}) is not on the footprint's border` };
@@ -244,7 +263,7 @@ function propRecord(p: PropPlacement, kind: PropKind): RecordResult {
 }
 
 function bridgeRecord(p: BridgePlacement, kind: BridgeKind): RecordResult {
-  const { deck, ends } = bridgeAt(kind, p.south, p.mirrored);
+  const { deck, ends } = bridgeAt(kind, p.south, p.mirrored, p.run);
   return { category: "bridge", record: { kind: kind.id, deck, ends } };
 }
 

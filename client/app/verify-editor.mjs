@@ -9,7 +9,10 @@
 // selected and moved, copied and pasted, mirrored; a failing map is fixed; each is walked in the
 // preview with the game's keys and taps. CLI-09e part 2: the pack's four menus are opened, a
 // building, a character, a prop and a bridge placed, the character turned (R), a building's door
-// failed and fixed (E-20), the map saved and opened again from its file. Run by hand, not by CI:
+// failed and fixed (E-20), the map saved and opened again from its file. CLI-09c: ENG-08's sample
+// zone is refused without its content manifest, opens with it, validates, is exported for the chain
+// to the converter's records file, and its grimworld-export JSON opens again and exports the same.
+// Run by hand, not by CI:
 // `node verify-editor.mjs`. Starts the dev server as its own process group and sends SIGTERM to that
 // recorded group in `finally`. The server inherits GRIMWORLD_ART_OUT (the built atlas, D-73: never
 // committed).
@@ -19,9 +22,10 @@
 //
 // Env: VERIFY_PORT (default 5199), VERIFY_CHANNEL, VERIFY_ROOT (the checkout whose dev server runs;
 // default this one), VERIFY_SHOTS_DIR, VERIFY_PACK_ONLY=1 (the pack's phase alone, after the map
-// list).
+// list), VERIFY_EXPORT_ONLY=1 (the export's phase alone).
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
@@ -163,8 +167,9 @@ async function run(browser, look) {
   await page.reload();
   await page.locator('[data-screen="list"]').waitFor();
   ok(await page.getByText("No draft yet.").isVisible(), "the map list opens, no draft");
-  if (process.env.VERIFY_PACK_ONLY === "1") {
-    await packPhase(page, look, shot);
+  if (process.env.VERIFY_PACK_ONLY === "1" || process.env.VERIFY_EXPORT_ONLY === "1") {
+    if (process.env.VERIFY_PACK_ONLY === "1") await packPhase(page, look, shot);
+    else await exportPhase(page, look, shot);
     ok(foreign.length === 0, `no request beyond the page's origin (${foreign.length})`);
     ok(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
     await context.close();
@@ -347,6 +352,8 @@ async function run(browser, look) {
   await objectsPhase(page, look, shot, text);
   await page.getByRole("button", { name: "◂ Maps" }).click();
   await packPhase(page, look, shot);
+  await page.getByRole("button", { name: "◂ Maps" }).click();
+  await exportPhase(page, look, shot);
 
   // Below 700 px: one line.
   await page.setViewportSize({ width: 600, height: 900 });
@@ -810,6 +817,83 @@ async function packPhase(page, look, shot) {
   const after = JSON.stringify((await objectsOf(page)).map((o) => ({ ...o, id: 0 })));
   ok(after === before, "opened again from its file: the same objects");
   await shot("17-reloaded");
+}
+
+/** ENG-08's samples (track game's, read only). */
+const SAMPLES = join(here, "../../spikes/SPK-16-authored-zone/samples");
+
+/** A download the click starts, saved and read. */
+async function downloaded(page, selector, path) {
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator(selector).click(),
+  ]);
+  await download.saveAs(path);
+  return { name: download.suggestedFilename(), text: readFileSync(path, "utf8") };
+}
+
+/**
+ * Export for the chain (CLI-09c): ENG-08's sample zone, its manifest, the records file the
+ * converter writes, and the export JSON opened again.
+ */
+async function exportPhase(page, look, shot) {
+  console.log("  export for the chain (CLI-09c)");
+  const sample = join(SAMPLES, "zone.json");
+  // Without the manifest: refused, the page as it was.
+  await page.locator("[data-open-file]").setInputFiles(sample);
+  const refused = page.locator(".ed-problem", { hasText: "content manifest" });
+  await refused.waitFor();
+  ok(await refused.isVisible(), "an export opened with no manifest is refused, with the reason");
+  await page.locator("[data-manifest-file]").setInputFiles(join(SAMPLES, "manifest.json"));
+  await page.locator("[data-load-manifest]", { hasText: "manifest.json" }).first().waitFor();
+  ok(true, "the content manifest loaded");
+  await page.locator("[data-open-file]").setInputFiles(sample);
+  await page.locator('[data-canvas]:not([data-atlas="loading"])').waitFor();
+  await page.waitForFunction(() => window.__editor !== undefined);
+  await page.waitForTimeout(500);
+  ok(
+    (await page.locator("[data-map-name]").innerText()) === "Meadow Edge",
+    "the sample zone opens",
+  );
+  await shot("18-sample-zone");
+
+  await page.locator("[data-export]").click();
+  await page.locator('[data-dialog="export"]').waitFor();
+  const validation = await page.locator("[data-export-validation]").innerText();
+  ok(/: 0 errors/.test(validation), `it validates: ${validation}`);
+  const verdict = await page.locator("[data-export-verdict]").innerText();
+  ok(/records/.test(verdict), `the converter accepts it: ${verdict}`);
+  await shot("19-export-dialog");
+  const json = await downloaded(page, "[data-export-json]", join(shots, `export-${look}.json`));
+  const records = await downloaded(
+    page,
+    "[data-confirm]",
+    join(shots, `export-${look}.records.json`),
+  );
+  const golden = readFileSync(join(SAMPLES, "zone.records.json"), "utf8");
+  const source = JSON.parse(records.text).source;
+  ok(
+    records.text.replace(`"source": "${source}"`, '"source": "zone.json"') === golden,
+    `the records file is the converter's, text for text (${records.name}, ${JSON.parse(golden).writes.length} writes)`,
+  );
+  const exported = JSON.parse(json.text);
+  const expected = JSON.parse(readFileSync(sample, "utf8"));
+  delete exported.editor;
+  delete expected.editor;
+  ok(isDeepStrictEqual(exported, expected), `the export JSON is the sample (${json.name})`);
+
+  // The export JSON opened again: the same records.
+  await page.locator("[data-open-file]").setInputFiles(join(shots, `export-${look}.json`));
+  await page.waitForTimeout(800);
+  await page.waitForFunction(() => window.__editor !== undefined);
+  await page.locator("[data-export]").click();
+  await page.locator('[data-dialog="export"]').waitFor();
+  const again = await downloaded(
+    page,
+    "[data-confirm]",
+    join(shots, `export-${look}-2.records.json`),
+  );
+  ok(again.text === records.text, "opened from its export, it exports the same records");
 }
 
 /** In the page: the device pixels that differ between two PNG screenshots, and their box (CSS px). */
