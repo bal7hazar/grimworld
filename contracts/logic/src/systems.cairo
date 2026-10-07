@@ -1,3 +1,6 @@
+/// `AiLibrary`: the goblins' acts, step 2 of a tick, as a library class called once a tick
+/// (ENG-07 Open question 1, candidate C).
+pub mod ai;
 /// `ExecutorLibrary`: the executor as its own library class, one call a carrier (CBT-05a, the
 /// own-class route measured for the project manager).
 pub mod executor;

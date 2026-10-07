@@ -129,7 +129,15 @@ pub trait ITickLibrary<T> {
     /// `executor` (route (c), CBT-05a), stopping after a tick that defeated the adventurer;
     /// returns the words.
     fn run(
-        self: @T, words: Words, content: Content, board: Board, executor: ClassHash, ticks: u8,
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        executor: ClassHash,
+        ai: ClassHash,
+        trap: ClassHash,
+        level: u8,
+        ticks: u8,
     ) -> Words;
     /// The adventurer's `action` (member 0) at the words' clock, then its ticks (design/19 §5.3,
     /// CBT-05b, D-222): its legality, costs, facing and resolution through the executor's class
@@ -142,9 +150,38 @@ pub trait ITickLibrary<T> {
         content: Content,
         board: Board,
         executor: ClassHash,
+        ai: ClassHash,
+        trap: ClassHash,
+        level: u8,
         ground: Array<(u8, Features)>,
         action: Action,
     ) -> (Words, Array<(u8, Features)>, Option<Illegal>);
+}
+
+/// The goblins' acts as their own library class (ENG-07 Open question 1, candidate C): the tick's
+/// rules (`TickLibrary`'s `Delegate`) call it through `IAiLibraryLibraryDispatcher` once a tick
+/// for step 2, only on a tick where a goblin of the window is free to act (D-225), the class hash
+/// being `Instances`' configuration.
+#[starknet::interface]
+pub trait IAiLibrary<T> {
+    /// Step 2 over `words` (every member, then the awake set's goblins in their order, each awake)
+    /// on `board`, `resolved` holding those that resolved in step 1 (bit `2^k` for the `k`-th) and
+    /// `frozen` the window's tiles of the other living goblins (a bitmap of the window): each free
+    /// goblin's act (`types::ai`), its carriers through the executor's class `executor`, a trap
+    /// it enters through `trap` (`level`, the location band's lower level) with the chunk objects
+    /// `ground`. Returns the words and the ground.
+    fn act(
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        executor: ClassHash,
+        trap: ClassHash,
+        ground: Array<(u8, Features)>,
+        level: u8,
+        frozen: felt252,
+        resolved: u128,
+    ) -> (Words, Array<(u8, Features)>);
 }
 
 /// A trap's trigger as its own library class (design/19 §5.11, CBT-05b, D-222): the move's owner

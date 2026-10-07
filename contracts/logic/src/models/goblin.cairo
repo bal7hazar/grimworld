@@ -20,6 +20,7 @@ use crate::types::tick::{
 pub use super::index::{Goblin, GoblinWords};
 
 const F8: felt252 = 0x100;
+const F16: felt252 = 0x10000;
 const F24: felt252 = 0x1000000;
 const F28: felt252 = 0x10000000;
 const F32: felt252 = 0x100000000;
@@ -306,6 +307,15 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
         let y = peel(ref rest, N8);
         let facing = peel(ref rest, N8);
         (x.try_into().unwrap(), y.try_into().unwrap(), facing.try_into().unwrap())
+    }
+
+    /// Moves it to the location's tile `(x, y)`, facing `facing` (`GoblinState` 0–23; ENG-07's
+    /// moves).
+    fn set_place(ref self: Goblin, x: u8, y: u8, facing: u8) {
+        let (ox, oy, old_facing) = Self::at(self.state);
+        let old: felt252 = ox.into() + oy.into() * F8 + old_facing.into() * F16;
+        let new: felt252 = x.into() + y.into() * F8 + facing.into() * F16;
+        self.state += new - old;
     }
 
     /// Its level (`GoblinState` 80–87, the pack's).

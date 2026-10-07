@@ -42,7 +42,10 @@ use core::dict::{Felt252Dict, Felt252DictTrait};
 use hexx::board::bits::Bits;
 use starknet::ClassHash;
 use crate::durations::effective_duration;
-use crate::interface::{IExecutorLibraryDispatcherTrait, IExecutorLibraryLibraryDispatcher};
+use crate::interface::{
+    IAiLibraryDispatcherTrait, IAiLibraryLibraryDispatcher, IExecutorLibraryDispatcherTrait,
+    IExecutorLibraryLibraryDispatcher,
+};
 use crate::models::goblin::{
     Goblin, GoblinConditionTrait, GoblinLifecycleTrait, GoblinPlaceTrait, GoblinTrait,
     GoblinWordsTrait,
@@ -52,7 +55,7 @@ use crate::models::member::{
     MemberWordsTrait,
 };
 use crate::types::action::Carry;
-use crate::types::combat::{Arc, HitClass, condition, skill_kind};
+use crate::types::combat::{Arc, HitClass, activation, condition, skill_kind};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
 use crate::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BLOCK};
 use crate::types::infliction::Infliction;
@@ -62,7 +65,7 @@ use crate::types::tick::{
 };
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, Window, WindowTrait, range};
-use crate::types::world::{Actor, Pending, Rules, Words, World, WorldTrait};
+use crate::types::world::{Actor, Pending, Rules, TickTrait, Words, World, WorldTrait};
 use crate::types::{FIRST_GOBLIN, MAX_CLOCK};
 
 /// A value's bounds at play (design/19 §6: a value outside its kind's bounds is clamped).
@@ -1224,10 +1227,22 @@ pub struct Delegate {
     pub placed: Array<(u16, Actor)>,
     /// The chunk objects a placement writes (CBT-05b, §5.11).
     pub ground: Ground,
+    /// The goblins' acts' class (`AiLibrary`, ENG-07 Open question 1), step 2's hook.
+    pub ai: ClassHash,
+    /// The traps' class (`TrapLibrary`, D-222), a move into a trap (§5.11), and the location
+    /// band's lower level, a terrain trap's source.
+    pub trap: ClassHash,
+    pub level: u8,
+    /// Inside `AiLibrary`: the window's tiles of the living goblins its world does not hold (a
+    /// bitmap of the window), which its moves and flood treat as occupied.
+    pub frozen: felt252,
 }
 
 pub impl DelegateRules of Rules<Delegate> {
-    fn perceive(ref self: Delegate, ref world: World) {}
+    /// Step 0: perception and the awake set in one pass (`TickTrait::perceive`, L4, ENG-07).
+    fn perceive(ref self: Delegate, ref world: World) {
+        TickTrait::perceive(ref world, @self.board);
+    }
 
     fn resolve(
         ref self: Delegate, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
@@ -1244,6 +1259,92 @@ pub impl DelegateRules of Rules<Delegate> {
     }
 
     fn act(ref self: Delegate, ref world: World, sheets: @Sheets, index: u32) {}
+
+    /// Step 2 in one call of `AiLibrary` (ENG-07 Open question 1, C), none on a tick where no goblin
+    /// of the awake set is free to act (D-225): every member and the awake set cross it, with the
+    /// records their loads need (lever (1)) and the other living goblins' tiles; the set comes back
+    /// in one rebuild, the members one by one.
+    fn step(
+        ref self: Delegate, ref world: World, sheets: @Sheets, resolved: u128,
+    ) -> Option<bool> {
+        let t = world.clock;
+        let woken = world.woken();
+        let mut free = false;
+        let mut bit: u128 = 1;
+        for index in woken {
+            let goblin = world.goblin(*index);
+            if goblin.act_slot == activation::NONE
+                && goblin.knocked < t
+                && goblin.is_alive()
+                && resolved & bit == 0 {
+                free = true;
+                break;
+            }
+            bit *= 2;
+        }
+        if !free {
+            return Some(false);
+        }
+        let mut members = array![];
+        let count = world.member_count();
+        let mut m = 0;
+        while m < count {
+            members.append(world.member(m).store());
+            m += 1;
+        }
+        let mut goblins = array![];
+        for index in woken {
+            goblins.append(world.goblin(*index).store());
+        }
+        let board = self.board;
+        let mut frozen: felt252 = 0;
+        let mut seen: u256 = 0;
+        for (i, state) in world.alive() {
+            if world.position(i).is_none() {
+                let (x, y, _) = GoblinPlaceTrait::at(state);
+                let at = board.position(x, y);
+                if at < FAR {
+                    let bit: u256 = Bits::pow(at).into();
+                    if seen & bit == 0 {
+                        seen += bit;
+                        frozen += Bits::pow(at);
+                    }
+                }
+            }
+        }
+        let words = Words { clock: t, members, goblins, killed: array![], defeated: false };
+        let content = ExecutorTrait::subcontent(@world, woken, @self.content);
+        let ground = self.ground;
+        let (out, ground) = IAiLibraryLibraryDispatcher { class_hash: self.ai }
+            .act(
+                words,
+                content,
+                board,
+                self.executor,
+                self.trap,
+                ground,
+                self.level,
+                frozen,
+                resolved,
+            );
+        self.ground = ground;
+        let mut m = 0;
+        for words in out.members {
+            world.set_member(m, MemberTrait::load(words, ref self.index, sheets));
+            m += 1;
+        }
+        let mut pending: Pending = array![];
+        let mut k = 0;
+        for words in out.goblins {
+            pending.append((k, GoblinTrait::load(words, ref self.index, sheets)));
+            k += 1;
+        }
+        world.flush(pending);
+        for entity in out.killed {
+            world.killed.append(entity);
+        }
+        Some(world.is_down())
+    }
 
     fn objectives(ref self: Delegate, ref world: World) {}
 }

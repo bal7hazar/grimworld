@@ -2,6 +2,8 @@
 //! (docs/architecture/ENG-01-interfaces.md). The order of every enum's variants is frozen: it is
 //! their encoding in calldata and events.
 
+/// The goblins' acts: step 2 of the tick, one hook for the step (ENG-07).
+pub mod ai;
 /// The adventurer's action between two ticks: legality, costs, facing, resolution (design/19 §5.3,
 /// CBT-05b).
 pub mod action;

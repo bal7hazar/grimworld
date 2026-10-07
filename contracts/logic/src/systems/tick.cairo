@@ -31,6 +31,9 @@ pub mod TickLibrary {
             content: Content,
             board: Board,
             executor: ClassHash,
+            ai: ClassHash,
+            trap: ClassHash,
+            level: u8,
             ticks: u8,
         ) -> Words {
             let (mut world, sheets, index) = words.indexed(@content);
@@ -42,6 +45,10 @@ pub mod TickLibrary {
                 index,
                 placed: array![],
                 ground: array![],
+                ai,
+                trap,
+                level,
+                frozen: 0,
             };
             TickTrait::run(ref world, @sheets, ticks, ref rules);
             world.store()
@@ -53,6 +60,9 @@ pub mod TickLibrary {
             content: Content,
             board: Board,
             executor: ClassHash,
+            ai: ClassHash,
+            trap: ClassHash,
+            level: u8,
             ground: Array<(u8, Features)>,
             action: Action,
         ) -> (Words, Array<(u8, Features)>, Option<Illegal>) {
@@ -65,6 +75,10 @@ pub mod TickLibrary {
                 index,
                 placed: array![],
                 ground,
+                ai,
+                trap,
+                level,
+                frozen: 0,
             };
             match ActionTrait::act(ref world, @sheets, ref rules, 0, action) {
                 Ok(ticks) => {

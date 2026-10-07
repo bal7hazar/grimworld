@@ -48,8 +48,13 @@
 use crate::models::goblin::{GoblinTickTrait, GoblinTrait};
 use crate::models::index::{Goblin, GoblinWords, Member, MemberWords};
 use crate::models::member::{MemberTickTrait, MemberTrait};
-use crate::types::combat::activation;
+use crate::models::goblin::GoblinPlaceTrait;
+use crate::models::member::MemberSnapshotTrait;
+use crate::types::combat::{Arc, activation};
+use crate::types::executor::{Board, BoardTrait};
 use crate::types::tick::{Content, ContentTrait, Index, NO_SLOT, Sheets, ai, flag, status};
+use crate::types::window::{FAR, WindowTrait, range};
+use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE};
 
 /// What crosses the library call: the clock, the members (ascending entity id), the goblins the
 /// ticks may touch (ascending entity id), the goblins killed in resolution order (`GoblinKilled`)
@@ -194,6 +199,13 @@ pub trait Rules<R> {
     /// Step 2: the goblin at `index` acts (the AI, ENG-07); it is awake, alive, not busy, not
     /// knocked down, and did not resolve an activation in step 1.
     fn act(ref self: R, ref world: World, sheets: @Sheets, index: u32);
+    /// Step 2 whole (ENG-07 Open question 1: one hook for the step, which `AiLibrary` takes in one
+    /// call a tick): every goblin of the awake set free to act, ascending id, `resolved` holding
+    /// those that resolved in step 1 (bit `2^k` for the set's `k`-th). Returns whether the
+    /// adventurer reached 0, or `None` (the default) for `act` on each of them.
+    fn step(ref self: R, ref world: World, sheets: @Sheets, resolved: u128) -> Option<bool> {
+        None
+    }
     /// Step 5: the objectives (D-04), after the defeat check.
     fn objectives(ref self: R, ref world: World);
 }
@@ -339,6 +351,9 @@ pub impl TickImpl of TickTrait {
     fn act<R, +Rules<R>, +Destruct<R>>(
         ref world: World, sheets: @Sheets, resolved: u128, ref rules: R,
     ) -> bool {
+        if let Some(down) = rules.step(ref world, sheets, resolved) {
+            return down;
+        }
         let t = world.clock;
         let woken = world.woken;
         let mut bit: u128 = 1;
@@ -490,6 +505,154 @@ pub impl TickImpl of TickTrait {
         world.goblins = goblins;
         world.woken = now.span();
         world.awake = awake;
+    }
+
+    /// Step 0 (§5.2) on the tick's `board`, perception and the awake set in one rebuild of the
+    /// goblins (L4, D-172; ENG-07): every goblin of the window asleep or on watch checks design/18's
+    /// table against every member inside, from the state at step 0, and one that notices engages
+    /// its pack (its chunk's pack, `k` below or from 5: ENG-01 §3.2's two packs of five); then the
+    /// set, among the goblins of the window alive and not asleep, the `MAX_AWAKE` nearest to a
+    /// member, ties by lowest entity id (`awake`'s rule; a goblin outside the window is never in
+    /// it). Asleep notices within 2 tiles; on watch within 2, or within 5 in its sight and its
+    /// front or front-side arcs (design/18). A pack's shared `alert` bits are the caller's to
+    /// write (`Instances`, ENG-01 §3.2).
+    fn perceive(ref world: World, board: @Board) {
+        let mut seen: Array<u8> = array![];
+        for member in world.members.span() {
+            if *member.status == status::INSIDE && *member.health > 0 {
+                let (x, y, _) = MemberSnapshotTrait::place(member);
+                let at = board.position(x, y);
+                if at < FAR {
+                    seen.append(at);
+                }
+            }
+        }
+        let seen = seen.span();
+        let current = world.current();
+        let all = current.span();
+        // Each goblin's distance to the nearest member (`FAR` outside the window), and the packs
+        // that notice.
+        let mut distances: Array<u8> = array![];
+        let mut packs: Array<u16> = array![];
+        for goblin in all {
+            let (x, y, facing) = GoblinPlaceTrait::place(goblin);
+            let at = board.position(x, y);
+            let mut near = FAR;
+            let mut notices = false;
+            for member in seen {
+                let d = WindowTrait::distance(at, *member);
+                if d < near {
+                    near = d;
+                }
+                if goblin.is_alive() && !notices {
+                    notices = Self::notices(*goblin.ai, board, at, *member, facing, d);
+                }
+            }
+            if notices {
+                packs.append(Self::pack(*goblin.entity));
+            }
+            distances.append(near);
+        }
+        let packs = packs.span();
+        let mut keys: Array<u32> = array![];
+        let mut ais: Array<u8> = array![];
+        let mut i = 0;
+        for goblin in all {
+            let mut state = *goblin.ai;
+            if packs.len() > 0
+                && goblin.is_alive()
+                && state <= ai::ALERTED
+                && Self::member_of(packs, *goblin.entity) {
+                state = ai::ENGAGED;
+            }
+            let near = *distances[i];
+            keys
+                .append(
+                    if goblin.is_alive() && state != ai::ASLEEP && near < FAR {
+                        near.into() * 0x10000 + (*goblin.entity).into()
+                    } else {
+                        0xFFFFFFFF
+                    },
+                );
+            ais.append(state);
+            i += 1;
+        }
+        let keys = keys.span();
+        let last = Self::last(keys);
+        let mut goblins = array![];
+        let mut now: Array<u32> = array![];
+        let mut awake = array![];
+        let mut i = 0;
+        for goblin in all {
+            let mut goblin = *goblin;
+            goblin.ai = *ais[i];
+            Self::place(ref goblins, ref now, ref awake, goblin, i, *keys[i] <= last);
+            i += 1;
+        }
+        WorldAssert::assert_awake(@now);
+        world.goblins = goblins;
+        world.woken = now.span();
+        world.awake = awake;
+    }
+
+    /// Whether a goblin of AI state `state` on `at`, facing `facing`, notices the member on
+    /// `member`, `d` tiles away (design/18's table; §5.2 step 0.1).
+    fn notices(state: u8, board: @Board, at: u8, member: u8, facing: u8, d: u8) -> bool {
+        if state == ai::ASLEEP {
+            return d <= 2;
+        }
+        if state != ai::WATCH {
+            return false;
+        }
+        if d <= 2 {
+            return true;
+        }
+        if d > range::ALERT || !board.window.sight(at, member) {
+            return false;
+        }
+        match WindowTrait::arc(member, at, facing) {
+            Some(Arc::Front) | Some(Arc::FrontSide) => true,
+            _ => false,
+        }
+    }
+
+    /// The pack of a goblin: its spawn chunk's pack 0 (`k` below 5) or 1 (ENG-01 §3.2, M-5).
+    #[inline(always)]
+    fn pack(entity: u16) -> u16 {
+        let offset = entity - FIRST_GOBLIN;
+        (offset / GOBLINS_STRIDE) * 2 + (offset % GOBLINS_STRIDE) / 5
+    }
+
+    /// Whether the goblin of `entity` is in one of `packs`.
+    fn member_of(packs: Span<u16>, entity: u16) -> bool {
+        let pack = Self::pack(entity);
+        for p in packs {
+            if *p == pack {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The `MAX_AWAKE`-th smallest key of `keys` (every key is unique), or below every key when
+    /// none is a candidate (`0`, with no key at 0: an entity id is at least `FIRST_GOBLIN`).
+    fn last(keys: Span<u32>) -> u32 {
+        let mut last: u32 = 0;
+        let mut found = 0;
+        while found < MAX_AWAKE {
+            let mut least: u32 = 0xFFFFFFFF;
+            for key in keys {
+                if (found == 0 || *key > last) && *key < least {
+                    least = *key;
+                }
+            }
+            if least == 0xFFFFFFFF {
+                break;
+            }
+            last = least;
+            found += 1;
+        }
+        last
     }
 
     /// A candidate's key for the awake set: `distance × 2^16 + entity` for a goblin alive and not
