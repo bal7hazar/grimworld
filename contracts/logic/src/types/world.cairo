@@ -956,8 +956,7 @@ mod tests {
     // regeneration 0. Ticks 70–72 lose 14 each (−7 pips), ticks 73–75 lose 6 (−3): 60 in
     // all.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7560794)] // ceil(1.05 × 7200756 measured)
     fn test_example_condition_degeneration() {
         let mut spec = Fixture::spec();
@@ -1042,8 +1041,7 @@ mod tests {
     // degeneration that tick; Field Dressing, started at clock 75, resolves in step 1 of tick 76
     // and cures: D = 75, nothing lost at 76. 60 lost in all.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7893252)] // ceil(1.05 × 7517382 measured)
     fn test_example_condition_refreshed() {
         let (health, bleeding) = dressing(array![(70, 8), (74, 8)].span());
@@ -1054,8 +1052,7 @@ mod tests {
     // The variant: Bleeding 2 at tick 74 keeps 77 by `max` (replacing would give 75, FX-6); the
     // health lost is the same, and the cure at 76 gives 75.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7893252)] // ceil(1.05 × 7517382 measured)
     fn test_example_condition_refreshed_variant() {
         let (health, bleeding) = dressing(array![(70, 8), (74, 2)].span());
@@ -1066,8 +1063,7 @@ mod tests {
     // design/19 §10.1, step 3 of ticks 42–44: goblin 24 Burning to 44, health regeneration 0,
     // goes 87 → 73 → 59 → 45; tick 45 changes nothing.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7605848)] // ceil(1.05 × 7243664 measured)
     fn test_example_burning_goblin() {
         let mut goblin = Fixture::goblin(24, HOB);
@@ -1087,8 +1083,7 @@ mod tests {
     // the field goes to none, R = 61. It skips ticks 52 and 53, acts at 54; the smash is usable in
     // step 2 of tick 62 (T > R).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 6815941)] // ceil(1.05 × 6491372 measured)
     fn test_example_interrupt() {
         let sheets = Fixture::sheets();
@@ -1117,8 +1112,7 @@ mod tests {
     // recharge 10); it is frozen from tick 103 to 106 and nothing of it changes; awake at 107, its
     // activation has lapsed at 103: none, R = 112, and it acts in step 2 of 107.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 13233585)] // ceil(1.05 × 12603414 measured)
     fn test_example_lapse() {
         let mut goblin = Fixture::goblin(30, HOB);
@@ -1155,8 +1149,7 @@ mod tests {
     // in 51, has no recovery (k < n + 2) and acts at 52; with k = 3 it recovers to B = 52 and acts
     // at 53.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 18648077)] // ceil(1.05 × 17760073 measured)
     fn test_example_activated_attack_cost() {
         let sheets = Fixture::sheets();
@@ -1199,8 +1192,7 @@ mod tests {
     // clock 200 with activation 2 (after the quick-cast bonus) and interrupted in step 2 of 201
     // recharges from 201.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 16075948)] // ceil(1.05 × 15310426 measured)
     fn test_example_member_activation() {
         let sheets = Fixture::sheets();
@@ -1244,8 +1236,7 @@ mod tests {
     // energy in thirds up to its max. `MemberTrait::load` derives an effect's pips once: a skill's
     // at its rank, a potion's through its belt slot.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 11486978)] // ceil(1.05 × 10939979 measured)
     fn test_regeneration() {
         // Skill 1 regenerates 2…6 pips; the bar's other skills (2–8) are read for its
@@ -1304,8 +1295,7 @@ mod tests {
     // overflow and clamps to ±10: −10 (the field at 0), four −10 effects and the three
     // conditions give −64, 20 health lost; +10 and four +10 effects give +50, 20 health gained.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 11089697)] // ceil(1.05 × 10561616 measured)
     fn test_regeneration_extremes() {
         let mut spec = Fixture::spec();
@@ -1330,8 +1320,7 @@ mod tests {
     // loses 1 quarter strike a tick, floored at 0; a goblin not Engaged too; an Engaged one keeps
     // it.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 12381241)] // ceil(1.05 × 11791658 measured)
     fn test_adrenaline_decay() {
         let mut spec = Fixture::spec();
@@ -1359,8 +1348,7 @@ mod tests {
     // §5.13: goblins at 0 in step 3 die after every actor of the step, in id order; a dead goblin
     // is no longer touched. Goblin energy regenerates in thirds up to the caste's.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7672842)] // ceil(1.05 × 7307468 measured)
     fn test_deaths_in_step_3() {
         let mut a = Fixture::goblin(8, HOB);
@@ -1393,8 +1381,7 @@ mod tests {
     // §5.13, FX-8: the adventurer at 0 in step 3 is down at step 5 and the run stops; at 0 in step
     // 2 the tick stops at once (no later act, no step 3) and step 5 still runs.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 11789095)] // ceil(1.05 × 11227709 measured)
     fn test_defeat() {
         let mut spec = Fixture::spec();
@@ -1422,8 +1409,7 @@ mod tests {
     // Step 2 (§5.2): a knocked-down goblin, a busy one (activating, recovering), a frozen one and
     // a dead one do not act; the others act in ascending id order.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 8118757)] // ceil(1.05 × 7732149 measured)
     fn test_who_acts() {
         let mut knocked = Fixture::goblin(8, HOB);
@@ -1448,8 +1434,7 @@ mod tests {
 
     // Step 0: the flags "since the last tick" and "hit this tick" clear; `HALVED` stays.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5548109)] // ceil(1.05 × 5283913 measured)
     fn test_flags_cleared() {
         let mut spec = Fixture::spec();
@@ -1499,8 +1484,7 @@ mod tests {
     // trap on its move, in the action phase) stops it at once: the clock does not advance, no
     // goblin acts, nothing regenerates, and step 5's defeat and objectives run.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5738712)] // ceil(1.05 × 5465440 measured)
     fn test_member_down_before_the_tick() {
         let mut spec = Fixture::spec();
@@ -1520,8 +1504,7 @@ mod tests {
     // awake goblin stays in the set, a write to a frozen one in the array; a changed flag forms the
     // set again; the words put every goblin back in its place.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7348247)] // ceil(1.05 × 6998330 measured)
     fn test_awake_set_apart() {
         let mut frozen = Fixture::goblin(8, HOB);
@@ -1604,8 +1587,7 @@ mod tests {
     // the goblins' turn (CBT-02d, #196's review). The world made of them.
     #[test]
     #[should_panic(expected: 'tick: more than 8 awake')]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7653198)] // ceil(1.05 × 7288760 measured)
     fn test_world_assert_awake() {
         let mut goblins = array![];
@@ -1621,8 +1603,7 @@ mod tests {
     // The same through the library call's load.
     #[test]
     #[should_panic(expected: 'tick: more than 8 awake')]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 9036930)] // ceil(1.05 × 8606600 measured)
     fn test_world_assert_awake_loaded() {
         let (members, goblins) = nine_awake();
@@ -1637,8 +1618,7 @@ mod tests {
     // step 1: refused in step 0, before step 1 can return on the defeat.
     #[test]
     #[should_panic(expected: 'tick: more than 8 awake')]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 9471613)] // ceil(1.05 × 9020583 measured)
     fn test_world_assert_awake_perceived() {
         let (members, goblins) = nine_awake();
@@ -1659,8 +1639,7 @@ mod tests {
     // Without the ninth, the same tick stops on the defeat in step 1: the member's resolution
     // takes it to 0 (the state the two tests above refuse).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 9180112)] // ceil(1.05 × 8742963 measured)
     fn test_defeat_in_step_1_with_eight_awake() {
         let (members, mut goblins) = nine_awake();

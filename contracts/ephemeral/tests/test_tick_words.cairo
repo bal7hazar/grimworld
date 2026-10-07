@@ -145,8 +145,7 @@ fn test_tick_constants() {
 // regeneration, the effects' deadlines and pips; `store` writes the changed fields where the
 // unpackers read them, and every other field of the four words is kept.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
-// to D-236)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 1514741)] // ceil(1.05 × 1442610 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
@@ -216,8 +215,7 @@ fn test_tick_words_member() {
 // AUD-182-1: a potion's effect regenerates from each of the four belt slots, slot 0 included (its
 // skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
-// to D-236)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 3593208)] // ceil(1.05 × 3422102 measured)
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
@@ -261,8 +259,7 @@ fn test_potion_regeneration_every_belt_slot() {
 
 // A goblin: the same for its two words, its caste's derived fields and its effect's pips.
 #[test]
-// gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin (D-233
-// to D-236)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 711260)] // ceil(1.05 × 677390 measured)
 fn test_tick_words_goblin() {
     let state = GoblinState {

@@ -2195,8 +2195,7 @@ pub mod tests {
 
     /// Part 0: the word, the feed, the base, sight, a pack's member tiles (ids from 0).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 152336967)] // ceil(1.05 × 145082825 measured)
     fn test_vectors() {
         let mut digest: Array<felt252> = array![];
@@ -2283,8 +2282,7 @@ pub mod tests {
     /// Part 1: whole reveals in zones: each biome on both row parities with nothing known; a chunk
     /// with 1 to 4 sides known; the location's edge, a void chunk and an anchor; a cut.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 257503327)] // ceil(1.05 × 245241263 measured)
     fn test_vectors_1() {
         let mut digest: Array<felt252> = array![];

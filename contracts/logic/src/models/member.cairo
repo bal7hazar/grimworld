@@ -1037,8 +1037,7 @@ mod tests {
     // Skullring's Knocked down 2 takes the flat +1 (D = 12); every condition 1–5 lands in its
     // field and survives the words.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7694715)] // ceil(1.05 × 7328300 measured)
     fn test_member_apply() {
         let sheets = Fixture::sheets();
@@ -1064,8 +1063,7 @@ mod tests {
     // deadline is kept; at a larger, refreshed; Knocked down likewise; a value of 0 is clamped
     // to 1 (§6), never a cure. A cure of an absent condition changes nothing.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5549912)] // ceil(1.05 × 5285630 measured)
     fn test_member_apply_refresh() {
         let sheets = Fixture::sheets();
@@ -1091,8 +1089,7 @@ mod tests {
     // Nothing applies to a member not alive (§5.14: the entries reach living actors): at 0
     // health, or down.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5351189)] // ceil(1.05 × 5096370 measured)
     fn test_member_apply_not_alive() {
         let sheets = Fixture::sheets();
@@ -1112,8 +1109,7 @@ mod tests {
     // counts from t0 = 201 (R = 201 + 10 − 1 = 210), energy stays paid. Without an activation a
     // knock-down changes nothing but its deadline.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 15212232)] // ceil(1.05 × 14487840 measured)
     fn test_member_knockdown_interrupts() {
         let sheets = Fixture::sheets();
@@ -1181,8 +1177,7 @@ mod tests {
     // 32,767), with "Rending" and without a passive, activating or not, a condition held to be
     // kept or raised, alive or not (at 0 health, down).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 37652507)] // ceil(1.05 × 35859530 measured)
     fn test_member_apply_matches_oracle() {
         let sheets = Fixture::sheets();
@@ -1236,8 +1231,7 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down member's only action is Wait).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5417706)] // ceil(1.05 × 5159720 measured)
     fn test_member_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
@@ -1265,8 +1259,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5389902)] // ceil(1.05 × 5133240 measured)
     fn test_cost_member_condition_base() {
         let (member, _sheets) = condition_cost_state();
@@ -1275,8 +1268,7 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5390742)] // ceil(1.05 × 5134040 measured)
     fn test_cost_member_source_base() {
         let (member, _sheets) = condition_cost_state();
@@ -1285,8 +1277,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5409852)] // ceil(1.05 × 5152240 measured)
     fn test_cost_member_infliction() {
         let (member, _sheets) = condition_cost_state();
@@ -1295,8 +1286,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5449994)] // ceil(1.05 × 5190470 measured)
     fn test_cost_member_knock() {
         let (mut member, sheets) = condition_cost_state();
@@ -1307,8 +1297,7 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; at 0 health.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5392212)] // ceil(1.05 × 5135440 measured)
     fn test_cost_member_idle_base() {
         let (mut member, _sheets) = condition_cost_state();
@@ -1319,8 +1308,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5392212)] // ceil(1.05 × 5135440 measured)
     fn test_cost_member_zero_base() {
         let (mut member, _sheets) = condition_cost_state();
@@ -1330,8 +1318,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5450414)] // ceil(1.05 × 5190870 measured)
     fn test_cost_member_knock_idle() {
         let (mut member, sheets) = condition_cost_state();
@@ -1343,8 +1330,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5424857)] // ceil(1.05 × 5166530 measured)
     fn test_cost_member_apply_crippled() {
         let (mut member, _sheets) = condition_cost_state();
@@ -1354,8 +1340,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5424857)] // ceil(1.05 × 5166530 measured)
     fn test_cost_member_apply_bleeding() {
         let (mut member, _sheets) = condition_cost_state();
@@ -1365,8 +1350,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5425277)] // ceil(1.05 × 5166930 measured)
     fn test_cost_member_apply_not_alive() {
         let (mut member, _sheets) = condition_cost_state();
@@ -1378,8 +1362,7 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5487321)] // ceil(1.05 × 5226020 measured)
     fn test_cost_member_oracle() {
         let (mut member, sheets) = condition_cost_state();
@@ -1391,8 +1374,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5428784)] // ceil(1.05 × 5170270 measured)
     fn test_cost_member_cure() {
         let (mut member, _sheets) = condition_cost_state();
@@ -1401,8 +1383,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5401589)] // ceil(1.05 × 5144370 measured)
     fn test_cost_member_predicates() {
         let (member, _sheets) = condition_cost_state();
@@ -1417,8 +1398,7 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 11254100)] // ceil(1.05 × 10718190 measured)
     fn test_member_load_store() {
         let mut spec = Fixture::spec();
@@ -1442,8 +1422,7 @@ mod tests {
     // CBT-02d: the bar's positions in the content, found once at the load; an empty slot holds
     // none.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 6053618)] // ceil(1.05 × 5765350 measured)
     fn test_member_bar_positions() {
         let mut words = Fixture::member_words(Fixture::spec());
@@ -1485,8 +1464,7 @@ mod tests {
     // Knocked down likewise; Crippled lives in the words; a cure at 76 gives 75; an absent
     // condition is untouched.
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5699894)] // ceil(1.05 × 5428470 measured)
     fn test_member_conditions() {
         let mut member = Fixture::member(Fixture::spec());
@@ -1569,8 +1547,7 @@ mod tests {
     // hit (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline
     // cost (6 strikes: 24 quarters).
     #[test]
-    // gas: raised, ENG-07: perception and the goblins' acts in the tick, Board's offset origin
-    // (D-233 to D-236)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5779809)] // ceil(1.05 × 5504580 measured)
     fn test_member_adrenaline_gain() {
         let mut skills = array![];
