@@ -2024,7 +2024,7 @@ pub mod tests {
     // Under D-220's complement draw the most draws a pass asks is at half the members: six
     // passes of 112 draws, the mixed plan at 112.
     #[test]
-    #[available_gas(l2_gas: 103059657)] // ceil(1.05 × 98152054 measured)
+    #[available_gas(l2_gas: 103059657)] // ceil(1.05 × 98152054); 98153254 measured since
     fn test_hosts_worst_half() {
         let hosts = mixed(112);
         assert(BoardTrait::count(*hosts[5]) == 112, 'six passes');
