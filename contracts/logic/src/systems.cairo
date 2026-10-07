@@ -7,5 +7,8 @@ pub mod flatten;
 pub mod hosts;
 /// `RevealLibrary`: the chunk reveal as a library class (ENG-05).
 pub mod reveal;
-/// `TickLibrary`: the world tick's pipeline as a library class (CBT-02).
+/// `TickLibrary`: the world tick's pipeline as a library class (CBT-02), and the action phase
+/// before it (CBT-05b, D-222).
 pub mod tick;
+/// `TrapLibrary`: a trap's trigger as a library class (CBT-05b, D-222).
+pub mod trap;
