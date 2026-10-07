@@ -2009,6 +2009,12 @@ later entry; its first ceiling is D-231's.
 | enter into a dungeon floor (new case) | without | 9,862,400 · 9,382,400 · 9,342,400 · 9,582,400 · 9,142,400 · 9,502,400 | 9,862,400 | 10,355,520 | — | — |
 | enter into a dungeon floor (new case) | with | 9,502,400 · 9,382,400 · 9,502,400 · 9,662,400 · 9,382,400 · 9,142,400 | 9,662,400 | 10,145,520 | — | — |
 
+**Re-run after #385's merge** (six runs each again, at `cec0ba2`, origin/main merged): every figure is
+under its D-231 ceiling. The maxima, without · with a quota: first `enter` 13,292,400 · 14,254,400;
+later `enter` 6,982,400 · 7,462,400; the belt's worst case 7,822,400 · 8,262,400; `leave` to a dungeon
+floor 11,562,640 · 11,722,640; `leave` back into the zone 11,040,640 · 11,680,640; `enter` into a
+dungeon floor 9,542,400 · 9,782,400.
+
 **The worst legal plan of a zone's quota hosts (D-220)**: **98,153,254** L2 gas in snforge (`test_hosts_worst_half`, `contracts/logic/GAS.md`: 15 × 15, three object quotas, two Hearts and a set piece of 112 each, six passes of 112 draws, the complement draw), under D-220's 100,000,000; the content bound on a zone's total quota draws that keeps every legal plan there is ENG-08's R-30 (§3.5): with the snapshot's eight task quotas the same plan measures **99,673,404**, and at R-30's 640 draws 95,799,175 (SPK-16).
 
 **Proposed by ENG-08 (SPK-16, not built; snforge M, Linux, two clean builds equal to the unit,
