@@ -1302,6 +1302,8 @@ fn test_entry_reveal_through_the_engine() {
         height: 2,
         entry_chunk: 16,
         chunk_set: 0x18007,
+        west: 0,
+        north: 0,
         masks: array![(16, mask), (15, 0)].span(),
         anchors: array![(16, 110)].span(),
         quotas: camp(),
@@ -1321,6 +1323,7 @@ fn test_entry_reveal_through_the_engine() {
         (low, high),
         site.pieces,
         EntropyTrait::hosts(entropy, id.into()),
+        array![].span(),
     );
     site
         .masks =

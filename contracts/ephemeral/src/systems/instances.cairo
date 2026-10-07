@@ -968,6 +968,8 @@ pub mod Instances {
                 height: *location.height,
                 entry_chunk,
                 chunk_set,
+                west: 0,
+                north: 0,
                 masks: masks.span(),
                 anchors: array![(entry_chunk, entry_tile)].span(),
                 quotas,

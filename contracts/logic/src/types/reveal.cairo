@@ -11,10 +11,11 @@
 //!    the sides decided first: copied, closed or drawn, step 3's decisions);
 //! 3. edges and openings (`decide`: a side facing a revealed neighbour copies its decision; facing
 //!    the location's border or a void chunk it is closed but for an anchor; any other side is
-//!    drawn: in a zone open, with 1 or 2 openings; in a dungeon a border with probability 1 in 7,
-//!    except that while fewer than `N` chunks are revealed one side stays open toward a chunk that
-//!    can still grow, and every drawn edge a border once `N` are; a side the mask cuts whole is
-//!    never opened), then every opening and anchor joined to the spine;
+//!    drawn: in a zone open, with 1 or 2 openings from the chunk's stream; in a dungeon open
+//!    exactly when its seam is in the outline drawn at `create` (`outline`, ENG-10a, D-223), its
+//!    1 or 2 openings from the seam's own stream (D-224), so both chunks of a seam draw the same
+//!    tiles whichever is revealed first; a side the mask cuts whole is never opened), then every
+//!    opening and anchor joined to the spine;
 //! 4. the cut by the zone's outline (`cut`), then the component of the centre kept;
 //! 5. the quotas (`placement::PlacementTrait::due`, drawn first: a set-piece quota lays an authored
 //!    chunk instead of steps 1 and 2);
@@ -28,17 +29,17 @@
 //! of other lots only, so the order of the reveals and the side a chunk is entered from change no
 //! chunk's word; ADR-0006 lists moving and the order of actions among what must not steer. What
 //! still depends on the order is the state a reveal reads: the neighbours known (their seams, as
-//! the design accepts), and in a dungeon only (D-208, the project manager, 2026-10-03) its count
-//! and frontier (`decide`) and its quotas (`PlacementTrait::due`): **a dungeon exit's position
-//! stays order-dependent while the outline emerges from the order of the moves, accepted as the
-//! dungeon's nature**. A zone's quotas land on hosts drawn once at entry, carried above each
-//! chunk's mask (bit `225 + i`): order-free.
+//! the design accepts). **A dungeon floor's outline is drawn at `create`** (ENG-10a, D-223, built
+//! by ENG-10b): its chunks, its open seams and its quotas' hosts, the exit's and the Heart's among
+//! its farthest chunks, read the entry draw alone, and a seam's openings its own stream (D-224):
+//! no order of moves changes which chunks a floor holds, where its exit lands, how far it is from
+//! the entry, in chunks or in tiles (the dungeon residue of #348's re-audits, removed). Every
+//! quota lands on hosts drawn once at entry, carried above each chunk's mask (bit `225 + i`):
+//! order-free.
 //!
-//! **What is revealable** (`kind`): a zone's chunk inside the location and in its chunk set (the
-//! whole rectangle when the location has no chunk set); a dungeon's entry chunk first, then a chunk
-//! that a revealed neighbour faces with an open edge, while fewer than `N` are revealed. Anything
-//! else is void (outside, outside the outline, beyond a border, or every chunk beyond the frontier
-//! once `N` are revealed) or not yet decided (a dungeon chunk no revealed chunk faces yet). A chunk
+//! **What is revealable** (`kind`): a chunk inside the location and in its chunk set (a zone's,
+//! the whole rectangle when the location has none; a dungeon's outline), not yet revealed: sight
+//! reveals it. Anything else is void (outside the rectangle, the chunk set or the outline). A chunk
 //! that is not revealable is skipped, never generated (D-136: it stays wall in the window).
 //!
 //! **Sight** (`SightTrait::chunks`): the chunks a hexagon of radius 6 around a global tile touches
@@ -51,7 +52,9 @@
 //! the caller's error (asserted).
 
 pub mod board;
+pub mod outline;
 pub mod placement;
+use core::poseidon::poseidon_hash_span;
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
 use crate::fate::EntropyTrait;
@@ -98,7 +101,13 @@ pub struct Site {
     /// The instance's entry chunk (the bands' origin).
     pub entry_chunk: u8,
     /// A zone's chunk set (`OUTLINE` at `CHUNK_SET`), bit `15 cy + cx`; 0 for the whole rectangle.
+    /// A dungeon floor's outline (`outline::Outline::chunks`, drawn at `create`, ENG-10b).
     pub chunk_set: felt252,
+    /// A dungeon floor's open seams, drawn at `create` (`outline::Outline`): bit `c` of `west`,
+    /// the seam between `c` and `c + 1` (`c`'s West side); of `north`, between `c` and `c + 15`.
+    /// 0 in a zone.
+    pub west: felt252,
+    pub north: felt252,
     /// The tile masks of the border chunks to reveal, `(chunk, mask)`; a chunk without one is
     /// whole.
     pub masks: Span<(u8, felt252)>,
@@ -171,7 +180,22 @@ pub impl SiteImpl of SiteTrait {
         if chunk >= 225 || cx >= *self.width || cy >= *self.height {
             return false;
         }
-        self.emerging() || *self.chunk_set == 0 || BoardTrait::has(*self.chunk_set, chunk)
+        // A dungeon's chunk set is its outline (never 0)
+        let set = *self.chunk_set;
+        set == 0 || BoardTrait::has(set, chunk)
+    }
+
+    /// Whether the seam on `side` of `chunk`, toward `next`, is open in a dungeon's outline.
+    fn seam(self: @Site, chunk: u8, side: u8, next: u8) -> bool {
+        if side == side::WEST {
+            BoardTrait::has(*self.west, chunk)
+        } else if side == side::EAST {
+            BoardTrait::has(*self.west, next)
+        } else if side == side::SOUTH {
+            BoardTrait::has(*self.north, next)
+        } else {
+            BoardTrait::has(*self.north, chunk)
+        }
     }
 
     /// The chunks a location reveals in all: `N`, or the zone's chunk set.
@@ -244,58 +268,22 @@ pub impl ProgressImpl of ProgressTrait {
 pub impl RevealImpl of RevealTrait {
     /// The kind of `chunk` for the window and the views (module doc, *What is revealable*);
     /// `known`: the terrain of its revealed neighbours (a dungeon reads their edges).
-    fn kind(site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8) -> ChunkKind {
+    fn kind(site: @Site, progress: @Progress, _known: Span<(u8, Terrain)>, chunk: u8) -> ChunkKind {
         if !site.inside(chunk) {
             return ChunkKind::Void;
         }
         if progress.is_revealed(chunk) {
             return ChunkKind::Revealed;
         }
-        if !site.emerging() {
-            return ChunkKind::Unrevealed;
-        }
-        if *progress.count >= *site.target {
-            return ChunkKind::Void;
-        }
-        // [Compute] Faced by a revealed neighbour: open, border, or not yet
-        let mut faced = false;
-        let mut open = false;
-        let mut side: u8 = 0;
-        while side != 4 {
-            if let Option::Some(next) = site.neighbour(chunk, side) {
-                if progress.is_revealed(next) {
-                    faced = true;
-                    let terrain = Self::known(known, next);
-                    if Self::is_open(terrain.edges, Self::opposite(side)) {
-                        open = true;
-                    }
-                }
-            }
-            side += 1;
-        }
-        if open || !faced {
-            ChunkKind::Unrevealed
-        } else {
-            ChunkKind::Void
-        }
+        ChunkKind::Unrevealed
     }
 
-    /// Whether `chunk` can be revealed now: not revealed, and a zone's chunk inside the location,
-    /// or a dungeon's entry chunk first, then a chunk faced by an open edge, before `N`.
-    fn revealable(site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8) -> bool {
-        if progress.is_revealed(chunk) || !site.inside(chunk) {
-            return false;
-        }
-        if !site.emerging() {
-            return true;
-        }
-        if *progress.count >= *site.target {
-            return false;
-        }
-        if *progress.count == 0 {
-            return chunk == *site.entry_chunk;
-        }
-        Self::faced_open(site, progress, known, chunk)
+    /// Whether `chunk` can be revealed now: not revealed, and inside the location (a zone's
+    /// chunk set or a dungeon's outline; sight reveals it).
+    fn revealable(
+        site: @Site, progress: @Progress, _known: Span<(u8, Terrain)>, chunk: u8,
+    ) -> bool {
+        !progress.is_revealed(chunk) && site.inside(chunk)
     }
 
     /// Reveals `chunks` in order: each that is revealable now is generated and known to the next
@@ -349,7 +337,7 @@ pub impl RevealImpl of RevealTrait {
         // [Compute] 3. The ring: each side copied, closed or drawn; the anchors opened
         let mut draws = RngTrait::new(RngTrait::mix(word, 4));
         let (ring, edges, open_edges) = Self::decide(
-            site, @progress, known, chunk, mask, ref draws,
+            site, @progress, instance_id, known, chunk, mask, ref draws,
         );
         let mut anchors: Array<u8> = array![];
         let mut ring = ring;
@@ -407,27 +395,24 @@ pub impl RevealImpl of RevealTrait {
         Revealed { chunk, terrain, features }
     }
 
-    /// The ring of a chunk and, for a dungeon, its edges and the frontier's open edges after it
-    /// (module doc, step 3).
+    /// The ring of a chunk and, for a dungeon, its edges (module doc, step 3). ENG-10b: the open
+    /// edges are 0 (no frontier); the third value is kept so that `generate` reads as ENG-05's.
     fn decide(
         site: @Site,
         progress: @Progress,
+        instance_id: felt252,
         known: Span<(u8, Terrain)>,
         chunk: u8,
         mask: felt252,
         ref draws: Rng,
     ) -> (felt252, u8, u8) {
         let emerging = site.emerging();
-        let last = *progress.count + 1 >= *site.target;
         // The loops' state starts from `zero`, 0 for every chunk index but not a constant: a loop
         // whose state starts from constants is compiled twice (a copy specialised to them), which
         // cost this class about 1,900 CASM felts (D-200).
         let zero: u8 = chunk / 255;
         let mut ring: felt252 = zero.into();
         let mut edges: u8 = zero;
-        let mut copied: u8 = zero;
-        // Drawable sides as bits, and those drawn open.
-        let mut free: u8 = zero;
         let mut open: u8 = zero;
         let mut side: u8 = zero;
         let mut bit: u8 = zero + 1;
@@ -439,42 +424,30 @@ pub impl RevealImpl of RevealTrait {
                     ring += BoardTrait::copy(side, BoardTrait::floor(terrain.walls));
                     if Self::is_open(terrain.edges, Self::opposite(side)) {
                         edges += bit;
-                        copied += 1;
                     }
                 } else if site.inside(next) {
-                    // [Compute] Drawn: a zone's side is open; a dungeon's a border in 7, every one
-                    // once `N` are revealed; a side the mask cuts whole is no side to open (the
-                    // guard below widens only toward a side it can open)
-                    let border = draws.draw(BORDER.try_into().unwrap()) == 0;
-                    if BoardTrait::and(BoardTrait::side(side), mask) != 0 {
-                        free += bit;
-                        if !emerging || (!last && !border) {
-                            open += bit;
-                        }
+                    // [Compute] ENG-10b: a zone's side is open; a dungeon's is open exactly when
+                    // its seam is, drawn at `create`. ENG-05's border draw is kept, unread, so that
+                    // a zone's streams do not move; a side the mask cuts whole is no side to open
+                    let _border = draws.draw(BORDER.try_into().unwrap());
+                    if BoardTrait::and(BoardTrait::side(side), mask) != 0
+                        && (!emerging || site.seam(chunk, side, next)) {
+                        open += bit;
                     }
                 }
             }
             side += 1;
             bit *= 2;
         }
-        // [Compute] A dungeon never closes before `N` (audit #348, minor 3, and its delta review):
-        // before `N`, a chunk with a side it can open keeps one open toward a chunk that can still
-        // grow (a neighbour inside the rectangle, not revealed, not this chunk). Always, not only
-        // when the frontier looks short: its open edges are not chunks (two edges into one
-        // enclosed chunk passed that comparison), and counting the distinct chunks behind them put
-        // `RevealLibrary` at 51.20 % (D-200)
-        let frontier = if *progress.open_edges > copied {
-            *progress.open_edges - copied
+        // [Compute] The openings of the sides drawn open, 1 or 2 each, inside the mask. D-224: a
+        // dungeon's from its seam's own stream, keyed by the seam (its lower chunk, its axis) and
+        // the outline's seed, so that both chunks of a seam draw the same tiles, whichever is
+        // revealed first; a zone's from the chunk's stream, as before
+        let seams = if emerging {
+            EntropyTrait::outline(*progress.entropy, instance_id)
         } else {
             0
         };
-        if emerging && !last && free != 0 {
-            if !Self::opens_growth(site, progress, chunk, open) {
-                open += Self::widen(site, progress, chunk, free, open);
-            }
-        }
-        // [Compute] The openings of the sides drawn open, 1 or 2 each, inside the mask
-        let mut drawn: u8 = zero;
         let mut side: u8 = zero;
         let mut rest = open;
         while side != 4 {
@@ -482,86 +455,47 @@ pub impl RevealImpl of RevealTrait {
             rest = above;
             if here == 1 {
                 let allowed = BoardTrait::and(BoardTrait::side(side), mask);
-                let two = draws.draw_byte(2) == 1;
-                if allowed != 0 {
-                    let first = Self::opening(allowed, side, ref draws);
-                    ring = BoardTrait::or(ring, BoardTrait::pow(first));
-                    if two {
-                        let second = Self::opening(allowed, side, ref draws);
-                        ring = BoardTrait::or(ring, BoardTrait::pow(second));
-                    }
+                let drawn = if emerging {
+                    let (low, axis): (u8, u8) = if side == side::WEST {
+                        (chunk, 0)
+                    } else if side == side::EAST {
+                        (chunk - 1, 0)
+                    } else if side == side::SOUTH {
+                        (chunk - 15, 1)
+                    } else {
+                        (chunk, 1)
+                    };
+                    let mut seam = RngTrait::new(
+                        poseidon_hash_span([seams, low.into(), axis.into()].span()),
+                    );
+                    Self::openings(allowed, side, ref seam)
+                } else {
+                    Self::openings(allowed, side, ref draws)
+                };
+                if drawn != 0 {
+                    ring = BoardTrait::or(ring, drawn);
                     edges += Self::pow2(side);
-                    drawn += 1;
                 }
             }
             side += 1;
         }
-        let open_edges = if !emerging || last {
-            0
-        } else {
-            frontier + drawn
-        };
-        (ring, edges, open_edges)
+        (ring, edges, zero)
     }
 
-    /// Whether `next`, once revealed, could open toward a chunk still to reveal: a neighbour inside
-    /// the rectangle, not revealed, not `chunk` (which this reveal fills).
-    fn grows(site: @Site, progress: @Progress, chunk: u8, next: u8) -> bool {
-        let mut found = false;
-        // From a value that is not a constant: `decide`'s note on specialised loops (D-200).
-        let mut side: u8 = next / 255;
-        while side != 4 {
-            if let Option::Some(other) = site.neighbour(next, side) {
-                if other != chunk && !progress.is_revealed(other) {
-                    found = true;
-                }
-            }
-            side += 1;
+    /// A side's openings among its `allowed` tiles, 1 or 2 drawn from `draws` (0 when none is
+    /// allowed; the draw of the count made either way, as before).
+    fn openings(allowed: felt252, side: u8, ref draws: Rng) -> felt252 {
+        let two = draws.draw_byte(2) == 1;
+        if allowed == 0 {
+            return 0;
         }
-        found
-    }
-
-    /// Whether one of `chunk`'s `open` sides faces a chunk that can grow.
-    fn opens_growth(site: @Site, progress: @Progress, chunk: u8, open: u8) -> bool {
-        let mut found = false;
-        let mut side: u8 = chunk / 255;
-        let mut bit: u8 = side + 1;
-        while side != 4 {
-            if (open / bit) % 2 == 1
-                && Self::grows(site, progress, chunk, site.neighbour(chunk, side).unwrap()) {
-                found = true;
-            }
-            side += 1;
-            bit *= 2;
+        let first = Self::opening(allowed, side, ref draws);
+        let mut ring = BoardTrait::pow(first);
+        if two {
+            let second = Self::opening(allowed, side, ref draws);
+            ring = BoardTrait::or(ring, BoardTrait::pow(second));
         }
-        found
-    }
-
-    /// The free side to open: the first (ENG-01's order) not open yet whose chunk can grow, else
-    /// the first not open yet; 0 when every free side is open.
-    fn widen(site: @Site, progress: @Progress, chunk: u8, free: u8, open: u8) -> u8 {
-        let mut side: u8 = chunk / 255;
-        let mut first: u8 = side;
-        let mut growing: u8 = side;
-        let mut bit: u8 = side + 1;
-        while side != 4 {
-            if (free / bit) % 2 == 1 && (open / bit) % 2 == 0 {
-                if first == 0 {
-                    first = bit;
-                }
-                if growing == 0
-                    && Self::grows(site, progress, chunk, site.neighbour(chunk, side).unwrap()) {
-                    growing = bit;
-                }
-            }
-            side += 1;
-            bit *= 2;
-        }
-        if growing != 0 {
-            growing
-        } else {
-            first
-        }
+        ring
     }
 
     /// An opening on `side` among its `allowed` tiles (not empty): one of the side's 13 tiles drawn
@@ -667,24 +601,6 @@ pub impl RevealImpl of RevealTrait {
             Option::Some(terrain) => terrain,
             Option::None => core::panic_with_felt252(errors::NEIGHBOUR),
         }
-    }
-
-    /// Whether a revealed neighbour faces `chunk` with an open edge.
-    fn faced_open(site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8) -> bool {
-        let mut open = false;
-        let mut side: u8 = 0;
-        while side != 4 {
-            if let Option::Some(next) = site.neighbour(chunk, side) {
-                if progress.is_revealed(next) {
-                    let terrain = Self::known(known, next);
-                    if Self::is_open(terrain.edges, Self::opposite(side)) {
-                        open = true;
-                    }
-                }
-            }
-            side += 1;
-        }
-        open
     }
 
     /// Edge `side` of `edges` is open.
@@ -877,6 +793,8 @@ pub mod tests {
             height,
             entry_chunk: 0,
             chunk_set: 0,
+            west: 0,
+            north: 0,
             masks: array![].span(),
             anchors: array![].span(),
             quotas,
@@ -898,6 +816,8 @@ pub mod tests {
             height: 15,
             entry_chunk: 112,
             chunk_set: 0,
+            west: 0,
+            north: 0,
             masks: array![].span(),
             anchors: array![(112, 112)].span(),
             quotas,
@@ -1700,6 +1620,7 @@ pub mod tests {
             PlacementTrait::plan(@site, start.left.span()),
             site.pieces,
             EntropyTrait::hosts(entropy, INSTANCE),
+            array![].span(),
         );
         let mut masks: Array<(u8, felt252)> = array![];
         let mut cy: u8 = 0;
@@ -1974,7 +1895,13 @@ pub mod tests {
         site.tasks = tasks.span();
         let start = ProgressTrait::new(@site, 'worst');
         PlacementTrait::hosts(
-            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+            0,
+            15,
+            15,
+            PlacementTrait::plan(@site, start.left.span()),
+            array![].span(),
+            'worst',
+            array![].span(),
         )
     }
 
@@ -2020,7 +1947,13 @@ pub mod tests {
         let site = zone(biome::MEADOW, 15, 15, quotas);
         let start = ProgressTrait::new(@site, 'worst');
         PlacementTrait::hosts(
-            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+            0,
+            15,
+            15,
+            PlacementTrait::plan(@site, start.left.span()),
+            array![].span(),
+            'worst',
+            array![].span(),
         )
     }
 
@@ -2049,7 +1982,13 @@ pub mod tests {
         let site = zone(biome::MEADOW, 15, 15, quotas);
         let start = ProgressTrait::new(@site, 'worst');
         let hosts = PlacementTrait::hosts(
-            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+            0,
+            15,
+            15,
+            PlacementTrait::plan(@site, start.left.span()),
+            array![].span(),
+            'worst',
+            array![].span(),
         );
         assert(BoardTrait::count(*hosts[5]) == 224, 'six passes');
     }
