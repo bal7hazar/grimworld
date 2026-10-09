@@ -3,8 +3,8 @@
 //! that controls the adventurer (M-6). Layouts: docs/architecture/ENG-01-interfaces.md, *Member*.
 
 use grimworld_logic::packing::{
-    P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96, byte_at, field, fits,
-    join, low_field, split, u16_at, u32_at,
+    N16, N32, N8, P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96, byte_at,
+    field, fits, join, low_field, peel, split, u16_at, u32_at,
 };
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::MAX_CLOCK;
@@ -145,24 +145,37 @@ pub impl MemberStateStorePacking of starknet::storage_access::StorePacking<Membe
         join(low, high)
     }
     fn unpack(value: felt252) -> MemberState {
-        let (low, high) = split(value);
+        let (mut low, mut high) = split(value);
+        let adventurer = peel(ref low, N32).try_into().unwrap();
+        let x = peel(ref low, N8).try_into().unwrap();
+        let y = peel(ref low, N8).try_into().unwrap();
+        let facing = peel(ref low, N8).try_into().unwrap();
+        let status = peel(ref low, N8).try_into().unwrap();
+        let health = peel(ref low, N16).try_into().unwrap();
+        let energy = peel(ref low, N16).try_into().unwrap();
+        let adrenaline = peel(ref low, N16).try_into().unwrap();
+        let hits = peel(ref low, N8).try_into().unwrap();
+        let casts = peel(ref low, N8).try_into().unwrap();
+        let b0 = peel(ref high, N8).try_into().unwrap();
+        let b1 = peel(ref high, N8).try_into().unwrap();
+        let b2 = peel(ref high, N8).try_into().unwrap();
+        let b3 = peel(ref high, N8).try_into().unwrap();
+        let flags = peel(ref high, N8).try_into().unwrap();
+        let casts_2 = peel(ref high, N8).try_into().unwrap();
         MemberState {
-            adventurer: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            x: byte_at(low, P32),
-            y: byte_at(low, 0x10000000000),
-            facing: byte_at(low, 0x1000000000000),
-            status: byte_at(low, P56),
-            health: u16_at(low, P64),
-            energy: u16_at(low, P80),
-            adrenaline: u16_at(low, P96),
-            hits: byte_at(low, P112),
-            casts: byte_at(low, P120),
-            belt: [
-                low_field(high, P8.try_into().unwrap()).try_into().unwrap(), byte_at(high, P8),
-                byte_at(high, P16), byte_at(high, P24),
-            ],
-            flags: byte_at(high, P32),
-            casts_2: byte_at(high, P40),
+            adventurer,
+            x,
+            y,
+            facing,
+            status,
+            health,
+            energy,
+            adrenaline,
+            hits,
+            casts,
+            belt: [b0, b1, b2, b3],
+            flags,
+            casts_2,
         }
     }
 }

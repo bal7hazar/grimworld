@@ -1665,6 +1665,72 @@ pub mod tests {
         }
     }
 
+    // CBT-05g (D-240): a reveal in play reads the hosts of the quotas the stored progress still
+    // owes, 0 for the others (`HostsLibrary.reveal`). A 3 × 3 zone with quotas of 6, 2 and 1, its
+    // first four chunks revealed, then the five others twice from that progress: with every host,
+    // and with the hosts of the quotas with nothing left zeroed. The two give the same chunks and
+    // the same progress; over 6 entropies, some quota is spent before the second part.
+    #[test]
+    #[available_gas(l2_gas: 1000000000)]
+    fn test_spent_quota_hosts_unread() {
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::COLLECTOR, param: 1, count: 6 },
+                Quota { kind: quota::LANDMARK, param: 4, count: 2 },
+                Quota { kind: quota::VEIN, param: 0, count: 1 }, Default::default(),
+                Default::default(), Default::default(),
+            ],
+        };
+        let first = array![0_u8, 1, 2, 15].span();
+        let rest = array![16_u8, 17, 30, 31, 32].span();
+        let mut spent: u32 = 0;
+        let mut seed: felt252 = 0;
+        while seed != 6 {
+            let mut site = zone(biome::MEADOW, 3, 3, quotas);
+            let hosts = hosted(ref site, seed);
+            let mut progress = ProgressTrait::new(@site, seed);
+            let mut known: Array<(u8, Terrain)> = array![];
+            for chunk in first {
+                let r = one(@site, ref progress, known.span(), *chunk);
+                known.append((*chunk, r.terrain));
+            }
+            // The hosts as `PlayLibrary` reads them now: those of the quotas still owed
+            let mut owed: Array<felt252> = array![];
+            let mut i: u32 = 0;
+            for left in progress.left.span() {
+                if *left > 0 {
+                    owed.append(*hosts[i]);
+                } else {
+                    owed.append(0);
+                    if *hosts[i] != 0 {
+                        spent += 1;
+                    }
+                }
+                i += 1;
+            }
+            let mut unread = zone(biome::MEADOW, 3, 3, quotas);
+            let mut masks: Array<(u8, felt252)> = array![];
+            for (chunk, _) in site.masks {
+                masks.append((*chunk, PlacementTrait::with_hosts(0, owed.span(), *chunk)));
+            }
+            unread.masks = masks.span();
+            let mut all = progress;
+            let mut some = progress;
+            let mut known_all = known.clone();
+            let mut known_some = known;
+            for chunk in rest {
+                let a = one(@site, ref all, known_all.span(), *chunk);
+                let b = one(@unread, ref some, known_some.span(), *chunk);
+                assert(a == b, 'a spent host was read');
+                known_all.append((*chunk, a.terrain));
+                known_some.append((*chunk, b.terrain));
+            }
+            assert(all == some, 'the same progress');
+            seed += 1;
+        }
+        assert(spent > 0, 'no quota spent');
+    }
+
     // The re-audit at 46d7d89 (major 1): a host must be able to lay its quota. A 2 × 1 zone with a
     // set piece of three objects (the objects' cap) and a collector, each once: the collector is
     // never drawn onto the set piece's chunk (refused, its successor taken), and lands on the

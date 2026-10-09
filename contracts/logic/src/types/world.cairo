@@ -261,6 +261,36 @@ pub impl TickImpl of TickTrait {
         rules.objectives(ref world);
     }
 
+    /// Up to `ticks` ticks of the segment's fast path (CBT-05g, D-240), `run` with every hook empty
+    /// on a `calm` world: with no goblin awake and no member activating, steps 1 and 2 and the
+    /// goblins' step 3 have nothing to do; the members regenerate out of combat (no goblin of the
+    /// awake set Engaged). A test holds it against `run` with `Idle`.
+    fn idle(ref world: World, ticks: u8) {
+        let mut k: u8 = 0;
+        while k < ticks && !world.defeated {
+            world.assert_goblins();
+            if !world.is_down() {
+                world.clock += 1;
+                Self::clear_flags(ref world);
+                let t = world.clock;
+                let mut members = array![];
+                let mut downs = 0;
+                for member in world.members.span() {
+                    let mut member = *member;
+                    if member.status == status::INSIDE && member.health > 0 {
+                        member.regenerate(t, false);
+                    }
+                    downs += member.downs();
+                    members.append(member);
+                }
+                world.members = members;
+                world.downs = downs;
+            }
+            Self::check(ref world);
+            k += 1;
+        }
+    }
+
     /// Step 0: the member flags "since the last tick" and "hit this tick" clear.
     fn clear_flags(ref world: World) {
         let mut members = array![];
@@ -717,6 +747,19 @@ pub impl WorldImpl of WorldTrait {
         }
         WorldAssert::assert_awake(@woken);
         (woken.span(), awake)
+    }
+
+    /// No goblin in the awake set and no member activating: `TickTrait::idle`'s condition.
+    fn calm(self: @World) -> bool {
+        if self.woken.len() != 0 {
+            return false;
+        }
+        for member in self.members.span() {
+            if *member.act_slot != NO_SLOT {
+                return false;
+            }
+        }
+        true
     }
 
     /// Whether a member inside is at 0 health (the adventurer at 0, FX-8).
@@ -1651,5 +1694,51 @@ mod tests {
         TickTrait::run(ref world, @sheets, 1, ref rules);
         assert(rules.resolved.span() == array![(1, Actor::Member(0), 1)].span(), 'resolved');
         assert(world.defeated && rules.acts.len() == 0, 'stopped in step 1');
+    }
+
+    // CBT-05g (D-240): the segment's fast path, `TickTrait::idle`, is `run` with `Idle` on a calm
+    // world (no goblin awake, no member activating), tick by tick: a member regenerating with its
+    // conditions and effects running out beside a frozen goblin, ticks 4 to 14; a member inside at
+    // 0 health, defeated at once.
+    fn calm_world(case: u8) -> World {
+        let mut spec = Fixture::spec();
+        if case == 0 {
+            spec.health = 300;
+            spec.energy = 10;
+            spec.conditions = [7, 9, 0, 6];
+            spec
+                .effects =
+                    [(1, false, 10, 12), (0, false, 0, 0), (1, false, 6, 12), (0, false, 0, 0)];
+            spec.effect_regen = [3, 0, -2, 0];
+            spec.health_regen = 2;
+            spec.energy_regen = 4;
+            let mut far = Fixture::goblin(8, HOB);
+            far.awake = false;
+            far.ai = ai::WATCH;
+            Fixture::world(4, array![Fixture::member(spec)], array![far])
+        } else {
+            spec.health = 0;
+            Fixture::world(4, array![Fixture::member(spec)], array![])
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_idle_equals_run_with_idle() {
+        let sheets = Fixture::sheets();
+        for case in 0..2_u8 {
+            let mut fast = calm_world(case);
+            assert(fast.calm(), 'calm');
+            let mut slow = calm_world(case);
+            let mut rules = Idle {};
+            let mut k: u8 = 0;
+            while k < 10 {
+                TickTrait::idle(ref fast, 1);
+                TickTrait::run(ref slow, @sheets, 1, ref rules);
+                assert(fast == slow, 'fast path differs');
+                k += 1;
+            }
+            assert(fast.defeated == (case == 1), 'defeat');
+        }
     }
 }

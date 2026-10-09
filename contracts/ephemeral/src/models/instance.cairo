@@ -3,8 +3,8 @@
 //! carries `LIVE` (bit 250), so that a slot reused by the next instance is never 0.
 
 use grimworld_logic::packing::{
-    P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, byte_at, join, low_field, split, u16_at,
-    u32_at,
+    N16, N32, N8, P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, byte_at, join, low_field,
+    peel, split, u16_at, u32_at,
 };
 use grimworld_logic::types::Refusal;
 use grimworld_logic::types::reveal::Progress;
@@ -174,12 +174,12 @@ pub impl PlacementStorePacking of starknet::storage_access::StorePacking<Placeme
         )
     }
     fn unpack(value: felt252) -> Placement {
-        let (low, _) = split(value);
+        let (mut low, _) = split(value);
         Placement {
-            slot: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            generation: u32_at(low, P32),
-            member: byte_at(low, P64),
-            inside: byte_at(low, P72),
+            slot: peel(ref low, N32).try_into().unwrap(),
+            generation: peel(ref low, N32).try_into().unwrap(),
+            member: peel(ref low, N8).try_into().unwrap(),
+            inside: peel(ref low, N8).try_into().unwrap(),
         }
     }
 }
@@ -240,21 +240,21 @@ pub impl HeaderStorePacking of starknet::storage_access::StorePacking<Header, fe
         join(low, high)
     }
     fn unpack(value: felt252) -> Header {
-        let (low, high) = split(value);
+        let (mut low, mut high) = split(value);
         Header {
-            generation: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            sequence: u32_at(low, P32),
-            clock: u32_at(low, P64),
-            location: u16_at(low, P96),
-            status: byte_at(low, P112),
-            members: byte_at(low, P120),
-            tasks: low_field(high, P8.try_into().unwrap()).try_into().unwrap(),
-            revealed_count: byte_at(high, P8),
-            roster_count: byte_at(high, P16),
-            flags: byte_at(high, P24),
-            entry_chunk: byte_at(high, P32),
-            entry_tile: byte_at(high, P40),
-            gate: u16_at(high, P48),
+            generation: peel(ref low, N32).try_into().unwrap(),
+            sequence: peel(ref low, N32).try_into().unwrap(),
+            clock: peel(ref low, N32).try_into().unwrap(),
+            location: peel(ref low, N16).try_into().unwrap(),
+            status: peel(ref low, N8).try_into().unwrap(),
+            members: peel(ref low, N8).try_into().unwrap(),
+            tasks: peel(ref high, N8).try_into().unwrap(),
+            revealed_count: peel(ref high, N8).try_into().unwrap(),
+            roster_count: peel(ref high, N8).try_into().unwrap(),
+            flags: peel(ref high, N8).try_into().unwrap(),
+            entry_chunk: peel(ref high, N8).try_into().unwrap(),
+            entry_tile: peel(ref high, N8).try_into().unwrap(),
+            gate: peel(ref high, N16).try_into().unwrap(),
         }
     }
 }
