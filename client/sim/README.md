@@ -7,14 +7,15 @@ the harness's reader.
 
 ## What is mirrored
 
-| File             | Cairo                                                                                                                                       | Vector table    | Cases       |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ----------- |
-| `src/window.ts`  | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02)                                                                            | `window.jsonl`  | 2,065       |
-| `src/hit.ts`     | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                                        | `hit.jsonl`     | 200         |
-| `src/fate.ts`    | `fate::domain`, `fate::derive` and the purposes (`contracts/logic/src/fate.cairo`), Poseidon through `@scure/starknet`                      | `fate.jsonl`    | 218         |
-| `src/packing.ts` | `contracts/logic/src/packing.cairo`: `split`, `limbs`, `join`, `peel`, `fits`, the field readers, `Lanes32`, `Lanes16`, `Counter`, `Bitmap` | `packing.jsonl` | 520         |
-| `src/exp2.ts`    | `helpers/exp2.cairo`'s table, generated for both sides by `contracts/tools/exp2_table.py`                                                   | `--check` in CI | 241 entries |
-| `src/felt.ts`    | `P`, the integer types (`u8` … `u128`, `i8` … `i32`) with Cairo's panics, truncating division, signed felts, short strings                  | —               | —           |
+| File              | Cairo                                                                                                                                                                                                                                                                                                     | Vector table     | Cases       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ----------- |
+| `src/window.ts`   | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02)                                                                                                                                                                                                                                          | `window.jsonl`   | 2,065       |
+| `src/hit.ts`      | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                                                                                                                                                                                                      | `hit.jsonl`      | 203         |
+| `src/fate.ts`     | `fate::domain`, `fate::derive` and the purposes (`contracts/logic/src/fate.cairo`), Poseidon through `@scure/starknet`                                                                                                                                                                                    | `fate.jsonl`     | 227         |
+| `src/packing.ts`  | `contracts/logic/src/packing.cairo`: `split`, `limbs`, `join`, `peel`, `fits`, the field readers, `Lanes32`, `Lanes16`, `Counter`, `Bitmap`                                                                                                                                                               | `packing.jsonl`  | 520         |
+| `src/movement.ts` | the moves of a played batch (ENG-07, CLI-02c): the window's board around the adventurer (`SegmentTrait::board`, `BoardTrait::position`, `AssemblyTrait::origin`), a Move's ticks (`TickMathTrait::move_ticks`), the tick's flood (`Bfs::flood`, `FloodTrait`) and step 0's awake set (`TickTrait::awake`) | `movement.jsonl` | 81          |
+| `src/exp2.ts`     | `helpers/exp2.cairo`'s table, generated for both sides by `contracts/tools/exp2_table.py`                                                                                                                                                                                                                 | `--check` in CI  | 241 entries |
+| `src/felt.ts`     | `P`, the integer types (`u8` … `u128`, `i8` … `i32`) with Cairo's panics, truncating division, signed felts, short strings                                                                                                                                                                                | —                | —           |
 
 The functions keep the Cairo names and argument order (`sight(open, from, to)`, `arc(source,
 target, facing)`, …): `number` for positions, facings and ranges, `bigint` for felts, bitmaps and
@@ -24,7 +25,7 @@ A packing guard that panics in Cairo (`join`'s high limb, `fits`, `pack_bitmap`)
 `CairoPanic`; the table records it as a refusal (`[0, result…]` accepted, `[1]` refused), and its
 adapter in `src/parity/tables.ts` turns only that guard's own panic into `[1]`.
 
-Not yet mirrored: the reveal of a chunk (CLI-02b, ENG-05); the tick (CLI-02c, ENG-07).
+Not yet mirrored: the reveal of a chunk (CLI-02b, ENG-05).
 
 ## Where the vectors come from
 

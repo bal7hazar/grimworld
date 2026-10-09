@@ -1026,6 +1026,18 @@ class Tiles(unittest.TestCase):
             "[[tileset]] c: animation 'loop': unknown keys speed",
             "[[tileset]] d: animations {} is not a table of animations"])
 
+    def test_animation_limits_and_coordinates(self):
+        base = {"role": "tile", "file": "f.png", "origin": "x", "cells": {"c": [0, 0]}}
+        manifest = {"tileset": [
+            dict(base, name="a", animations={"loop": {"cell": "c", "frames": 1000, "fps": 30}}),
+            dict(base, name="b", animations={"loop": {"cell": "c", "frames": 1001, "fps": 31}}),
+            dict(base, name="c", animations={"loop": {"cell": [0, 0], "frames": 2, "fps": 10}}),
+        ]}
+        self.assertEqual(build.tileset_problems(manifest), [
+            "[[tileset]] b: animation 'loop': frames 1001 is above 1000, what the client accepts",
+            "[[tileset]] b: animation 'loop': fps 31 is above 30, what the client accepts",
+            "[[tileset]] c: animation 'loop': cell [0, 0] is not one of the entry's cells"])
+
     def test_a_cell_side_is_checked(self):
         manifest = {"tileset": [
             {"name": "foam", "role": "tile", "file": "f.png", "origin": "x", "cell": 0,

@@ -446,11 +446,16 @@ def tileset_problems(manifest):
     return problems
 
 
+# The client refuses an animation beyond these (client/app/src/render/sprites.ts: FPS_RANGE 1..30,
+# 1..1000 frames).
+FRAME_LIMITS = {"frames": 1000, "fps": 30}
+
+
 def tile_animation_problems(name, cells, animations):
     """The optional `animations` of a `[[tileset]]` (CLI-03o): `{animation = {cell, frames, fps,
     loop}}`, an animation of the named cell and the `frames - 1` cells after it on its row; `loop`
     defaults to true. The name is not the still's (`STILL_ANIM`), `cell` is one of the entry's
-    cells, `frames` and `fps` are positive integers. Returns the list of problems."""
+    cells, `frames` and `fps` are positive integers, at most what the client accepts (FRAME_LIMITS). Returns the list of problems."""
     if animations is None:
         return []
     if not isinstance(animations, dict) or not animations:
@@ -463,12 +468,15 @@ def tile_animation_problems(name, cells, animations):
         if not isinstance(a, dict):
             problems.append(f"{where}: {a!r} is not a table")
             continue
-        if a.get("cell") not in cells:
+        if not isinstance(a.get("cell"), str) or a.get("cell") not in cells:
             problems.append(f"{where}: cell {a.get('cell')!r} is not one of the entry's cells")
         for key in ("frames", "fps"):
             v = a.get(key)
             if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
                 problems.append(f"{where}: {key} {v!r} is not a positive integer")
+            elif v > FRAME_LIMITS[key]:
+                problems.append(f"{where}: {key} {v} is above {FRAME_LIMITS[key]}, "
+                                "what the client accepts")
         if not isinstance(a.get("loop", True), bool):
             problems.append(f"{where}: loop {a.get('loop')!r} is not true or false")
         extra = set(a) - {"cell", "frames", "fps", "loop"}
