@@ -276,7 +276,8 @@ def main(opts):
     s = manifest["settings"]
     method = opts["resample"] or s["resample"]
     problems = (scale.validate_manifest(manifest, METHODS) + still_problems(manifest)
-                + tileset_problems(manifest) + ui.problems(manifest, taken_names(manifest)))
+                + tileset_problems(manifest) + sprite_animation_problems(manifest)
+                + ui.problems(manifest, taken_names(manifest)))
     if problems:
         raise SystemExit("manifest.toml:\n  " + "\n  ".join(problems))
     specs = {sp["name"]: manifest["height"][sp["name"]] for sp in manifest["sprite"]}
@@ -289,6 +290,9 @@ def main(opts):
     for sp in manifest["sprite"]:
         name = sp["name"]
         anims = [(a, clean.cut_strip(ASSETS / sp["root"] / a["file"])) for a in sp["anim"]]
+        strips = [strip_problem(name, a["name"], len(ps)) for a, ps in anims]
+        if any(strips):
+            raise SystemExit("manifest.toml:\n  " + "\n  ".join(p for p in strips if p))
         every = [p for _, ps in anims for p in ps]
         cell_w, cell_h, baseline, cells = clean.place(every, s["cell_margin"])
         cells, cell_w, cell_h, baseline, scaled = scale_sprite(
@@ -451,11 +455,42 @@ def tileset_problems(manifest):
 FRAME_LIMITS = {"frames": 1000, "fps": 30}
 
 
+def rate_problem(key, v):
+    """What is wrong with an animation's `frames` or `fps` (a positive integer, at most what the
+    client accepts, FRAME_LIMITS), or None."""
+    if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
+        return f"{key} {v!r} is not a positive integer"
+    if v > FRAME_LIMITS[key]:
+        return f"{key} {v} is above {FRAME_LIMITS[key]}, what the client accepts"
+    return None
+
+
+def sprite_animation_problems(manifest):
+    """The `fps` of every `[[sprite.anim]]` (its frames are the strip's cells, counted when the
+    strip is cut: `strip_problem`). Returns the list of problems."""
+    problems = []
+    for sp in manifest.get("sprite", []):
+        for a in sp.get("anim", []):
+            problem = rate_problem("fps", a.get("fps"))
+            if problem:
+                problems.append(f"[[sprite]] {sp.get('name')}: animation {a.get('name')!r}: "
+                                f"{problem}")
+    return problems
+
+
+def strip_problem(sprite, anim, frames):
+    """The strip of a `[[sprite.anim]]` cut into `frames` cells: a problem when the client would
+    refuse that many, or None."""
+    problem = rate_problem("frames", frames)
+    return f"[[sprite]] {sprite}: animation {anim!r}: {problem}" if problem else None
+
+
 def tile_animation_problems(name, cells, animations):
     """The optional `animations` of a `[[tileset]]` (CLI-03o): `{animation = {cell, frames, fps,
     loop}}`, an animation of the named cell and the `frames - 1` cells after it on its row; `loop`
     defaults to true. The name is not the still's (`STILL_ANIM`), `cell` is one of the entry's
-    cells, `frames` and `fps` are positive integers, at most what the client accepts (FRAME_LIMITS). Returns the list of problems."""
+    cells, `frames` and `fps` are positive integers, at most what the client accepts
+    (FRAME_LIMITS). Returns the list of problems."""
     if animations is None:
         return []
     if not isinstance(animations, dict) or not animations:
@@ -471,12 +506,9 @@ def tile_animation_problems(name, cells, animations):
         if not isinstance(a.get("cell"), str) or a.get("cell") not in cells:
             problems.append(f"{where}: cell {a.get('cell')!r} is not one of the entry's cells")
         for key in ("frames", "fps"):
-            v = a.get(key)
-            if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
-                problems.append(f"{where}: {key} {v!r} is not a positive integer")
-            elif v > FRAME_LIMITS[key]:
-                problems.append(f"{where}: {key} {v} is above {FRAME_LIMITS[key]}, "
-                                "what the client accepts")
+            problem = rate_problem(key, a.get(key))
+            if problem:
+                problems.append(f"{where}: {problem}")
         if not isinstance(a.get("loop", True), bool):
             problems.append(f"{where}: loop {a.get('loop')!r} is not true or false")
         extra = set(a) - {"cell", "frames", "fps", "loop"}
