@@ -69,11 +69,14 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_leave_to_a_hub` | 40792524 | 42832151 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_leave_to_a_location` | 62532618 | 65659249 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_not_controller` | 35829504 | 37620980 | 2026-10-07 | faa262c |
-| grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_reveal` | 253511731 | 266187318 | 2026-10-07 | faa262c |
-| grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_ten_east` | 299945940 | 314943237 | 2026-10-07 | faa262c |
-| grimworld_ephemeral | `test_lifecycle::test_play_move_blocked` | 56446245 | 59268558 | 2026-10-07 | faa262c |
-| grimworld_ephemeral | `test_lifecycle::test_play_moves` | 56388859 | 59208302 | 2026-10-07 | faa262c |
-| grimworld_ephemeral | `test_lifecycle::test_play_refusals` | 57810762 | 60701301 | 2026-10-07 | faa262c |
+| grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_reveal` | 253515451 | 266191224 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_reveal_acts` | 287648100 | 302030505 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_round_trip` | 277588299 | 291467714 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_ten_east` | 299575530 | 314554307 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_move_blocked` | 56447005 | 59269356 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_moves` | 56389619 | 59209100 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_refusals` | 57811522 | 60702099 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_unloadable_arrival_runs_the_ticks` | 64195326 | 67405093 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_play_unloadable_goblin_refused` | 56584628 | 59413860 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_refused_absent` | 51977348 | 54576216 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_refused_closed` | 49271951 | 51735549 | 2026-10-07 | faa262c |
@@ -82,6 +85,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_refused_sequence` | 40653894 | 42686589 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_region_page_bound` | 33403584 | 35073764 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_set_controller` | 40567670 | 42596054 | 2026-10-07 | faa262c |
+| grimworld_ephemeral | `test_lifecycle::test_set_play_class_key_refused` | 21090860 | 22145403 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_travel_back` | 39081527 | 41035604 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_tick_words::test_potion_regeneration_every_belt_slot` | 3422102 | 3593208 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_tick_words::test_tick_constants` | 6010 | 6311 | 2026-10-02 | f55176c |

@@ -2175,7 +2175,7 @@ fn test_play_unloadable_goblin_refused() {
 // batch's world), then nine Moves East back through chunk 16 to (21, 22), where the window reaches
 // chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
 #[test]
-#[available_gas(l2_gas: 291467819)] // ceil(1.05 × 277588399 measured)
+#[available_gas(l2_gas: 291467714)] // ceil(1.05 × 277588299 measured)
 fn test_play_batch_equals_singles_round_trip() {
     let mut moves = array![grimworld_logic::actions::Action::Move(3)];
     let mut k: u8 = 0;
@@ -2194,7 +2194,7 @@ fn test_play_batch_equals_singles_round_trip() {
 // an alerted pack at chunk 1's edge; the walk West from chunk 0's (7, 7) reveals chunk 1 at
 // (9, 7), and the pack's goblins, in the window from there, act: a goblin of chunk 1 has a record.
 #[test]
-#[available_gas(l2_gas: 302030610)] // ceil(1.05 × 287648200 measured)
+#[available_gas(l2_gas: 302030505)] // ceil(1.05 × 287648100 measured)
 fn test_play_batch_equals_singles_reveal_acts() {
     let moves = array![
         grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
@@ -2226,7 +2226,7 @@ fn prepare_ghost_far(world: World) {
 // t-0110, note 3: a goblin the registry cannot load arriving mid-batch (chunk 15's pack names caste
 // 99): the batch stops `Invalid` after the Move into chunk 16, whose tick has run.
 #[test]
-#[available_gas(l2_gas: 67405198)] // ceil(1.05 × 64195426 measured)
+#[available_gas(l2_gas: 67405093)] // ceil(1.05 × 64195326 measured)
 fn test_play_unloadable_arrival_runs_the_ticks() {
     let world = setup();
     play_classes(world);
@@ -2246,6 +2246,7 @@ fn test_play_unloadable_arrival_runs_the_ticks() {
 // t-0109, note 6: a play class's key past `SEGMENT` is refused.
 #[test]
 #[should_panic(expected: ('play class: no such key',))]
+#[available_gas(l2_gas: 22145403)] // ceil(1.05 × 21090860 measured)
 fn test_set_play_class_key_refused() {
     let world = setup();
     start_cheat_caller_address(world.instances, addr(ADMIN));
