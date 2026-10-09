@@ -383,7 +383,7 @@ fn engaged(world: World) -> u32 {
 // batch stops before it (`Stop::Weight`), the Turn played and nothing of the Move kept, as the
 // Turn sent alone. Then the Move as the next batch's first action runs whatever it changes (E-21).
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 267185463)] // ceil(1.05 × 254462345 measured)
 fn test_play_records_cap() {
     let actions = array![Action::Turn(1), Action::Move(0)];
     let (words_one, words_two, played, stop, one) = twin(
@@ -417,7 +417,7 @@ fn prepare_alert(world: World) {
 // two actions sent alone. The goblin engaged and nothing else has no record: its pack's `alert`
 // bits are Engaged (ENG-01 §3.2), which the single batches derive it from.
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 351119649)] // ceil(1.05 × 334399665 measured)
 fn test_play_first_records_and_alert() {
     let actions = array![Action::Move(0), Action::Wait, Action::Wait];
     let (words_one, words_two, played, stop, one) = twin(
@@ -452,7 +452,7 @@ fn prepare_drop(world: World) {
 // adrenaline decays once, as in the single batches: a goblin awake at the last tick and outside
 // the window since does not take the fast path's ticks awake (`SegmentTrait::idle`).
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 238867453)] // ceil(1.05 × 227492812 measured)
 fn test_play_changed_goblin_dropped() {
     let mut actions = array![];
     let mut k: u8 = 0;
