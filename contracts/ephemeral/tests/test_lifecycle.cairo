@@ -1974,20 +1974,22 @@ fn prepare_walk(world: World) {
     for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
         open_chunk(world, chunk);
     }
-    // A pack of 3 on chunk 0's East edge (tile (13, 7)), every goblin within 2 of it
+    // An alerted pack of 3 on chunk 15's East edge (its tile (13, 7), global (13, 22)), every
+    // goblin within 2 of it: it enters the window as the adventurer nears x = 20, then walks to it
     let pack = grimworld_logic::models::index::PackPlacement {
-        tile: 7 * 15 + 13, template: 1, level: 1, count: 3, offsets: 9 + 8 * 32 + 10 * 1024, alert: 0,
+        tile: 7 * 15 + 13, template: 1, level: 1, count: 3, offsets: 9 + 8 * 32 + 10 * 1024, alert: 2,
     };
     let features = grimworld_logic::models::index::Features {
         packs: [pack, Default::default()], objects: [Default::default(); 3], touched: 0,
     };
-    write(world.instances, chunk_key(1, 0) + 1, StorePacking::pack(features));
+    write(world.instances, chunk_key(1, 15) + 1, StorePacking::pack(features));
     put_member(world, 30, 22);
 }
 
-// Ten Moves toward lower `x` (East) from chunk 2's first column, (30, 22): the area moves when the
-// adventurer enters chunk 1, so chunk 0's pack is in the batch's world from there, as in each
-// single batch (minor 4).
+// Ten Moves toward lower `x` (East) from chunk 17's first column, (30, 22): the area moves when the
+// adventurer enters chunk 16, so chunk 15's alerted pack is in the batch's world from there and
+// walks toward it, as in each single batch (minor 4; without the area's move the batch would not
+// hold it, and the words would differ).
 #[test]
 fn test_play_batch_equals_singles_ten_east() {
     let mut moves = array![];
@@ -2011,7 +2013,7 @@ fn prepare_ghost(world: World) {
     let features = grimworld_logic::models::index::Features {
         packs: [pack, Default::default()], objects: [Default::default(); 3], touched: 0,
     };
-    write(world.instances, chunk_key(1, 0) + 1, StorePacking::pack(features));
+    write(world.instances, chunk_key(1, 15) + 1, StorePacking::pack(features));
     put_member(world, 20, 22);
 }
 
