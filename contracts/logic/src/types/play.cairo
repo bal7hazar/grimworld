@@ -268,11 +268,14 @@ pub impl SegmentImpl of SegmentTrait {
         world = Self::reload(out, sheets, ref rules);
     }
 
-    /// Whether the ticks can take the fast path: the adventurer owes nothing (no activation) and
-    /// no living goblin stands in the window. The board does not move during an action's ticks, and
-    /// a goblin outside the window is frozen (§5.2): it cannot enter it on these ticks.
+    /// Whether the ticks can take the fast path: the adventurer owes nothing (no activation), no
+    /// goblin is in the awake set (ENG-07b: one awake at the last tick, left outside the window
+    /// since, would go on regenerating on the fast path, whose rules never form the set again;
+    /// a tick in `TickLibrary` does, as a single batch's load does), and no living goblin stands in
+    /// the window. The board does not move during an action's ticks, and a goblin outside the
+    /// window is frozen (§5.2): it cannot enter it on these ticks.
     fn idle(world: @World, board: @Board) -> bool {
-        if world.member(0).act_slot != NO_SLOT {
+        if world.member(0).act_slot != NO_SLOT || world.woken().len() > 0 {
             return false;
         }
         for (_, state) in world.alive() {
