@@ -566,7 +566,7 @@ fn west(n: u8) -> Array<Action> {
 // crosses into chunk 17 (a new segment); the seventh engages chunk 17's six: 16 records, every
 // Move played.
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 604295557)] // ceil(1.05 × 575519578 measured)
 fn test_play_records_sixteen() {
     let (words_one, words_two, played, stop, one) = twin(3, west(7).span(), array![16, 17].span());
     assert(played == 7 && stop == STOP_NONE, 'sixteen records pass');
@@ -579,7 +579,7 @@ fn test_play_records_sixteen() {
 // batch stops before it (`Stop::Weight`). With the tally reset at the segment, it would count 7
 // and play.
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 603827372)] // ceil(1.05 × 575073687 measured)
 fn test_play_records_seventeen_across_segments() {
     let (words_one, words_two, played, stop, one) = twin(4, west(7).span(), array![16, 17].span());
     assert(played == 6 && stop == STOP_WEIGHT, 'stopped before the 17th');
@@ -592,7 +592,7 @@ fn test_play_records_seventeen_across_segments() {
 // would then pass 16 (10 + 7): the batch stops before it. Ignoring the owed ticks, it would count
 // nothing new and play. The owed tick's records are written: 17 (the bound, ENG-01 E-16).
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 588111829)] // ceil(1.05 × 560106503 measured)
 fn test_play_records_owed_ticks() {
     let (words_one, words_two, played, stop, one) = twin(5, west(6).span(), array![16, 17].span());
     assert(played == 5 && stop == STOP_WEIGHT, 'stopped after the owed tick');
