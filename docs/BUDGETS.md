@@ -79,9 +79,12 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_play_quotas_land_on_hosts` | 104031373 | 109232942 | 2026-10-09 | f93518a |
 | grimworld_ephemeral | `test_lifecycle::test_play_quotas_stale_hosts_unused` | 113967033 | 119665385 | 2026-10-09 | f93518a |
 | grimworld_ephemeral | `test_lifecycle::test_play_refusals` | 57811522 | 60702099 | 2026-10-09 | b164282 |
-| grimworld_ephemeral | `test_lifecycle::test_play_trap_goblin_enters` | 81498280 | 85573194 | 2026-10-09 | f93518a |
-| grimworld_ephemeral | `test_lifecycle::test_play_trap_goblin_placed` | 74064812 | 77768053 | 2026-10-09 | f93518a |
-| grimworld_ephemeral | `test_lifecycle::test_play_trap_member_once` | 83284598 | 87448828 | 2026-10-09 | f93518a |
+| grimworld_ephemeral | `test_lifecycle::test_play_tie_rule_across_a_border` | 78310347 | 82225865 | 2026-10-09 | 8edea17 |
+| grimworld_ephemeral | `test_lifecycle::test_play_tie_rule_in_a_chunk` | 77906377 | 81801696 | 2026-10-09 | 8edea17 |
+| grimworld_ephemeral | `test_lifecycle::test_play_trap_goblin_enters` | 98691755 | 103626343 | 2026-10-09 | 8edea17 |
+| grimworld_ephemeral | `test_lifecycle::test_play_trap_goblin_placed` | 74059112 | 77762068 | 2026-10-09 | 8edea17 |
+| grimworld_ephemeral | `test_lifecycle::test_play_trap_member_once` | 83278898 | 87442843 | 2026-10-09 | 8edea17 |
+| grimworld_ephemeral | `test_lifecycle::test_play_trap_skill_places` | 74631198 | 78362758 | 2026-10-09 | 8edea17 |
 | grimworld_ephemeral | `test_lifecycle::test_play_unloadable_arrival_runs_the_ticks` | 64195326 | 67405093 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_play_unloadable_goblin_refused` | 56584628 | 59413860 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_play_window_high_edges` | 314267876 | 329981270 | 2026-10-09 | f93518a |

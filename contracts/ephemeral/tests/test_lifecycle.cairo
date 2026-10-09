@@ -2465,20 +2465,26 @@ fn snare_content(world: World) {
         0,
         0,
     );
-    let snare = grimworld_logic::models::skill::SkillTrait::new(
-        1,
-        1,
-        grimworld_logic::types::combat::skill_kind::TRAP,
-        0,
-        0,
-        0,
-        0,
-        3,
-        3,
-        false,
-        [trap, earth, Default::default()],
-    );
     for skill in array![11_u32, 12] {
+        // Skill 11 (the member's slot 0) resolves two ticks after it starts: a `TRAP` skill
+        // resolving in a later tick of the batch (A6).
+        let snare = grimworld_logic::models::skill::SkillTrait::new(
+            1,
+            1,
+            grimworld_logic::types::combat::skill_kind::TRAP,
+            0,
+            0,
+            if skill == 11 {
+                2
+            } else {
+                0
+            },
+            0,
+            3,
+            3,
+            false,
+            [trap, earth, Default::default()],
+        );
         records
             .set(
                 grimworld_logic::content::SKILL,
@@ -2490,7 +2496,7 @@ fn snare_content(world: World) {
         1,
         0,
         100,
-        0,
+        10,
         0,
         [0; 9],
         WeaponTrait::new(grimworld_logic::types::combat::weapon::AXE, 10, 1, 1, 1),
@@ -2547,7 +2553,7 @@ fn goblin_place(world: World, entity: u16) -> (u8, u8) {
 // (earth damage at the band's lower level, rank 0) and the object is used; leaving and coming
 // back does not hit again.
 #[test]
-#[available_gas(l2_gas: 87448828)] // ceil(1.05 × 83284598 measured)
+#[available_gas(l2_gas: 87442843)] // ceil(1.05 × 83278898 measured)
 fn test_play_trap_member_once() {
     let world = setup();
     play_classes(world);
@@ -2589,7 +2595,7 @@ fn test_play_trap_member_once() {
 // pack of one asleep on chunk 17 is in the batch's world, and the member entering the tile
 // triggers its Snare on the member.
 #[test]
-#[available_gas(l2_gas: 77768053)] // ceil(1.05 × 74064812 measured)
+#[available_gas(l2_gas: 77762068)] // ceil(1.05 × 74059112 measured)
 fn test_play_trap_goblin_placed() {
     let world = setup();
     play_classes(world);
@@ -2635,7 +2641,7 @@ fn test_play_trap_goblin_placed() {
 // goblin of chunk 16, three tiles from the member, steps onto the trap on its way; the trap hits
 // it and is used. The goblin stands on the trap's tile (its act ended there).
 #[test]
-#[available_gas(l2_gas: 85573194)] // ceil(1.05 × 81498280 measured)
+#[available_gas(l2_gas: 103626343)] // ceil(1.05 × 98691755 measured)
 fn test_play_trap_goblin_enters() {
     let world = setup();
     play_classes(world);
@@ -2660,29 +2666,26 @@ fn test_play_trap_goblin_enters() {
     );
     put_member(world, 22, 22);
     let entity: u16 = 8 + 16 * 16;
-    let mut sequence: u32 = 0;
-    let mut waits: u32 = 0;
-    while waits < 6 && object_of(world, 16, 0).state == 0 {
-        play(world, 'alice')
-            .play(id, 7, sequence, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
-        sequence = header_of(world, 1).sequence;
-        let (x, y) = goblin_place(world, entity);
-        println!(
-            "wait {}: goblin on ({}, {}), health {}", waits, x, y, goblin_health(world, entity),
-        );
-        waits += 1;
-    }
-    assert(object_of(world, 16, 0).state == 1, 'the member trap is used');
-    let (x, y) = goblin_place(world, entity);
-    assert(x == 24 && y == 22, 'the goblin stands on the trap');
+    // The first tick: the goblin steps from (25, 22) onto the trap's tile (24, 22) and the trap
+    // fires; its act ends there (one tile, the trap used, its health down). The next tick it acts
+    // again and steps on to (23, 22).
+    play(world, 'alice')
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+    let sequence = header_of(world, 1).sequence;
+    assert(goblin_place(world, entity) == (24, 22), 'one step, onto the trap');
+    assert(object_of(world, 16, 0).state == 1, 'the trap fired during that tick');
     assert(goblin_health(world, entity) < 100, 'the trap hit the goblin');
+    play(world, 'alice')
+        .play(id, 7, sequence, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+    assert(goblin_place(world, entity) == (23, 22), 'it acts again the next tick');
 }
 
 // ---- A7: a zone's quotas land on their hosts in play
 // ---------------------------------------------
 // The zone of `zone_content` (3 × 2 chunks, the chunk set 0, 1, 2, 15, 16) with a collector (once)
-// and a vein (twice), no pack (density 0), entered at chunk 0's tile 105: the entry reveals chunk 0
-// alone, so a quota hosted on another chunk waits for a Move that brings sight onto it.
+// and a vein (twice), no pack (density 0), entered through gate 20 on chunk 2's centre `(37, 7)`:
+// the entry reveals chunk 2 alone, so a quota hosted on another chunk (here chunks 0 and 1, read at
+// entry) waits for a Move that brings sight onto it.
 
 /// Gate 20: into the zone on chunk 2's centre, `(37, 7)`: sight touches chunk 2 alone.
 const QUOTA_GATE: u16 = 20;
@@ -2762,9 +2765,9 @@ fn placed_on_hosts(world: World, chunks: Span<u8>, kind: u8, hosts: felt252) -> 
     count
 }
 
-// A7: the quotas wait for their hosts. `create` reveals chunk 0 alone and places nothing there (a
-// quota is hosted elsewhere); the walk brings sight onto chunks 1, 15, 2 and 16, and then each
-// quota's elements are placed on its host chunks only and its count left is 0.
+// A7: the quotas wait for their hosts. `create` reveals chunk 2 alone and places nothing there (the
+// quotas are hosted on chunks 0 and 1); the walk brings sight onto chunks 1, 0, 16 and 15, and then
+// each quota's elements are placed on its host chunks only and its count left is 0.
 #[test]
 #[available_gas(l2_gas: 109232942)] // ceil(1.05 × 104031373 measured)
 fn test_play_quotas_land_on_hosts() {
@@ -2848,8 +2851,9 @@ fn test_play_quotas_stale_hosts_unused() {
 // and draws nothing (the fate double counts the draws). The member on the entry chunk, opened, is
 // teleported to its centre for each leg: one Move each way brings sight onto a neighbour chunk. The
 // legs are played West, East, North, South in one world and in the reverse order in another; the
-// revealed set, its chunks' words and the header are the same, the chunks revealed are the
-// stored outline's, and their words equal the engine's on the stored state.
+// revealed set, its chunks' words and the header are the same, and the chunks revealed are the
+// stored outline's. The words are not compared with the pure engine's here:
+// `test_entry_reveal_of_a_dungeon` shows the engine's two orders equal on the stored state.
 
 fn floor_world() -> (World, u64) {
     let world = setup();
@@ -2951,4 +2955,87 @@ fn test_play_floor_reveal_two_orders() {
     assert(
         read(west_first.instances, header) == read(east_first.instances, header), 'the same header',
     );
+}
+
+// ---- ENG-07t, the review's cases (t-0114) -------------------------------------------------------
+
+// A6, a `TRAP` skill resolving in a later tick of the batch places its trap: the member's slot 0 is
+// the Snare (skill 11, activation 2), cast on the tile `(24, 22)`; the batch is the cast and two
+// Waits, and the trap is on the ground afterwards: kind 9, state 0, its placer member 0's slot 0.
+#[test]
+#[available_gas(l2_gas: 78362758)] // ceil(1.05 × 74631198 measured)
+fn test_play_trap_skill_places() {
+    let world = setup();
+    play_classes(world);
+    snare_content(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    put_features(
+        world,
+        16,
+        [Default::default(), Default::default(), Default::default()],
+        [Default::default(), Default::default()],
+    );
+    put_member(world, 22, 22);
+    let mut spy = spy_events();
+    let target: u16 = 24 + 256 * 22;
+    let actions = array![
+        grimworld_logic::actions::Action::Skill((0, grimworld_logic::types::Target::Tile(target))),
+        grimworld_logic::actions::Action::Wait, grimworld_logic::actions::Action::Wait,
+    ];
+    play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 3 && stop == 0, 'the cast and two waits');
+    let placer = grimworld_logic::types::combat::PlacerTrait::param(
+        @grimworld_logic::types::combat::Placer::Member((0, 0)),
+    );
+    let mut placed = 0_u32;
+    for k in 0..3_u32 {
+        let object = object_of(world, 16, k);
+        if object.kind == grimworld_logic::models::chunk::object::PLACED_TRAP {
+            assert(object.tile == 114 && object.state == 0 && object.param == placer, 'the trap');
+            placed += 1;
+        }
+    }
+    assert(placed == 1, 'the skill placed its trap');
+}
+
+// A4, the tie rule through `play`: a goblin two tiles from the member with two equal steps toward
+// it takes the one of the lower tile index (the lower row, then the lower column), in the window's
+// index and in the location's, which have the same orientation. Member `(22, 22)`, goblin
+// `(23, 23)` of chunk 16: the steps `(23, 22)` and `(22, 23)`; `(23, 22)` is the lower.
+// Across a chunk border: member `(29, 22)`, goblin `(30, 23)` of chunk 17: `(30, 22)` of chunk 17
+// and `(29, 23)` of chunk 16; the lower row wins, whichever chunk it is in.
+fn tie_step(member: (u8, u8), chunk: u8, tile: u8) -> (u8, u8) {
+    let world = setup();
+    play_classes(world);
+    snare_content(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    let pack = grimworld_logic::models::index::PackPlacement {
+        tile, template: 1, level: 1, count: 1, offsets: 9, alert: 2,
+    };
+    put_features(
+        world,
+        chunk,
+        [Default::default(), Default::default(), Default::default()],
+        [pack, Default::default()],
+    );
+    let (x, y) = member;
+    put_member(world, x, y);
+    play(world, 'alice')
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+    goblin_place(world, 8 + 16 * chunk.into())
+}
+
+#[test]
+#[available_gas(l2_gas: 81801696)] // ceil(1.05 × 77906377 measured)
+fn test_play_tie_rule_in_a_chunk() {
+    assert(tie_step((22, 22), 16, 8 * 15 + 8) == (23, 22), 'the lower index wins');
+}
+
+#[test]
+#[available_gas(l2_gas: 82225865)] // ceil(1.05 × 78310347 measured)
+fn test_play_tie_rule_across_a_border() {
+    assert(tie_step((29, 22), 17, 8 * 15) == (30, 22), 'the lower row wins');
 }

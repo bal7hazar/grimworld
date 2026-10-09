@@ -60,7 +60,13 @@ and the packs and spawn table the zone names are written (the zone, location 2, 
 1), and after the exploration the adventurer walks to the nearest pack of the revealed chunks (revealing
 what sight touches on the way), then plays 10 Waits within 3 tiles of it: a fight batch, the goblins
 engaging it. The case is behind the option, so the compared streams (`--stream`, `--expect`) and the
-recorded output do not move without it.
+recorded output do not move without it. The scenario is fixed (the zone's entry, the walk toward the
+nearest pack of the revealed chunks, 10 Waits within 3 tiles of it), the packs are not: the entry
+draw follows the transaction hash, which the node does not let a script fix. A run counts only when
+the member is engaged (its health fell, or a goblin of the pack has a record afterwards); the line
+`fight` gives the pack's goblins (entity ids), those with a record (tile, health) and the member's
+health before and after, and the run exits 3 when no pack was reached or nobody engaged. The node
+emits no event per hit, so the ticks with attacks are not observable from a batch.
 
 ENG-R1b (`Instances` and `Registry` on the store, AC-3): with `--scope r1b` the same two options
 write and compare another stream, of the same transactions: `Instances`' and `Registry`'s storage
@@ -785,6 +791,7 @@ if OPTIONS.get("--play") == "on":
                 return sees
 
             near = None
+            FIGHT_FOUND = False
             blocked = set()
             for attempt in range(14):
                 st = view("instance_state", fifth)
@@ -816,14 +823,46 @@ if OPTIONS.get("--play") == "on":
                         tile = step(*tile, d)
                     blocked.add(tile)
             emit({"fight_target": near, "attempts": attempt + 1})
+            FIGHT_FOUND = near is not None
             if near is not None:
+                def goblin_word(slot, entity, word):
+                    """A goblin's stored word `word` (0 state, 1 timers) in `slot`: the Pedersen chain
+                    of the map's name and the key's parts (`hosts_keys`' way)."""
+                    script = ("const {hash}=require('starknet');const b=hash.starknetKeccak("
+                              f"'goblins');console.log(hash.computePedersenHash(hash.computePed"
+                              f"ersenHash(b,{slot}),{entity}));")
+                    node_path = os.path.join(os.path.dirname(CONTRACTS), "client", "app",
+                                             "node_modules")
+                    out = subprocess.run(["node", "-e", script],
+                                         env={**os.environ, "NODE_PATH": node_path},
+                                         capture_output=True, text=True, check=True).stdout
+                    key = int(out.split()[0], 16) % (2 ** 251 - 256) + word
+                    return int(rpc("starknet_getStorageAt", {"contract_address": instances, "key": hex(key),
+                                                              "block_id": "latest"}), 16)
+
                 st = view("instance_state", fifth)
                 health = lambda s: (s[6 + s[5] + 1] >> 64) % 65536
                 before = health(st)
+                chunk, _, _, count, alert = near
+                entities = [8 + 16 * chunk + k for k in range(count)]
                 data = play_codes("play, a fight: 10 Waits within 3 tiles of a goblin", [2] * 10)
                 st = view("instance_state", fifth)
-                emit({"fight": True, "played": data, "health_before": before,
-                      "health_after": health(st)})
+                after = health(st)
+                # A goblin has a record once it changed (awake and acting): the engaged ones, with
+                # their tile and health (`GoblinState` bits 0-15 and 32-47).
+                touched = []
+                for entity in entities:
+                    word = goblin_word(1, entity, 0)
+                    if word % (1 << 250):
+                        touched.append({"entity": entity, "x": word % 256, "y": (word >> 8) % 256,
+                                        "health": (word >> 32) % 65536})
+                engaged = after < before or bool(touched)
+                emit({"fight": engaged, "pack_chunk": chunk, "pack_alert": alert,
+                      "pack_entities": entities, "engaged_goblins": touched,
+                      "played": data, "health_before": before, "health_after": after,
+                      "note": "figure counts only if fight is true; the node gives no per-tick "
+                              "attack events, so the ticks with attacks are not observable here"})
+                FIGHT_FOUND = FIGHT_FOUND and engaged
 
 # CBT-02e fix loop 1 (AC-5): a snapshot word's overwrite on the node. Three `set_build` of
 # adventurer 2 with the same reads and the same computation (two potions, pages 0 and 1): the
@@ -895,3 +934,8 @@ if OPTIONS:
         emit({"stream": "equal", "scope": SCOPE, "transactions": len(STREAM),
               "events": sum(len(t["events"]) for t in STREAM), **keys,
               **({"drawn_keys": len(DRAWN)} if SCOPE == "r1b" else {})})
+
+# ENG-07t: `--fight on` exits 3 when no pack was reached or the member was not engaged: such a run
+# gives no figure (the batch gas of its line is not a fight's).
+if OPTIONS.get("--fight") == "on" and not globals().get("FIGHT_FOUND", False):
+    sys.exit(3)
