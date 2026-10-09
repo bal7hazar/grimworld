@@ -1,6 +1,7 @@
-//! `play`'s body as a library class of this package (ENG-07; D-234 to D-236): `Instances.play` calls
-//! `PlayLibrary` by `library_call`, so this code runs in `Instances`' context: its storage, through
-//! `Instances`' own store (`InstancesStoreTrait`, on the state `Instances::unsafe_new_contract_state`
+//! `play`'s body as a library class of this package (ENG-07; D-234 to D-236): `Instances.play`
+//! calls `PlayLibrary` by `library_call`, so this code runs in `Instances`' context: its storage,
+//! through `Instances`' own store (`InstancesStoreTrait`, on the state
+//! `Instances::unsafe_new_contract_state`
 //! gives), and its events, emitted from its address. The layout and the events are `Instances`'
 //! (ENG-01 §3.2, §5), unchanged.
 //!
@@ -13,27 +14,27 @@
 //!    before any action (`Stop::Version`);
 //! 3. the area (`types::play::Area`): the 3 × 3 chunks around the adventurer's, their terrain and
 //!    features; the goblins of those chunks, stored (`touched`) or derived from their pack
-//!    placement (design/18, ENG-01 §3.2: castes by `PackTrait::caste`, at full health, their pack's
-//!    state), and the roster's. **A goblin the registry cannot load** (its caste, a caste skill or
-//!    its held effect's skill missing) **refuses the batch** (`Stop::Invalid`; the orchestrator,
-//!    t-0109 note 5);
+//!    placement (design/18, ENG-01 §3.2: castes by `PackTrait::caste`, at full health, their
+//!    pack's state), and the roster's. **A goblin the registry cannot load** (its caste, a caste
+//!    skill or its held effect's skill missing) **refuses the batch** (`Stop::Invalid`; the
+//!    orchestrator, t-0109 note 5);
 //! 4. the segments (`SegmentLibrary`, once a segment): the actions in order, a tick without a
 //!    goblin in the window in process, one with a fight in `TickLibrary` (D-235). **A segment ends
 //!    when a Move brings sight onto a chunk to reveal or the adventurer into another chunk**; then
 //!    the chunks sight touches are revealed (`RevealLibrary`, as `create` does: a zone's hosts from
 //!    the stored bitmaps of the quotas the generation counts, a dungeon floor's from its stored
-//!    outline, A7, A8), **the area moves to the 3 × 3 around the adventurer's chunk, and the goblins
-//!    of its new chunks are read (the content they need with them) and merged by entity id**; a
-//!    goblin unchanged, home and outside the area leaves the batch's world. So a batch holds what
-//!    its actions sent as single batches hold (t-0109, major 1, minor 4);
+//!    outline, A7, A8), **the area moves to the 3 × 3 around the adventurer's chunk, and the
+//!    goblins of its new chunks are read (the content they need with them) and merged by entity
+//!    id**; a goblin unchanged, home and outside the area leaves the batch's world. So a batch
+//!    holds what its actions sent as single batches hold (t-0109, major 1, minor 4);
 //! 5. the words written back: the member's four, each goblin whose words changed (its spawn chunk's
 //!    `touched` bit), each chunk whose objects changed, the roster, the header (sequence, clock,
 //!    counts); then `GoblinKilled`, `ChunkRevealed`, `BatchPlayed` and, on a defeat, `Defeated` and
 //!    the closing report.
 //!
-//! **The roster** (D-238, the project manager, 2026-10-09): the living goblins away from their spawn
-//! chunk, at most 60; a goblin killed or back home frees its entry. With 60 listed, a goblin does
-//! not leave its spawn chunk (`types::ai`: its step becomes a Wait), in a batch as in single
+//! **The roster** (D-238, the project manager, 2026-10-09): the living goblins away from their
+//! spawn chunk, at most 60; a goblin killed or back home frees its entry. With 60 listed, a goblin
+//! does not leave its spawn chunk (`types::ai`: its step becomes a Wait), in a batch as in single
 //! batches.
 //!
 //! **Readings this lot fixed** (the report lists them): a `GoblinKilled`'s `by` is 0, the member
@@ -271,9 +272,10 @@ pub impl PlayImpl of PlayTrait {
             let (state, timers) = self.get_goblin_words(slot, *entity);
             stored.append(GoblinWords { entity: *entity, awake: false, state, timers });
         }
-        let goblins = match Self::goblins(
-            ref self, slot, registry, ref book, ground.span(), stored, roster.span(),
-        ) {
+        let goblins =
+            match Self::goblins(
+                ref self, slot, registry, ref book, ground.span(), stored, roster.span(),
+            ) {
             Some(goblins) => Self::sorted(goblins.span()),
             None => {
                 self
@@ -295,7 +297,18 @@ pub impl PlayImpl of PlayTrait {
         };
         let area = Self::area(@self, slot, @location, set, revealed, @ground);
         let read = Read { header, location, area, ground, goblins: goblins.span(), roster, book };
-        self.run(instance_id, adventurer_id, sequence, version, slot, member, members, actions.span(), read);
+        self
+            .run(
+                instance_id,
+                adventurer_id,
+                sequence,
+                version,
+                slot,
+                member,
+                members,
+                actions.span(),
+                read,
+            );
     }
 
     /// The goblins of `chunks` (their packs' goblins: a record when `touched`, else derived from
@@ -340,9 +353,9 @@ pub impl PlayImpl of PlayTrait {
                 while i < *pack.count {
                     let k = 5 * p + i;
                     let entity = goblin_entity(*chunk, k);
-                    if Self::listed(skip, entity) {} else if Bits::has(
-                        (*features.touched).into(), k,
-                    ) {
+                    if Self::listed(
+                        skip, entity,
+                    ) {} else if Bits::has((*features.touched).into(), k) {
                         let (state, timers) = self.get_goblin_words(slot, entity);
                         stored.append(GoblinWords { entity, awake: false, state, timers });
                     } else {
@@ -488,7 +501,9 @@ pub impl PlayImpl of PlayTrait {
         loop {
             // One call a segment: the words go in and come back, never loaded here (D-236)
             let content = Content {
-                skills: book.skills.span(), potions: book.potions.span(), castes: book.castes.span(),
+                skills: book.skills.span(),
+                potions: book.potions.span(),
+                castes: book.castes.span(),
             };
             let (out, next, done) = segment
                 .segment(
@@ -524,8 +539,9 @@ pub impl PlayImpl of PlayTrait {
                 break;
             }
             // Between two segments (t-0109, major 1 and minor 4): the chunks sight touches
-            // revealed, then the area moved to the 3 × 3 around the adventurer's chunk, the goblins
-            // of its new chunks merged by entity id, as a batch sent from there would hold them
+            // revealed, then the area moved to the 3 × 3 around the adventurer's chunk, the
+            // goblins of its new chunks merged by entity id, as a batch sent from there would hold
+            // them
             let (x, y) = Self::place(*words.members[member.into()].state);
             let mut chunks: Array<u8> = array![];
             for chunk in SightTrait::chunks(x, y, area.width, area.height) {
@@ -573,9 +589,10 @@ pub impl PlayImpl of PlayTrait {
                     }
                 }
             }
-            let new = match Self::goblins(
-                ref self, slot, registry, ref book, arrived.span(), array![], held.span(),
-            ) {
+            let new =
+                match Self::goblins(
+                    ref self, slot, registry, ref book, arrived.span(), array![], held.span(),
+                ) {
                 Some(new) => new,
                 None => {
                     stop = Stop::Invalid;
@@ -590,7 +607,9 @@ pub impl PlayImpl of PlayTrait {
                 // `MAX_GOBLINS`)
                 let spawn = Self::spawn_chunk(*goblin.entity);
                 let changed = Self::changed(loaded.span(), goblin);
-                if changed || Self::away(*goblin.state, spawn) || Self::within(around.span(), spawn) {
+                if changed
+                    || Self::away(*goblin.state, spawn)
+                    || Self::within(around.span(), spawn) {
                     kept.append(*goblin);
                 }
             }

@@ -428,7 +428,7 @@ mod tests {
     // object used.
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-    #[available_gas(l2_gas: 12934340)] // ceil(1.05 × 12318419 measured)
+    #[available_gas(l2_gas: 13019107)] // ceil(1.05 × 12399149 measured)
     fn test_example_trap() {
         let sheets = sheets();
         let mut world = Fixture::world(

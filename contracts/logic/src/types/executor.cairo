@@ -3227,7 +3227,7 @@ pub mod tests {
     // resolves in step 1 of 51 through the executor's hook: its weapon hit lands on the member.
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-    #[available_gas(l2_gas: 11065050)] // ceil(1.05 × 10538142 measured)
+    #[available_gas(l2_gas: 11107323)] // ceil(1.05 × 10578402 measured)
     fn test_example_activated_attack_resolves() {
         let content = content(40, array![].span());
         let sheets = content.sheets();

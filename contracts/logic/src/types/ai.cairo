@@ -61,8 +61,8 @@ use crate::types::executor::{
 use crate::types::tick::{ABSENT, Sheets, ai};
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowTrait};
-use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE, MAX_ROSTER};
 use crate::types::world::{Actor, Words, World, WorldTrait};
+use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE, MAX_ROSTER};
 
 /// The flood's depth (D-127): a goblin farther on foot holds its tile.
 pub const FLOOD_DEPTH: u8 = 15;
@@ -438,8 +438,8 @@ pub impl AiImpl of AiTrait {
         let dx = to % WIDTH;
         // A step is a walkable tile, inside the location: its origin less `ORIGIN` is not negative.
         let (nx, ny) = (*board.x + dx - ORIGIN, *board.y + dy - ORIGIN);
-        // D-238: a step out of its spawn chunk needs a roster entry; with 60 listed, the goblin does
-        // not leave (its act is a Wait); a step back home frees one.
+        // D-238: a step out of its spawn chunk needs a roster entry; with 60 listed, the goblin
+        // does not leave (its act is a Wait); a step back home frees one.
         let spawn = Self::spawn(goblin.entity);
         let here = Self::chunk(x, y);
         let there = Self::chunk(nx, ny);

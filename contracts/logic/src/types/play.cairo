@@ -94,7 +94,8 @@ pub struct Done {
     /// The weight left after them.
     pub weight: u8,
     /// The last Move's ticks, not run: it brought sight onto a chunk to reveal, or moved the
-    /// adventurer into another chunk (`reveal`: the caller reveals, moves the area and its goblins).
+    /// adventurer into another chunk (`reveal`: the caller reveals, moves the area and its
+    /// goblins).
     pub owed: u8,
     pub reveal: bool,
     /// Why the batch stopped on an action, if it did.
@@ -171,8 +172,8 @@ pub impl SegmentImpl of SegmentTrait {
             done.played += 1;
             if let Action::Move(_) = *next {
                 // The segment ends when sight touches a chunk to reveal, or when the adventurer's
-                // chunk changes: the caller reveals, moves the area and its goblins (t-0109, major 1,
-                // minor 4), then runs the Move's ticks first in the next segment.
+                // chunk changes: the caller reveals, moves the area and its goblins (t-0109, major
+                // 1, minor 4), then runs the Move's ticks first in the next segment.
                 if Self::to_reveal(area, @world) || Self::chunk(@world) != start {
                     done.owed = ticks;
                     done.reveal = true;

@@ -563,7 +563,7 @@ fn test_cost_fixture_representative_words() {
 // A batch's 10 representative ticks through one library call: load, ticks, store, the call.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 180302439)] // ceil(1.05 × 171716608 measured)
+#[available_gas(l2_gas: 181856523)] // ceil(1.05 × 173196688 measured)
 fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -982,7 +982,7 @@ fn test_cost_library_baseline() {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 70209197)] // ceil(1.05 × 66865901 measured)
+#[available_gas(l2_gas: 73426355)] // ceil(1.05 × 69929861 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -999,7 +999,7 @@ fn test_cost_library_call() {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 367013087)] // ceil(1.05 × 349536273 measured)
+#[available_gas(l2_gas: 399176162)] // ceil(1.05 × 380167773 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1024,7 +1024,7 @@ fn test_cost_library_baseline_batch() {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 389007912)] // ceil(1.05 × 370483725 measured)
+#[available_gas(l2_gas: 397231344)] // ceil(1.05 × 378315565 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -2802,7 +2802,7 @@ fn worst_words_kills() -> (Words, Content) {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 49875059)] // ceil(1.05 × 47500056 measured)
+#[available_gas(l2_gas: 49881580)] // ceil(1.05 × 47506266 measured)
 fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -2836,7 +2836,7 @@ fn worst_words_two() -> (Words, Content) {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 83041881)] // ceil(1.05 × 79087505 measured)
+#[available_gas(l2_gas: 86259669)] // ceil(1.05 × 82152065 measured)
 fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -2875,7 +2875,7 @@ fn worst_words_all_dead() -> (Words, Content) {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 44230910)] // ceil(1.05 × 42124676 measured)
+#[available_gas(l2_gas: 44234071)] // ceil(1.05 × 42127686 measured)
 fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -3455,7 +3455,7 @@ fn agree(words: Words, content: Content) -> Words {
 // stay out of the call. The library's words equal the in-process executor's.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 25283808)] // ceil(1.05 × 24079817 measured)
+#[available_gas(l2_gas: 25503416)] // ceil(1.05 × 24288967 measured)
 fn test_route_c_kills_in_order() {
     let tiles = ring(AT);
     let mut member = member_at(400);
@@ -3475,7 +3475,7 @@ fn test_route_c_kills_in_order() {
 // downs the member at 10 health: the tick stops, defeated. The words agree.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 16326406)] // ceil(1.05 × 15548958 measured)
+#[available_gas(l2_gas: 16329556)] // ceil(1.05 × 15551958 measured)
 fn test_route_c_source_sub_index_and_defeat() {
     let tiles = ring(AT);
     let mut source = goblin_at(10, *tiles[1], 100, true);
@@ -3493,7 +3493,7 @@ fn test_route_c_source_sub_index_and_defeat() {
 // on the member at tick 41; the member's regeneration reads the potion. The words agree.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 20223854)] // ceil(1.05 × 19260813 measured)
+#[available_gas(l2_gas: 20395865)] // ceil(1.05 × 19424633 measured)
 fn test_route_c_potion_effect() {
     let tiles = ring(AT);
     let mut spec = Fixture::spec();
@@ -3569,7 +3569,7 @@ fn test_cost_route_c_tick_fixture() {
 // The worst tick in process with the in-class executor (route (a)'s shape): the pair's base.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 26209348)] // ceil(1.05 × 24961283 measured)
+#[available_gas(l2_gas: 26816836)] // ceil(1.05 × 25539843 measured)
 fn test_cost_route_c_tick_in_class() {
     let (mut world, sheets, _) = worst_tick();
     let mut rules = ExecutorTrait::new(board());
@@ -3581,7 +3581,7 @@ fn test_cost_route_c_tick_in_class() {
 // `ExecutorLibrary` and loads back what returns, 8 times.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 50625470)] // ceil(1.05 × 48214733 measured)
+#[available_gas(l2_gas: 50632621)] // ceil(1.05 × 48221543 measured)
 fn test_cost_route_c_tick() {
     let (mut world, sheets, index) = worst_tick();
     let content = route_content(5, 6);
@@ -3754,7 +3754,7 @@ fn test_cost_rep_far_fixture() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 24361326)] // ceil(1.05 × 23201262 measured)
+#[available_gas(l2_gas: 24739536)] // ceil(1.05 × 23561462 measured)
 fn test_cost_rep_idle() {
     let words = rep_run(0, 1);
     assert(words.members.len() == 1, 'ran');
@@ -3762,7 +3762,7 @@ fn test_cost_rep_idle() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 51017698)] // ceil(1.05 × 48588283 measured)
+#[available_gas(l2_gas: 51025478)] // ceil(1.05 × 48595693 measured)
 fn test_cost_rep_goblins() {
     let words = rep_run(1, 1);
     assert(!words.defeated, 'eight carriers');
@@ -3770,7 +3770,7 @@ fn test_cost_rep_goblins() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 33986741)] // ceil(1.05 × 32368324 measured)
+#[available_gas(l2_gas: 34365371)] // ceil(1.05 × 32728924 measured)
 fn test_cost_rep_member() {
     let words = rep_run(2, 1);
     assert(words.killed.len() == 0, 'no kill');
@@ -3778,7 +3778,7 @@ fn test_cost_rep_member() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 60645433)] // ceil(1.05 × 57757555 measured)
+#[available_gas(l2_gas: 60653634)] // ceil(1.05 × 57765365 measured)
 fn test_cost_rep_all() {
     let words = rep_run(5, 1);
     assert(!words.defeated && words.killed.len() == 0, 'nine carriers');
@@ -3786,7 +3786,7 @@ fn test_cost_rep_all() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 26565595)] // ceil(1.05 × 25300566 measured)
+#[available_gas(l2_gas: 27097367)] // ceil(1.05 × 25807016 measured)
 fn test_cost_rep_far() {
     let words = rep_run(3, 1);
     assert(words.goblins.len() == 13, 'thirteen');
@@ -3794,7 +3794,7 @@ fn test_cost_rep_far() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 26565794)] // ceil(1.05 × 25300756 measured)
+#[available_gas(l2_gas: 27097567)] // ceil(1.05 × 25807206 measured)
 fn test_cost_rep_far_idle() {
     let words = rep_run(4, 1);
     assert(words.goblins.len() == 13, 'thirteen');
@@ -3802,7 +3802,7 @@ fn test_cost_rep_far_idle() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 185978910)] // ceil(1.05 × 177122771 measured)
+#[available_gas(l2_gas: 187158239)] // ceil(1.05 × 178245941 measured)
 fn test_cost_rep_batch() {
     let words = rep_run(1, 10);
     assert(words.clock == 50, 'ten ticks');
@@ -3889,7 +3889,7 @@ fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 14567136)] // ceil(1.05 × 13873462 measured)
+#[available_gas(l2_gas: 14567241)] // ceil(1.05 × 13873562 measured)
 fn test_cost_bomb_fixture() {
     let (world, sheets, rules) = bomb_state();
     let _ = bomb_tile();
@@ -3900,7 +3900,7 @@ fn test_cost_bomb_fixture() {
 // The action phase's floor: a Wait (legality only).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 14614785)] // ceil(1.05 × 13918842 measured)
+#[available_gas(l2_gas: 14615205)] // ceil(1.05 × 13919242 measured)
 fn test_cost_bomb_wait() {
     let (mut world, sheets, mut rules) = bomb_state();
     let _ = bomb_tile();
@@ -3911,7 +3911,7 @@ fn test_cost_bomb_wait() {
 // The bomb alone: legality, the belt, facing, its carrier through `ExecutorLibrary`.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 23584972)] // ceil(1.05 × 22461878 measured)
+#[available_gas(l2_gas: 23585602)] // ceil(1.05 × 22462478 measured)
 fn test_cost_bomb_action() {
     let (mut world, sheets, mut rules) = bomb_state();
     let (tile, most) = bomb_tile();
@@ -3922,7 +3922,7 @@ fn test_cost_bomb_action() {
 // The 8 goblins' tick alone, the same state (its pair).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 51734111)] // ceil(1.05 × 49270581 measured)
+#[available_gas(l2_gas: 51741996)] // ceil(1.05 × 49278091 measured)
 fn test_cost_bomb_goblins() {
     let (mut world, sheets, mut rules) = bomb_state();
     let _ = bomb_tile();
@@ -3933,7 +3933,7 @@ fn test_cost_bomb_goblins() {
 // The bomb and its tick: the action phase, then the 8 goblin carriers (the task's measure, D-207).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 60747852)] // ceil(1.05 × 57855097 measured)
+#[available_gas(l2_gas: 60756158)] // ceil(1.05 × 57863007 measured)
 fn test_cost_bomb_tick() {
     let (mut world, sheets, mut rules) = bomb_state();
     let (tile, most) = bomb_tile();
@@ -3968,7 +3968,7 @@ fn test_cost_act_fixture() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 66164508)] // ceil(1.05 × 63013817 measured)
+#[available_gas(l2_gas: 66172824)] // ceil(1.05 × 63021737 measured)
 fn test_cost_act_bomb() {
     let (tile, _) = bomb_tile();
     let words = act_then_ticks(act_words(), Action::Item((0, tile)));
@@ -3997,7 +3997,7 @@ fn act_then_ticks(words: Words, action: Action) -> Words {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 30345546)] // ceil(1.05 × 28900520 measured)
+#[available_gas(l2_gas: 30724082)] // ceil(1.05 × 29261030 measured)
 fn test_cost_act_wait() {
     let (tile, _) = bomb_tile();
     let _ = tile;
@@ -4115,14 +4115,14 @@ fn test_cost_ai_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14643676)] // ceil(1.05 × 13946358 measured)
+#[available_gas(l2_gas: 15010231)] // ceil(1.05 × 14295458 measured)
 fn test_cost_ai_call_returning() {
     let out = ai_call(5);
     assert(out.goblins.len() == 8, 'eight');
 }
 
 #[test]
-#[available_gas(l2_gas: 17987137)] // ceil(1.05 × 17130606 measured)
+#[available_gas(l2_gas: 18357808)] // ceil(1.05 × 17483626 measured)
 fn test_cost_ai_call_engaged() {
     let out = ai_call(ai::ENGAGED);
     assert(out.goblins.len() == 8 && !out.defeated, 'eight attacks');
@@ -4135,21 +4135,21 @@ fn ai_tick(state: u8, busy: bool) -> Words {
 }
 
 #[test]
-#[available_gas(l2_gas: 16470833)] // ceil(1.05 × 15686507 measured)
+#[available_gas(l2_gas: 16475253)] // ceil(1.05 × 15690717 measured)
 fn test_cost_ai_tick_busy() {
     let words = ai_tick(5, true);
     assert(words.clock == 41, 'one tick');
 }
 
 #[test]
-#[available_gas(l2_gas: 21274317)] // ceil(1.05 × 20261254 measured)
+#[available_gas(l2_gas: 21648411)] // ceil(1.05 × 20617534 measured)
 fn test_cost_ai_tick_returning() {
     let words = ai_tick(5, false);
     assert(words.clock == 41, 'one tick');
 }
 
 #[test]
-#[available_gas(l2_gas: 24609630)] // ceil(1.05 × 23437742 measured)
+#[available_gas(l2_gas: 24987840)] // ceil(1.05 × 23797942 measured)
 fn test_cost_ai_tick_engaged() {
     let words = ai_tick(ai::ENGAGED, false);
     assert(words.clock == 41, 'one tick');
@@ -4157,7 +4157,7 @@ fn test_cost_ai_tick_engaged() {
 
 
 #[test]
-#[available_gas(l2_gas: 58364292)] // ceil(1.05 × 55585040 measured)
+#[available_gas(l2_gas: 58738323)] // ceil(1.05 × 55941260 measured)
 fn test_cost_ai_call_attacks() {
     let before = ai_words_of(ai::ENGAGED, false, true);
     let state = (*before.members[0]).state;
@@ -4180,7 +4180,7 @@ fn test_cost_ai_fixture_attacks() {
 }
 
 #[test]
-#[available_gas(l2_gas: 62498506)] // ceil(1.05 × 59522386 measured)
+#[available_gas(l2_gas: 62880076)] // ceil(1.05 × 59885786 measured)
 fn test_cost_ai_tick_attacks() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4304,7 +4304,7 @@ fn test_cost_segment_exploration_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 17515590)] // ceil(1.05 × 16681514 measured)
+#[available_gas(l2_gas: 17839494)] // ceil(1.05 × 16989994 measured)
 fn test_cost_segment_exploration() {
     let (words, actions) = exploration();
     let (out, done) = segment_of(words, actions);
@@ -4320,7 +4320,7 @@ fn test_cost_segment_fight_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 217826994)] // ceil(1.05 × 207454280 measured)
+#[available_gas(l2_gas: 219325281)] // ceil(1.05 × 208881220 measured)
 fn test_cost_segment_fight() {
     let (words, actions) = fight();
     let (out, done) = segment_of(words, actions);
@@ -4340,7 +4340,7 @@ fn test_cost_segment_fight() {
 // emits are read from them: the kills, the defeat). The member bleeding, a goblin frozen outside
 // the window; three ticks each way.
 #[test]
-#[available_gas(l2_gas: 12284284)] // ceil(1.05 × 11699318 measured)
+#[available_gas(l2_gas: 12291456)] // ceil(1.05 × 11706148 measured)
 fn test_segment_fast_path_equals_tick_library() {
     let mut member = member_at(400);
     member.bleeding = 45;
@@ -4368,7 +4368,7 @@ fn test_cost_segment_fight_whole_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 527545587)] // ceil(1.05 × 502424368 measured)
+#[available_gas(l2_gas: 530882161)] // ceil(1.05 × 505602058 measured)
 fn test_cost_segment_fight_whole() {
     let (words, actions) = fight_whole();
     let (out, done) = segment_of(words, actions);
@@ -4409,7 +4409,7 @@ fn test_cost_landing_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 81594778)] // ceil(1.05 × 77709312 measured)
+#[available_gas(l2_gas: 81976768)] // ceil(1.05 × 78073112 measured)
 fn test_cost_landing() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4469,7 +4469,7 @@ fn test_cost_lever_fixture_whole() {
 }
 
 #[test]
-#[available_gas(l2_gas: 284662893)] // ceil(1.05 × 271107517 measured)
+#[available_gas(l2_gas: 287082062)] // ceil(1.05 × 273411487 measured)
 fn test_cost_lever_batch_real() {
     let (out, done) = segment_of(lever_words(480), lever_actions());
     println!(
@@ -4484,7 +4484,7 @@ fn test_cost_lever_batch_real() {
 }
 
 #[test]
-#[available_gas(l2_gas: 403496105)] // ceil(1.05 × 384282004 measured)
+#[available_gas(l2_gas: 406903313)] // ceil(1.05 × 387526964 measured)
 fn test_cost_lever_batch_whole() {
     let (out, done) = segment_of(lever_words(20000), lever_actions());
     println!(
@@ -4511,7 +4511,7 @@ fn test_cost_lever_tick_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 46814765)] // ceil(1.05 × 44585490 measured)
+#[available_gas(l2_gas: 47192597)] // ceil(1.05 × 44945330 measured)
 fn test_cost_lever_tick() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4532,7 +4532,7 @@ fn test_cost_lever_tick_uncapped_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 63588647)] // ceil(1.05 × 60560616 measured)
+#[available_gas(l2_gas: 63970217)] // ceil(1.05 × 60924016 measured)
 fn test_cost_lever_tick_uncapped() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -4571,7 +4571,7 @@ fn cap_step(cap: u8) -> u8 {
 }
 
 #[test]
-#[available_gas(l2_gas: 123735656)] // ceil(1.05 × 117843481 measured)
+#[available_gas(l2_gas: 124842303)] // ceil(1.05 × 118897431 measured)
 fn test_attackers_cap() {
     assert(cap_step(4) == 4, 'four attack');
     assert(cap_step(1) == 1, 'one attacks');
@@ -4624,7 +4624,7 @@ fn segment_call(
 }
 
 #[test]
-#[available_gas(l2_gas: 6504068)] // ceil(1.05 × 6194350 measured)
+#[available_gas(l2_gas: 6504278)] // ceil(1.05 × 6194550 measured)
 fn test_cost_segment_call_exploration_fixture() {
     let _ = declare("SegmentLibrary").unwrap().contract_class();
     let (words, actions) = exploration();
@@ -4632,7 +4632,7 @@ fn test_cost_segment_call_exploration_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 18986304)] // ceil(1.05 × 18082194 measured)
+#[available_gas(l2_gas: 19311489)] // ceil(1.05 × 18391894 measured)
 fn test_cost_segment_call_exploration() {
     let (words, actions) = exploration();
     let (out, done) = segment_call(words, actions);
@@ -4648,7 +4648,7 @@ fn test_cost_segment_call_fight_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 529038582)] // ceil(1.05 × 503846268 measured)
+#[available_gas(l2_gas: 532376752)] // ceil(1.05 × 507025478 measured)
 fn test_cost_segment_call_fight() {
     let (words, actions) = fight_whole();
     let (out, done) = segment_call(words, actions);
@@ -4658,6 +4658,7 @@ fn test_cost_segment_call_fight() {
 // t-0109, minor 2: a Turn refused for weight writes nothing. Ten Waits spend the weight, then a
 // Turn: the segment stops for weight, 10 played, the member's facing unchanged.
 #[test]
+#[available_gas(l2_gas: 10517582)] // ceil(1.05 × 10016744 measured)
 fn test_segment_turn_heavy() {
     let (words, _) = exploration();
     let before: u256 = (*words.members[0]).state.into();
@@ -4727,6 +4728,7 @@ fn first_place(words: @Words) -> (u8, u8) {
 }
 
 #[test]
+#[available_gas(l2_gas: 116005353)] // ceil(1.05 × 110481288 measured)
 fn test_roster_full_holds() {
     let full = roster_run(60, 1);
     let (x, y) = first_place(@full);
@@ -4735,6 +4737,7 @@ fn test_roster_full_holds() {
 }
 
 #[test]
+#[available_gas(l2_gas: 115281729)] // ceil(1.05 × 109792122 measured)
 fn test_roster_free_steps() {
     let free = roster_run(59, 1);
     let (_, y) = first_place(@free);
@@ -4745,6 +4748,7 @@ fn test_roster_free_steps() {
 // D-238: how often the representative fight reaches 60 (expected never): its 8 goblins away from
 // their spawn chunk at the batch's end.
 #[test]
+#[available_gas(l2_gas: 530816694)] // ceil(1.05 × 505539708 measured)
 fn test_fight_roster_count() {
     let (words, actions) = fight_whole();
     let (out, _) = segment_of(words, actions);
@@ -4761,4 +4765,3 @@ fn test_fight_roster_count() {
     println!("fight: goblins away from their spawn chunk {}", away);
     assert(away < 60, 'never 60');
 }
-

@@ -1735,7 +1735,7 @@ fn batch_played(
 // Two Moves (West, then East back) from a floor tile: each one tick on the fast path, the facing
 // the direction, the sequence and the clock moved by two, `BatchPlayed` with no stop (A2, A3).
 #[test]
-#[available_gas(l2_gas: 59018987)] // ceil(1.05 × 56208559 measured)
+#[available_gas(l2_gas: 59208302)] // ceil(1.05 × 56388859 measured)
 fn test_play_moves() {
     let world = setup();
     play_classes(world);
@@ -1755,7 +1755,7 @@ fn test_play_moves() {
 
 // A Move into a wall is illegal: the batch stops there, the two Moves before it kept (A2, A3).
 #[test]
-#[available_gas(l2_gas: 59078728)] // ceil(1.05 × 56265455 measured)
+#[available_gas(l2_gas: 59268558)] // ceil(1.05 × 56446245 measured)
 fn test_play_move_blocked() {
     let world = setup();
     play_classes(world);
@@ -1774,7 +1774,7 @@ fn test_play_move_blocked() {
 
 // A stale sequence, a different content version and an Interact (Open question 6) run nothing.
 #[test]
-#[available_gas(l2_gas: 60579973)] // ceil(1.05 × 57695212 measured)
+#[available_gas(l2_gas: 60701301)] // ceil(1.05 × 57810762 measured)
 fn test_play_refusals() {
     let world = setup();
     play_classes(world);
@@ -1826,20 +1826,55 @@ fn pack_content(world: World) {
     );
     records.set(grimworld_logic::content::CASTE, 1, CasteRecord::pack(@caste));
     let one = PackCaste { caste: 1, min: 1, max: 3 };
-    let pack = Pack { castes: [one, Default::default(), Default::default(), Default::default(), Default::default()], level: 0 };
+    let pack = Pack {
+        castes: [
+            one, Default::default(), Default::default(), Default::default(), Default::default(),
+        ],
+        level: 0,
+    };
     records.set(PACK, 1, PackRecord::pack(@pack));
     let ghost = PackCaste { caste: 99, min: 1, max: 1 };
-    let pack = Pack { castes: [ghost, Default::default(), Default::default(), Default::default(), Default::default()], level: 0 };
+    let pack = Pack {
+        castes: [
+            ghost, Default::default(), Default::default(), Default::default(), Default::default(),
+        ],
+        level: 0,
+    };
     records.set(PACK, 2, PackRecord::pack(@pack));
     let spawn = Spawn { template: 1, weight: 1 };
-    let table = SpawnTable { spawns: [spawn, Default::default(), Default::default(), Default::default(), Default::default(), Default::default(), Default::default()], density: 255 };
+    let table = SpawnTable {
+        spawns: [
+            spawn, Default::default(), Default::default(), Default::default(), Default::default(),
+            Default::default(), Default::default(),
+        ],
+        density: 255,
+    };
     records.set(SPAWN_TABLE, 1, SpawnTableRecord::pack(@table));
     let zone = LocationTrait::new(
-        location_kind::ZONE, 1, 1, 1, 3, 0, 3, 3, 0, 0, 0, 1, false, 0, 112,
+        location_kind::ZONE,
+        1,
+        1,
+        1,
+        3,
+        0,
+        3,
+        3,
+        0,
+        0,
+        0,
+        1,
+        false,
+        0,
+        112,
         Lanes16 { lanes: [0; 15] },
     );
     records.set(LOCATION, PACK_ZONE.into(), zone.pack());
-    records.set(GATE, INTO_PACK_ZONE.into(), gate(TOWN, PACK_ZONE, (0, 0), (0, 112), gate_kind::HUB, 0, 0));
+    records
+        .set(
+            GATE,
+            INTO_PACK_ZONE.into(),
+            gate(TOWN, PACK_ZONE, (0, 0), (0, 112), gate_kind::HUB, 0, 0),
+        );
 }
 
 fn chunk_key(slot: u32, chunk: u8) -> felt252 {
@@ -1874,7 +1909,8 @@ fn put_member(world: World, x: u8, y: u8) {
 /// words and its ten goblin records' words, for `chunks`.
 fn snapshot_of(world: World, chunks: Span<u8>) -> Array<felt252> {
     let mut out = array![
-        read(world.instances, member_word(1, 0)), read(world.instances, key(selector!("headers"), array![1])),
+        read(world.instances, member_word(1, 0)),
+        read(world.instances, key(selector!("headers"), array![1])),
         read(world.instances, key(selector!("revealed"), array![1])),
     ];
     for chunk in chunks {
@@ -1952,6 +1988,7 @@ fn prepare_reveal(world: World) {
 // A walk West (the window's `+x`) from chunk 0's (7, 7): at (9, 7) sight touches chunk 1, which the
 // reveal generates with the spawn table's packs; then back to (7, 7).
 #[test]
+#[available_gas(l2_gas: 266187318)] // ceil(1.05 × 253511731 measured)
 fn test_play_batch_equals_singles_reveal() {
     let moves = array![
         grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
@@ -1977,7 +2014,12 @@ fn prepare_walk(world: World) {
     // An alerted pack of 3 on chunk 15's East edge (its tile (13, 7), global (13, 22)), every
     // goblin within 2 of it: it enters the window as the adventurer nears x = 20, then walks to it
     let pack = grimworld_logic::models::index::PackPlacement {
-        tile: 7 * 15 + 13, template: 1, level: 1, count: 3, offsets: 9 + 8 * 32 + 10 * 1024, alert: 2,
+        tile: 7 * 15 + 13,
+        template: 1,
+        level: 1,
+        count: 3,
+        offsets: 9 + 8 * 32 + 10 * 1024,
+        alert: 2,
     };
     let features = grimworld_logic::models::index::Features {
         packs: [pack, Default::default()], objects: [Default::default(); 3], touched: 0,
@@ -1991,6 +2033,7 @@ fn prepare_walk(world: World) {
 // walks toward it, as in each single batch (minor 4; without the area's move the batch would not
 // hold it, and the words would differ).
 #[test]
+#[available_gas(l2_gas: 314943237)] // ceil(1.05 × 299945940 measured)
 fn test_play_batch_equals_singles_ten_east() {
     let mut moves = array![];
     let mut k: u8 = 0;
@@ -2020,6 +2063,7 @@ fn prepare_ghost(world: World) {
 // t-0109, note 5: a goblin whose caste the registry does not hold refuses the batch
 // (`Stop::Invalid`), nothing run.
 #[test]
+#[available_gas(l2_gas: 59413860)] // ceil(1.05 × 56584628 measured)
 fn test_play_unloadable_goblin_refused() {
     let world = setup();
     play_classes(world);
@@ -2027,7 +2071,8 @@ fn test_play_unloadable_goblin_refused() {
     let id = create(world, 7, 'alice', 1, 0);
     prepare_ghost(world);
     let mut spy = spy_events();
-    play(world, 'alice').play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+    play(world, 'alice')
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
     let (played, stop, sequence, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 2 && sequence == 0, 'refused, nothing run');
 }
