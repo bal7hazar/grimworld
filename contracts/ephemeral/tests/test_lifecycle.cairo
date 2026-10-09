@@ -1799,7 +1799,7 @@ fn batch_played(
 // Two Moves (West, then East back) from a floor tile: each one tick on the fast path, the facing
 // the direction, the sequence and the clock moved by two, `BatchPlayed` with no stop (A2, A3).
 #[test]
-#[available_gas(l2_gas: 59208302)] // ceil(1.05 × 56388859 measured)
+#[available_gas(l2_gas: 59209100)] // ceil(1.05 × 56389619 measured)
 fn test_play_moves() {
     let world = setup();
     play_classes(world);
@@ -1819,7 +1819,7 @@ fn test_play_moves() {
 
 // A Move into a wall is illegal: the batch stops there, the two Moves before it kept (A2, A3).
 #[test]
-#[available_gas(l2_gas: 59268558)] // ceil(1.05 × 56446245 measured)
+#[available_gas(l2_gas: 59269356)] // ceil(1.05 × 56447005 measured)
 fn test_play_move_blocked() {
     let world = setup();
     play_classes(world);
@@ -1838,7 +1838,7 @@ fn test_play_move_blocked() {
 
 // A stale sequence, a different content version and an Interact (Open question 6) run nothing.
 #[test]
-#[available_gas(l2_gas: 60701301)] // ceil(1.05 × 57810762 measured)
+#[available_gas(l2_gas: 60702099)] // ceil(1.05 × 57811522 measured)
 fn test_play_refusals() {
     let world = setup();
     play_classes(world);
@@ -2081,7 +2081,7 @@ fn prepare_reveal(world: World) {
 // A walk West (the window's `+x`) from chunk 0's (7, 7): at (9, 7) sight touches chunk 1, which the
 // reveal generates with the spawn table's packs; then back to (7, 7).
 #[test]
-#[available_gas(l2_gas: 266187318)] // ceil(1.05 × 253511731 measured)
+#[available_gas(l2_gas: 266191224)] // ceil(1.05 × 253515451 measured)
 fn test_play_batch_equals_singles_reveal() {
     let moves = array![
         grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
@@ -2126,7 +2126,7 @@ fn prepare_walk(world: World) {
 // walks toward it, as in each single batch (minor 4; without the area's move the batch would not
 // hold it, and the words would differ).
 #[test]
-#[available_gas(l2_gas: 314943237)] // ceil(1.05 × 299945940 measured)
+#[available_gas(l2_gas: 314554307)] // ceil(1.05 × 299575530 measured)
 fn test_play_batch_equals_singles_ten_east() {
     let mut moves = array![];
     let mut k: u8 = 0;
@@ -2175,6 +2175,7 @@ fn test_play_unloadable_goblin_refused() {
 // batch's world), then nine Moves East back through chunk 16 to (21, 22), where the window reaches
 // chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
 #[test]
+#[available_gas(l2_gas: 291467819)] // ceil(1.05 × 277588399 measured)
 fn test_play_batch_equals_singles_round_trip() {
     let mut moves = array![grimworld_logic::actions::Action::Move(3)];
     let mut k: u8 = 0;
@@ -2193,6 +2194,7 @@ fn test_play_batch_equals_singles_round_trip() {
 // an alerted pack at chunk 1's edge; the walk West from chunk 0's (7, 7) reveals chunk 1 at
 // (9, 7), and the pack's goblins, in the window from there, act: a goblin of chunk 1 has a record.
 #[test]
+#[available_gas(l2_gas: 302030610)] // ceil(1.05 × 287648200 measured)
 fn test_play_batch_equals_singles_reveal_acts() {
     let moves = array![
         grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
@@ -2224,6 +2226,7 @@ fn prepare_ghost_far(world: World) {
 // t-0110, note 3: a goblin the registry cannot load arriving mid-batch (chunk 15's pack names caste
 // 99): the batch stops `Invalid` after the Move into chunk 16, whose tick has run.
 #[test]
+#[available_gas(l2_gas: 67405198)] // ceil(1.05 × 64195426 measured)
 fn test_play_unloadable_arrival_runs_the_ticks() {
     let world = setup();
     play_classes(world);

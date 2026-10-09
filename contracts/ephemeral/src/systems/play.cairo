@@ -578,9 +578,9 @@ pub impl PlayImpl of PlayTrait {
                 }
             }
             // The area's chunks: those not yet in `ground` read (their features as stored kept in
-            // `stored`, for the write-back); then the goblins of EVERY chunk of the 3 × 3, those the
-            // words do not hold (t-0110, major 1: a chunk the area left and came back to has its
-            // goblins again, as a batch sent from here would)
+            // `stored`, for the write-back); then the goblins of EVERY chunk of the 3 × 3, those
+            // the words do not hold (t-0110, major 1: a chunk the area left and came back to has
+            // its goblins again, as a batch sent from here would)
             let mut held: Array<u16> = array![];
             for goblin in words.goblins.span() {
                 held.append(*goblin.entity);
@@ -603,8 +603,8 @@ pub impl PlayImpl of PlayTrait {
                 ) {
                 Some(new) => new,
                 None => {
-                    // A goblin the registry cannot load refuses the rest of the batch; the Move that
-                    // ended the segment is counted, so its ticks run first, in a segment of no
+                    // A goblin the registry cannot load refuses the rest of the batch; the Move
+                    // that ended the segment is counted, so its ticks run first, in a segment of no
                     // action (t-0110, note 3)
                     let content = Content {
                         skills: book.skills.span(),
