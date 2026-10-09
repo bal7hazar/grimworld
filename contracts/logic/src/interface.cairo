@@ -200,6 +200,7 @@ pub trait IAiLibrary<T> {
         ground: Array<(u8, Features)>,
         level: u8,
         frozen: felt252,
+        listed: u8,
         resolved: u128,
     ) -> (Words, Array<(u8, Features)>);
 }

@@ -1260,6 +1260,9 @@ pub struct Delegate {
     /// Inside `AiLibrary`: the window's tiles of the living goblins its world does not hold (a
     /// bitmap of the window), which its moves and flood treat as occupied.
     pub frozen: felt252,
+    /// Inside `AiLibrary`: the living goblins away from their spawn chunk its world does not hold
+    /// (D-238's roster count).
+    pub listed: u8,
 }
 
 pub impl DelegateRules of Rules<Delegate> {
@@ -1321,9 +1324,15 @@ pub impl DelegateRules of Rules<Delegate> {
         let board = self.board;
         let mut frozen: felt252 = 0;
         let mut seen: u256 = 0;
+        let mut listed: u8 = 0;
         for (i, state) in world.alive() {
             if world.position(i).is_none() {
                 let (x, y, _) = GoblinPlaceTrait::at(state);
+                // D-238: a living goblin away from its spawn chunk holds a roster entry.
+                let spawn: u16 = (world.goblin(i).entity - FIRST_GOBLIN) / 16;
+                if spawn != ((y / 15) * 15 + x / 15).into() {
+                    listed += 1;
+                }
                 let at = board.position(x, y);
                 if at < FAR {
                     let bit: u256 = Bits::pow(at).into();
@@ -1347,6 +1356,7 @@ pub impl DelegateRules of Rules<Delegate> {
                 ground,
                 self.level,
                 frozen,
+                listed,
                 resolved,
             );
         self.ground = ground;

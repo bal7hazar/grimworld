@@ -48,6 +48,7 @@ pub mod TickLibrary {
                 trap: classes.trap,
                 level,
                 frozen: 0,
+                listed: 0,
             };
             TickTrait::run(ref world, @sheets, ticks, ref rules);
             (world.store(), rules.ground)

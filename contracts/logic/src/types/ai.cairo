@@ -61,6 +61,7 @@ use crate::types::executor::{
 use crate::types::tick::{ABSENT, Sheets, ai};
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowTrait};
+use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE, MAX_ROSTER};
 use crate::types::world::{Actor, Words, World, WorldTrait};
 
 /// The flood's depth (D-127): a goblin farther on foot holds its tile.
@@ -78,6 +79,9 @@ pub trait Enter<R> {
     fn enter(ref self: R, ref world: World, sheets: @Sheets, entrant: Actor, position: u8) -> bool;
     /// The window's tiles of the living goblins the world does not hold (a bitmap of the window).
     fn frozen(self: @R) -> felt252;
+    /// The living goblins away from their spawn chunk that the world does not hold: with the
+    /// world's, the roster's entries (D-238).
+    fn listed(self: @R) -> u8;
 }
 
 /// The in-process rules (`Executor`): the trap triggers in process (`TrapTrait::trigger`); a
@@ -98,6 +102,10 @@ pub impl ExecutorEnter of Enter<Executor> {
     }
 
     fn frozen(self: @Executor) -> felt252 {
+        0
+    }
+
+    fn listed(self: @Executor) -> u8 {
         0
     }
 }
@@ -152,6 +160,10 @@ pub impl DelegateEnter of Enter<Delegate> {
     fn frozen(self: @Delegate) -> felt252 {
         *self.frozen
     }
+
+    fn listed(self: @Delegate) -> u8 {
+        *self.listed
+    }
 }
 
 #[generate_trait]
@@ -174,6 +186,7 @@ pub impl AiImpl of AiTrait {
     ) -> (bool, u8) {
         let t = world.clock;
         let mut attacks: u8 = 0;
+        let mut listed = rules.listed() + Self::away(@world);
         let woken = world.woken();
         let board = rules.board();
         let mut flood: Option<Flood> = None;
@@ -192,6 +205,7 @@ pub impl AiImpl of AiTrait {
                     ref rules,
                     @board,
                     ref flood,
+                    ref listed,
                     index,
                     goblin,
                     attacks < cap,
@@ -217,6 +231,7 @@ pub impl AiImpl of AiTrait {
         ref rules: R,
         board: @Board,
         ref flood: Option<Flood>,
+        ref listed: u8,
         index: u32,
         goblin: Goblin,
         attack: bool,
@@ -253,7 +268,9 @@ pub impl AiImpl of AiTrait {
             }
         }
         let away = state == ai::FLEEING;
-        if !Self::walk(ref world, sheets, ref rules, board, ref flood, index, goblin, away, t)
+        if !Self::walk(
+            ref world, sheets, ref rules, board, ref flood, ref listed, index, goblin, away, t,
+        )
             && away {
             let mut goblin = goblin;
             goblin.ai = ai::ENGAGED;
@@ -390,6 +407,7 @@ pub impl AiImpl of AiTrait {
         ref rules: R,
         board: @Board,
         ref flood: Option<Flood>,
+        ref listed: u8,
         index: u32,
         goblin: Goblin,
         away: bool,
@@ -418,14 +436,23 @@ pub impl AiImpl of AiTrait {
         };
         let dy = to / WIDTH;
         let dx = to % WIDTH;
-        let mut goblin = goblin;
         // A step is a walkable tile, inside the location: its origin less `ORIGIN` is not negative.
-        goblin
-            .set_place(
-                *board.x + dx - ORIGIN,
-                *board.y + dy - ORIGIN,
-                WindowTrait::facing(from, to, facing),
-            );
+        let (nx, ny) = (*board.x + dx - ORIGIN, *board.y + dy - ORIGIN);
+        // D-238: a step out of its spawn chunk needs a roster entry; with 60 listed, the goblin does
+        // not leave (its act is a Wait); a step back home frees one.
+        let spawn = Self::spawn(goblin.entity);
+        let here = Self::chunk(x, y);
+        let there = Self::chunk(nx, ny);
+        if here == spawn && there != spawn {
+            if listed >= MAX_ROSTER {
+                return true;
+            }
+            listed += 1;
+        } else if here != spawn && there == spawn {
+            listed -= 1;
+        }
+        let mut goblin = goblin;
+        goblin.set_place(nx, ny, WindowTrait::facing(from, to, facing));
         let cost = goblin.move_ticks(t, Self::movement(@goblin, sheets, t));
         goblin.recover(cost, t);
         world.set_goblin(index, goblin);
@@ -539,6 +566,30 @@ pub impl AiImpl of AiTrait {
             }
         }
         None
+    }
+
+    /// The living goblins of the world away from their spawn chunk (D-238).
+    fn away(world: @World) -> u8 {
+        let mut count: u8 = 0;
+        for (i, state) in world.alive() {
+            let (x, y, _) = GoblinPlaceTrait::at(state);
+            if Self::chunk(x, y) != Self::spawn(world.goblin(i).entity) {
+                count += 1;
+            }
+        }
+        count
+    }
+
+    /// A goblin's spawn chunk, from its entity id (M-5: `8 + 16 chunk + k`).
+    #[inline(always)]
+    fn spawn(entity: u16) -> u8 {
+        ((entity - FIRST_GOBLIN) / GOBLINS_STRIDE).try_into().unwrap()
+    }
+
+    /// The chunk of the location's tile `(x, y)`.
+    #[inline(always)]
+    fn chunk(x: u8, y: u8) -> u8 {
+        (y / 15) * 15 + x / 15
     }
 
     /// Whether the goblin holds a `MOVEMENT` effect at `t` (FX-18).

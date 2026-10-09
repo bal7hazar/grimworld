@@ -36,6 +36,8 @@ pub mod errors {
     pub const PAGE: felt252 = 'region: page above 16';
     /// `set_admin` to the zero address would leave the role to nobody.
     pub const ZERO_ADMIN: felt252 = 'admin is zero';
+    /// `set_play_class` with a key past `play_class::SEGMENT` (t-0109, note 6).
+    pub const PLAY_CLASS: felt252 = 'play class: no such key';
 }
 
 /// The checks of `Instances`' callers and of `create`'s inputs, before any write (those of a gate
@@ -745,6 +747,7 @@ pub mod Instances {
 
         fn set_play_class(ref self: ContractState, key: u8, class: ClassHash) {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
+            assert(key <= play_class::SEGMENT, errors::PLAY_CLASS);
             self.store_play_class(key, class);
         }
 

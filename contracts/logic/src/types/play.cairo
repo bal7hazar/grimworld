@@ -1,9 +1,11 @@
 //! A segment of a played batch (ENG-07; design/02 *Executing a batch*, ADR-0006 §4; D-233 to
-//! D-235): `PlayLibrary` runs the batch's actions in order, each against the state it meets, and
+//! D-236): `SegmentLibrary` runs the batch's actions in order, each against the state it meets, and
 //! each action's ticks, until the actions end, one is illegal (`Done.illegal`: nothing of it is
 //! written, the batch stops), the weight left would pass, the adventurer is defeated, or a Move
-//! brings sight onto a chunk not yet revealed (`Done.reveal`: the caller reveals it, then calls the
-//! next segment with the Move's ticks owed). A value type's behaviour over the `World`, as the
+//! brings sight onto a chunk not yet revealed or the adventurer into another chunk (`Done.reveal`:
+//! `PlayLibrary` reveals, moves the 3 × 3 area around the adventurer's chunk with the goblins of
+//! its new chunks, then calls the next segment with the Move's ticks owed: a batch is its actions
+//! sent as single batches, t-0109). A value type's behaviour over the `World`, as the
 //! pipeline's: it sits in `types/` (docs/CAIRO.md §7, D-147).
 //!
 //! **In process** (D-233): Move (one tile, the six directions, walkable on the one walkable plane
@@ -91,7 +93,8 @@ pub struct Done {
     pub played: u8,
     /// The weight left after them.
     pub weight: u8,
-    /// The last Move's ticks, not run: it brought sight onto a chunk to reveal (`reveal`).
+    /// The last Move's ticks, not run: it brought sight onto a chunk to reveal, or moved the
+    /// adventurer into another chunk (`reveal`: the caller reveals, moves the area and its goblins).
     pub owed: u8,
     pub reveal: bool,
     /// Why the batch stopped on an action, if it did.
@@ -126,6 +129,7 @@ pub impl SegmentImpl of SegmentTrait {
         let mut done = Done {
             played: 0, weight, owed: 0, reveal: false, illegal: None, heavy: false,
         };
+        let start = Self::chunk(@world);
         for next in actions {
             if world.defeated {
                 break;
@@ -134,7 +138,7 @@ pub impl SegmentImpl of SegmentTrait {
                 Action::Move(direction) => Self::step(
                     ref world, sheets, ref rules, direction, weight,
                 ),
-                Action::Turn(direction) => Self::turn(ref world, direction),
+                Action::Turn(direction) => Self::turn(ref world, direction, done.weight),
                 Action::Wait => Self::wait(@world),
                 Action::Interact(_) => Err(Halt::Illegal(Illegal::Kind)),
                 _ => Self::combat(
@@ -158,16 +162,18 @@ pub impl SegmentImpl of SegmentTrait {
                 ticks
             };
             if cost > done.weight {
-                // Only an in-process action reaches here: nothing of it was kept but a Turn's
-                // facing, which costs 0 ticks and so 1 of weight; a Move's ticks are checked before
-                // it moves.
+                // A Wait reaches here, which wrote nothing: a Move's ticks and a Turn's weight are
+                // checked before they write (t-0109, minor 2), a combat action's words restored.
                 done.heavy = true;
                 break;
             }
             done.weight -= cost;
             done.played += 1;
             if let Action::Move(_) = *next {
-                if Self::to_reveal(area, @world) {
+                // The segment ends when sight touches a chunk to reveal, or when the adventurer's
+                // chunk changes: the caller reveals, moves the area and its goblins (t-0109, major 1,
+                // minor 4), then runs the Move's ticks first in the next segment.
+                if Self::to_reveal(area, @world) || Self::chunk(@world) != start {
                     done.owed = ticks;
                     done.reveal = true;
                     break;
@@ -261,7 +267,10 @@ pub impl SegmentImpl of SegmentTrait {
     }
 
     /// A Turn: once between two ticks, its facing set, 0 ticks.
-    fn turn(ref world: World, direction: u8) -> Result<u8, Halt> {
+    fn turn(ref world: World, direction: u8, weight: u8) -> Result<u8, Halt> {
+        if weight == 0 {
+            return Err(Halt::Heavy);
+        }
         if world.clock > LAST_TICK {
             return Err(Halt::Illegal(Illegal::Clock));
         }
@@ -418,6 +427,12 @@ pub impl SegmentImpl of SegmentTrait {
             }
         }
         Some(0)
+    }
+
+    /// The adventurer's chunk, `15 cy + cx`.
+    fn chunk(world: @World) -> u8 {
+        let (x, y, _) = world.member(0).place();
+        (y / 15) * 15 + x / 15
     }
 
     /// Whether sight (radius 6) from the adventurer touches a chunk not yet revealed.

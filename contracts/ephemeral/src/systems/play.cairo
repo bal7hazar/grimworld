@@ -117,6 +117,16 @@ const P80: felt252 = 0x100000000000000000000;
 /// A first record's timers (F-14): no activation (255), nothing held; stored, `LIVE + 255`.
 const EMPTY_TIMERS: felt252 = LIVE + 255;
 
+/// The content records a batch has read (D-145): the pack templates, the castes, the skills and
+/// the potions, extended when the area moves (t-0109).
+#[derive(Drop)]
+struct Book {
+    packs: Array<(u16, Pack)>,
+    castes: Array<CasteSheet>,
+    skills: Array<SkillSheet>,
+    potions: Array<PotionSheet>,
+}
+
 /// What the batch read of the instance, kept for the write-back.
 #[derive(Drop)]
 struct Read {
@@ -128,6 +138,7 @@ struct Read {
     /// The goblins as they came in, and the roster.
     goblins: Span<GoblinWords>,
     roster: Array<u16>,
+    book: Book,
 }
 
 #[generate_trait]
@@ -159,7 +170,7 @@ pub impl PlayImpl of PlayTrait {
             return;
         }
         let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
-        // [Read] The member, the area and its goblins
+        // [Read] The member, the area
         let words = self.get_member_words(slot, header.members);
         let mut members: Array<MemberWords> = array![];
         let mut m: u32 = 0;
@@ -181,21 +192,14 @@ pub impl PlayImpl of PlayTrait {
         let first = *members[member.into()];
         let (x, y) = Self::place(first.state);
         let revealed = self.get_revealed(slot).model().bits;
-        let ground = Self::ground(@self, slot, revealed, x, y);
+        let ground = Self::ground(@self, slot, revealed, x, y, array![].span());
         // [Read] The content, first call: the location, a zone's chunk set, the area's pack
         // templates, the members' skills and potions
         let mut requests: Array<(u8, u32)> = array![
             (LOCATION, header.location.into()),
             (OUTLINE, OutlineTrait::id(header.location, CHUNK_SET)),
         ];
-        let mut templates: Array<u32> = array![];
-        for (_, features) in ground.span() {
-            for pack in features.packs.span() {
-                if *pack.count > 0 {
-                    InternalTrait::add(ref templates, *pack.template);
-                }
-            }
-        }
+        let templates = Self::templates(ground.span(), array![].span());
         for id in templates.span() {
             requests.append((PACK, *id));
         }
@@ -222,60 +226,122 @@ pub impl PlayImpl of PlayTrait {
         } else {
             self.get_outline_chunks(slot)
         };
-        let mut packs: Array<(u16, Pack)> = array![];
+        let mut book = Book {
+            packs: array![], castes: array![], skills: array![], potions: array![],
+        };
         for id in templates.span() {
             let record = parts.slice(at, 1);
             at += 1;
             if exists(record) {
-                packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
+                book.packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
             }
         }
-        let mut skill_sheets: Array<SkillSheet> = array![];
         for id in skills.span() {
             let record = parts.slice(at, 2);
             at += 2;
             if exists(record) {
-                skill_sheets.append(SkillSheetTrait::read((*id).try_into().unwrap(), record));
+                book.skills.append(SkillSheetTrait::read((*id).try_into().unwrap(), record));
             }
         }
-        let mut potion_sheets: Array<PotionSheet> = array![];
         for id in potions.span() {
             // An `ITEM` record is one part.
             let record = parts.slice(at, 1);
             at += 1;
             if exists(record) {
-                potion_sheets.append(PotionSheetTrait::read(*id, record));
+                book.potions.append(PotionSheetTrait::read(*id, record));
             }
         }
-        // [Read] The goblins: the roster's, then the area chunks', stored or derived
+        // [Read] The goblins: the roster's, then the area chunks', stored or derived; one the
+        // registry cannot load refuses the batch (t-0109, note 5)
         let roster = Self::roster(@self, slot, header.roster_count);
         let mut stored: Array<GoblinWords> = array![];
         for entity in roster.span() {
             let (state, timers) = self.get_goblin_words(slot, *entity);
             stored.append(GoblinWords { entity: *entity, awake: false, state, timers });
         }
-        // The castes the goblins need, second call
+        let goblins = match Self::goblins(
+            ref self, slot, registry, ref book, ground.span(), stored, roster.span(),
+        ) {
+            Some(goblins) => Self::sorted(goblins.span()),
+            None => {
+                self
+                    .played(
+                        instance_id, adventurer_id, sequence, @header, 0, Stop::Invalid, version,
+                    );
+                return;
+            },
+        };
+        let actions = match decode_batch(actions) {
+            Some(actions) => actions,
+            None => {
+                self
+                    .played(
+                        instance_id, adventurer_id, sequence, @header, 0, Stop::Invalid, version,
+                    );
+                return;
+            },
+        };
+        let area = Self::area(@self, slot, @location, set, revealed, @ground);
+        let read = Read { header, location, area, ground, goblins: goblins.span(), roster, book };
+        self.run(instance_id, adventurer_id, sequence, version, slot, member, members, actions.span(), read);
+    }
+
+    /// The goblins of `chunks` (their packs' goblins: a record when `touched`, else derived from
+    /// the placement at full health, its pack's state) and `stored`, but those of `skip` (already
+    /// held); the records they need read into `book` (pack templates, castes, their skills, held
+    /// effects' skills: one `bundle` a kind missing, 32 records a call). `None` when the registry
+    /// cannot load one of them: a caste, a caste skill or a held effect's skill missing.
+    fn goblins(
+        ref self: InstancesState,
+        slot: u32,
+        registry: IRegistryReadDispatcher,
+        ref book: Book,
+        chunks: Span<(u8, Features)>,
+        stored: Array<GoblinWords>,
+        skip: Span<u16>,
+    ) -> Option<Array<GoblinWords>> {
+        let mut stored = stored;
+        // The pack templates `book` lacks
+        let missing = Self::templates(chunks, book.packs.span());
+        if missing.len() > 0 {
+            let mut requests: Array<(u8, u32)> = array![];
+            for id in missing.span() {
+                requests.append((PACK, *id));
+            }
+            let (_, _, parts) = registry.bundle(requests.span());
+            let mut at: u32 = 0;
+            for id in missing.span() {
+                let record = parts.slice(at, 1);
+                at += 1;
+                if exists(record) {
+                    book.packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
+                }
+            }
+        }
+        let mut derived: Array<(u16, u8, u8, u8, u16, u8)> = array![];
         let mut castes: Array<u32> = array![];
-        let mut derived: Array<(u16, u8, u8, u8, u16, u8, u8)> = array![];
-        for (chunk, features) in ground.span() {
+        for (chunk, features) in chunks {
             let mut p: u8 = 0;
             for pack in features.packs.span() {
-                let template = Self::template(packs.span(), *pack.template);
+                let template = Self::template(book.packs.span(), *pack.template);
                 let mut i: u8 = 0;
                 while i < *pack.count {
                     let k = 5 * p + i;
                     let entity = goblin_entity(*chunk, k);
-                    if Bits::has((*features.touched).into(), k) {
-                        if !Self::listed(roster.span(), entity) {
-                            let (state, timers) = self.get_goblin_words(slot, entity);
-                            stored.append(GoblinWords { entity, awake: false, state, timers });
-                        }
-                    } else if let Some(template) = template {
+                    if Self::listed(skip, entity) {} else if Bits::has(
+                        (*features.touched).into(), k,
+                    ) {
+                        let (state, timers) = self.get_goblin_words(slot, entity);
+                        stored.append(GoblinWords { entity, awake: false, state, timers });
+                    } else {
+                        let template = template?;
                         let caste = template.caste(*pack.count, i);
-                        InternalTrait::add(ref castes, caste);
                         let offset = Self::offset(*pack.offsets, i);
                         let (gx, gy) = Self::spawn(*chunk, *pack.tile, offset);
-                        derived.append((entity, gx, gy, *pack.alert, caste, *pack.level, 0));
+                        derived.append((entity, gx, gy, *pack.alert, caste, *pack.level));
+                        if Self::sheet(book.castes.span(), caste).is_none() {
+                            InternalTrait::add(ref castes, caste);
+                        }
                     }
                     i += 1;
                 }
@@ -283,15 +349,18 @@ pub impl PlayImpl of PlayTrait {
             }
         }
         for goblin in stored.span() {
-            InternalTrait::add(ref castes, Self::caste_of(*goblin.state));
+            let caste = Self::caste_of(*goblin.state);
+            if Self::sheet(book.castes.span(), caste).is_none() {
+                InternalTrait::add(ref castes, caste);
+            }
         }
-        let mut requests: Array<(u8, u32)> = array![];
-        for id in castes.span() {
-            requests.append((CASTE, *id));
-        }
-        let mut caste_sheets: Array<CasteSheet> = array![];
+        // The castes `book` lacks, then the skills it lacks
         let mut more: Array<u32> = array![];
-        if requests.len() > 0 {
+        if castes.len() > 0 {
+            let mut requests: Array<(u8, u32)> = array![];
+            for id in castes.span() {
+                requests.append((CASTE, *id));
+            }
             let (_, _, parts) = registry.bundle(requests.span());
             let mut at: u32 = 0;
             for id in castes.span() {
@@ -301,21 +370,20 @@ pub impl PlayImpl of PlayTrait {
                     let sheet = CasteSheetTrait::read((*id).try_into().unwrap(), record);
                     for skill in sheet.skills.span() {
                         let id: u32 = (*skill).into();
-                        if id != 0 && !Self::has(skills.span(), id) {
+                        if id != 0 && !Self::holds_skill(book.skills.span(), id) {
                             Self::push(ref more, id);
                         }
                     }
-                    caste_sheets.append(sheet);
+                    book.castes.append(sheet);
                 }
             }
         }
         for goblin in stored.span() {
             let effect = Self::effect_of(*goblin.timers);
-            if effect != 0 && !Self::has(skills.span(), effect) {
+            if effect != 0 && !Self::holds_skill(book.skills.span(), effect) {
                 Self::push(ref more, effect);
             }
         }
-        // Their skills, third call (32 records a call at most)
         let mut from: u32 = 0;
         while from < more.len() {
             let count = if more.len() - from > 32 {
@@ -333,90 +401,37 @@ pub impl PlayImpl of PlayTrait {
                 let record = parts.slice(at, 2);
                 at += 2;
                 if exists(record) {
-                    skill_sheets.append(SkillSheetTrait::read((*id).try_into().unwrap(), record));
+                    book.skills.append(SkillSheetTrait::read((*id).try_into().unwrap(), record));
                 }
             }
             from += count;
         }
-        let content = Content {
-            skills: skill_sheets.span(), potions: potion_sheets.span(), castes: caste_sheets.span(),
-        };
-        // The derived goblins at full health, their pack's state
-        let mut goblins: Array<GoblinWords> = array![];
-        let mut all: Array<GoblinWords> = array![];
-        // A goblin whose caste, a skill of its caste or its held effect's skill the registry does
-        // not hold is left out of the batch's world: it is neither read nor written (the tick's
-        // load would refuse it).
-        let held = skill_sheets.span();
+        // The goblins, every one loadable
+        let mut out: Array<GoblinWords> = array![];
         for entry in derived.span() {
-            let (entity, gx, gy, alert, caste, level, _) = *entry;
-            if let Some(sheet) = Self::usable(caste_sheets.span(), held, caste, 0) {
-                let state = LIVE
-                    + gx.into()
-                    + gy.into() * P8
-                    + alert.into() * P24
-                    + sheet.max_health(level).into() * P32
-                    + (sheet.energy * 3).into() * P48
-                    + caste.into() * P64
-                    + level.into() * P80;
-                all.append(GoblinWords { entity, awake: false, state, timers: EMPTY_TIMERS });
-            }
+            let (entity, gx, gy, alert, caste, level) = *entry;
+            let sheet = Self::usable(book.castes.span(), book.skills.span(), caste, 0)?;
+            let state = LIVE
+                + gx.into()
+                + gy.into() * P8
+                + alert.into() * P24
+                + sheet.max_health(level).into() * P32
+                + (sheet.energy * 3).into() * P48
+                + caste.into() * P64
+                + level.into() * P80;
+            out.append(GoblinWords { entity, awake: false, state, timers: EMPTY_TIMERS });
         }
         for goblin in stored.span() {
             let caste = Self::caste_of(*goblin.state);
             let effect = Self::effect_of(*goblin.timers);
-            if Self::usable(caste_sheets.span(), held, caste, effect).is_some() {
-                all.append(*goblin);
-            }
+            Self::usable(book.castes.span(), book.skills.span(), caste, effect)?;
+            out.append(*goblin);
         }
-        // Ascending entity id, as the tick takes them
-        let mut last: u32 = 0;
-        let mut first = true;
-        while goblins.len() < all.len() {
-            let mut least: u32 = 0x10000;
-            let mut pick: Option<GoblinWords> = None;
-            for goblin in all.span() {
-                let e: u32 = (*goblin.entity).into();
-                if (first || e > last) && e < least {
-                    least = e;
-                    pick = Some(*goblin);
-                }
-            }
-            match pick {
-                Some(goblin) => goblins.append(goblin),
-                None => { break; },
-            }
-            last = least;
-            first = false;
-        }
-        let actions = match decode_batch(actions) {
-            Some(actions) => actions,
-            None => {
-                self
-                    .played(
-                        instance_id, adventurer_id, sequence, @header, 0, Stop::Invalid, version,
-                    );
-                return;
-            },
-        };
-        let area = Self::area(@self, slot, @location, set, revealed, @ground);
-        let read = Read { header, location, area, ground, goblins: goblins.span(), roster };
-        self
-            .run(
-                instance_id,
-                adventurer_id,
-                sequence,
-                version,
-                slot,
-                member,
-                members,
-                content,
-                actions.span(),
-                read,
-            );
+        Some(out)
     }
 
-    /// The segments, the reveals between them, the write-back and the events.
+    /// The segments, the reveals and the area's moves between them, the write-back and the
+    /// events.
     fn run(
         ref self: InstancesState,
         instance_id: InstanceId,
@@ -426,11 +441,11 @@ pub impl PlayImpl of PlayTrait {
         slot: u32,
         member: u8,
         members: Array<MemberWords>,
-        content: Content,
         actions: Span<Action>,
         read: Read,
     ) {
-        let Read { mut header, location, mut area, ground, goblins, mut roster } = read;
+        let Read { mut header, location, mut area, ground, goblins, roster, mut book } = read;
+        let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
         let mut words = Words {
             clock: header.clock,
             members,
@@ -438,6 +453,8 @@ pub impl PlayImpl of PlayTrait {
             killed: array![],
             defeated: false,
         };
+        // Every goblin as loaded, by entity: the write-back's reference
+        let mut loaded: Array<GoblinWords> = Self::copy(goblins);
         let initial = ground.span();
         let mut ground = Self::copy_ground(initial);
         let classes = Classes {
@@ -458,6 +475,9 @@ pub impl PlayImpl of PlayTrait {
         let mut revealed: Array<u8> = array![];
         loop {
             // One call a segment: the words go in and come back, never loaded here (D-236)
+            let content = Content {
+                skills: book.skills.span(), potions: book.potions.span(), castes: book.castes.span(),
+            };
             let (out, next, done) = segment
                 .segment(
                     words,
@@ -491,7 +511,9 @@ pub impl PlayImpl of PlayTrait {
             if !done.reveal {
                 break;
             }
-            // Between two segments: the chunks sight touches revealed, the area moved
+            // Between two segments (t-0109, major 1 and minor 4): the chunks sight touches
+            // revealed, then the area moved to the 3 × 3 around the adventurer's chunk, the goblins
+            // of its new chunks merged by entity id, as a batch sent from there would hold them
             let (x, y) = Self::place(*words.members[member.into()].state);
             let mut chunks: Array<u8> = array![];
             for chunk in SightTrait::chunks(x, y, area.width, area.height) {
@@ -516,16 +538,55 @@ pub impl PlayImpl of PlayTrait {
                         ref ground,
                         chunks.span(),
                     );
-                for chunk in chunks {
-                    revealed.append(chunk);
+                for chunk in chunks.span() {
+                    revealed.append(*chunk);
                 }
             }
-            let more = Self::ground(@self, slot, area.revealed, x, y);
-            for (chunk, features) in more {
-                if !Self::holds(ground.span(), chunk) {
-                    ground.append((chunk, features));
+            // The area's chunks not yet held (a chunk the reveal just wrote is in `ground`, its
+            // goblins not yet in the words)
+            let mut held: Array<u16> = array![];
+            for goblin in words.goblins.span() {
+                held.append(*goblin.entity);
+            }
+            let fresh = Self::ground(@self, slot, area.revealed, x, y, ground.span());
+            let mut arrived: Array<(u8, Features)> = array![];
+            for (chunk, features) in fresh.span() {
+                arrived.append((*chunk, *features));
+                ground.append((*chunk, *features));
+            }
+            for chunk in chunks.span() {
+                for (c, features) in ground.span() {
+                    if *c == *chunk {
+                        arrived.append((*c, *features));
+                    }
                 }
             }
+            let new = match Self::goblins(
+                ref self, slot, registry, ref book, arrived.span(), array![], held.span(),
+            ) {
+                Some(new) => new,
+                None => {
+                    stop = Stop::Invalid;
+                    break;
+                },
+            };
+            let around = Self::around(x, y);
+            let mut kept: Array<GoblinWords> = array![];
+            for goblin in words.goblins.span() {
+                // A goblin leaves the batch's world only as a batch sent from here would not load
+                // it: unchanged, home, its spawn chunk outside the area (the world stays under
+                // `MAX_GOBLINS`)
+                let spawn = Self::spawn_chunk(*goblin.entity);
+                let changed = Self::changed(loaded.span(), goblin);
+                if changed || Self::away(*goblin.state, spawn) || Self::within(around.span(), spawn) {
+                    kept.append(*goblin);
+                }
+            }
+            for goblin in new.span() {
+                kept.append(*goblin);
+                loaded.append(*goblin);
+            }
+            words.goblins = Self::sorted(kept.span());
             area = Self::area(@self, slot, @location, area.known, area.revealed, @ground);
         }
         let out = words;
@@ -538,22 +599,12 @@ pub impl PlayImpl of PlayTrait {
                 );
             m += 1;
         }
-        let mut k: u32 = 0;
         for after in out.goblins.span() {
-            let before = goblins[k];
-            if *after.state != *before.state || *after.timers != *before.timers {
+            if Self::changed(loaded.span(), after) {
                 self.set_goblin_words(slot, *after.entity, *after.state, *after.timers);
                 let spawn = Self::spawn_chunk(*after.entity);
-                let bit = Self::k_of(*after.entity);
-                Self::touch(ref self, slot, ref ground, spawn, bit);
-                let (gx, gy) = Self::place_goblin(*after.state);
-                let here: u8 = (gy / 15) * 15 + gx / 15;
-                let listed = Self::listed(roster.span(), *after.entity);
-                if here != spawn && !listed && roster.len() < 60 {
-                    roster.append(*after.entity);
-                }
+                Self::touch(ref self, slot, ref ground, spawn, Self::k_of(*after.entity));
             }
-            k += 1;
         }
         for (chunk, features) in ground.span() {
             let mut changed = true;
@@ -567,13 +618,29 @@ pub impl PlayImpl of PlayTrait {
                 self.set_features(slot, *chunk, StorePacking::pack(*features));
             }
         }
-        if roster.len() != header.roster_count.into() {
-            Self::write_roster(ref self, slot, roster.span());
+        // The roster (D-238): the living goblins away from their spawn chunk, in their order; a
+        // goblin killed or back home frees its entry; the AI keeps them at most 60
+        let mut listed: Array<u16> = array![];
+        for entity in roster.span() {
+            if let Some(goblin) = Self::find(out.goblins.span(), *entity) {
+                if Self::away(goblin.state, Self::spawn_chunk(*entity)) {
+                    listed.append(*entity);
+                }
+            }
+        }
+        for goblin in out.goblins.span() {
+            let spawn = Self::spawn_chunk(*goblin.entity);
+            if Self::away(*goblin.state, spawn) && !Self::listed(listed.span(), *goblin.entity) {
+                listed.append(*goblin.entity);
+            }
+        }
+        if listed.span() != roster.span() {
+            Self::write_roster(ref self, slot, listed.span());
         }
         let header = Header {
             sequence: header.sequence + played.into(),
             clock: out.clock,
-            roster_count: roster.len().try_into().unwrap(),
+            roster_count: listed.len().try_into().unwrap(),
             ..header,
         };
         self.set_header(slot, header);
@@ -592,6 +659,78 @@ pub impl PlayImpl of PlayTrait {
             let state: MemberState = StorePacking::unpack(*out.members[member.into()].state);
             self.close(instance_id, slot, header, placement, state, Outcome::Defeated, 0, 0);
         }
+    }
+
+    /// Whether `goblin`'s words differ from those it was loaded with.
+    fn changed(loaded: Span<GoblinWords>, goblin: @GoblinWords) -> bool {
+        match Self::find(loaded, *goblin.entity) {
+            Some(before) => before.state != *goblin.state || before.timers != *goblin.timers,
+            None => true,
+        }
+    }
+
+    fn find(goblins: Span<GoblinWords>, entity: u16) -> Option<GoblinWords> {
+        for goblin in goblins {
+            if *goblin.entity == entity {
+                return Some(*goblin);
+            }
+        }
+        None
+    }
+
+    /// Alive (its AI state below dead, `GoblinState` 24–31) and away from its spawn chunk.
+    fn away(state: felt252, spawn: u8) -> bool {
+        let wide: u256 = state.into();
+        let ai = (wide.low / 0x1000000) % 0x100;
+        let (x, y) = Self::place_goblin(state);
+        ai < 6 && (y / 15) * 15 + x / 15 != spawn
+    }
+
+    fn within(chunks: Span<u8>, chunk: u8) -> bool {
+        for c in chunks {
+            if *c == chunk {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The pack templates `ground`'s packs name that `known` lacks.
+    fn templates(ground: Span<(u8, Features)>, known: Span<(u16, Pack)>) -> Array<u32> {
+        let mut templates: Array<u32> = array![];
+        for (_, features) in ground {
+            for pack in features.packs.span() {
+                if *pack.count > 0 && Self::template(known, *pack.template).is_none() {
+                    InternalTrait::add(ref templates, *pack.template);
+                }
+            }
+        }
+        templates
+    }
+
+    /// `goblins` in ascending entity id, as the tick takes them.
+    fn sorted(goblins: Span<GoblinWords>) -> Array<GoblinWords> {
+        let mut out: Array<GoblinWords> = array![];
+        let mut last: u32 = 0;
+        let mut first = true;
+        while out.len() < goblins.len() {
+            let mut least: u32 = 0x10000;
+            let mut pick: Option<GoblinWords> = None;
+            for goblin in goblins {
+                let e: u32 = (*goblin.entity).into();
+                if (first || e > last) && e < least {
+                    least = e;
+                    pick = Some(*goblin);
+                }
+            }
+            match pick {
+                Some(goblin) => out.append(goblin),
+                None => { break; },
+            }
+            last = least;
+            first = false;
+        }
+        out
     }
 
     /// `BatchPlayed` (always, ENG-01 §4.1).
@@ -711,13 +850,19 @@ pub impl PlayImpl of PlayTrait {
         self.set_quotas(slot, QuotasTrait::from_progress(*location.target, @progress));
     }
 
-    /// The `Features` of the revealed chunks of the 3 × 3 around the tile `(x, y)`'s chunk.
+    /// The `Features` of the revealed chunks of the 3 × 3 around the tile `(x, y)`'s chunk, but
+    /// those of `held`.
     fn ground(
-        self: @InstancesState, slot: u32, revealed: felt252, x: u8, y: u8,
+        self: @InstancesState,
+        slot: u32,
+        revealed: felt252,
+        x: u8,
+        y: u8,
+        held: Span<(u8, Features)>,
     ) -> Array<(u8, Features)> {
         let mut ground: Array<(u8, Features)> = array![];
         for chunk in Self::around(x, y) {
-            if Bits::has(revealed, chunk) {
+            if Bits::has(revealed, chunk) && !Self::holds(held, chunk) {
                 let (_, features) = self.get_chunk_words(slot, chunk);
                 ground.append((chunk, StorePacking::unpack(features)));
             }

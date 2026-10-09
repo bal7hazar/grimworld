@@ -32,6 +32,7 @@ pub mod AiLibrary {
             ground: Array<(u8, Features)>,
             level: u8,
             frozen: felt252,
+            listed: u8,
             resolved: u128,
         ) -> (Words, Array<(u8, Features)>) {
             let (mut world, sheets, index) = words.indexed(@content);
@@ -47,6 +48,7 @@ pub mod AiLibrary {
                 trap,
                 level,
                 frozen,
+                listed,
             };
             AiTrait::step(ref world, @sheets, ref rules, resolved);
             (world.store(), rules.ground)

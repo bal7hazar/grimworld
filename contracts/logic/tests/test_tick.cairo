@@ -3597,6 +3597,7 @@ fn test_cost_route_c_tick() {
         trap: trap(),
         level: 10,
         frozen: 0,
+        listed: 0,
     };
     TickTrait::tick(ref world, @sheets, ref rules);
     assert(rules.cache.hits == 8 && !world.defeated, 'eight hits');
@@ -3881,6 +3882,7 @@ fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
         trap: trap(),
         level: 10,
         frozen: 0,
+        listed: 0,
     };
     (world, sheets, rules)
 }
@@ -4222,6 +4224,7 @@ fn segment_of(words: Words, actions: Span<Action>) -> (Words, grimworld_logic::t
         trap: classes.trap,
         level: 10,
         frozen: 0,
+        listed: 0,
     };
     let done = grimworld_logic::types::play::SegmentTrait::run(
         ref world, @sheets, ref rules, @area, @classes, actions, 0, 10,
@@ -4559,6 +4562,7 @@ fn cap_step(cap: u8) -> u8 {
         trap: classes.trap,
         level: 10,
         frozen: 0,
+        listed: 0,
     };
     let (_, attacks) = grimworld_logic::types::ai::AiTrait::capped(
         ref world, @sheets, ref rules, 0, cap,

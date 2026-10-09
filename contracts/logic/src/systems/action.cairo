@@ -46,6 +46,7 @@ pub mod ActionLibrary {
                 trap: Zero::zero(),
                 level: 0,
                 frozen: 0,
+                listed: 0,
             };
             match ActionTrait::act(ref world, @sheets, ref rules, 0, action) {
                 Ok(ticks) => (world.store(), rules.ground, Ok(ticks)),

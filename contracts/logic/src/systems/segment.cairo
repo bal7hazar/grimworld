@@ -41,6 +41,7 @@ pub mod SegmentLibrary {
                 trap: classes.trap,
                 level,
                 frozen: 0,
+                listed: 0,
             };
             let _ = Zero::<felt252>::zero();
             let done = SegmentTrait::run(
