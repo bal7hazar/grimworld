@@ -2058,6 +2058,26 @@ later entry; its first ceiling is D-231's.
 | enter into a dungeon floor (new case) | without | 9,862,400 · 9,382,400 · 9,342,400 · 9,582,400 · 9,142,400 · 9,502,400 | 9,862,400 | 10,355,520 | — | — |
 | enter into a dungeon floor (new case) | with | 9,502,400 · 9,382,400 · 9,502,400 · 9,662,400 · 9,382,400 · 9,142,400 | 9,662,400 | 10,145,520 | — | — |
 
+**The D-144 ceilings of `play`** (**D-237**, the project manager, 2026-10-09: ENG-07's six runs on the
+node, `lifecycle_probe.py --play on`, the maximum + 5 %; on the expedition's path, every rise above
+them goes to the project manager first). A reveal walk is a batch of `N` Moves whose last tile alone
+brings sight onto one chunk not yet revealed; the walk's length depends on each run's instance.
+
+| `play` batch (on the node) | Maximum of six runs | Ceiling (maximum + 5 %) | Decided |
+|---|---:|---:|---|
+| The exploration batch, 10 Moves, every tick on the fast path | 18,992,640 | 19,942,272 | D-237 |
+| One Move, legal | 6,792,640 | 7,132,272 | D-237 |
+| One Move, refused (a wall) | 5,392,640 | 5,662,272 | D-237 |
+| A reveal walk of 1 Move | 14,898,240 | 15,643,152 | D-237 |
+| A reveal walk of 2 Moves | 16,378,240 | 17,197,152 | D-237 |
+| A reveal walk of 3 Moves | 17,498,240 | 18,373,152 | D-237 |
+| A reveal walk of 4 Moves | 18,578,240 | **19,507,152** | **D-237 amended** (2026-10-09; six runs at `3881ee8`: 18,298,240 · 18,258,240 · 18,218,240 · 18,218,240 · 18,578,240 · 18,258,240) |
+| A reveal walk of 5 Moves | 19,778,240 | **20,767,152** | **D-237 amended** (six runs at `3881ee8`: 19,738,240 · 19,658,240 · 19,698,240 · 19,738,240 · 19,698,240 · 19,578,240; the maximum is an earlier run at the same head, 19,778,240, above the six) |
+| A reveal walk of 6 Moves | 21,938,240 | 23,035,152 | D-237 |
+
+Both amended ceilings lie below the straight line between the 3- and the 6-Move ceilings (19,927,152
+at 4 Moves, 21,481,152 at 5).
+
 **Re-run after #385's merge** (six runs each again, at `cec0ba2`, origin/main merged): every figure is
 under its D-231 ceiling. The maxima, without · with a quota: first `enter` 13,292,400 · 14,254,400;
 later `enter` 6,982,400 · 7,462,400; the belt's worst case 7,822,400 · 8,262,400; `leave` to a dungeon
