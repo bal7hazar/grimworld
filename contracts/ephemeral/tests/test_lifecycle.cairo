@@ -2258,3 +2258,697 @@ fn test_set_play_class_key_refused() {
         *declare("TickLibrary").unwrap().contract_class().class_hash,
     );
 }
+
+// ---- ENG-07t: the play path's tests (ENG-07's A4, A6, A7, A8) -----------------------------------
+// The zone of `setup` is 3 × 3 chunks (tiles 0 to 44 a side) with no spawn table, entered by gate
+// 15 on chunk 16's tile 32, `(17, 17)`: no pack on its chunks. The tests open the chunks they need
+// (`open_chunk`: every tile walkable) and put the member on a tile (`put_member`), so each case
+// starts from a known place.
+
+const ZONE_GATE: u16 = 15;
+/// The zone's last tile on either axis: 3 chunks of 15 tiles.
+const LAST_TILE: u8 = 44;
+
+/// Every chunk of the 3 × 3 zone revealed and walkable.
+fn open_zone(world: World) {
+    for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
+        open_chunk(world, chunk);
+    }
+}
+
+/// The tile after a Move in direction `d` from `(x, y)` (hexx's offset rule, odd rows shifted
+/// East: `LayoutTrait::neighbor`; the probe's `step`), `None` when it leaves the zone's tiles.
+fn stepped(x: u8, y: u8, d: u8) -> Option<(u8, u8)> {
+    let odd = y % 2 == 1;
+    let (x, y): (i16, i16) = (x.into(), y.into());
+    let (nx, ny) = if d == 0 {
+        (x - 1, y)
+    } else if d == 1 {
+        if odd {
+            (x, y + 1)
+        } else {
+            (x - 1, y + 1)
+        }
+    } else if d == 2 {
+        if odd {
+            (x + 1, y + 1)
+        } else {
+            (x, y + 1)
+        }
+    } else if d == 3 {
+        (x + 1, y)
+    } else if d == 4 {
+        if odd {
+            (x + 1, y - 1)
+        } else {
+            (x, y - 1)
+        }
+    } else if odd {
+        (x, y - 1)
+    } else {
+        (x - 1, y - 1)
+    };
+    let last: i16 = LAST_TILE.into();
+    if nx < 0 || ny < 0 || nx > last || ny > last {
+        None
+    } else {
+        Some((nx.try_into().unwrap(), ny.try_into().unwrap()))
+    }
+}
+
+/// The member on `(x, y)` plays one Move in direction `d` as a batch: `(played, stop)`.
+fn move_from(
+    ref spy: snforge_std::EventSpy, world: World, id: u64, x: u8, y: u8, d: u8,
+) -> (felt252, felt252) {
+    put_member(world, x, y);
+    let sequence = header_of(world, 1).sequence;
+    let one = array![grimworld_logic::actions::Action::Move(d)];
+    play(world, 'alice').play(id, 7, sequence, 0, batch(one.span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    (played, stop)
+}
+
+/// Every direction from `(x, y)`: a Move to a tile of the zone is played (the member there, facing
+/// `d`); a Move off the zone's tiles stops the batch `Invalid`, nothing played, the member kept.
+fn all_directions(ref spy: snforge_std::EventSpy, world: World, id: u64, x: u8, y: u8) {
+    for d in 0..6_u8 {
+        let (played, stop) = move_from(ref spy, world, id, x, y, d);
+        let after = state_of(world, 1);
+        match stepped(x, y, d) {
+            Some((
+                nx, ny,
+            )) => {
+                assert(played == 1 && stop == 0, 'a move inside plays');
+                assert(after.x == nx && after.y == ny && after.facing == d, 'on the next tile');
+            },
+            None => {
+                assert(played == 0 && stop == 2, 'a move off the zone is invalid');
+                assert(after.x == x && after.y == y, 'the member stays');
+            },
+        }
+    }
+}
+
+// A4, both row parities: from a tile of an even row and of an odd row (the window's origin is on
+// an even row and the adventurer at local (7, 7) or (7, 8)), each of the six directions lands on
+// hexx's neighbour. The Moves are played through `play`, so the window is assembled at each.
+#[test]
+#[available_gas(l2_gas: 341531232)] // ceil(1.05 × 325267840 measured)
+fn test_play_window_row_parities() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    let mut spy = spy_events();
+    // An even row and an odd row, on the interior of a chunk and across a chunk seam (x = 29 | 30)
+    all_directions(ref spy, world, id, 22, 22);
+    all_directions(ref spy, world, id, 22, 23);
+    all_directions(ref spy, world, id, 29, 29);
+    all_directions(ref spy, world, id, 30, 30);
+}
+
+// A4, the zone's low edges (the window's origin is negative there, D-134): along the edges `x = 0`
+// and `y = 0` (an even and an odd row) and at the corner, a Move inside is played and a Move out
+// of the zone stops the batch. The window is never clamped, so the tiles beside the edge answer.
+#[test]
+#[available_gas(l2_gas: 324548070)] // ceil(1.05 × 309093400 measured)
+fn test_play_window_low_edges() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    let mut spy = spy_events();
+    all_directions(ref spy, world, id, 0, 22);
+    all_directions(ref spy, world, id, 0, 23);
+    all_directions(ref spy, world, id, 22, 0);
+    all_directions(ref spy, world, id, 23, 0);
+    all_directions(ref spy, world, id, 0, 0);
+}
+
+// A4, the zone's high edges: `x = 44` and `y = 44` (the window's far side hangs beyond the zone:
+// void constants) and the opposite corner.
+#[test]
+#[available_gas(l2_gas: 329981270)] // ceil(1.05 × 314267876 measured)
+fn test_play_window_high_edges() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    let mut spy = spy_events();
+    all_directions(ref spy, world, id, 44, 22);
+    all_directions(ref spy, world, id, 44, 23);
+    all_directions(ref spy, world, id, 22, 44);
+    all_directions(ref spy, world, id, 23, 44);
+    all_directions(ref spy, world, id, 44, 44);
+}
+
+// A4, a chunk not revealed is wall: from chunk 16's last column a Move into chunk 17, not revealed,
+// stops the batch `Invalid` with the member kept and the chunk still not revealed; once the chunk
+// is revealed the same Move is played.
+#[test]
+#[available_gas(l2_gas: 69541432)] // ceil(1.05 × 66229935 measured)
+fn test_play_window_unrevealed_is_wall() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_chunk(world, 16);
+    let mut spy = spy_events();
+    let revealed = read(world.instances, key(selector!("revealed"), array![1]));
+    let (played, stop) = move_from(ref spy, world, id, 29, 22, 3);
+    assert(played == 0 && stop == 2, 'an unrevealed chunk is wall');
+    let after = state_of(world, 1);
+    assert(after.x == 29 && after.y == 22, 'the member stays');
+    assert(
+        read(world.instances, key(selector!("revealed"), array![1])) == revealed, 'not revealed',
+    );
+    open_chunk(world, 17);
+    let (played, stop) = move_from(ref spy, world, id, 29, 22, 3);
+    assert(played == 1 && stop == 0, 'a revealed chunk is walkable');
+    assert(state_of(world, 1).x == 30, 'into chunk 17');
+}
+
+// ---- A6: traps in a batch, through `play` -------------------------------------------------------
+// Skills 11 and 12 (the member's bar) are a Snare: a `TRAP` skill whose payload hits a foe with
+// earth damage, 10 at rank 0 to 40 at rank 12. Caste 1's first skill is the same Snare, so a
+// goblin's placed trap has a payload. The traps are put on the ground as objects (what the
+// placing leaves), on chunk 16's row 7; the member and the pack stand on the zone's row 22.
+
+/// The Snare's payload and the caste that carries it.
+fn snare_content(world: World) {
+    pack_content(world);
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let trap = grimworld_logic::types::effect::EntryTrait::new(
+        grimworld_logic::types::effect::kind::TRAP,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        grimworld_logic::types::effect::target::TILE,
+        grimworld_logic::types::effect::shape::SINGLE,
+        0,
+        0,
+        0,
+    );
+    let earth = grimworld_logic::types::effect::EntryTrait::new(
+        grimworld_logic::types::effect::kind::DAMAGE,
+        grimworld_logic::types::combat::damage::EARTH,
+        10,
+        40,
+        0,
+        0,
+        0,
+        grimworld_logic::types::effect::target::FOE,
+        grimworld_logic::types::effect::shape::SINGLE,
+        grimworld_logic::types::effect::filter::FOES,
+        0,
+        0,
+    );
+    let snare = grimworld_logic::models::skill::SkillTrait::new(
+        1,
+        1,
+        grimworld_logic::types::combat::skill_kind::TRAP,
+        0,
+        0,
+        0,
+        0,
+        3,
+        3,
+        false,
+        [trap, earth, Default::default()],
+    );
+    for skill in array![11_u32, 12] {
+        records
+            .set(
+                grimworld_logic::content::SKILL,
+                skill,
+                grimworld_logic::models::skill::SkillRecord::pack(@snare),
+            );
+    }
+    let caste = grimworld_logic::models::caste::CasteTrait::new(
+        1,
+        0,
+        100,
+        0,
+        0,
+        [0; 9],
+        WeaponTrait::new(grimworld_logic::types::combat::weapon::AXE, 10, 1, 1, 1),
+        0,
+        0,
+        [12, 0, 0, 0],
+        0,
+        0,
+        0,
+        false,
+    );
+    records.set(grimworld_logic::content::CASTE, 1, CasteRecord::pack(@caste));
+}
+
+/// Chunk 16's features: `objects` on its tiles, and `pack` if any.
+fn put_features(
+    world: World,
+    chunk: u8,
+    objects: [grimworld_logic::models::chunk::Object; 3],
+    packs: [grimworld_logic::models::index::PackPlacement; 2],
+) {
+    let features = grimworld_logic::models::index::Features { packs, objects, touched: 0 };
+    write(world.instances, chunk_key(1, chunk) + 1, StorePacking::pack(features));
+}
+
+fn trap_object(tile: u8, kind: u8, param: u16) -> grimworld_logic::models::chunk::Object {
+    grimworld_logic::models::chunk::Object { tile, kind, state: 0, param }
+}
+
+/// The object `k` of chunk 16.
+fn object_of(world: World, chunk: u8, k: u32) -> grimworld_logic::models::chunk::Object {
+    let features: grimworld_logic::models::index::Features = StorePacking::unpack(
+        read(world.instances, chunk_key(1, chunk) + 1),
+    );
+    *features.objects.span()[k]
+}
+
+/// A goblin's health: bits 32–47 of its stored `GoblinState` (0 when it has no record).
+fn goblin_health(world: World, entity: u16) -> u128 {
+    let state: u256 = read(world.instances, key(selector!("goblins"), array![1, entity.into()]))
+        .into();
+    (state.low / 0x100000000) % 0x10000
+}
+
+fn goblin_place(world: World, entity: u16) -> (u8, u8) {
+    let (x, y, _) = grimworld_logic::models::goblin::GoblinPlaceTrait::at(
+        read(world.instances, key(selector!("goblins"), array![1, entity.into()])),
+    );
+    (x, y)
+}
+
+// A6, a member's move into a trap goes through `TrapLibrary`, once. A terrain trap (kind 4, its
+// `param` the skill 12) on chunk 16's tile 113, `(23, 22)`: the Move East onto it hits the member
+// (earth damage at the band's lower level, rank 0) and the object is used; leaving and coming
+// back does not hit again.
+#[test]
+#[available_gas(l2_gas: 87448828)] // ceil(1.05 × 83284598 measured)
+fn test_play_trap_member_once() {
+    let world = setup();
+    play_classes(world);
+    snare_content(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    put_features(
+        world,
+        16,
+        [
+            trap_object(113, grimworld_logic::models::chunk::object::TRAP, 12), Default::default(),
+            Default::default(),
+        ],
+        [Default::default(), Default::default()],
+    );
+    put_member(world, 22, 22);
+    let mut spy = spy_events();
+    let health = state_of(world, 1).health;
+    play(world, 'alice')
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Move(3)].span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    let hit = state_of(world, 1);
+    println!("trap: health {} -> {}", health, hit.health);
+    assert(played == 1 && stop == 0 && hit.x == 23, 'on the trap tile');
+    assert(hit.health < health, 'the trap hit the member');
+    assert(object_of(world, 16, 0).state == 1, 'the trap is used');
+    // Off the tile and back on: nothing triggers again (health only regenerates).
+    let again = array![
+        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(3),
+    ];
+    play(world, 'alice').play(id, 7, 1, 0, batch(again.span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 2 && stop == 0, 'off and on again');
+    assert(state_of(world, 1).health >= hit.health, 'a used trap does not hit again');
+    assert(object_of(world, 16, 0).state == 1, 'still used');
+}
+
+// A6, a goblin's trap (a placed trap, kind 9, its placer the goblin 280 and its caste skill 0): a
+// pack of one asleep on chunk 17 is in the batch's world, and the member entering the tile
+// triggers its Snare on the member.
+#[test]
+#[available_gas(l2_gas: 77768053)] // ceil(1.05 × 74064812 measured)
+fn test_play_trap_goblin_placed() {
+    let world = setup();
+    play_classes(world);
+    snare_content(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    let placer = grimworld_logic::types::combat::PlacerTrait::param(
+        @grimworld_logic::types::combat::Placer::Goblin((8 + 16 * 17, 0)),
+    );
+    put_features(
+        world,
+        16,
+        [
+            trap_object(113, grimworld_logic::models::chunk::object::PLACED_TRAP, placer),
+            Default::default(), Default::default(),
+        ],
+        [Default::default(), Default::default()],
+    );
+    // The goblin: chunk 17's tile 13 × 15 + 13, `(43, 28)`, asleep, centre of its disc.
+    let pack = grimworld_logic::models::index::PackPlacement {
+        tile: 13 * 15 + 13, template: 1, level: 1, count: 1, offsets: 9, alert: 0,
+    };
+    put_features(
+        world,
+        17,
+        [Default::default(), Default::default(), Default::default()],
+        [pack, Default::default()],
+    );
+    put_member(world, 22, 22);
+    let mut spy = spy_events();
+    let health = state_of(world, 1).health;
+    play(world, 'alice')
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Move(3)].span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    let hit = state_of(world, 1);
+    println!("goblin trap: health {} -> {}", health, hit.health);
+    assert(played == 1 && stop == 0 && hit.x == 23, 'on the trap tile');
+    assert(hit.health < health, 'the goblin trap hit the member');
+    assert(object_of(world, 16, 0).state == 1, 'the trap is used');
+}
+
+// A6, a goblin entering a member's trap (a placed trap, kind 9, member 0's slot 0): an alerted
+// goblin of chunk 16, three tiles from the member, steps onto the trap on its way; the trap hits
+// it and is used. The goblin stands on the trap's tile (its act ended there).
+#[test]
+#[available_gas(l2_gas: 85573194)] // ceil(1.05 × 81498280 measured)
+fn test_play_trap_goblin_enters() {
+    let world = setup();
+    play_classes(world);
+    snare_content(world);
+    let id = create(world, 7, 'alice', ZONE_GATE, 0);
+    open_zone(world);
+    let placer = grimworld_logic::types::combat::PlacerTrait::param(
+        @grimworld_logic::types::combat::Placer::Member((0, 0)),
+    );
+    // The trap on (24, 22), tile 114; the goblin on (25, 22), tile 115, entity 8 + 16 × 16.
+    let pack = grimworld_logic::models::index::PackPlacement {
+        tile: 115, template: 1, level: 1, count: 1, offsets: 9, alert: 2,
+    };
+    put_features(
+        world,
+        16,
+        [
+            trap_object(114, grimworld_logic::models::chunk::object::PLACED_TRAP, placer),
+            Default::default(), Default::default(),
+        ],
+        [pack, Default::default()],
+    );
+    put_member(world, 22, 22);
+    let entity: u16 = 8 + 16 * 16;
+    let mut sequence: u32 = 0;
+    let mut waits: u32 = 0;
+    while waits < 6 && object_of(world, 16, 0).state == 0 {
+        play(world, 'alice')
+            .play(id, 7, sequence, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+        sequence = header_of(world, 1).sequence;
+        let (x, y) = goblin_place(world, entity);
+        println!(
+            "wait {}: goblin on ({}, {}), health {}", waits, x, y, goblin_health(world, entity),
+        );
+        waits += 1;
+    }
+    assert(object_of(world, 16, 0).state == 1, 'the member trap is used');
+    let (x, y) = goblin_place(world, entity);
+    assert(x == 24 && y == 22, 'the goblin stands on the trap');
+    assert(goblin_health(world, entity) < 100, 'the trap hit the goblin');
+}
+
+// ---- A7: a zone's quotas land on their hosts in play
+// ---------------------------------------------
+// The zone of `zone_content` (3 × 2 chunks, the chunk set 0, 1, 2, 15, 16) with a collector (once)
+// and a vein (twice), no pack (density 0), entered at chunk 0's tile 105: the entry reveals chunk 0
+// alone, so a quota hosted on another chunk waits for a Move that brings sight onto it.
+
+/// Gate 20: into the zone on chunk 2's centre, `(37, 7)`: sight touches chunk 2 alone.
+const QUOTA_GATE: u16 = 20;
+
+fn quota_zone(world: World, quotas: QuotaSet) {
+    zone_content(world);
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    records.set(GATE, QUOTA_GATE.into(), gate(TOWN, ZONE, (0, 0), (2, 112), gate_kind::HUB, 0, 0));
+    records.set(QUOTAS, ZONE.into(), QuotaSetRecord::pack(@quotas));
+    let bare = SpawnTable { density: 0, ..table() };
+    records.set(SPAWN_TABLE, 1, SpawnTableRecord::pack(@bare));
+}
+
+fn collector_and_veins(collectors: u8) -> QuotaSet {
+    QuotaSet {
+        quotas: [
+            Quota { kind: quota_kind::COLLECTOR, param: 1, count: collectors },
+            Quota { kind: quota_kind::VEIN, param: 0, count: 2 }, Default::default(),
+            Default::default(), Default::default(), Default::default(),
+        ],
+    }
+}
+
+fn hosts_of(world: World, quota: felt252) -> felt252 {
+    read(world.instances, key(selector!("hosts"), array![1, quota]))
+}
+
+fn quotas_of(world: World) -> Quotas {
+    StorePacking::unpack(read(world.instances, key(selector!("quotas"), array![1])))
+}
+
+/// One leg of a walk: the member put on `(x, y)`, then `moves` played as one batch, all played.
+fn leg(
+    ref spy: snforge_std::EventSpy,
+    world: World,
+    id: u64,
+    x: u8,
+    y: u8,
+    moves: Array<grimworld_logic::actions::Action>,
+) {
+    put_member(world, x, y);
+    let sequence = header_of(world, 1).sequence;
+    let count: felt252 = moves.len().into();
+    play(world, 'alice').play(id, 7, sequence, 0, batch(moves.span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == count && stop == 0, 'the leg is played');
+}
+
+/// Moves that bring sight onto each chunk of the zone from the entry on chunk 2, in order 1, 0, 16,
+/// 15; each chunk a Move leaves from is opened first, so that the Move is legal.
+fn sweep_zone(ref spy: snforge_std::EventSpy, world: World, id: u64) {
+    let west = array![grimworld_logic::actions::Action::Move(0)];
+    let down = array![grimworld_logic::actions::Action::Move(2)];
+    open_chunk(world, 2);
+    leg(ref spy, world, id, 35, 7, west.clone());
+    open_chunk(world, 1);
+    leg(ref spy, world, id, 20, 7, west);
+    leg(ref spy, world, id, 22, 10, down.clone());
+    open_chunk(world, 0);
+    leg(ref spy, world, id, 7, 10, down);
+}
+
+/// The objects of `kind` on `chunks`, each on a chunk of `hosts`.
+fn placed_on_hosts(world: World, chunks: Span<u8>, kind: u8, hosts: felt252) -> u32 {
+    let mut count: u32 = 0;
+    for chunk in chunks {
+        let features: grimworld_logic::models::index::Features = StorePacking::unpack(
+            read(world.instances, chunk_key(1, *chunk) + 1),
+        );
+        for object in features.objects.span() {
+            if *object.kind == kind {
+                assert(BoardTrait::has(hosts, *chunk), 'an element off its hosts');
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+// A7: the quotas wait for their hosts. `create` reveals chunk 0 alone and places nothing there (a
+// quota is hosted elsewhere); the walk brings sight onto chunks 1, 15, 2 and 16, and then each
+// quota's elements are placed on its host chunks only and its count left is 0.
+#[test]
+#[available_gas(l2_gas: 109232942)] // ceil(1.05 × 104031373 measured)
+fn test_play_quotas_land_on_hosts() {
+    let world = setup();
+    play_classes(world);
+    quota_zone(world, collector_and_veins(1));
+    let id = create(world, 7, 'alice', QUOTA_GATE, 0);
+    let collector = hosts_of(world, 0);
+    let veins = hosts_of(world, 1);
+    let at_entry = quotas_of(world);
+    println!("quotas: collector hosts {}, veins hosts {}", collector, veins);
+    assert(collector != 0 && veins != 0, 'both quotas hosted');
+    assert(
+        *at_entry.left.span()[0] == 1 && *at_entry.left.span()[1] == 2, 'nothing placed at entry',
+    );
+    let mut spy = spy_events();
+    let drawn = draws(world);
+    sweep_zone(ref spy, world, id);
+    let revealed: u256 = (read(world.instances, key(selector!("revealed"), array![1])) - LIVE)
+        .into();
+    assert(revealed == 0x18007, 'the whole zone revealed');
+    let left = quotas_of(world).left;
+    assert(*left.span()[0] == 0 && *left.span()[1] == 0, 'the count left reaches 0');
+    let chunks = array![0_u8, 1, 2, 15, 16];
+    assert(
+        placed_on_hosts(
+            world, chunks.span(), grimworld_logic::models::chunk::object::COLLECTOR, collector,
+        ) == 1,
+        'the collector',
+    );
+    assert(
+        placed_on_hosts(
+            world, chunks.span(), grimworld_logic::models::chunk::object::VEIN, veins,
+        ) == 2,
+        'the veins',
+    );
+    assert(draws(world) == drawn, 'no draw in play for the hosts');
+}
+
+// A7, a reused slot: the earlier generation had the collector with a count; the current one has
+// none (the registry's quotas changed), and the slot still holds the earlier hosts for it. No
+// collector is placed, the stale hosts are left as they were, and the veins land on their own.
+#[test]
+#[available_gas(l2_gas: 119665385)] // ceil(1.05 × 113967033 measured)
+fn test_play_quotas_stale_hosts_unused() {
+    let world = setup();
+    play_classes(world);
+    quota_zone(world, collector_and_veins(1));
+    let first = create(world, 7, 'alice', QUOTA_GATE, 0);
+    let earlier = hosts_of(world, 0);
+    assert(earlier != 0, 'the earlier gen hosted it');
+    play(world, 'alice').travel_back(first, 7, 0);
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    records.set(QUOTAS, ZONE.into(), QuotaSetRecord::pack(@collector_and_veins(0)));
+    let id = create(world, 7, 'alice', QUOTA_GATE, 0);
+    assert(id == instance_id(1, 2), 'the slot reused');
+    // The slot keeps the earlier hosts for the collector, whatever `create` wrote
+    let stale: felt252 = 0x18007 - 1;
+    write(world.instances, key(selector!("hosts"), array![1, 0]), stale);
+    assert(*quotas_of(world).left.span()[0] == 0, 'no collector in this generation');
+    let veins = hosts_of(world, 1);
+    let mut spy = spy_events();
+    sweep_zone(ref spy, world, id);
+    let chunks = array![0_u8, 1, 2, 15, 16];
+    let none = placed_on_hosts(
+        world, chunks.span(), grimworld_logic::models::chunk::object::COLLECTOR, 0x18007,
+    );
+    assert(none == 0, 'no collector placed');
+    assert(hosts_of(world, 0) == stale, 'the stale hosts untouched');
+    assert(
+        placed_on_hosts(
+            world, chunks.span(), grimworld_logic::models::chunk::object::VEIN, veins,
+        ) == 2,
+        'the veins',
+    );
+}
+
+// ---- A8: a dungeon floor's reveal in play, in two move orders
+// ------------------------------------
+// The floor's outline and hosts are drawn once at `create` (ENG-10b); a reveal in play reads them
+// and draws nothing (the fate double counts the draws). The member on the entry chunk, opened, is
+// teleported to its centre for each leg: one Move each way brings sight onto a neighbour chunk. The
+// legs are played West, East, North, South in one world and in the reverse order in another; the
+// revealed set, its chunks' words and the header are the same, the chunks revealed are the
+// stored outline's, and their words equal the engine's on the stored state.
+
+fn floor_world() -> (World, u64) {
+    let world = setup();
+    play_classes(world);
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let quotas = QuotaSet {
+        quotas: [
+            Quota { kind: quota_kind::EXIT, param: 5, count: 1 },
+            Quota { kind: quota_kind::VEIN, param: 0, count: 1 }, Default::default(),
+            Default::default(), Default::default(), Default::default(),
+        ],
+    };
+    records.set(QUOTAS, FLOOR_1.into(), QuotaSetRecord::pack(@quotas));
+    let id = create(world, 7, 'alice', FAR_LINK, 0);
+    open_chunk(world, 112);
+    (world, id)
+}
+
+/// The legs from the entry tile `(112, 112)`: West `[0, 0]`, East `[3, 3]`, North `[4, 5]`, South
+/// `[2, 1]` (each two Moves, sight reaching the next chunk), in `order`.
+fn floor_legs(ref spy: snforge_std::EventSpy, world: World, id: u64, order: Span<u8>) {
+    for which in order {
+        let moves = if *which == 0 {
+            array![
+                grimworld_logic::actions::Action::Move(0),
+                grimworld_logic::actions::Action::Move(0),
+            ]
+        } else if *which == 1 {
+            array![
+                grimworld_logic::actions::Action::Move(3),
+                grimworld_logic::actions::Action::Move(3),
+            ]
+        } else if *which == 2 {
+            array![
+                grimworld_logic::actions::Action::Move(4),
+                grimworld_logic::actions::Action::Move(5),
+            ]
+        } else {
+            array![
+                grimworld_logic::actions::Action::Move(2),
+                grimworld_logic::actions::Action::Move(1),
+            ]
+        };
+        leg(ref spy, world, id, 112, 112, moves);
+    }
+}
+
+/// `(revealed set, the sum of the words of the chunks revealed but the entry chunk)`.
+fn floor_words(world: World, chunks: Span<u8>) -> (felt252, felt252) {
+    let mut words: felt252 = 0;
+    for chunk in chunks {
+        let revealed: u256 = (read(world.instances, key(selector!("revealed"), array![1])) - LIVE)
+            .into();
+        let mut bit: u256 = 1;
+        let mut k: u8 = 0;
+        while k < *chunk {
+            bit *= 2;
+            k += 1;
+        }
+        if *chunk != 112 && revealed & bit != 0 {
+            let terrain = read(world.instances, chunk_key(1, *chunk));
+            let features = read(world.instances, chunk_key(1, *chunk) + 1);
+            words += poseidon_hash_span([(*chunk).into(), terrain, features].span());
+        }
+    }
+    (read(world.instances, key(selector!("revealed"), array![1])), words)
+}
+
+#[test]
+#[available_gas(l2_gas: 295577702)] // ceil(1.05 × 281502573 measured)
+fn test_play_floor_reveal_two_orders() {
+    let (west_first, id_a) = floor_world();
+    let (east_first, id_b) = floor_world();
+    let drawn = draws(west_first);
+    let mut spy = spy_events();
+    floor_legs(ref spy, west_first, id_a, array![0, 1, 2, 3].span());
+    let mut spy = spy_events();
+    floor_legs(ref spy, east_first, id_b, array![3, 2, 1, 0].span());
+    assert(
+        draws(west_first) == drawn && draws(east_first) == drawn, 'a reveal in play draws nothing',
+    );
+    // The stored outline (drawn at `create`) and the chunks revealed
+    let outline_chunks = read(west_first.instances, key(selector!("outline"), array![1, 0]));
+    assert(
+        outline_chunks == read(east_first.instances, key(selector!("outline"), array![1, 0])),
+        'the same outline',
+    );
+    let all = chunks_of(outline_chunks);
+    let (set_a, words_a) = floor_words(west_first, all.span());
+    let (set_b, words_b) = floor_words(east_first, all.span());
+    let revealed: u256 = (set_a - LIVE).into();
+    println!("floor: outline {} chunks, revealed set {}", all.len(), revealed);
+    assert(set_a == set_b, 'the same chunks revealed');
+    assert(words_a == words_b, 'the same words in both orders');
+    // Revealed: the entry chunk and at least one more, all of the outline
+    assert(BoardTrait::count(set_a - LIVE) > 1, 'sight revealed a neighbour');
+    assert(BoardTrait::and(set_a - LIVE, outline_chunks) == set_a - LIVE, 'only the outline');
+    let header = key(selector!("headers"), array![1]);
+    assert(
+        read(west_first.instances, header) == read(east_first.instances, header), 'the same header',
+    );
+}

@@ -73,11 +73,21 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_reveal_acts` | 287648100 | 302030505 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_round_trip` | 277588299 | 291467714 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_play_batch_equals_singles_ten_east` | 299575530 | 314554307 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_floor_reveal_two_orders` | 281502573 | 295577702 | 2026-10-09 | f93518a |
 | grimworld_ephemeral | `test_lifecycle::test_play_move_blocked` | 56447005 | 59269356 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_play_moves` | 56389619 | 59209100 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_quotas_land_on_hosts` | 104031373 | 109232942 | 2026-10-09 | f93518a |
+| grimworld_ephemeral | `test_lifecycle::test_play_quotas_stale_hosts_unused` | 113967033 | 119665385 | 2026-10-09 | f93518a |
 | grimworld_ephemeral | `test_lifecycle::test_play_refusals` | 57811522 | 60702099 | 2026-10-09 | b164282 |
+| grimworld_ephemeral | `test_lifecycle::test_play_trap_goblin_enters` | 81498280 | 85573194 | 2026-10-09 | f93518a |
+| grimworld_ephemeral | `test_lifecycle::test_play_trap_goblin_placed` | 74064812 | 77768053 | 2026-10-09 | f93518a |
+| grimworld_ephemeral | `test_lifecycle::test_play_trap_member_once` | 83284598 | 87448828 | 2026-10-09 | f93518a |
 | grimworld_ephemeral | `test_lifecycle::test_play_unloadable_arrival_runs_the_ticks` | 64195326 | 67405093 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_play_unloadable_goblin_refused` | 56584628 | 59413860 | 2026-10-07 | faa262c |
+| grimworld_ephemeral | `test_lifecycle::test_play_window_high_edges` | 314267876 | 329981270 | 2026-10-09 | f93518a |
+| grimworld_ephemeral | `test_lifecycle::test_play_window_low_edges` | 309093400 | 324548070 | 2026-10-09 | f93518a |
+| grimworld_ephemeral | `test_lifecycle::test_play_window_row_parities` | 325267840 | 341531232 | 2026-10-09 | f93518a |
+| grimworld_ephemeral | `test_lifecycle::test_play_window_unrevealed_is_wall` | 66229935 | 69541432 | 2026-10-09 | f93518a |
 | grimworld_ephemeral | `test_lifecycle::test_refused_absent` | 51977348 | 54576216 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_refused_closed` | 49271951 | 51735549 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_refused_gate` | 67258434 | 70621356 | 2026-10-07 | faa262c |
@@ -825,7 +835,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::hit::tests::test_weapon_base` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::infliction::tests::test_infliction_duration` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::infliction::tests::test_infliction_duration_edges` | 6010 | 6311 | 2026-10-02 | f55176c |
-| grimworld_logic | `types::play::tests::test_vectors` | 238251267 | 250163831 | 2026-10-07 | faa262c |
+| grimworld_logic | `types::play::tests::test_vectors` | 284822276 | 299063390 | 2026-10-09 | f93518a |
 | grimworld_logic | `types::reveal::board::tests::test_copy_faces_the_neighbour` | 40094 | 42099 | 2026-10-03 | ffef058 |
 | grimworld_logic | `types::reveal::board::tests::test_dilation_against_hexagons` | 71001042 | 74551095 | 2026-10-03 | ffef058 |
 | grimworld_logic | `types::reveal::board::tests::test_lines_reach_the_spine` | 517708 | 543594 | 2026-10-03 | ac10593 |
@@ -1204,10 +1214,10 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_registry::test_set_record_unknown_kind_refused` | 1227320 | 1286828 | 2026-10-03 | 77cd429 |
 | grimworld_persistent | `test_registry::test_upgrade_stub` | 825190 | 866450 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_registry::test_version_rises_per_changed_record` | 9283220 | 9593766 | 2026-10-07 | 862c972 |
-| grimworld_persistent | `test_seed::test_gas_seed_baseline` | 8832170 | 9202904 | 2026-10-03 | ffef058 |
-| grimworld_persistent | `test_seed::test_gas_seed_write` | 29179320 | 29624595 | 2026-10-07 | 862c972 |
-| grimworld_persistent | `test_seed::test_seed_rewritten_unchanged` | 43186870 | 43327022 | 2026-10-07 | 862c972 |
-| grimworld_persistent | `test_seed::test_seed_written_and_read_back` | 32399750 | 32941682 | 2026-10-07 | 862c972 |
+| grimworld_persistent | `test_seed::test_gas_seed_baseline` | 13763930 | 14452127 | 2026-10-09 | f93518a |
+| grimworld_persistent | `test_seed::test_gas_seed_write` | 42870570 | 45014099 | 2026-10-09 | f93518a |
+| grimworld_persistent | `test_seed::test_seed_rewritten_unchanged` | 65386740 | 68656077 | 2026-10-09 | f93518a |
+| grimworld_persistent | `test_seed::test_seed_written_and_read_back` | 47135180 | 49491939 | 2026-10-09 | f93518a |
 | grimworld_persistent | `types::results::tests::test_credit` | 316240 | 332052 | 2026-10-02 | f55176c |
 | grimworld_persistent | `types::results::tests::test_reaches_hub` | 15859 | 16652 | 2026-10-02 | f55176c |
 
