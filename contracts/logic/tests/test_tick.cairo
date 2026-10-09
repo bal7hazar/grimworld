@@ -4095,7 +4095,7 @@ fn ai_call_of(words: Words) -> Words {
         class_hash: *class.class_hash,
     };
     let (out, _) = grimworld_logic::interface::IAiLibraryDispatcherTrait::act(
-        library, words, rep_content(), board(), executor(), trap(), array![], 10, 0, 0,
+        library, words, rep_content(), board(), executor(), trap(), array![], 10, 0, 0, 0,
     );
     out
 }
@@ -4654,3 +4654,111 @@ fn test_cost_segment_call_fight() {
     let (out, done) = segment_call(words, actions);
     assert(done.played == 10 && out.clock == 50, 'ten attacks');
 }
+
+// t-0109, minor 2: a Turn refused for weight writes nothing. Ten Waits spend the weight, then a
+// Turn: the segment stops for weight, 10 played, the member's facing unchanged.
+#[test]
+fn test_segment_turn_heavy() {
+    let (words, _) = exploration();
+    let before: u256 = (*words.members[0]).state.into();
+    let mut actions = array![];
+    let mut k: u8 = 0;
+    while k < 10 {
+        actions.append(Action::Wait);
+        k += 1;
+    }
+    actions.append(Action::Turn(4));
+    let (out, done) = segment_of(words, actions.span());
+    assert(done.heavy && done.played == 10 && done.weight == 0, 'stopped for weight');
+    // The facing, `MemberState` 48–55.
+    let after: u256 = (*out.members[0]).state.into();
+    let facing = |state: u256| (state.low / 0x1000000000000) % 0x100;
+    assert(facing(after) == facing(before), 'facing unchanged');
+}
+
+// D-238 (the project manager, 2026-10-09): with 60 goblins away from their spawn chunk, a goblin
+// whose step would leave its spawn chunk does not leave it (its act is a Wait); with 59 it steps.
+// The board's origin at the location's (0, 8): chunk 0's last row is the window's row 6. The
+// goblin, chunk 0's (entity 8), Engaged on (7, 14), the member on (7, 17): its step toward the
+// member enters chunk 15. The 60 (or 59) others, of chunks 1 to 6, stand far outside the window,
+// away from theirs. A 2-tick run equals two 1-tick runs (a batch and its singles).
+fn roster_world(away: u16) -> (World, Sheets) {
+    let mut member = member_at(400);
+    member.words.state = member.words.state - place(AT) * two(32) + (7 + 17 * 256) * two(32);
+    let mut goblins = array![];
+    let mut first = Fixture::goblin(8, HOB);
+    // Its skills recharging until tick 100: its act is a step.
+    first.state += 7 + 14 * two(8) + 100 * (two(128) + two(156) + two(184) + two(212));
+    goblins.append(first);
+    let mut n: u16 = 0;
+    while n < away {
+        let mut goblin = Fixture::goblin(8 + 16 * (1 + n / 10) + n % 10, HOB);
+        goblin.awake = false;
+        goblin.state += 100 + 100 * two(8);
+        goblins.append(goblin);
+        n += 1;
+    }
+    let world = Fixture::world(40, array![member], goblins);
+    (world, Fixture::sheets())
+}
+
+fn roster_run(away: u16, splits: u8) -> Words {
+    let (mut world, sheets) = roster_world(away);
+    let board = BoardTrait::new(
+        WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), 0, 8,
+    );
+    if splits == 1 {
+        let mut rules = ExecutorTrait::new(board);
+        TickTrait::run(ref world, @sheets, 2, ref rules);
+        return world.store();
+    }
+    let mut rules = ExecutorTrait::new(board);
+    TickTrait::run(ref world, @sheets, 1, ref rules);
+    let words = world.store();
+    let (mut world, sheets) = words.load(@Fixture::content());
+    let mut rules = ExecutorTrait::new(board);
+    TickTrait::run(ref world, @sheets, 1, ref rules);
+    world.store()
+}
+
+fn first_place(words: @Words) -> (u8, u8) {
+    let state: u256 = (*words.goblins[0].state).into();
+    ((state.low % 256).try_into().unwrap(), ((state.low / 256) % 256).try_into().unwrap())
+}
+
+#[test]
+fn test_roster_full_holds() {
+    let full = roster_run(60, 1);
+    let (x, y) = first_place(@full);
+    assert(y == 14 && x == 7, 'held in its chunk');
+    assert(full == roster_run(60, 2), 'batch = singles');
+}
+
+#[test]
+fn test_roster_free_steps() {
+    let free = roster_run(59, 1);
+    let (_, y) = first_place(@free);
+    assert(y >= 15, 'left its chunk');
+    assert(free == roster_run(59, 2), 'batch = singles');
+}
+
+// D-238: how often the representative fight reaches 60 (expected never): its 8 goblins away from
+// their spawn chunk at the batch's end.
+#[test]
+fn test_fight_roster_count() {
+    let (words, actions) = fight_whole();
+    let (out, _) = segment_of(words, actions);
+    let mut away: u32 = 0;
+    for goblin in out.goblins.span() {
+        let state: u256 = (*goblin.state).into();
+        let x: u32 = (state.low % 256).try_into().unwrap();
+        let y: u32 = ((state.low / 256) % 256).try_into().unwrap();
+        let spawn: u32 = ((*goblin.entity).into() - 8) / 16;
+        if (y / 15) * 15 + x / 15 != spawn {
+            away += 1;
+        }
+    }
+    println!("fight: goblins away from their spawn chunk {}", away);
+    assert(away < 60, 'never 60');
+}
+

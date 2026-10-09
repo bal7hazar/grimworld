@@ -27,6 +27,7 @@ use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
 };
+use grimworld_logic::models::caste::{CasteRecord, WeaponTrait};
 use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking, object};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
@@ -1791,4 +1792,240 @@ fn test_play_refusals() {
     let (played, stop, _, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 2, 'interact refused');
     assert(header_of(world, 1).sequence == 0, 'nothing ran');
+}
+
+// ---- t-0109: a batch is its actions sent as single batches (design/02, ENG-01 E-13 item 5) ----
+// Major 1 and minor 4: between segments the area moves with the goblins of its new chunks. Each
+// walk is played as one batch in one world and as single batches in a twin world built the same
+// way; the words (the member, the header, the revealed set, the chunks' words, every goblin record
+// of the chunks around) and the events (`GoblinKilled`, `ChunkRevealed`) are equal.
+
+const PACK_ZONE: u16 = 6;
+const INTO_PACK_ZONE: u16 = 16;
+
+/// The content of the packs: caste 1 (no skill, a melee weapon), pack template 1 (1 to 3 of caste
+/// 1); a zone of 3 × 3 chunks whose spawn table places pack 1 at the densest, entered on chunk 0's
+/// tile (7, 7); `missing` caste 99 not registered, named by template 2.
+fn pack_content(world: World) {
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let caste = grimworld_logic::models::caste::CasteTrait::new(
+        1,
+        0,
+        100,
+        10,
+        0,
+        [0; 9],
+        WeaponTrait::new(grimworld_logic::types::combat::weapon::AXE, 10, 1, 1, 1),
+        0,
+        0,
+        [0; 4],
+        0,
+        0,
+        0,
+        false,
+    );
+    records.set(grimworld_logic::content::CASTE, 1, CasteRecord::pack(@caste));
+    let one = PackCaste { caste: 1, min: 1, max: 3 };
+    let pack = Pack { castes: [one, Default::default(), Default::default(), Default::default(), Default::default()], level: 0 };
+    records.set(PACK, 1, PackRecord::pack(@pack));
+    let ghost = PackCaste { caste: 99, min: 1, max: 1 };
+    let pack = Pack { castes: [ghost, Default::default(), Default::default(), Default::default(), Default::default()], level: 0 };
+    records.set(PACK, 2, PackRecord::pack(@pack));
+    let spawn = Spawn { template: 1, weight: 1 };
+    let table = SpawnTable { spawns: [spawn, Default::default(), Default::default(), Default::default(), Default::default(), Default::default(), Default::default()], density: 255 };
+    records.set(SPAWN_TABLE, 1, SpawnTableRecord::pack(@table));
+    let zone = LocationTrait::new(
+        location_kind::ZONE, 1, 1, 1, 3, 0, 3, 3, 0, 0, 0, 1, false, 0, 112,
+        Lanes16 { lanes: [0; 15] },
+    );
+    records.set(LOCATION, PACK_ZONE.into(), zone.pack());
+    records.set(GATE, INTO_PACK_ZONE.into(), gate(TOWN, PACK_ZONE, (0, 0), (0, 112), gate_kind::HUB, 0, 0));
+}
+
+fn chunk_key(slot: u32, chunk: u8) -> felt252 {
+    key(selector!("chunks"), array![slot.into(), chunk.into()])
+}
+
+/// Chunk `chunk` of slot 1 revealed, every tile walkable (its features kept).
+fn open_chunk(world: World, chunk: u8) {
+    let terrain: felt252 = StorePacking::pack(Terrain { walls: 0, edges: 0 });
+    write(world.instances, chunk_key(1, chunk), terrain);
+    let at = key(selector!("revealed"), array![1]);
+    let bits: u256 = (read(world.instances, at) - LIVE).into();
+    let mut bit: u256 = 1;
+    let mut k: u8 = 0;
+    while k < chunk {
+        bit *= 2;
+        k += 1;
+    }
+    if bits & bit == 0 {
+        write(world.instances, at, read(world.instances, at) + bit.try_into().unwrap());
+    }
+}
+
+/// The member of slot 1 on the tile `(x, y)`.
+fn put_member(world: World, x: u8, y: u8) {
+    let at = member_word(1, 0);
+    let state: MemberState = StorePacking::unpack(read(world.instances, at));
+    write(world.instances, at, StorePacking::pack(MemberState { x, y, ..state }));
+}
+
+/// The words a batch writes: the member's state, the header, the revealed set, each chunk's two
+/// words and its ten goblin records' words, for `chunks`.
+fn snapshot_of(world: World, chunks: Span<u8>) -> Array<felt252> {
+    let mut out = array![
+        read(world.instances, member_word(1, 0)), read(world.instances, key(selector!("headers"), array![1])),
+        read(world.instances, key(selector!("revealed"), array![1])),
+    ];
+    for chunk in chunks {
+        out.append(read(world.instances, chunk_key(1, *chunk)));
+        out.append(read(world.instances, chunk_key(1, *chunk) + 1));
+        let mut k: u16 = 0;
+        while k < 10 {
+            let entity: u16 = 8 + 16 * (*chunk).into() + k;
+            let at = key(selector!("goblins"), array![1, entity.into()]);
+            out.append(read(world.instances, at));
+            out.append(read(world.instances, at + 1));
+            k += 1;
+        }
+    }
+    out
+}
+
+/// The events of `GoblinKilled` and `ChunkRevealed` (two keys and not seven data felts), in order.
+fn kills_and_reveals(ref spy: snforge_std::EventSpy, world: World) -> Array<felt252> {
+    let mut out = array![];
+    for (_, event) in spy.get_events().emitted_by(world.instances).events.span() {
+        if event.keys.len() == 2 && event.data.len() != 7 && event.data.len() != 3 {
+            out.append(*event.keys[1]);
+            for felt in event.data.span() {
+                out.append(*felt);
+            }
+        }
+    }
+    out
+}
+
+/// Plays `moves` as one batch, then in a twin world as one batch a move, from the same start;
+/// returns both worlds' words and events.
+fn twin(
+    which: u8, gate: u16, moves: Span<grimworld_logic::actions::Action>, chunks: Span<u8>,
+) -> (Array<felt252>, Array<felt252>, Array<felt252>, Array<felt252>) {
+    let one = setup();
+    play_classes(one);
+    pack_content(one);
+    let id = create(one, 7, 'alice', gate, 0);
+    prepare(which, one);
+    let mut spy = spy_events();
+    play(one, 'alice').play(id, 7, 0, 0, batch(moves));
+    let events_one = kills_and_reveals(ref spy, one);
+    let words_one = snapshot_of(one, chunks);
+    let two = setup();
+    play_classes(two);
+    pack_content(two);
+    let id = create(two, 7, 'alice', gate, 0);
+    prepare(which, two);
+    let mut spy = spy_events();
+    let mut sequence: u32 = 0;
+    for action in moves {
+        play(two, 'alice').play(id, 7, sequence, 0, batch(array![*action].span()));
+        sequence = header_of(two, 1).sequence;
+    }
+    let events_two = kills_and_reveals(ref spy, two);
+    let words_two = snapshot_of(two, chunks);
+    (words_one, words_two, events_one, events_two)
+}
+
+/// The twins' start: 0 the reveal walk's, 1 the ten Moves'.
+fn prepare(which: u8, world: World) {
+    if which == 0 {
+        prepare_reveal(world);
+    } else {
+        prepare_walk(world);
+    }
+}
+
+fn prepare_reveal(world: World) {
+    open_chunk(world, 0);
+}
+
+// A walk West (the window's `+x`) from chunk 0's (7, 7): at (9, 7) sight touches chunk 1, which the
+// reveal generates with the spawn table's packs; then back to (7, 7).
+#[test]
+fn test_play_batch_equals_singles_reveal() {
+    let moves = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+    ];
+    let (words_one, words_two, events_one, events_two) = twin(
+        0, INTO_PACK_ZONE, moves.span(), array![0, 1, 15, 16].span(),
+    );
+    // Chunk 1 revealed, holding a pack (its features' first pack, count at bits 32–35)
+    let features: u256 = (*words_one[3 + 22 + 1]).into();
+    let count = (features.low / 0x100000000) % 0x10;
+    println!("reveal: chunk 1's first pack holds {} goblins", count);
+    assert(count > 0, 'chunk 1 holds a pack');
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+fn prepare_walk(world: World) {
+    for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
+        open_chunk(world, chunk);
+    }
+    // A pack of 3 on chunk 0's East edge (tile (13, 7)), every goblin within 2 of it
+    let pack = grimworld_logic::models::index::PackPlacement {
+        tile: 7 * 15 + 13, template: 1, level: 1, count: 3, offsets: 9 + 8 * 32 + 10 * 1024, alert: 0,
+    };
+    let features = grimworld_logic::models::index::Features {
+        packs: [pack, Default::default()], objects: [Default::default(); 3], touched: 0,
+    };
+    write(world.instances, chunk_key(1, 0) + 1, StorePacking::pack(features));
+    put_member(world, 30, 22);
+}
+
+// Ten Moves toward lower `x` (East) from chunk 2's first column, (30, 22): the area moves when the
+// adventurer enters chunk 1, so chunk 0's pack is in the batch's world from there, as in each
+// single batch (minor 4).
+#[test]
+fn test_play_batch_equals_singles_ten_east() {
+    let mut moves = array![];
+    let mut k: u8 = 0;
+    while k < 10 {
+        moves.append(grimworld_logic::actions::Action::Move(0));
+        k += 1;
+    }
+    let (words_one, words_two, events_one, events_two) = twin(
+        1, 1, moves.span(), array![0, 1, 2, 15, 16, 17].span(),
+    );
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+fn prepare_ghost(world: World) {
+    prepare_walk(world);
+    let pack = grimworld_logic::models::index::PackPlacement {
+        tile: 7 * 15 + 13, template: 2, level: 1, count: 1, offsets: 9, alert: 0,
+    };
+    let features = grimworld_logic::models::index::Features {
+        packs: [pack, Default::default()], objects: [Default::default(); 3], touched: 0,
+    };
+    write(world.instances, chunk_key(1, 0) + 1, StorePacking::pack(features));
+    put_member(world, 20, 22);
+}
+
+// t-0109, note 5: a goblin whose caste the registry does not hold refuses the batch
+// (`Stop::Invalid`), nothing run.
+#[test]
+fn test_play_unloadable_goblin_refused() {
+    let world = setup();
+    play_classes(world);
+    pack_content(world);
+    let id = create(world, 7, 'alice', 1, 0);
+    prepare_ghost(world);
+    let mut spy = spy_events();
+    play(world, 'alice').play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+    let (played, stop, sequence, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 2 && sequence == 0, 'refused, nothing run');
 }
