@@ -1,28 +1,40 @@
-//! `play`'s body as a library class of this package (ENG-07; D-234, D-235): `Instances.play` makes
-//! its admission checks and calls `PlayLibrary` by `library_call`, so this code runs in
-//! `Instances`'
-//! context: its storage, through `Instances`' own store (`InstancesStoreTrait`, on the state
-//! `Instances::unsafe_new_contract_state` gives), and its events, emitted from its address. The
-//! layout and the events are `Instances`' (ENG-01 §3.2, §5), unchanged.
+//! `play`'s body as a library class of this package (ENG-07; D-234 to D-236): `Instances.play` calls
+//! `PlayLibrary` by `library_call`, so this code runs in `Instances`' context: its storage, through
+//! `Instances`' own store (`InstancesStoreTrait`, on the state `Instances::unsafe_new_contract_state`
+//! gives), and its events, emitted from its address. The layout and the events are `Instances`'
+//! (ENG-01 §3.2, §5), unchanged.
 //!
 //! **A batch** (design/02 *Executing a batch*, ENG-01 §4.1):
-//! 1. the content (D-145), read once in three `bundle` calls: the location, its zone's chunk set,
-//!    the pack templates of the area's chunks, the member's skills and potions; then the castes of
-//!    the area's goblins; then their skills. A content version that differs from the batch's stops
-//!    it before any action (`Stop::Version`);
-//! 2. the area (`types::play::Area`): the 3 × 3 chunks around the adventurer's, their terrain and
-//!    features read once; the goblins of those chunks, stored (`touched`) or derived from their
-//!    pack placement (design/18, ENG-01 §3.2: castes by `PackTrait::caste`, at full health, their
-//!    pack's state), and the roster's (displaced);
-//! 3. the segments (`types::play::SegmentTrait`): the actions in order, a tick without a goblin in
-//!    the window here, one with a fight in `TickLibrary` (D-235); between two segments, the chunks
-//!    sight touches revealed (`RevealLibrary`, as `create` does: a zone's hosts from the stored
-//!    bitmaps of the quotas the generation counts, a dungeon floor's from its stored outline, A7,
-//!    A8), or the area moved when the window leaves it;
-//! 4. the words written back: the member's four, each goblin whose words changed (its spawn chunk's
-//!    `touched` bit; the roster when it stands away from its spawn chunk), each chunk whose objects
-//!    changed, the header (sequence, clock, counts); then `GoblinKilled`, `ChunkRevealed`,
-//!    `BatchPlayed` and, on a defeat, `Defeated` and the closing report.
+//! 1. the admission (D-236): the caller controls the member, then the instance's checks, a refusal
+//!    a `BatchPlayed` that ran nothing;
+//! 2. the content (D-145): the location, its zone's chunk set, the pack templates of the area's
+//!    chunks, the member's skills and potions in one `bundle`; then, in `goblins`, the castes and
+//!    skills the area's goblins need. A content version that differs from the batch's stops it
+//!    before any action (`Stop::Version`);
+//! 3. the area (`types::play::Area`): the 3 × 3 chunks around the adventurer's, their terrain and
+//!    features; the goblins of those chunks, stored (`touched`) or derived from their pack
+//!    placement (design/18, ENG-01 §3.2: castes by `PackTrait::caste`, at full health, their pack's
+//!    state), and the roster's. **A goblin the registry cannot load** (its caste, a caste skill or
+//!    its held effect's skill missing) **refuses the batch** (`Stop::Invalid`; the orchestrator,
+//!    t-0109 note 5);
+//! 4. the segments (`SegmentLibrary`, once a segment): the actions in order, a tick without a
+//!    goblin in the window in process, one with a fight in `TickLibrary` (D-235). **A segment ends
+//!    when a Move brings sight onto a chunk to reveal or the adventurer into another chunk**; then
+//!    the chunks sight touches are revealed (`RevealLibrary`, as `create` does: a zone's hosts from
+//!    the stored bitmaps of the quotas the generation counts, a dungeon floor's from its stored
+//!    outline, A7, A8), **the area moves to the 3 × 3 around the adventurer's chunk, and the goblins
+//!    of its new chunks are read (the content they need with them) and merged by entity id**; a
+//!    goblin unchanged, home and outside the area leaves the batch's world. So a batch holds what
+//!    its actions sent as single batches hold (t-0109, major 1, minor 4);
+//! 5. the words written back: the member's four, each goblin whose words changed (its spawn chunk's
+//!    `touched` bit), each chunk whose objects changed, the roster, the header (sequence, clock,
+//!    counts); then `GoblinKilled`, `ChunkRevealed`, `BatchPlayed` and, on a defeat, `Defeated` and
+//!    the closing report.
+//!
+//! **The roster** (D-238, the project manager, 2026-10-09): the living goblins away from their spawn
+//! chunk, at most 60; a goblin killed or back home frees its entry. With 60 listed, a goblin does
+//! not leave its spawn chunk (`types::ai`: its step becomes a Wait), in a batch as in single
+//! batches.
 //!
 //! **Readings this lot fixed** (the report lists them): a `GoblinKilled`'s `by` is 0, the member
 //! (the MVP's goblins are killed by the member's carriers or its traps); a reveal's weight (2 a

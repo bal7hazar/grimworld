@@ -68,6 +68,16 @@ at 52.91 % (43,345 felts) before any content, goblin or reveal:
 | 3 | The call a batch to `SegmentLibrary` goes in the D-144 rows with the batch totals | the project manager |
 | 4 | A figure for the project manager, not a gate: the full call chain of a fight tick (`Instances` → `PlayLibrary` → `SegmentLibrary` → `ActionLibrary`/`TickLibrary` → `AiLibrary` → `ExecutorLibrary`) and its fixed cost before any hit. `MAX_ATTACKERS` stays 8 | the project manager |
 
+**After review t-0109 (D-238, the project manager, 2026-10-09; the orchestrator's rulings):**
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **A batch is its actions sent as single batches**: between segments, whenever a reveal happens or the adventurer's chunk changes, the area moves to the 3 × 3 around its chunk, the goblins of its new chunks are read (one more `bundle` for the content they need) and merged by entity id; twin tests (one batch, single batches) for a walk that reveals a chunk and for 10 Moves from a chunk's first column (t-0109, major 1, minor 4) | the orchestrator |
+| 2 | A Turn refused for weight writes nothing (minor 2) | the orchestrator |
+| 3 | **D-238, the roster's 61st**: the roster lists the living goblins away from their spawn chunk; with 60 listed a goblin whose move would leave its spawn chunk does not leave it (the move becomes a Wait), in a batch and in singles alike; goblins listed move freely; an entry freed (killed, or back home) lets the next one leave; no new `Stop` (ENG-01 E-2) | the project manager |
+| 4 | A goblin whose caste, caste skill or held effect's skill the registry cannot load refuses the batch with `Stop::Invalid` (note 5) | the orchestrator |
+| 5 | `set_play_class` asserts `key <= play_class::SEGMENT` (note 6) | the orchestrator |
+
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
 D-133): each action checked against the state it meets, the adventurer's moves with facing, occupancy
