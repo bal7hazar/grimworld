@@ -27,6 +27,16 @@
 //! the executor and the goblins' acts behind it. On a tick the fast path takes, `TickLibrary`'s
 //! rules call nothing either (no carrier resolves, no goblin is awake): the two paths agree,
 //! which a test holds.
+//!
+//! **The goblin records** (E-16 and E-1, D-141; ENG-07b): an action changes the goblins whose
+//! words its run and its ticks change, but an untouched goblin (no record yet) whose only change
+//! is its pack's engagement (its AI state Engaged): its pack's `alert` bits hold it, not a record
+//! (ENG-01 §3.2). An invocation changes at most `MAX_RECORDS` distinct goblins, and a goblin's
+//! first record (its spawn chunk's `touched` bit clear) weighs 1 more: the action that would pass
+//! either stops the batch before it (`Done.heavy`, `Done.undo`: the caller runs the segment again
+//! with the actions before it), but the invocation's first action, which binds neither (E-21). A
+//! Move's ticks owed across a reveal run whatever they change (the reveal behind them is written):
+//! their records count with the next segment's first action, which stops if they leave it no room.
 
 use core::num::traits::Zero;
 use hexx::board::assembly::AssemblyTrait;
@@ -37,11 +47,12 @@ use crate::interface::{
     IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher, ITickLibraryDispatcherTrait,
     ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher,
 };
+use crate::models::chunk::Features;
 use crate::models::goblin::{GoblinPlaceTrait, GoblinTrait};
+use crate::models::index::Goblin;
 use crate::models::member::{
     Member, MemberConditionTrait, MemberSnapshotTrait, MemberTrait, MemberWordsTrait,
 };
-use crate::types::LAST_TICK;
 use crate::types::action::Illegal;
 use crate::types::ai::AiTrait;
 use crate::types::combat::Placer;
@@ -49,15 +60,19 @@ use crate::types::effect::kind;
 use crate::types::executor::{Board, BoardTrait, Delegate, Levered, Levers, ORIGIN};
 use crate::types::reveal::SightTrait;
 use crate::types::reveal::board::BoardTrait as Bitmap;
-use crate::types::tick::{ABSENT_LANE, NO_SLOT, Sheets, flag};
+use crate::types::tick::{ABSENT_LANE, NO_SLOT, Sheets, ai, flag};
 use crate::types::trap::TrapTrait;
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowAssert, WindowTrait};
 use crate::types::world::{Idle, TickTrait, Words, World, WorldStoreTrait, WorldTrait};
+use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE, LAST_TICK};
 
 /// The window's interior, its ring cleared (hexx's `LayoutTrait::interior(15, 16)`), as limbs.
 const INTERIOR: u256 = u256 {
     low: 0xfe7ffcfff9fff3ffe7ffcfff9fff0000, high: 0xfff9fff3ffe7ffcfff9fff3f,
 };
+
+/// The distinct goblin records an invocation may change (E-16, D-141).
+pub const MAX_RECORDS: u32 = 16;
 
 /// The chunks a segment's windows may overlap.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -73,6 +88,10 @@ pub struct Area {
     /// The walkable tiles of the revealed chunks the windows may overlap, `(chunk, bits)`: bit
     /// `15 ly + lx` is 1 for a walkable tile (the complement of `Terrain.walls`).
     pub chunks: Span<(u8, felt252)>,
+    /// The goblins whose records the invocation's earlier segments changed (E-16), and whether
+    /// one of its actions ran (E-21: its first action binds neither the cap nor E-1's weight).
+    pub changed: Span<u16>,
+    pub ran: bool,
 }
 
 /// The library classes a segment calls.
@@ -100,8 +119,14 @@ pub struct Done {
     pub reveal: bool,
     /// Why the batch stopped on an action, if it did.
     pub illegal: Option<Illegal>,
-    /// The next action would pass the weight left.
+    /// The next action would pass the weight left, or the cap of goblin records.
     pub heavy: bool,
+    /// The goblins whose records the invocation changed, this segment's with them.
+    pub changed: Span<u16>,
+    /// The action that stopped the segment passed E-16's cap or E-1's weight with its ticks: the
+    /// words returned hold it, and the caller runs the segment again from the same inputs with
+    /// the actions before it (`played`) only, a batch stopping before that action.
+    pub undo: bool,
 }
 
 /// Why an action did not run.
@@ -126,18 +151,30 @@ pub impl SegmentImpl of SegmentTrait {
         weight: u8,
     ) -> Done {
         rules.board = Self::board(area, @world);
-        Self::ticks(ref world, sheets, ref rules, *classes.tick, owed);
+        let mut changed: Array<u16> = array![];
+        changed.append_span(*area.changed);
         let mut done = Done {
-            played: 0, weight, owed: 0, reveal: false, illegal: None, heavy: false,
+            played: 0,
+            weight,
+            owed: 0,
+            reveal: false,
+            illegal: None,
+            heavy: false,
+            changed: array![].span(),
+            undo: false,
         };
+        // The last segment's Move's owed ticks: their records count with this segment's first
+        // action (`before` is the world before them)
+        let mut before = Self::all(@world);
+        Self::ticks(ref world, sheets, ref rules, *classes.tick, owed);
         let start = Self::chunk(@world);
         for next in actions {
             if world.defeated {
                 break;
             }
-            let ran = match *next {
+            let result = match *next {
                 Action::Move(direction) => Self::step(
-                    ref world, sheets, ref rules, direction, weight,
+                    ref world, sheets, ref rules, direction, done.weight,
                 ),
                 Action::Turn(direction) => Self::turn(ref world, direction, done.weight),
                 Action::Wait => Self::wait(@world),
@@ -146,7 +183,7 @@ pub impl SegmentImpl of SegmentTrait {
                     ref world, sheets, ref rules, *classes.action, *next, done.weight,
                 ),
             };
-            let ticks = match ran {
+            let ticks = match result {
                 Ok(ticks) => ticks,
                 Err(Halt::Illegal(illegal)) => {
                     done.illegal = Some(illegal);
@@ -168,21 +205,39 @@ pub impl SegmentImpl of SegmentTrait {
                 done.heavy = true;
                 break;
             }
-            done.weight -= cost;
-            done.played += 1;
+            // The segment ends when sight touches a chunk to reveal, or when the adventurer's
+            // chunk changes: the caller reveals, moves the area and its goblins (t-0109, major 1,
+            // minor 4), then runs the Move's ticks first in the next segment.
+            let mut reveal = false;
             if let Action::Move(_) = *next {
-                // The segment ends when sight touches a chunk to reveal, or when the adventurer's
-                // chunk changes: the caller reveals, moves the area and its goblins (t-0109, major
-                // 1, minor 4), then runs the Move's ticks first in the next segment.
-                if Self::to_reveal(area, @world) || Self::chunk(@world) != start {
-                    done.owed = ticks;
-                    done.reveal = true;
-                    break;
+                reveal = Self::to_reveal(area, @world) || Self::chunk(@world) != start;
+                if !reveal {
+                    rules.board = Self::board(area, @world);
                 }
-                rules.board = Self::board(area, @world);
             }
-            Self::ticks(ref world, sheets, ref rules, *classes.tick, ticks);
+            if !reveal {
+                Self::ticks(ref world, sheets, ref rules, *classes.tick, ticks);
+            }
+            let ran = *area.ran || done.played > 0;
+            before =
+                match Self::fits(
+                    @world, ref changed, before.span(), @rules.ground, cost, ran, ref done.weight,
+                ) {
+                Some(after) => after,
+                None => {
+                    done.heavy = true;
+                    done.undo = true;
+                    break;
+                },
+            };
+            done.played += 1;
+            if reveal {
+                done.owed = ticks;
+                done.reveal = true;
+                break;
+            }
         }
+        done.changed = changed.span();
         done
     }
 
@@ -447,6 +502,89 @@ pub impl SegmentImpl of SegmentTrait {
         false
     }
 
+    /// The action just run with its ticks (`cost` in ticks, `ran` when it is not the invocation's
+    /// first) against the goblin records (the module's *goblin records*): the goblins of `world`
+    /// whose words differ from `before` (the same goblins, in the same order) and that `changed`
+    /// does not hold, but an untouched one engaged and nothing else, added to `changed`; its
+    /// weight with its first records (E-1) taken from `weight`. When `ran` and it would pass
+    /// `MAX_RECORDS` or the weight, nothing is counted, the batch stops (`None`: `Done.undo`); else
+    /// its weight is taken from what is left, floored at 0 (the first action's, E-21), and the
+    /// goblins as they are now are the next action's `before`.
+    #[inline(never)]
+    fn fits(
+        world: @World,
+        ref changed: Array<u16>,
+        before: Span<Goblin>,
+        ground: @Array<(u8, Features)>,
+        cost: u8,
+        ran: bool,
+        ref weight: u8,
+    ) -> Option<Array<Goblin>> {
+        let mut fresh: Array<u16> = array![];
+        let mut firsts: u8 = 0;
+        let mut i = 0;
+        let all = Self::all(world);
+        for now in all.span() {
+            let was = before[i];
+            i += 1;
+            let (prev, after) = (was.store(), now.store());
+            if (prev.state == after.state && prev.timers == after.timers)
+                || Self::holds(changed.span(), *now.entity) {
+                continue;
+            }
+            let first = Self::first(ground, *now.entity);
+            let engaged: felt252 = ai::ENGAGED.into();
+            if first && *now.ai == ai::ENGAGED && prev.timers == after.timers && after.state
+                - prev.state == (engaged - (*was.ai).into()) * 0x1000000 {
+                continue;
+            }
+            if first {
+                firsts += 1;
+            }
+            fresh.append(*now.entity);
+        }
+        let total = cost + firsts;
+        if ran && (changed.len() + fresh.len() > MAX_RECORDS || total > weight) {
+            return None;
+        }
+        changed.append_span(fresh.span());
+        weight = if weight > total {
+            weight - total
+        } else {
+            0
+        };
+        Some(all)
+    }
+
+    /// Every goblin of `world` as it is now (one copy of `current` for its two callers).
+    #[inline(never)]
+    fn all(world: @World) -> Array<Goblin> {
+        world.current()
+    }
+
+    /// Whether the goblin of `entity` has no record yet: its spawn chunk's `touched` bit clear in
+    /// `ground`. A goblin whose spawn chunk is not there came from the roster: it has one.
+    fn first(ground: @Array<(u8, Features)>, entity: u16) -> bool {
+        let offset = entity - FIRST_GOBLIN;
+        let chunk: u8 = (offset / GOBLINS_STRIDE).try_into().unwrap();
+        let k: u8 = (offset % GOBLINS_STRIDE).try_into().unwrap();
+        for (c, features) in ground.span() {
+            if *c == chunk {
+                return !Bitmap::has((*features.touched).into(), k);
+            }
+        }
+        false
+    }
+
+    fn holds(entities: Span<u16>, entity: u16) -> bool {
+        for e in entities {
+            if *e == entity {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Whether the member holds a `MOVEMENT` effect at clock `c` (FX-18).
     fn movement(member: @Member, sheets: @Sheets, c: u32) -> bool {
         let lever = Levered {};
@@ -495,7 +633,15 @@ mod tests {
             chunks.append((chunk, two(225) - 1));
             chunk += 1;
         }
-        Area { width: 15, height: 15, known, revealed: known, chunks: chunks.span() }
+        Area {
+            width: 15,
+            height: 15,
+            known,
+            revealed: known,
+            chunks: chunks.span(),
+            changed: array![].span(),
+            ran: false,
+        }
     }
 
     fn hex(felts: Span<felt252>) -> ByteArray {

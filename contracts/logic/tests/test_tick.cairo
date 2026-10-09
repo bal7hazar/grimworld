@@ -4203,7 +4203,13 @@ fn open_area() -> grimworld_logic::types::play::Area {
         chunks.append((chunk, all));
     }
     grimworld_logic::types::play::Area {
-        width: 3, height: 3, known, revealed: known, chunks: chunks.span(),
+        width: 3,
+        height: 3,
+        known,
+        revealed: known,
+        chunks: chunks.span(),
+        changed: array![].span(),
+        ran: false,
     }
 }
 
