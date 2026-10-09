@@ -210,13 +210,23 @@ export function arc(source: number, target: number, facing: number): Arc | undef
   return Arc.RearSide;
 }
 
+/**
+ * The tile a step of `facing` reaches from `from` (`hexx`'s `LayoutTrait::neighbor` on the window,
+ * a Move of ENG-07); `undefined` (Cairo's `None`) past the window's edge.
+ */
+export function neighbor(from: number, facing: number): number | undefined {
+  direction(facing);
+  if (!inside(from)) throw new RangeError(`not a tile of the window: ${from}`);
+  const [q, r] = axial(from);
+  const [dq, dr] = DIRECTIONS[facing]!;
+  return at(q + dq, r + dr);
+}
+
 /** Whether `target` stands on the front tile of `source` facing `facing` (Blind's miss). */
 export function front(source: number, target: number, facing: number): boolean {
   direction(facing);
   if (!(inside(source) && inside(target))) return false;
-  const [q, r] = axial(source);
-  const [dq, dr] = DIRECTIONS[facing]!;
-  return at(q + dq, r + dr) === target;
+  return neighbor(source, facing) === target;
 }
 
 /** The facing of an actor on `from` after an action toward `to`: the line's first step. */
