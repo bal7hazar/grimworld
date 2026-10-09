@@ -655,7 +655,8 @@ mod tests {
         }
 
         /// Each shape against the oracle disc, at every tile of the window (corners and edges
-        /// included): clipped to the window. Split in six for snforge's step limit.
+        /// included): clipped to the window. Split in 24 for snforge's step limit and memory
+        /// (FND-23).
         fn check_shapes(first: u8, last: u8) {
             let window = Self::open();
             let mut centre: u8 = first;
@@ -1184,39 +1185,147 @@ mod tests {
     // ---- Shapes ------------------------------------------------------------------------------
 
     #[test]
-    #[available_gas(l2_gas: 919405473)] // ceil(1.05 × 875624260 measured)
+    #[available_gas(l2_gas: 229972250)] // ceil(1.05 × 219021190 measured)
     fn test_shapes_every_centre_0() {
-        Fixture::check_shapes(0, 40);
+        Fixture::check_shapes(0, 10);
     }
 
     #[test]
-    #[available_gas(l2_gas: 920783378)] // ceil(1.05 × 876936550 measured)
+    #[available_gas(l2_gas: 229844444)] // ceil(1.05 × 218899470 measured)
     fn test_shapes_every_centre_1() {
-        Fixture::check_shapes(40, 80);
+        Fixture::check_shapes(10, 20);
     }
 
     #[test]
-    #[available_gas(l2_gas: 920848331)] // ceil(1.05 × 876998410 measured)
+    #[available_gas(l2_gas: 229629509)] // ceil(1.05 × 218694770 measured)
     fn test_shapes_every_centre_2() {
-        Fixture::check_shapes(80, 120);
+        Fixture::check_shapes(20, 30);
     }
 
     #[test]
-    #[available_gas(l2_gas: 920928866)] // ceil(1.05 × 877075110 measured)
+    #[available_gas(l2_gas: 230001041)] // ceil(1.05 × 219048610 measured)
     fn test_shapes_every_centre_3() {
-        Fixture::check_shapes(120, 160);
+        Fixture::check_shapes(30, 40);
     }
 
     #[test]
-    #[available_gas(l2_gas: 920932100)] // ceil(1.05 × 877078190 measured)
+    #[available_gas(l2_gas: 230190230)] // ceil(1.05 × 219228790 measured)
     fn test_shapes_every_centre_4() {
-        Fixture::check_shapes(160, 200);
+        Fixture::check_shapes(40, 50);
     }
 
     #[test]
-    #[available_gas(l2_gas: 919408560)] // ceil(1.05 × 875627200 measured)
+    #[available_gas(l2_gas: 230178197)] // ceil(1.05 × 219217330 measured)
     fn test_shapes_every_centre_5() {
-        Fixture::check_shapes(200, 240);
+        Fixture::check_shapes(50, 60);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230177798)] // ceil(1.05 × 219216950 measured)
+    fn test_shapes_every_centre_6() {
+        Fixture::check_shapes(60, 70);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230278923)] // ceil(1.05 × 219313260 measured)
+    fn test_shapes_every_centre_7() {
+        Fixture::check_shapes(70, 80);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230187080)] // ceil(1.05 × 219225790 measured)
+    fn test_shapes_every_centre_8() {
+        Fixture::check_shapes(80, 90);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230190629)] // ceil(1.05 × 219229170 measured)
+    fn test_shapes_every_centre_9() {
+        Fixture::check_shapes(90, 100);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230298663)] // ceil(1.05 × 219332060 measured)
+    fn test_shapes_every_centre_10() {
+        Fixture::check_shapes(100, 110);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230213729)] // ceil(1.05 × 219251170 measured)
+    fn test_shapes_every_centre_11() {
+        Fixture::check_shapes(110, 120);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230217278)] // ceil(1.05 × 219254550 measured)
+    fn test_shapes_every_centre_12() {
+        Fixture::check_shapes(120, 130);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230318403)] // ceil(1.05 × 219350860 measured)
+    fn test_shapes_every_centre_13() {
+        Fixture::check_shapes(130, 140);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230217677)] // ceil(1.05 × 219254930 measured)
+    fn test_shapes_every_centre_14() {
+        Fixture::check_shapes(140, 150);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230217278)] // ceil(1.05 × 219254550 measured)
+    fn test_shapes_every_centre_15() {
+        Fixture::check_shapes(150, 160);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230318403)] // ceil(1.05 × 219350860 measured)
+    fn test_shapes_every_centre_16() {
+        Fixture::check_shapes(160, 170);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230217677)] // ceil(1.05 × 219254930 measured)
+    fn test_shapes_every_centre_17() {
+        Fixture::check_shapes(170, 180);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230217278)] // ceil(1.05 × 219254550 measured)
+    fn test_shapes_every_centre_18() {
+        Fixture::check_shapes(180, 190);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230220512)] // ceil(1.05 × 219257630 measured)
+    fn test_shapes_every_centre_19() {
+        Fixture::check_shapes(190, 200);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 230023122)] // ceil(1.05 × 219069640 measured)
+    fn test_shapes_every_centre_20() {
+        Fixture::check_shapes(200, 210);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 229630895)] // ceil(1.05 × 218696090 measured)
+    fn test_shapes_every_centre_21() {
+        Fixture::check_shapes(210, 220);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 229838711)] // ceil(1.05 × 218894010 measured)
+    fn test_shapes_every_centre_22() {
+        Fixture::check_shapes(220, 230);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 229957602)] // ceil(1.05 × 219007240 measured)
+    fn test_shapes_every_centre_23() {
+        Fixture::check_shapes(230, 240);
     }
 
     /// Counts in the open, at the corners and edges; walls skipped; the centre a wall.
@@ -1717,12 +1826,8 @@ mod tests {
     // here until `contracts/logic/vectors/window.jsonl` is regenerated, and
     // `vectors/check.py` fails while the committed file differs from what these print
     // (`vectors/README.md`).
-    #[test]
-    #[available_gas(l2_gas: 1265854713)] // ceil(1.05 × 1205575917 measured)
-    fn test_vectors() {
-        let window = Fixture::fixture();
-        let mut digest: Array<felt252> = array![];
-        let mut id: u32 = 0;
+    /// The pairs of `sight` and `reach` cases.
+    fn vector_pairs() -> Array<(u8, u8)> {
         // `sight` and `reach` (range 6): from both row parities to every tile within 7, and the
         // edges (outside, a line leaving the window, the same tile)
         let mut pairs: Array<(u8, u8)> = array![];
@@ -1748,15 +1853,11 @@ mod tests {
         pairs.append((Fixture::at(6, 9), Fixture::at(3, 9)));
         pairs.append((Fixture::at(6, 9), Fixture::at(7, 9)));
         pairs.append((Fixture::at(5, 6), Fixture::at(5, 6)));
-        for (from, to) in pairs.span() {
-            let (from, to) = (*from, *to);
-            let case = array![window.open, from.into(), to.into()];
-            let ok = array![window.sight(from, to).into()];
-            Fixture::emit(ref digest, ref id, "sight", case.span(), ok.span());
-            let case = array![window.open, from.into(), to.into(), range::RANGED.into()];
-            let ok = array![window.reach(from, to, range::RANGED).into()];
-            Fixture::emit(ref digest, ref id, "reach", case.span(), ok.span());
-        }
+        pairs
+    }
+
+    /// The triples of `arc` and `facing` cases.
+    fn vector_triples() -> Array<(u8, u8, u8)> {
         // `arc` and `facing`: every source within 6 of the targets (7, 8), an even row, and (7, 7),
         // an odd one, the facing turning with the source; the edges
         let mut triples: Array<(u8, u8, u8)> = array![];
@@ -1776,25 +1877,75 @@ mod tests {
         triples.append((Fixture::at(0, 0), Fixture::at(0, 2), 3));
         triples.append((SIZE, Fixture::at(7, 8), 1));
         triples.append((Fixture::at(7, 8), Fixture::at(7, 15), 2));
-        for (source, target, facing) in triples.span() {
-            let (source, target, facing) = (*source, *target, *facing);
-            let case = array![source.into(), target.into(), facing.into()];
-            let mut ok: Array<felt252> = array![];
-            WindowTrait::arc(source, target, facing).serialize(ref ok);
-            Fixture::emit(ref digest, ref id, "arc", case.span(), ok.span());
-            let ok = array![WindowTrait::facing(source, target, facing).into()];
-            Fixture::emit(ref digest, ref id, "facing", case.span(), ok.span());
+        triples
+    }
+
+    /// The first table part's cases: each pair (two ids), then each triple (two ids). Items
+    /// `first..last` of the part, split in four for snforge's step limit and memory (FND-23).
+    fn check_vectors_items(first: u32, last: u32, expected: felt252) {
+        let window = Fixture::fixture();
+        let pairs = vector_pairs();
+        let triples = vector_triples();
+        assert(pairs.len() + triples.len() == ITEMS, 'vectors: part 0 moved');
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = 2 * first;
+        let mut item: u32 = first;
+        while item != last {
+            if item < pairs.len() {
+                let (from, to) = *pairs.at(item);
+                let case = array![window.open, from.into(), to.into()];
+                let ok = array![window.sight(from, to).into()];
+                Fixture::emit(ref digest, ref id, "sight", case.span(), ok.span());
+                let case = array![window.open, from.into(), to.into(), range::RANGED.into()];
+                let ok = array![window.reach(from, to, range::RANGED).into()];
+                Fixture::emit(ref digest, ref id, "reach", case.span(), ok.span());
+            } else {
+                let (source, target, facing) = *triples.at(item - pairs.len());
+                let case = array![source.into(), target.into(), facing.into()];
+                let mut ok: Array<felt252> = array![];
+                WindowTrait::arc(source, target, facing).serialize(ref ok);
+                Fixture::emit(ref digest, ref id, "arc", case.span(), ok.span());
+                let ok = array![WindowTrait::facing(source, target, facing).into()];
+                Fixture::emit(ref digest, ref id, "facing", case.span(), ok.span());
+            }
+            item += 1;
+        }
+        if last == ITEMS {
+            assert(id == PART_1, 'vectors: part 1 moved');
         }
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
-        assert(id == PART_1, 'vectors: part 1 moved');
-        assert(digest == DIGEST_0, 'vectors moved: regenerate');
+        assert(digest == expected, 'vectors moved: regenerate');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 441428181)] // ceil(1.05 × 420407791 measured)
+    fn test_vectors_0() {
+        check_vectors_items(0, 152, DIGEST_0);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 442288822)] // ceil(1.05 × 421227449 measured)
+    fn test_vectors_1() {
+        check_vectors_items(152, 304, DIGEST_1);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 258703728)] // ceil(1.05 × 246384502 measured)
+    fn test_vectors_2() {
+        check_vectors_items(304, 456, DIGEST_2);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 183241200)] // ceil(1.05 × 174515428 measured)
+    fn test_vectors_3() {
+        check_vectors_items(456, ITEMS, DIGEST_3);
     }
 
     /// The table's second part, its ids following the first's (snforge's step limit splits it).
     #[test]
     #[available_gas(l2_gas: 438945576)] // ceil(1.05 × 418043405 measured)
-    fn test_vectors_1() {
+    fn test_vectors_4() {
         let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_1;
@@ -1857,13 +2008,20 @@ mod tests {
         }
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
-        assert(digest == DIGEST_1, 'vectors moved: regenerate');
+        assert(digest == DIGEST_4, 'vectors moved: regenerate');
     }
 
-    /// The cases of the first part; the second's first id.
+    /// The first part's items (a pair or a triple, two ids each); the second's first id.
+    const ITEMS: u32 = 607;
     const PART_1: u32 = 1214;
     const DIGEST_0: felt252 =
-        2027939412732297496338127652314768997524597226589897860129522502247018952946;
+        2749302371310621346352613121621365865859143696586365922317592804539014286420;
     const DIGEST_1: felt252 =
+        3471333741167959071717676280629916669257872291826050440141610879181704446771;
+    const DIGEST_2: felt252 =
+        1085387794066235897550385520434980583812968515677281880142221608564149212592;
+    const DIGEST_3: felt252 =
+        2719532441928506774985128604631707718350205693076366625540484853678561565291;
+    const DIGEST_4: felt252 =
         2034462196832439640469718342796814804113743281669768041046952646849445135712;
 }
