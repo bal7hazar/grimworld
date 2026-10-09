@@ -52,6 +52,18 @@ const P92: u128 = 0x100000000000000000000000;
 const BAR_LANES: [u128; 8] = [1, P16, P32, 0x1000000000000, P64, P80, P96, P112];
 /// `MemberStats`' bar ranks, 4 bits a slot from its high limb's bit 0.
 const RANK_LANES: [u128; 8] = [1, 0x10, 0x100, 0x1000, 0x10000, 0x100000, 0x1000000, 0x10000000];
+/// `MemberStats`' quick-cast slots in its high limb, 2 bits a slot: slots 0–3 from bit 40
+/// (168 − 128), slots 4–7 from bit 114 (242 − 128; CBT-05f).
+const QUICK_LANES: [u128; 8] = [
+    0x10000000000, 0x40000000000, 0x100000000000, 0x400000000000, 0x40000000000000000000000000000,
+    0x100000000000000000000000000000, 0x400000000000000000000000000000,
+    0x1000000000000000000000000000000,
+];
+/// `MemberStats`' weapon-required slots in its low limb, a bit a slot from bit 40 (CBT-05f).
+const WEAPON_LANES: [u128; 8] = [
+    0x10000000000, 0x20000000000, 0x40000000000, 0x80000000000, 0x100000000000, 0x200000000000,
+    0x400000000000, 0x800000000000,
+];
 /// `MemberBar`'s `DAMAGE_PERCENT` sums by class, from its high limb's bit 8 (136 − 128).
 const PASSIVE_LANES: [u128; 3] = [P8, P16, P24];
 /// `MemberStats`' `ARMOR_VS` of types 3–9, from its high limb's bit 72 (200 − 128).
@@ -585,6 +597,22 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
             (a0.try_into().unwrap(), n0.try_into().unwrap()),
             (a1.try_into().unwrap(), n1.try_into().unwrap()),
         ]
+    }
+
+    /// The quick-cast pairs bar slot 0–7's skill counts for (`MemberStats` 168 + 2 slot for slots
+    /// 0–3, 242 + 2 (slot − 4) for 4–7; CBT-05f, D-157 A): pair `p` at bit `p`, the `matches`
+    /// of `QuickCastTrait::count`.
+    fn quick_cast_matches(self: @Member, slot: u8) -> u8 {
+        let (_, high) = limbs(*self.words.stats);
+        field(high, *QUICK_LANES.span()[slot.into()], 4).try_into().unwrap()
+    }
+
+    /// Whether bar slot 0–7's attack skill names an attribute other than the weapon's
+    /// (`MemberStats` 40 + slot; CBT-05f, design/19 §3.4's skill kinds): used without its weapon,
+    /// it is refused.
+    fn weapon_required(self: @Member, slot: u8) -> bool {
+        let (low, _) = limbs(*self.words.stats);
+        field(low, *WEAPON_LANES.span()[slot.into()], 2) != 0
     }
 
     /// Its weapon (`MemberStats`): class 88–95, damage 96–103, range 112–119, strength
