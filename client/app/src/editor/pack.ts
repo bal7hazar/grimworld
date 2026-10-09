@@ -128,6 +128,35 @@ export function doorOffset(anchor: Tile, door: Tile): string {
   return `${door.x - anchor.x},${door.y - anchor.y}`;
 }
 
+/**
+ * A building with a hex added to its footprint or removed from it (CLI-09h): the footprint starts
+ * from the file's or the kind's default and is then kept as offsets from the anchor, in reading
+ * order, so that the same hexes are the same file. The door cannot be removed, and a hex is not
+ * added when it would close the door in (a door off the border is E-20's). Returns the building
+ * as it was when nothing changes, or the reason the hex is refused.
+ */
+export function paintedFootprint(
+  object: Of<"building">,
+  tile: Tile,
+  add: boolean,
+): Of<"building"> | string {
+  const before = buildingFootprint(object);
+  const here = before.some((t) => t.x === tile.x && t.y === tile.y);
+  if (here === add) return object;
+  const door = doorOf(object);
+  if (!add && door && door.x === tile.x && door.y === tile.y) {
+    return "The door hex stays on the footprint: move the door first.";
+  }
+  const hexes = add ? [...before, tile] : before.filter((t) => t.x !== tile.x || t.y !== tile.y);
+  if (add && door && doorChoices(hexes).every((t) => t.x !== door.x || t.y !== door.y)) {
+    if (doorChoices(before).some((t) => t.x === door.x && t.y === door.y)) {
+      return "That hex would close the door in: the door stays on the footprint's border.";
+    }
+  }
+  const ordered = [...hexes].sort((a, b) => a.y - b.y || a.x - b.x);
+  return { ...object, footprint: footprintOffsets(object.at, ordered) };
+}
+
 /** What a pack object would be placed as: the palette's placement. */
 export function placementOf(object: PackObject): Placement {
   switch (object.kind) {
@@ -337,10 +366,10 @@ export const PACK_ROWS: { readonly [K in PackKind]: KindSpec<Of<K>> } = {
         key: "footprint",
         label: "Footprint",
         type: "choice",
-        // A file's footprint stays until the author draws it from the kind again.
+        // A painted or a file's footprint stays until the author draws it from the kind again.
         options: (_meta: MapMeta, object) => [
           ...(object?.kind === "building" && object.footprint
-            ? [[object.footprint, "As the file gives it"] as const]
+            ? [[object.footprint, "As painted [F] or given by the file"] as const]
             : []),
           ["", "Drawn from its kind"] as const,
         ],

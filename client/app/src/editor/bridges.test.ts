@@ -19,7 +19,8 @@ import {
   sideOf,
 } from "./model";
 import type { MapObject } from "./objects";
-import { type PackObject, bridgeCopies, bridgeHexes, placedOn } from "./pack";
+import { type PackObject, bridgeCopies, bridgeHexes, placedOn, spanned } from "./pack";
+import { SIDE } from "./palette";
 import { type Finding, validate } from "./validate";
 import { townStructures, walkWorld } from "./walkWorld";
 
@@ -464,4 +465,115 @@ describe("saved and loaded, and the export", () => {
     expect(JSON.parse(recordsFile(out.writes, "bridge-zone.export.json"))).toEqual(python);
     expect(python.writes.filter((w: { kind: string }) => w.kind === "BRIDGE")).toHaveLength(2);
   });
+});
+
+/**
+ * A deck along one line (CLI-09h, the review of CLI-09f): the line from the southern end to the
+ * northern end is a chain of neighbours in the six hex directions, whatever the row's parity, the
+ * sign of the coordinates and the run's mirror; the sprite's copies and the span follow it.
+ */
+describe("a deck along one line", () => {
+  // Even and odd rows, positive and negative coordinates (odd-r: the steps differ by row).
+  const STARTS: readonly Tile[] = [
+    { x: 6, y: 4 },
+    { x: 6, y: 5 },
+    { x: -6, y: -4 },
+    { x: -7, y: -5 },
+    { x: 0, y: -1 },
+    { x: -1, y: 0 },
+  ];
+  const SIDES = [0, 1, 2, 3, 4, 5];
+  const opposite = (side: number) => (side + 3) % 6;
+
+  /** The side from `a` to `b`, or null when they are not neighbours. */
+  const sideBetween = (a: Tile, b: Tile): number | null => {
+    const side = SIDES.find((s) => {
+      const t = sideOf(a, s);
+      return t.x === b.x && t.y === b.y;
+    });
+    return side ?? null;
+  };
+
+  it.each(STARTS)(
+    "in all six directions from (%j): a line of hexes steps back along the opposite",
+    (...args) => {
+      const start = args[0] as Tile;
+      for (const side of SIDES) {
+        let tile = start;
+        const walked: Tile[] = [tile];
+        for (let i = 0; i < 5; i++) {
+          tile = sideOf(tile, side);
+          walked.push(tile);
+        }
+        // Six distinct directions: six distinct first steps.
+        expect(sideBetween(walked[0]!, walked[1]!)).toBe(side);
+        // Back along the opposite side to the start.
+        for (let i = walked.length - 1; i > 0; i--) {
+          expect(sideBetween(walked[i]!, walked[i - 1]!)).toBe(opposite(side));
+        }
+      }
+      expect(new Set(SIDES.map((s) => keyOf(sideOf(start, s)))).size).toBe(6);
+    },
+  );
+
+  const RUNS = [
+    { run: "north", mirror: false, sides: [SIDE.northEast, SIDE.northWest] },
+    { run: "north", mirror: true, sides: [SIDE.northWest, SIDE.northEast] },
+    { run: "west", mirror: false, sides: [SIDE.west, SIDE.west] },
+    { run: "west", mirror: true, sides: [SIDE.east, SIDE.east] },
+  ] as const;
+
+  for (const { run, mirror, sides } of RUNS) {
+    const name = `${run}${mirror ? ", mirrored" : ""}`;
+
+    it(`a bridge running ${name}: one chain of neighbours from the end, every deck length, every start`, () => {
+      for (const start of STARTS) {
+        for (let deck = 1; deck <= 5; deck++) {
+          const b = { ...bridge(start, "stone_bridge", deck, run), mirror };
+          const hexes = bridgeHexes(b)!;
+          const line = [hexes.ends[0], ...hexes.deck, hexes.ends[1]];
+          expect(line).toHaveLength(deck + 2);
+          expect(hexes.ends[0]).toEqual(start);
+          expect(new Set(line.map(keyOf)).size).toBe(line.length);
+          line.slice(1).forEach((t, i) => {
+            // The run's own side, alternating for the zig-zag that keeps the ends in one column.
+            expect(
+              sideBetween(line[i]!, t),
+              `${name} from (${start.x}, ${start.y}), step ${i}`,
+            ).toBe(sides[i % 2]);
+          });
+        }
+      }
+    });
+
+    it(`a bridge running ${name}: the sprite's copies stand on the line, two hexes apart, the last on the end's neighbour`, () => {
+      for (const start of STARTS) {
+        for (let deck = 1; deck <= 5; deck++) {
+          const b = { ...bridge(start, "stone_bridge", deck, run), mirror };
+          const hexes = bridgeHexes(b)!;
+          const line = [hexes.ends[0], ...hexes.deck, hexes.ends[1]];
+          const copies = bridgeCopies(b);
+          const at = copies.map((c) => line.findIndex((t) => keyOf(t) === keyOf(c)));
+          expect(at.every((k) => k >= 0)).toBe(true);
+          expect(at[0]).toBe(0);
+          expect(at[at.length - 1]).toBe(line.length - 3);
+          at.slice(1).forEach((k, i) => expect(k - at[i]!).toBeLessThanOrEqual(2));
+        }
+      }
+    });
+
+    it(`a bridge running ${name}: placed on land, it spans the water ahead to the far bank`, () => {
+      for (const start of STARTS) {
+        const reference = { ...bridge(start, "stone_bridge", 3, run), mirror };
+        const hexes = bridgeHexes(reference)!;
+        const wet = new Set(hexes.deck.map(keyOf));
+        const isWater = (t: Tile): boolean => wet.has(keyOf(t));
+        const spannedOver = spanned({ ...reference, deck: 1 }, isWater);
+        expect(spannedOver.deck).toBe(3);
+        // No far bank: land never comes back within reach, so nothing is spanned.
+        const endless = spanned({ ...reference, deck: 1 }, (t) => keyOf(t) !== keyOf(start));
+        expect(endless.deck).toBe(1);
+      }
+    });
+  }
 });

@@ -14,7 +14,9 @@
 // to the converter's records file, and its grimworld-export JSON opens again and exports the same.
 // CLI-09f: the bridge fixture validates; a bridge placed from the menu on a pond's bank spans the
 // water (a deck of 3); a character on its deck is refused (R-37) and undone; the walker walks onto
-// the deck. Run by hand, not by CI:
+// the deck. CLI-09h: with a building selected, F arms the Footprint tool; a click and a drag
+// paint hexes (one undo step each), the door hex stays, the file keeps the footprint and a reload
+// brings it back. Run by hand, not by CI:
 // `node verify-editor.mjs`. Starts the dev server as its own process group and sends SIGTERM to that
 // recorded group in `finally`. The server inherits GRIMWORLD_ART_OUT (the built atlas, D-73: never
 // committed).
@@ -809,6 +811,54 @@ async function packPhase(page, look, shot) {
   ok((await listed(page, "E-20")) === 0, `the door turned to ${door}: E-20 passes`);
   await shot("16-door-fixed");
 
+  // CLI-09h: the building selected, F arms the Footprint tool; a click and a drag paint hexes
+  // below it (one undo step each), the file keeps them, and they come back after a reload.
+  const footprintOf = async () =>
+    (await objectsOf(page)).find((o) => o.kind === "building")?.footprint;
+  const stepsOf = () => page.evaluate(() => window.__editor.session.history.steps);
+  ok((await footprintOf()) === "", "the barracks' footprint is drawn from its kind");
+  await page.keyboard.press("f");
+  ok(
+    (await text_(page, "[data-armed]")).includes("Footprint"),
+    `F arms the Footprint tool: ${await text_(page, "[data-armed]")}`,
+  );
+  const stepsBefore = await stepsOf();
+  await clickHex(page, { x: 8, y: 6 });
+  const one = await footprintOf();
+  ok(
+    one !== "" && one.split(";").includes("0,2"),
+    `a click adds a hex: the footprint now holds 0,2 (${one.split(";").length} hexes)`,
+  );
+  const a = await hexAt(page, { x: 9, y: 6 });
+  const b = await hexAt(page, { x: 10, y: 6 });
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 4 });
+  await page.mouse.up();
+  const two = await footprintOf();
+  ok(
+    two.split(";").length === one.split(";").length + 2,
+    `a drag adds two more in one stroke (${two.split(";").length} hexes)`,
+  );
+  ok((await stepsOf()) === stepsBefore + 2, "each stroke is one undo step");
+  ok((await listed(page, "E-16")) === 0, "the footprint is one piece in the chunk set: no E-16");
+  ok((await listed(page, "E-20")) === 0, "the door is on its border and walkable: no E-20");
+  await shot("16b-footprint-painted");
+  // The door hex stays on the footprint.
+  const doorOffset = (await objectsOf(page)).find((o) => o.kind === "building").door;
+  const [dx, dy] = doorOffset.split(",").map(Number);
+  await clickHex(page, { x: anchor.x + dx, y: anchor.y + dy });
+  ok(
+    (await page.locator(".ed-problem", { hasText: "door" }).count()) === 1,
+    "a click on the door hex is refused, with the reason",
+  );
+  ok((await footprintOf()) === two, "the footprint is unchanged by the click on the door");
+  await page.keyboard.press("Control+z");
+  ok((await footprintOf()) === one, "undo takes the drag back whole");
+  await page.keyboard.press("Control+Shift+z");
+  ok((await footprintOf()) === two, "redo brings it back");
+  await page.keyboard.press("u");
+
   // Save, then open the file again.
   const path = join(shots, `pack-${look}.grimmap.json`);
   const saved = JSON.parse(await saveWith(page, path));
@@ -816,13 +866,19 @@ async function packPhase(page, look, shot) {
     ["building", "npc", "scenery", "bridge"].includes(o.kind),
   );
   ok(packed.length === 4, `saved: ${packed.map((o) => `${o.kind} ${o.type}`).join(", ")}`);
+  ok(
+    packed.find((o) => o.kind === "building")?.footprint === (await footprintOf()),
+    "the file saves the painted footprint",
+  );
   const before = JSON.stringify((await objectsOf(page)).map((o) => ({ ...o, id: 0 })));
+  const painted = await footprintOf();
   await page.locator("[data-open-file]").setInputFiles(path);
   await page.locator('[data-canvas]:not([data-atlas="loading"])').waitFor();
   await page.waitForFunction(() => window.__editor !== undefined);
   await page.waitForTimeout(500);
   const after = JSON.stringify((await objectsOf(page)).map((o) => ({ ...o, id: 0 })));
   ok(after === before, "opened again from its file: the same objects");
+  ok((await footprintOf()) === painted, "the painted footprint is back after the reload");
   await shot("17-reloaded");
 }
 
