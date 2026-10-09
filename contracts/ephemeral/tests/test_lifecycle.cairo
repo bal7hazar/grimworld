@@ -2230,7 +2230,7 @@ fn prepare_ghost(world: World) {
 // t-0109, note 5: a goblin whose caste the registry does not hold refuses the batch
 // (`Stop::Invalid`), nothing run.
 #[test]
-#[available_gas(l2_gas: 59413860)] // ceil(1.05 × 56584628 measured)
+#[available_gas(l2_gas: 59413828)] // ceil(1.05 × 56584598 measured)
 fn test_play_unloadable_goblin_refused() {
     let world = setup();
     play_classes(world);

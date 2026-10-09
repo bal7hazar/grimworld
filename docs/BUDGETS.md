@@ -77,7 +77,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_play_moves` | 56569669 | 59209100 | 2026-10-09 | 8edea17 |
 | grimworld_ephemeral | `test_lifecycle::test_play_refusals` | 57900742 | 60702099 | 2026-10-09 | 8edea17 |
 | grimworld_ephemeral | `test_lifecycle::test_play_unloadable_arrival_runs_the_ticks` | 64375596 | 67405093 | 2026-10-09 | 8edea17 |
-| grimworld_ephemeral | `test_lifecycle::test_play_unloadable_goblin_refused` | 56584598 | 59413860 | 2026-10-09 | 8edea17 |
+| grimworld_ephemeral | `test_lifecycle::test_play_unloadable_goblin_refused` | 56584598 | 59413828 | 2026-10-09 | 8edea17 |
 | grimworld_ephemeral | `test_lifecycle::test_refused_absent` | 51977348 | 54576216 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_refused_closed` | 49271951 | 51735549 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_refused_gate` | 67258434 | 70621356 | 2026-10-07 | faa262c |
@@ -87,7 +87,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_set_controller` | 40567670 | 42596054 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_lifecycle::test_set_play_class_key_refused` | 21090860 | 22145403 | 2026-10-09 | b164282 |
 | grimworld_ephemeral | `test_lifecycle::test_travel_back` | 39081527 | 41035604 | 2026-10-07 | faa262c |
-| grimworld_ephemeral | `test_play_limits::test_play_changed_goblin_dropped` | 227108552 | 238867453 | 2026-10-09 | 8edea17 |
+| grimworld_ephemeral | `test_play_limits::test_play_changed_goblin_dropped` | 227108552 | 238463980 | 2026-10-09 | 8edea17 |
 | grimworld_ephemeral | `test_play_limits::test_play_first_records_and_alert` | 334399665 | 351119649 | 2026-10-09 | 8edea17 |
 | grimworld_ephemeral | `test_play_limits::test_play_records_cap` | 254462345 | 267185463 | 2026-10-09 | 8edea17 |
 | grimworld_ephemeral | `test_tick_words::test_potion_regeneration_every_belt_slot` | 3422102 | 3593208 | 2026-10-07 | faa262c |
