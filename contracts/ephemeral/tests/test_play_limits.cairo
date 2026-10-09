@@ -293,15 +293,22 @@ fn events(ref spy: snforge_std::EventSpy, world: World) -> (felt252, felt252, Ar
     (count, stop, out)
 }
 
-/// The world of a test: entered, then `prepare`d (0 E-16's, 1 E-1's and the alert's, 2 the drop's).
+/// The world of a test: entered, then `prepare`d (0 E-16's, 1 E-1's and the alert's, 2 the drop's;
+/// 3 to 5 the corridor's, `prepare_corridor`).
 fn world_of(which: u8) -> World {
     let world = setup();
     if which == 0 {
         prepare_cap(world);
     } else if which == 1 {
         prepare_alert(world);
-    } else {
+    } else if which == 2 {
         prepare_drop(world);
+    } else if which == 3 {
+        prepare_corridor(world, 1, 32);
+    } else if which == 4 {
+        prepare_corridor(world, 2, 32);
+    } else {
+        prepare_corridor(world, 2, 30);
     }
     world
 }
@@ -469,4 +476,126 @@ fn test_play_changed_goblin_dropped() {
     let adrenaline = (state.low / 0x100000000000000) % 0x100;
     println!("the goblin's adrenaline: {}", adrenaline);
     assert(adrenaline < 40, 'the goblin changed');
+}
+
+// ---- t-0115, minor 2: the tally between segments, the owed ticks, the cap's boundary ----------
+
+/// A corridor on row 22 from `(25, 22)` to `(33, 22)` across chunks 16 and 17, every other tile of
+/// both chunks wall but the goblins': four packs with records, asleep, each goblin walled in (it
+/// changes once, when its pack is engaged, and never moves after). Chunk 16's two packs of five
+/// wake when the member reaches `(27, 22)` (their goblins 0 on `(28, 20)`, `(28, 24)`); chunk 17's
+/// packs of five and `last` when it reaches `(trigger, 22)`: 32 (goblins 0 on `(33, 20)`,
+/// `(33, 24)`) or 30, the first tile of chunk 17 (`(31, 20)`, `(31, 24)`). The member on
+/// `(25, 22)`.
+fn prepare_corridor(world: World, last: u8, trigger: u8) {
+    open_zone(world, 25, 22);
+    let mut open: Array<(u8, u8)> = array![];
+    let mut x: u8 = 25;
+    while x <= 33 {
+        open.append((x, 22));
+        x += 1;
+    }
+    let near: Array<(u8, u8)> = array![(28, 20), (28, 24), (trigger + 1, 20), (trigger + 1, 24)];
+    let mut p: u32 = 0;
+    for chunk in array![16_u16, 17] {
+        let count: u16 = if chunk == 16 {
+            10
+        } else {
+            5 + last.into()
+        };
+        let x0: u8 = if chunk == 16 {
+            16
+        } else {
+            36
+        };
+        let mut k: u16 = 0;
+        while k < count {
+            let (x, y) = if k % 5 == 0 {
+                *near[p + (k / 5).into()]
+            } else {
+                (x0 + (k % 5).try_into().unwrap(), 16 + 2 * (k / 5).try_into().unwrap())
+            };
+            put_goblin(world, 8 + 16 * chunk + k, x, y, ai::ASLEEP, 0);
+            open.append((x, y));
+            k += 1;
+        }
+        p += 2;
+    }
+    put_packs(world, 16, [5, 5], [0, 0], 0, 0x3ff);
+    put_packs(world, 17, [5, last], [0, 0], 0, (two(5 + last.into()) - 1).try_into().unwrap());
+    for chunk in array![16_u8, 17] {
+        let (cx, cy) = (chunk % 15, chunk / 15);
+        let mut walls: felt252 = two(225) - 1;
+        for (x, y) in open.span() {
+            if *x / 15 == cx && *y / 15 == cy {
+                walls -= two(((*y % 15) * 15 + *x % 15).into());
+            }
+        }
+        let terrain: felt252 = StorePacking::pack(Terrain { walls, edges: 0 });
+        write(world.instances, chunk_key(chunk), terrain);
+    }
+}
+
+/// How many goblins of chunks 16 and 17 are Engaged.
+fn engaged_corridor(world: World) -> u32 {
+    let mut count = 0;
+    for chunk in array![16_u16, 17] {
+        let mut k: u16 = 0;
+        while k < 10 {
+            let state: u256 = read(world.instances, goblin_key(8 + 16 * chunk + k)).into();
+            if state != 0 && (state.low / 0x1000000) % 0x100 == ai::ENGAGED.into() {
+                count += 1;
+            }
+            k += 1;
+        }
+    }
+    count
+}
+
+fn west(n: u8) -> Array<Action> {
+    let mut actions = array![];
+    let mut k: u8 = 0;
+    while k < n {
+        actions.append(Action::Move(3));
+        k += 1;
+    }
+    actions
+}
+
+// The cap's boundary, passing: seven Moves West. The third engages chunk 16's ten; the fifth
+// crosses into chunk 17 (a new segment); the seventh engages chunk 17's six: 16 records, every
+// Move played.
+#[test]
+#[available_gas(l2_gas: 400000000)]
+fn test_play_records_sixteen() {
+    let (words_one, words_two, played, stop, one) = twin(3, west(7).span(), array![16, 17].span());
+    assert(played == 7 && stop == STOP_NONE, 'sixteen records pass');
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(engaged_corridor(one) == 16, 'sixteen engaged');
+}
+
+// The cap's boundary, stopping, and the tally carried between segments: the same with chunk 17's
+// packs of seven. The seventh Move would make 17 records, ten of them in the first segment: the
+// batch stops before it (`Stop::Weight`). With the tally reset at the segment, it would count 7
+// and play.
+#[test]
+#[available_gas(l2_gas: 400000000)]
+fn test_play_records_seventeen_across_segments() {
+    let (words_one, words_two, played, stop, one) = twin(4, west(7).span(), array![16, 17].span());
+    assert(played == 6 && stop == STOP_WEIGHT, 'stopped before the 17th');
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(engaged_corridor(one) == 10, 'chunk 17 asleep');
+}
+
+// A Move's owed ticks counted with the next segment's first action: chunk 17's seven wake on the
+// tick of the fifth Move, the one into chunk 17, which the next segment runs first. The sixth Move
+// would then pass 16 (10 + 7): the batch stops before it. Ignoring the owed ticks, it would count
+// nothing new and play. The owed tick's records are written: 17 (the bound, ENG-01 E-16).
+#[test]
+#[available_gas(l2_gas: 400000000)]
+fn test_play_records_owed_ticks() {
+    let (words_one, words_two, played, stop, one) = twin(5, west(6).span(), array![16, 17].span());
+    assert(played == 5 && stop == STOP_WEIGHT, 'stopped after the owed tick');
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(engaged_corridor(one) == 17, 'the owed tick engaged seven');
 }

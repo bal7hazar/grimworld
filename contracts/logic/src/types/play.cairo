@@ -615,16 +615,19 @@ pub impl SegmentImpl of SegmentTrait {
 /// (ENG-07 scope 11): the client's mirror reads it (`client/sim`, track CV's).
 #[cfg(test)]
 mod tests {
+    use core::num::traits::Zero;
     use hexx::board::layout::LayoutTrait;
     use hexx::finders::bfs::Bfs;
     use hexx::finders::flood::FloodTrait;
+    use crate::actions::Action;
     use crate::helpers::tick::TickMathTrait;
-    use crate::types::executor::BoardTrait;
-    use crate::types::tick::ai;
-    use crate::types::window::{HEIGHT, WIDTH, WindowAssert};
+    use crate::models::member::{MemberSnapshotTrait, MemberWordsTrait};
+    use crate::types::executor::{BoardTrait, Delegate};
+    use crate::types::tick::{ContentTrait, ai};
+    use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
     use crate::types::world::fixtures::{Fixture, HOB, two};
     use crate::types::world::{TickTrait, WorldTrait};
-    use super::{Area, SegmentTrait};
+    use super::{Area, Classes, SegmentTrait};
 
     /// The area of every chunk of a 15 × 15 location, revealed and walkable.
     fn open_area() -> Area {
@@ -811,6 +814,57 @@ mod tests {
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == DIGEST, 'vectors moved: regenerate');
+    }
+
+    /// ENG-07b, reading 8 (t-0115, minor 1): a Move of 2 ticks (Crippled) against the weight
+    /// left. Nine Waits leave 1 of 10; the Move would take 2: the segment stops for weight before
+    /// it writes, the member on its tile. ENG-07's `step`, checked against the segment's starting
+    /// weight, moved the member before the stop. No goblin: every tick on the fast path, no class
+    /// called.
+    #[test]
+    #[available_gas(l2_gas: 111604550)] // ceil(1.05 × 106290047 measured)
+    fn test_segment_slow_move_heavy() {
+        let mut member = Fixture::member(Fixture::spec());
+        member.words.state += 20 * two(32) + 22 * two(40);
+        member.set_crippled(100);
+        let mut world = Fixture::world(40, array![member], array![]);
+        let content = Fixture::content();
+        let (sheets, index) = content.index();
+        let mut rules = Delegate {
+            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+            cache: Default::default(),
+            executor: Zero::zero(),
+            content,
+            index,
+            placed: array![],
+            ground: array![],
+            ai: Zero::zero(),
+            trap: Zero::zero(),
+            level: 1,
+            frozen: 0,
+            listed: 0,
+        };
+        let classes = Classes {
+            executor: Zero::zero(),
+            ai: Zero::zero(),
+            trap: Zero::zero(),
+            action: Zero::zero(),
+            tick: Zero::zero(),
+        };
+        let mut actions = array![];
+        let mut k: u8 = 0;
+        while k < 9 {
+            actions.append(Action::Wait);
+            k += 1;
+        }
+        actions.append(Action::Move(0));
+        let area = open_area();
+        let done = SegmentTrait::run(
+            ref world, @sheets, ref rules, @area, @classes, actions.span(), 0, 10,
+        );
+        let (x, y, _) = world.member(0).place();
+        assert(done.heavy && done.played == 9 && done.weight == 1, 'stopped for weight');
+        assert(x == 20 && y == 22 && world.clock == 49, 'the member did not move');
     }
 
     const DIGEST: felt252 =
