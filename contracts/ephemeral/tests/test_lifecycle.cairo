@@ -115,6 +115,70 @@ mod RegistryDouble {
     }
 }
 
+/// t-0110, minor 2: a reveal that makes every chunk open and puts on chunk 1 an alerted pack of 3
+/// on its tile (1, 7), at its edge with chunk 0 (global (15..17, 7)): its goblins reach the window
+/// of an adventurer on chunk 0's row 7 once chunk 1 is revealed. A test double of `RevealLibrary`,
+/// called by `library_call` as it is.
+#[starknet::contract]
+mod RevealDouble {
+    use grimworld_logic::interface::IRevealLibrary;
+    use grimworld_logic::models::chunk::{
+        Features, FeaturesStorePacking, PackPlacement, Terrain, TerrainStorePacking,
+    };
+    use grimworld_logic::types::reveal::{Progress, Site};
+    use starknet::storage_access::StorePacking;
+
+    #[storage]
+    struct Storage {}
+
+    #[abi(embed_v0)]
+    impl RevealImpl of IRevealLibrary<ContractState> {
+        fn reveal(
+            self: @ContractState,
+            site: Site,
+            progress: Progress,
+            instance_id: felt252,
+            known: Span<(u8, Terrain)>,
+            chunks: Span<u8>,
+        ) -> (Progress, Span<(u8, felt252, felt252)>) {
+            let mut progress = progress;
+            let mut out = array![];
+            for chunk in chunks {
+                let mut bit: felt252 = 1;
+                let mut k: u8 = 0;
+                while k < *chunk {
+                    bit *= 2;
+                    k += 1;
+                }
+                progress.revealed += bit;
+                progress.count += 1;
+                let terrain: felt252 = StorePacking::pack(Terrain { walls: 0, edges: 0 });
+                let pack = if *chunk == 1 {
+                    PackPlacement {
+                        tile: 7 * 15 + 1,
+                        template: 1,
+                        level: 1,
+                        count: 3,
+                        offsets: 9 + 8 * 32 + 10 * 1024,
+                        alert: 2,
+                    }
+                } else {
+                    Default::default()
+                };
+                let features: felt252 = StorePacking::pack(
+                    Features {
+                        packs: [pack, Default::default()],
+                        objects: [Default::default(); 3],
+                        touched: 0,
+                    },
+                );
+                out.append((*chunk, terrain, features));
+            }
+            (progress, out.span())
+        }
+    }
+}
+
 #[starknet::interface]
 pub trait IDraws<T> {
     fn draws(self: @T) -> u32;
@@ -1950,6 +2014,9 @@ fn twin(
     let one = setup();
     play_classes(one);
     pack_content(one);
+    if which == 3 {
+        reveal_double(one);
+    }
     let id = create(one, 7, 'alice', gate, 0);
     prepare(which, one);
     let mut spy = spy_events();
@@ -1959,6 +2026,9 @@ fn twin(
     let two = setup();
     play_classes(two);
     pack_content(two);
+    if which == 3 {
+        reveal_double(two);
+    }
     let id = create(two, 7, 'alice', gate, 0);
     prepare(which, two);
     let mut spy = spy_events();
@@ -1972,13 +2042,36 @@ fn twin(
     (words_one, words_two, events_one, events_two)
 }
 
-/// The twins' start: 0 the reveal walk's, 1 the ten Moves'.
+/// The twins' start: 0 the reveal walk's, 1 the ten Moves', 2 the round trip's, 3 the reveal
+/// double's (nothing: its chunks are open).
 fn prepare(which: u8, world: World) {
     if which == 0 {
         prepare_reveal(world);
-    } else {
+    } else if which == 1 {
         prepare_walk(world);
+    } else if which == 2 {
+        prepare_walk(world);
+        put_member(world, 29, 22);
     }
+}
+
+/// `Instances`' reveal class replaced by `RevealDouble`.
+fn reveal_double(world: World) {
+    let double = *declare("RevealDouble").unwrap().contract_class().class_hash;
+    let hosts = *declare("HostsLibrary").unwrap().contract_class().class_hash;
+    let traps = *declare("TrapLibrary").unwrap().contract_class().class_hash;
+    start_cheat_caller_address(world.instances, addr(ADMIN));
+    grimworld_ephemeral::systems::instances::IInstancesAdminDispatcherTrait::set_contracts(
+        grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
+            contract_address: world.instances,
+        },
+        world.hub,
+        world.registry,
+        world.fate,
+        double,
+        hosts,
+        traps,
+    );
 }
 
 fn prepare_reveal(world: World) {
@@ -2075,4 +2168,89 @@ fn test_play_unloadable_goblin_refused() {
         .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
     let (played, stop, sequence, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 2 && sequence == 0, 'refused, nothing run');
+}
+
+// t-0110, major 1: a Move across a chunk border and back. From chunk 16's last column, (29, 22),
+// one Move West into chunk 17 (the area moves away from chunk 15, whose alerted pack leaves the
+// batch's world), then nine Moves East back through chunk 16 to (21, 22), where the window reaches
+// chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
+#[test]
+fn test_play_batch_equals_singles_round_trip() {
+    let mut moves = array![grimworld_logic::actions::Action::Move(3)];
+    let mut k: u8 = 0;
+    while k < 9 {
+        moves.append(grimworld_logic::actions::Action::Move(0));
+        k += 1;
+    }
+    let (words_one, words_two, events_one, events_two) = twin(
+        2, 1, moves.span(), array![15, 16, 17].span(),
+    );
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+// t-0110, minor 2: the reveal twin that discriminates. The reveal double opens every chunk and puts
+// an alerted pack at chunk 1's edge; the walk West from chunk 0's (7, 7) reveals chunk 1 at
+// (9, 7), and the pack's goblins, in the window from there, act: a goblin of chunk 1 has a record.
+#[test]
+fn test_play_batch_equals_singles_reveal_acts() {
+    let moves = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+    ];
+    let (words_one, words_two, events_one, events_two) = twin(
+        3, INTO_PACK_ZONE, moves.span(), array![0, 1].span(),
+    );
+    // Chunk 1's goblin records follow chunk 0's 22 felts and chunk 1's two words (3 + 22 + 2)
+    let mut acted = false;
+    let mut k: u32 = 0;
+    while k < 6 {
+        if *words_one[3 + 22 + 2 + k] != 0 {
+            acted = true;
+        }
+        k += 1;
+    }
+    assert(acted, 'a goblin of chunk 1 acted');
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+fn prepare_ghost_far(world: World) {
+    prepare_ghost(world);
+    put_member(world, 30, 22);
+}
+
+// t-0110, note 3: a goblin the registry cannot load arriving mid-batch (chunk 15's pack names caste
+// 99): the batch stops `Invalid` after the Move into chunk 16, whose tick has run.
+#[test]
+fn test_play_unloadable_arrival_runs_the_ticks() {
+    let world = setup();
+    play_classes(world);
+    pack_content(world);
+    let id = create(world, 7, 'alice', 1, 0);
+    prepare_ghost_far(world);
+    let mut spy = spy_events();
+    let moves = array![
+        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+    ];
+    play(world, 'alice').play(id, 7, 0, 0, batch(moves.span()));
+    let (played, stop, sequence, clock) = batch_played(ref spy, world);
+    assert(played == 1 && stop == 2, 'one move, then refused');
+    assert(sequence == 1 && clock == 1, 'its tick has run');
+}
+
+// t-0109, note 6: a play class's key past `SEGMENT` is refused.
+#[test]
+#[should_panic(expected: ('play class: no such key',))]
+fn test_set_play_class_key_refused() {
+    let world = setup();
+    start_cheat_caller_address(world.instances, addr(ADMIN));
+    grimworld_ephemeral::systems::instances::IInstancesAdminDispatcherTrait::set_play_class(
+        grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
+            contract_address: world.instances,
+        },
+        6,
+        *declare("TickLibrary").unwrap().contract_class().class_hash,
+    );
 }
