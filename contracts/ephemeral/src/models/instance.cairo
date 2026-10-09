@@ -3,8 +3,7 @@
 //! carries `LIVE` (bit 250), so that a slot reused by the next instance is never 0.
 
 use grimworld_logic::packing::{
-    N16, N32, N8, P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, byte_at, join, low_field,
-    peel, split, u16_at, u32_at,
+    N16, N32, N8, P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, join, peel, split,
 };
 use grimworld_logic::types::Refusal;
 use grimworld_logic::types::reveal::Progress;
@@ -352,7 +351,7 @@ mod tests {
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
     #[test]
-    #[available_gas(l2_gas: 458157)] // ceil(1.05 × 436340 measured)
+    #[available_gas(l2_gas: 436401)] // ceil(1.05 × 415620 measured)
     fn test_placement_and_header_layout() {
         let placement = Placement {
             slot: 0xFFFFFFFF, generation: 0xFFFFFFFF, member: 7, inside: 1,

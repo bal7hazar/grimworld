@@ -459,7 +459,7 @@ fn prepare_drop(world: World) {
 // adrenaline decays once, as in the single batches: a goblin awake at the last tick and outside
 // the window since does not take the fast path's ticks awake (`SegmentTrait::idle`).
 #[test]
-#[available_gas(l2_gas: 238463980)] // ceil(1.05 × 227108552 measured)
+#[available_gas(l2_gas: 237366667)] // ceil(1.05 × 226063492 measured)
 fn test_play_changed_goblin_dropped() {
     let mut actions = array![];
     let mut k: u8 = 0;

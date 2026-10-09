@@ -95,8 +95,7 @@ use grimworld_logic::actions::decode_batch;
 use grimworld_logic::content::{CASTE, ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
 use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
-    IRegistryReadDispatcherTrait, IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher,
-    ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher,
+    IRegistryReadDispatcherTrait, ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher,
 };
 use grimworld_logic::models::chunk::{
     Features, FeaturesStorePacking, PackPlacementTrait, Terrain, TerrainStorePacking,
@@ -108,9 +107,8 @@ use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackRecord, PackTrait};
 use grimworld_logic::packing::{Bitmap, LIVE, Lanes16};
 use grimworld_logic::types::play::{Area, Classes};
+use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
-use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
-use grimworld_logic::types::reveal::{ProgressTrait, SightTrait};
 use grimworld_logic::types::tick::{
     CasteSheet, CasteSheetTrait, Content, PotionSheet, PotionSheetTrait, SkillSheet,
     SkillSheetTrait, ai,
@@ -122,7 +120,6 @@ use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
 use crate::helpers::stored::StoredTrait;
 use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
-use crate::models::member::MemberState;
 use crate::store::InstancesStoreTrait;
 use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
 use crate::systems::instances::play_class;
@@ -1378,4 +1375,3 @@ pub impl PlayImpl of PlayTrait {
     }
 }
 use grimworld_logic::actions::Action;
-use grimworld_logic::types::Outcome;

@@ -1671,7 +1671,7 @@ pub mod tests {
     // and with the hosts of the quotas with nothing left zeroed. The two give the same chunks and
     // the same progress; over 6 entropies, some quota is spent before the second part.
     #[test]
-    #[available_gas(l2_gas: 1000000000)]
+    #[available_gas(l2_gas: 219777297)] // ceil(1.05 × 209311711 measured)
     fn test_spent_quota_hosts_unread() {
         let quotas = QuotaSet {
             quotas: [
@@ -1697,8 +1697,8 @@ pub mod tests {
             // The hosts as `PlayLibrary` reads them now: those of the quotas still owed
             let mut owed: Array<felt252> = array![];
             let mut i: u32 = 0;
-            for left in progress.left.span() {
-                if *left > 0 {
+            while i != hosts.len() {
+                if *progress.left.span()[i] > 0 {
                     owed.append(*hosts[i]);
                 } else {
                     owed.append(0);

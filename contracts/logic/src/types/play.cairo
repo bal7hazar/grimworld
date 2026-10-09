@@ -61,7 +61,7 @@ use crate::types::effect::kind;
 use crate::types::executor::{Board, BoardTrait, Delegate, Levered, Levers, ORIGIN};
 use crate::types::reveal::SightTrait;
 use crate::types::reveal::board::BoardTrait as Bitmap;
-use crate::types::tick::{ABSENT_LANE, NO_SLOT, Sheets, ai, flag};
+use crate::types::tick::{ABSENT_LANE, Sheets, ai, flag};
 use crate::types::trap::TrapTrait;
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowAssert, WindowTrait};
 use crate::types::world::{TickTrait, Words, World, WorldStoreTrait, WorldTrait};
@@ -902,7 +902,7 @@ mod tests {
     /// weight, moved the member before the stop. No goblin: every tick on the fast path, no class
     /// called.
     #[test]
-    #[available_gas(l2_gas: 111604550)] // ceil(1.05 × 106290047 measured)
+    #[available_gas(l2_gas: 111111543)] // ceil(1.05 × 105820517 measured)
     fn test_segment_slow_move_heavy() {
         let mut member = Fixture::member(Fixture::spec());
         member.words.state += 20 * two(32) + 22 * two(40);

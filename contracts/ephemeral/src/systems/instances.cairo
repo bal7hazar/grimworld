@@ -237,28 +237,24 @@ pub trait IInstancesAdmin<T> {
 
 #[starknet::contract]
 pub mod Instances {
-    use grimworld_logic::content::{
-        GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, exists,
-    };
-    use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
+    use grimworld_logic::content::{GATE, LOCATION, OUTLINE, exists};
+    use grimworld_logic::fate::{ENTRY, derive, domain};
     use grimworld_logic::interface::{
         IFateDispatcher, IFateDispatcherTrait, IHostsLibraryDispatcherTrait,
         IHostsLibraryLibraryDispatcher, IInstanceEntry, IRegistryReadDispatcher,
-        IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait,
-        IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher, Results, facts,
+        IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait, Results, facts,
     };
     use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
-    use grimworld_logic::models::pack::{Pack, PackRecord};
-    use grimworld_logic::models::quotas::{QuotaSet, QuotaSetRecord, kind as quota_kind};
-    use grimworld_logic::models::set_piece::{SetPiece, SetPieceRecord};
-    use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
+    use grimworld_logic::models::pack::PackRecord;
+    use grimworld_logic::models::quotas::QuotaSetRecord;
+    use grimworld_logic::models::set_piece::SetPieceRecord;
+    use grimworld_logic::models::spawn_table::SpawnTableRecord;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
+    use grimworld_logic::types::reveal::SightTrait;
     use grimworld_logic::types::reveal::board::BoardTrait;
-    use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
-    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
     use grimworld_logic::types::{
         ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
     };
@@ -1104,7 +1100,7 @@ mod close_tests {
 
     #[test]
     // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-    #[available_gas(l2_gas: 5273100)] // ceil(1.05 × 5022000 measured)
+    #[available_gas(l2_gas: 5229588)] // ceil(1.05 × 4980560 measured)
     fn test_close_on_defeat() {
         let class = declare("ReportSink").unwrap().contract_class();
         let (hub, _) = class.deploy(@array![]).unwrap();

@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     // gas: raised, CBT-01: design/19 section 7.2's fields in the words
-    #[available_gas(l2_gas: 575526)] // ceil(1.05 × 548120 measured)
+    #[available_gas(l2_gas: 553770)] // ceil(1.05 × 527400 measured)
     fn test_member_layout() {
         let state = MemberState {
             adventurer: 0xFFFFFFFF,

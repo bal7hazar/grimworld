@@ -1723,7 +1723,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 24622962)] // ceil(1.05 × 23450440 measured)
     fn test_idle_equals_run_with_idle() {
         let sheets = Fixture::sheets();
         for case in 0..2_u8 {
