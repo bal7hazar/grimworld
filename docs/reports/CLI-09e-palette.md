@@ -556,3 +556,35 @@ validates with no error with the converter's checks included.
 - The *North* run zig-zags (a column on the screen): it is not an axial hex line. The *West* run is.
   The pack's art runs North-South, so a *West* bridge shows the vertical sprite side by side.
 - No phone, no GPU: software GL only. Captures with the art stay in the thread's library (D-73).
+
+## 20. CLI-09h: a building's footprint, painted hex by hex
+
+The project manager's decision (2026-10-07): the author may paint a pack building's footprint, from
+the kind's default. Before, the inspector offered only "As the file gives it" and "Drawn from its
+kind".
+
+- **The tool.** `F` (or the Footprint button) arms it with one pack building selected; with none it
+  says so and arms nothing. A press on a hex of the footprint removes hexes for the whole drag; a
+  press anywhere else adds them (right click always removes). Each stroke is one undo step.
+  `F` is not a tool letter in the keys table (`F` is the game's cycle key): it is its own command.
+- **The data.** The first stroke turns the building's `footprint` (offsets from the anchor, as a
+  file's export gives it) from "drawn from its kind" to the painted hexes, in reading order, so the
+  same hexes are the same file. "Drawn from its kind" in the inspector throws the painting away.
+  The file and the export write it as before (`footprint` offsets, ENG-08's `footprint` record).
+- **The door.** Its hex cannot be removed ("move the door first"), and a hex that would leave the
+  door off the border is refused. The checks are the existing ones: E-16 (one piece, painted, in
+  the chunk set, apart from the others) and E-20 (the door on the border, walkable).
+- **Bridges, deck along one line** (the review of CLI-09f): `bridges.test.ts` walks the line in all
+  six directions from even and odd rows and from negative coordinates, and checks every run
+  (North, West, each mirrored) at every deck length from 1 to 5: one chain of neighbours on the
+  run's own sides, the sprite's copies on the line two hexes apart, the span to the far bank.
+- **Dimmed objects.** `editorView` sent `sight` as the window's painted tiles, so a pack object on
+  an unpainted hex or beyond the window was drawn dimmed. Every placed object's hex is now in
+  `sight` (the objects layer on); `render/**` is unchanged.
+
+Not checked: a footprint of hundreds of hexes (no measure; a stroke records one change a hex), and a
+footprint painted on a zone's chunk border beyond the outline (E-16 names it; no capture).
+
+`verify-editor.mjs` (pack phase, both looks, on the VPS, headless): `F`, a click and a drag paint,
+each one undo step, the door refused, save, reload, the footprint back. Its idle-loop frame-rate
+checks are load-bound (8.1 and 9.7 frames/s at a load average of 11 to 19 against a floor of 10).

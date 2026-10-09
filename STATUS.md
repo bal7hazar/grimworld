@@ -4,6 +4,10 @@
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
+## 2026-10-09: ENG-07t, for track CV
+
+**`movement.jsonl` gains 13 `flood` rows** ([#394](https://github.com/bal7hazar/grimworld/pull/394), ids 78 to 90; the `awake` rows move to ids 91 to 93): `flood` is 23 rows. They kill the four known survivors of the mirror's mutation check (the flood one layer past its cap, a walker on the last layer at the cap, the step tie on the highest index, the flood walking the ring), so the PR removes their `survives` marks in `client/sim/src/parity/mutants.test.ts` and sets the `flood` count in `parity.test.ts` (client/sim only, decided by the orchestrator under D-149). No Cairo rule changed.
+
 ## 2026-10-07: ENG-05 merged
 
 **Merged**: **ENG-05**, the chunk reveal engine ([#348](https://github.com/bal7hazar/grimworld/pull/348), `9ffd4ff`, 2026-10-07), with D-208 (a zone's quota hosts drawn once at entry, order-free), D-209 (`RevealLibrary` 50.18 % and `Instances` 50.35 %, under their exceptions until ENG-05b), D-210 (`HostsLibrary`, 8.03 %) and D-220 (the complement draw; the worst legal plan 98,153,254). Review t-0081 and randomness re-audit t-0082: PASS WITH FINDINGS. The D-144 ceilings of `enter` and `leave` are in ENG-01 §10.

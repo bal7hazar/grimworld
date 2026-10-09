@@ -95,24 +95,18 @@ const MUTANTS: readonly Mutant[] = [
     file: "movement.ts",
     from: "for (let count = depth - 1; ; count--) {",
     to: "for (let count = depth; ; count--) {",
-    survives:
-      "no flood walker stands at path distance 15 or 16 from the source (the corridor's walkers are at 12 to 13, or beyond the cap)",
   },
   {
     name: "a walker on the last layer at the cap gets a step (D-25)",
     file: "movement.ts",
     from: "if (k === flood.layers.length - 1 && capped(flood) && !source(flood, position)) return undefined;",
     to: "",
-    survives:
-      "no flood walker touches only the last layer at the cap (one at distance 16: step 255, distance 16)",
   },
   {
     name: "the flood's step takes the highest index on a tie",
     file: "movement.ts",
     from: "return tiles(set & -set)[0]!;",
     to: "return tiles(set).at(-1)!;",
-    survives:
-      "no flood walker has two neighbours in its least layer (the corridor leaves one candidate each)",
   },
   {
     name: "the flood's distance is the neighbours' layer, not plus one",
@@ -125,7 +119,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "movement.ts",
     from: "let free = grid & INTERIOR & ~obstacles & ~bit(from);",
     to: "let free = grid & ~obstacles & ~bit(from);",
-    survives: "the flood's grid has no open tile on the window's ring",
   },
   {
     name: "the awake set's ties by the highest entity",

@@ -56,6 +56,8 @@ North-West, West, South-West, South-East), 255 none.
 | `flood` | the walkable grid, the flood's source, a walker | the walker's step toward the source and its distance, 255 when beyond the 15 layers (it holds, D-127) |
 | `awake` | each goblin's distance (entity `8 + k`; the fourth asleep) | the awake set's entities: the 8 nearest, ties by the lowest id |
 
+The `flood` rows after the corridor's ten: a walker at distance 15 steps and one at 16 holds (255, 16: the cap is 15 layers); a walker touching only the last layer (two tiles of it) holds; a walker with two candidate steps in its least layer takes the lowest tile index; an open tile on the window's ring is never in a layer (the pocket reached only through the ring is not reached, 255, 255).
+
 ## `hit.jsonl`: one hit (CBT-03a)
 
 Printed by `types::hit::tests::test_vectors`, with its digest. One line: `{"id", "case", "ok"}`.

@@ -683,8 +683,53 @@ mod tests {
         WIDTH * y + x
     }
 
+    /// The bitmap of the window tiles `(x, y)`.
+    fn bitmap(list: Array<(u8, u8)>) -> felt252 {
+        let mut grid: felt252 = 0;
+        for (x, y) in list {
+            grid += two(at(x, y).into());
+        }
+        grid
+    }
+
+    /// Every interior tile of the window open.
+    fn room() -> Array<(u8, u8)> {
+        let mut list = array![];
+        for y in 1..15_u8 {
+            for x in 1..14_u8 {
+                list.append((x, y));
+            }
+        }
+        list
+    }
+
+    /// One `flood` row a walker: the flood of `grid` from `source` capped at 15 layers.
+    fn flood_rows(
+        ref digest: Array<felt252>, ref id: u32, grid: felt252, source: u8, walkers: Span<u8>,
+    ) {
+        let flood = Bfs::flood(grid, WIDTH, HEIGHT, source, 0, 15);
+        for walker in walkers {
+            let step = match flood.next_step(*walker, 0) {
+                Some(step) => step,
+                None => 255,
+            };
+            let distance = match flood.distance(*walker) {
+                Some(d) => d,
+                None => 255,
+            };
+            emit(
+                ref digest,
+                ref id,
+                "flood",
+                array![grid, source.into(), (*walker).into()].span(),
+                array![step.into(), distance.into()].span(),
+            );
+        }
+    }
+
     #[test]
-    #[available_gas(l2_gas: 250163831)] // ceil(1.05 × 238251267 measured)
+    // gas: raised, ENG-07t: 13 more flood rows (the cap, the last layer, a tie, the ring)
+    #[available_gas(l2_gas: 299063390)] // ceil(1.05 × 284822276 measured)
     fn test_vectors() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
@@ -781,6 +826,41 @@ mod tests {
                 array![step.into(), distance.into()].span(),
             );
         }
+        // `flood`, the rest of ENG-07t: the cap, the last layer, a step tie, the ring.
+        // - at the cap (15 layers): the walker at distance 15 steps, the one at 16 touches only the
+        //   last layer and does not (255, 16);
+        // - a walker touching two tiles of the last layer, none below it, is not reached either;
+        // - a walker with two candidate steps in its least layer takes the lowest index;
+        // - an open tile of the window's ring is never in a layer: the pocket reached only through
+        //   the ring is not reached.
+        let corridor_end = bitmap(
+            array![
+                (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1), (10, 1),
+                (11, 1), (12, 1), (13, 1), (13, 2), (10, 3), (11, 3), (12, 3), (13, 3), (11, 4),
+            ],
+        );
+        let open_room = bitmap(room());
+        let ring = bitmap(
+            array![(0, 3), (1, 3), (2, 3), (0, 4), (0, 5), (1, 5), (2, 5), (14, 8), (13, 8)],
+        );
+        flood_rows(ref digest, ref id, grid, at(1, 1), array![at(10, 3), at(9, 3)].span());
+        flood_rows(
+            ref digest,
+            ref id,
+            corridor_end,
+            at(1, 1),
+            array![at(10, 3), at(10, 4), at(11, 4)].span(),
+        );
+        flood_rows(
+            ref digest, ref id, open_room, at(7, 7), array![at(9, 8), at(9, 9), at(5, 6)].span(),
+        );
+        flood_rows(
+            ref digest,
+            ref id,
+            ring,
+            at(1, 3),
+            array![at(2, 3), at(0, 3), at(1, 5), at(0, 4), at(14, 8)].span(),
+        );
         // `awake`: the set among goblins of distances `d` (entity `8 + k`), the 8 nearest, ties by
         // the lowest entity id, the asleep ones left out
         let sets: Array<Span<u16>> = array![
@@ -868,5 +948,5 @@ mod tests {
     }
 
     const DIGEST: felt252 =
-        3117980972003614113560658449658137295789433015643442081065819456923190264495;
+        927113589772750725131747890767271916714351212897433227864916371620935306790;
 }
