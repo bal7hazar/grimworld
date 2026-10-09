@@ -19,9 +19,64 @@
 | Q3 | **`ground` carried across the batch's ticks**, with A6's regression test | the orchestrator |
 | Q5 (**D-225**, the project manager) | **E-12's reveal weight measured end to end** by this lot, **set to 3 if the figures say so**, the figures stated in the report | the figures |
 | Q6 | **Interact in `play` refused as illegal** until its entrypoints (`open`, `mine`, `barter`) exist | the lot that builds them |
-| Q7 (**D-225**, the project manager) | **One level and the walkable plane** until ENG-08b merges | ENG-08b's rules |
+| Q7 (**D-225**; **D-227**, the owner) | **One level and the walkable plane.** Bridges have one level (D-227, ADR-0008, merged in #383): a deck is walkable ground over water, and nothing in ENG-07 changes for bridges beyond walkability | the owner |
 
 Q4 stays this lot's (D-172).
+
+## Decided after the size probe (D-233, the project manager, 2026-10-07)
+The probe (the thread's report: `AiLibrary` 78.96 %, `TickLibrary` 99.33 % with the hooks alone, the
+call 4,559,107 a tick, a melee tick of 8 step-2 attacks ≈ 42.1 M) stopped the lot at Q1's, Q2's and
+D-207's gates. Ruled:
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **`AiLibrary` at most 80 % (65,536 felts)**, all of step 2 inside it, the sequential state exact. **CBT-05b's action phase moves to a new `ActionLibrary`, called only for a combat action** (Attack, Skill, Item); Move, Turn, Wait and the Interact refusal run in process in `TickLibrary`'s segment. `ActionLibrary`'s exception is provisional at 65 % (53,248): measured, the project manager fixes its cap at the measure + 5 %. The call a combat action (2,578,020–3,323,680) is accepted under D-144. `class_sizes.py`: `AiLibrary` 80, `ActionLibrary` 65 for now. **`TickLibrary` stays at most 88 %**: past it, stop | the project manager |
+| 2 | `AiLibrary`'s call a tick accepted at **4,559,107**, none on a tick where no goblin is free to act | the project manager |
+| 3 | **`Instances`: no exception.** The window's goblins derived from the pack placements (part of `play`) move into the segment's class; `Instances` stays under 50 %. If it cannot, stop and report | the project manager |
+| 4 | **D-207 and R-2.** Before E-12's weight is fixed, measured and reported: (a) the representative fight on this placement, end to end: the batch total and how many ticks a batch hit the worst case; (b) the member's activation landing in the same tick as 8 goblin attacks; (c) CBT-05d's levers (fewer goblins attacking a tick, a cheaper goblin carrier), with their figures. **A batch above 369 M: stop and report** (the project manager takes it to the owner) | the owner (R-2) |
+| 5 | **`Board`'s origin held plus 15** (escalation 3, the orchestrator): a window near a West or South edge is not clamped (D-134). If `ExecutorLibrary` would pass 80,420, stop and report | the orchestrator |
+
+The other gates are unchanged: D-144 on the node (six runs, the maximum + 5 %), scoped tests, the gas
+files regenerated, one push.
+
+**Amended by D-234 (the project manager, 2026-10-07)**, after the thin `play` probe measured `Instances`
+at 52.91 % (43,345 felts) before any content, goblin or reveal:
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **`play`'s body in a library class of the ephemeral package, `PlayLibrary`**, called by `library_call` from `Instances`' context: the storage layout and the events unchanged; `Instances.play` keeps its admission checks and one call; no `Instances` exception. `PlayLibrary` stays under 50 %: above, stop and report. Its call, once a batch, is measured and goes in the D-144 rows with the batch total | the project manager |
+| 2 | **`ActionLibrary` capped at 57,476 felts (70.16 %)**, its measure (54,739) + 5 %. `TickLibrary` stays at most 88 %: if the 9,987 felts left do not hold the segment loop, the moves and the window, stop and report before any further move | the project manager |
+| 3 | **`Board`'s offset origin's cost accepted under D-144**: +23,100 to +43,200 L2 gas a goblin attack (`position` not inlined) | the project manager |
+
+**Amended by D-235 (the project manager, 2026-10-07)**, after the segment measured `TickLibrary` at
+82,133 felts (100.26 %) with 9,987 felts of room:
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **Option (b): the segment lives in `PlayLibrary`**, with a fast path: a tick with no living goblin in the window and nothing owed (no activation of the member) runs in `PlayLibrary` without a call; only a tick with a fight calls `TickLibrary`. **The old `run` entrypoint is removed** (read: `TickLibrary` keeps one entrypoint, `ticks`, which runs a fight's ticks with the chunk objects carried, Open question 3) | the project manager |
+| 2 | **`PlayLibrary` at most 80 %** (`class_sizes.py`); above, stop | the project manager |
+| 3 | **A test runs the fast path and the `TickLibrary` path on the same ticks** and compares their state and events: identical | the project manager |
+| 4 | **On the node, six runs + 5 %, each against the same batch on main's path**: an exploration batch end to end; a fight batch end to end, carrying D-233 #4's figures (the worst-case ticks a batch, the member's activation in the same tick as 8 goblin attacks, CBT-05d's levers with figures). **A fight batch above 369 M: stop and report before any further build** (the owner, R-2) | the owner |
+
+**Amended by D-236 (the project manager, 2026-10-07)**, after `PlayLibrary` with the segment measured
+99,917 felts (121.97 %) and `Instances` 42,112 (51.41 %):
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **The split**: `PlayLibrary` keeps the batch's storage reads and writes, at most 80 %; **the segment goes into `SegmentLibrary`, called once a batch** (once a segment when a reveal splits it), its cap its measure + 5 % if at most 90 % (73,728 felts), else stop and report where to cut it | the project manager |
+| 2 | **`Instances`: the admission moves into `PlayLibrary`, the classes are set without the five-argument setter** (one `set_play_class(key, class)`); both measured together; above 50 %: stop | the project manager |
+| 3 | The call a batch to `SegmentLibrary` goes in the D-144 rows with the batch totals | the project manager |
+| 4 | A figure for the project manager, not a gate: the full call chain of a fight tick (`Instances` → `PlayLibrary` → `SegmentLibrary` → `ActionLibrary`/`TickLibrary` → `AiLibrary` → `ExecutorLibrary`) and its fixed cost before any hit. `MAX_ATTACKERS` stays 8 | the project manager |
+
+**After review t-0109 (D-238, the project manager, 2026-10-09; the orchestrator's rulings):**
+
+| # | Ruling | Reversed by |
+|---|---|---|
+| 1 | **A batch is its actions sent as single batches**: between segments, whenever a reveal happens or the adventurer's chunk changes, the area moves to the 3 × 3 around its chunk, the goblins of its new chunks are read (one more `bundle` for the content they need) and merged by entity id; twin tests (one batch, single batches) for a walk that reveals a chunk and for 10 Moves from a chunk's first column (t-0109, major 1, minor 4) | the orchestrator |
+| 2 | A Turn refused for weight writes nothing (minor 2) | the orchestrator |
+| 3 | **D-238, the roster's 61st**: the roster lists the living goblins away from their spawn chunk; with 60 listed a goblin whose move would leave its spawn chunk does not leave it (the move becomes a Wait), in a batch and in singles alike; goblins listed move freely; an entry freed (killed, or back home) lets the next one leave; no new `Stop` (ENG-01 E-2) | the project manager |
+| 4 | A goblin whose caste, caste skill or held effect's skill the registry cannot load refuses the batch with `Stop::Invalid` (note 5) | the orchestrator |
+| 5 | `set_play_class` asserts `key <= play_class::SEGMENT` (note 6) | the orchestrator |
 
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
@@ -108,8 +163,12 @@ lot adds to the expedition's path is measured and sent to the project manager (D
      host; **`get_hosts` is read only for a quota whose count is non-zero in the current generation**
      (a reused slot keeps the bitmaps of an earlier generation: reading them for a quota with no count
      would host a quota that does not exist) (PLAN's ENG-07 row, from #348's re-audit note 4 and
-     review note 2). In a dungeon the reveal **reads the outline fixed at entry** (ENG-10b: the three
-     `outline` felts into `Site`, the hosts as a zone's) and draws nothing. The reveal's weight in the
+     review note 2). ENG-10b's review and re-audit restate it: **the in-play reveal writes a 0 hosts
+     mask, or reads hosts only for the quotas whose mask this generation wrote**; a reused slot
+     otherwise keeps a stale bitmap. In a dungeon the reveal **reads the outline fixed at entry**
+     (ENG-10b: the three `outline` felts into `Site`, the hosts as a zone's) and draws nothing: **a
+     dungeon's in-play reveal reads the stored outline, and its layout reads only data fixed at create
+     (D-229)**. The reveal's weight in the
      batch is Open question 5.
   7. **The clock**: one per instance, moved by each tick; no action runs past `LAST_TICK` (ENG-01
      §4.1, E-4); the refusal tested at the bound.
@@ -132,7 +191,7 @@ lot adds to the expedition's path is measured and sent to the project manager (D
   12. **Documents**: ENG-01 §1.3 (the classes), §9.2 (the move, the window, the AI, the batch
       weight), §10 (`play`'s measured figures beside its targets); PLAN's ENG-07 row; STATUS (S1's
       running estimate, D-158); `GAS.md` and `docs/BUDGETS.md` regenerated.
-- Out: bridges and levels (ENG-08b, Open question 7); authored zones' reveal (ENG-09); `loot`,
+- Out: anything of bridges beyond a deck's walkability (one level, D-227; ADR-0008); authored zones' reveal (ENG-09); `loot`,
   `open`, `mine`, `barter` as entrypoints (Open question 6 for Interact); the bit-parallel placement
   (ENG-05b); shrinking `TickLibrary` and `TrapLibrary` (CBT-05g, after this lot); the cost-lowering
   design lot (CBT-05d, weighed on this lot's representative tick); B′ unless fights pay for it.
@@ -224,10 +283,11 @@ Anything else is an escalation in the report.
 7. **Bridges (D-217).** *Decider*: the project manager rules ENG-08b's design; until ENG-08b merges
    ENG-07 **assumes one level: movement, the flood, sight and the window read the walkable plane only,
    and a `BRIDGE` record is ignored** (as the converter's reachability P-1 does, PLAN's ENG-08b row: a
-   map whose only crossing is a bridge is refused). ENG-08b's rules then change movement (a deck
-   entered and left only by its ends); the report lists where they will plug in.
+   map whose only crossing is a bridge is refused).
    **Decided by the project manager, 2026-10-07 (D-225):** one level and the walkable plane until
-   ENG-08b merges.
+   ENG-08b merges. **Settled by the owner, 2026-10-07 (D-227):** bridges have one level (ADR-0008,
+   merged in #383): a deck is walkable ground over water, entered and left like any walkable tile.
+   Nothing in ENG-07 changes for bridges beyond walkability.
 
 ## D-144: the expedition-path figures it adds, and the ceilings in force
 Every rise of an expedition-path figure, whatever its size, goes to **the project manager before the

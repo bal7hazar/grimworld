@@ -7,6 +7,7 @@ use grimworld_logic::packing::{
     fits, join, low_field, split, u16_at,
 };
 use grimworld_logic::types::combat::activation;
+use crate::helpers::stored::Stored;
 use crate::models::member::DeadlinesTrait;
 
 /// Bit 118 of the high limb (bit 246 of the word): the effect's rank.
@@ -182,11 +183,13 @@ pub impl GoblinTimersAssert of GoblinTimersAssertTrait {
     }
 }
 
-/// The two consecutive slots of a goblin record.
-#[derive(Copy, Drop, Serde, starknet::Store)]
+/// The two consecutive slots of a goblin record, as typed slots (ENG-R1a's note 4; ENG-07: `play`
+/// reads and writes the words as the tick's library takes them, unpacked by no one here): the
+/// addresses and the layout of the models' (`layout_tests`).
+#[derive(Copy, Drop, starknet::Store)]
 pub struct Goblin {
-    pub state: GoblinState,
-    pub timers: GoblinTimers,
+    pub state: Stored<GoblinState>,
+    pub timers: Stored<GoblinTimers>,
 }
 
 /// The timers of a goblin's first record (fix loop 3, F-14): no activation (`act_slot` 255, target

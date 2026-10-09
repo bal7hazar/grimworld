@@ -14,6 +14,17 @@ use crate::models::instance::errors as instance_errors;
 pub const VERSION: felt252 = 'grimworld-instances-1';
 /// The revert of every entrypoint not written yet.
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
+
+/// The keys of `play_classes` (ENG-07).
+pub mod play_class {
+    pub const PLAY: u8 = 0;
+    pub const TICK: u8 = 1;
+    pub const AI: u8 = 2;
+    pub const ACTION: u8 = 3;
+    pub const EXECUTOR: u8 = 4;
+    /// `SegmentLibrary`: the batch's segments (D-236).
+    pub const SEGMENT: u8 = 5;
+}
 pub use errors::{NOT_ADMIN, ZERO_ADMIN};
 
 /// The refusals of `Instances`' administration (ADR-0007, *Access control*). The lifecycle's are
@@ -25,6 +36,8 @@ pub mod errors {
     pub const PAGE: felt252 = 'region: page above 16';
     /// `set_admin` to the zero address would leave the role to nobody.
     pub const ZERO_ADMIN: felt252 = 'admin is zero';
+    /// `set_play_class` with a key past `play_class::SEGMENT` (t-0109, note 6).
+    pub const PLAY_CLASS: felt252 = 'play class: no such key';
 }
 
 /// The checks of `Instances`' callers and of `create`'s inputs, before any write (those of a gate
@@ -214,6 +227,10 @@ pub trait IInstancesAdmin<T> {
         trap_library: ClassHash,
     );
     fn set_admin(ref self: T, admin: ContractAddress);
+    /// One of the classes `play` calls (ENG-07, D-233 to D-236), by its key (`play_class`):
+    /// `PlayLibrary` (`play`'s body, by `library_call`), `TickLibrary`, `AiLibrary`,
+    /// `ActionLibrary`, `ExecutorLibrary`, `SegmentLibrary`.
+    fn set_play_class(ref self: T, key: u8, class: ClassHash);
     /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
@@ -261,7 +278,10 @@ pub mod Instances {
     };
     use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
     use crate::store::InstancesStoreTrait;
-    use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors};
+    use crate::systems::play::{IPlayLibraryDispatcherTrait, IPlayLibraryLibraryDispatcher};
+    use super::{
+        InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors, play_class,
+    };
 
     /// Tasks whose quotas a reveal places (ENG-01 §3.2: the location's 6, then 8).
     const TASK_QUOTAS: u32 = 8;
@@ -316,6 +336,9 @@ pub mod Instances {
         /// ADR-0006 §3, *A dungeon floor's outline, fixed at entry*): 0 its chunks, 1 its open
         /// West seams, 2 its open North seams (`Outline`); never read in a zone.
         pub outline: Map<(u32, u8), felt252>,
+        /// The classes `play` calls (ENG-07, D-233 to D-235): `PLAY` (`PlayLibrary`, called by
+        /// `library_call` with `play`'s body), `TICK`, `AI`, `ACTION`, `EXECUTOR` (`play_classes`).
+        pub play_classes: Map<u8, ClassHash>,
     }
 
     #[event]
@@ -354,7 +377,10 @@ pub mod Instances {
             version: u32,
             actions: felt252,
         ) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            // The body, the admission first, is `PlayLibrary`'s, in this contract's context
+            // (D-234, D-236).
+            IPlayLibraryLibraryDispatcher { class_hash: self.get_play_class(play_class::PLAY) }
+                .play(instance_id, adventurer_id, sequence, version, actions);
         }
 
         fn loot(
@@ -717,6 +743,12 @@ pub mod Instances {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
             InstancesAssert::assert_admin_not_zero(admin);
             self.set_administrator(admin);
+        }
+
+        fn set_play_class(ref self: ContractState, key: u8, class: ClassHash) {
+            InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
+            assert(key <= play_class::SEGMENT, errors::PLAY_CLASS);
+            self.store_play_class(key, class);
         }
 
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {

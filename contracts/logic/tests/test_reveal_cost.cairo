@@ -141,7 +141,8 @@ fn test_cost_reveal_worst_ruin() {
 
 // The typical case's baseline: its known sides revealed, nothing more.
 #[test]
-#[available_gas(l2_gas: 4960036)] // ceil(1.05 × 4723843 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 4983606)] // ceil(1.05 × 4746291 measured)
 fn test_cost_reveal_typical_baseline() {
     let site = site(biome::FOREST, false);
     let _known = known(@site);

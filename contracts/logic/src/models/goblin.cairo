@@ -20,6 +20,7 @@ use crate::types::tick::{
 pub use super::index::{Goblin, GoblinWords};
 
 const F8: felt252 = 0x100;
+const F16: felt252 = 0x10000;
 const F24: felt252 = 0x1000000;
 const F28: felt252 = 0x10000000;
 const F32: felt252 = 0x100000000;
@@ -306,6 +307,15 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
         let y = peel(ref rest, N8);
         let facing = peel(ref rest, N8);
         (x.try_into().unwrap(), y.try_into().unwrap(), facing.try_into().unwrap())
+    }
+
+    /// Moves it to the location's tile `(x, y)`, facing `facing` (`GoblinState` 0–23; ENG-07's
+    /// moves).
+    fn set_place(ref self: Goblin, x: u8, y: u8, facing: u8) {
+        let (ox, oy, old_facing) = Self::at(self.state);
+        let old: felt252 = ox.into() + oy.into() * F8 + old_facing.into() * F16;
+        let new: felt252 = x.into() + y.into() * F8 + facing.into() * F16;
+        self.state += new - old;
     }
 
     /// Its level (`GoblinState` 80–87, the pack's).
@@ -609,8 +619,8 @@ mod tests {
     // member's kit lengthens its own condition and the knock-down (Bleeding 20 +33 %: 26 ticks,
     // D = 35; Knocked down 2 + 1: D = 12); no passive, the value itself.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 1386725)] // ceil(1.05 × 1320690 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 1400165)] // ceil(1.05 × 1333490 measured)
     fn test_goblin_apply() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -633,8 +643,8 @@ mod tests {
     // a cure gives `t0 − 1`, an absent condition's cure nothing; a dead goblin takes nothing,
     // neither a condition nor a cure.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 1081626)] // ceil(1.05 × 1030120 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 1088346)] // ceil(1.05 × 1036520 measured)
     fn test_goblin_apply_refresh_cure() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -664,8 +674,8 @@ mod tests {
     // at clock 51 knocks the Hobgoblin down for 2 ticks, t0 = 52: D = 53, the field none, R =
     // 52 + 10 − 1 = 61. A recovering goblin knocked down keeps its recovery (not an activation).
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 1099172)] // ceil(1.05 × 1046830 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 1105892)] // ceil(1.05 × 1053230 measured)
     fn test_goblin_knockdown_interrupts() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -686,8 +696,8 @@ mod tests {
     // goblin acts at 54 alone: D and D + 1); through 53 a weapon hit on it is critical from any
     // arc and it neither blocks nor evades.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 6472696)] // ceil(1.05 × 6164472 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 6479416)] // ceil(1.05 × 6170872 measured)
     fn test_goblin_knocked_predicates() {
         let mut goblin = Fixture::goblin(40, HOB);
         goblin.knocked = 53;
@@ -734,7 +744,8 @@ mod tests {
     // goblin on every condition, at the values 1, 20, 0 and 40,000, with "Rending" and without,
     // activating, recovering, a condition held to be kept or raised, and dead.
     #[test]
-    #[available_gas(l2_gas: 22929008)] // ceil(1.05 × 21837150 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 22942448)] // ceil(1.05 × 21849950 measured)
     fn test_goblin_apply_matches_oracle() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -785,8 +796,8 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down goblin skips step 2).
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 803513)] // ceil(1.05 × 765250 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 810233)] // ceil(1.05 × 771650 measured)
     fn test_goblin_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -809,8 +820,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 778491)] // ceil(1.05 × 741420 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 785211)] // ceil(1.05 × 747820 measured)
     fn test_cost_goblin_condition_base() {
         let (goblin, _sheets) = condition_cost_state();
         opaque(goblin);
@@ -818,8 +829,8 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 779331)] // ceil(1.05 × 742220 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 786051)] // ceil(1.05 × 748620 measured)
     fn test_cost_goblin_source_base() {
         let (goblin, _sheets) = condition_cost_state();
         let _source: Infliction = opaque(Default::default());
@@ -828,8 +839,8 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; dead.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 779751)] // ceil(1.05 × 742620 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 786471)] // ceil(1.05 × 749020 measured)
     fn test_cost_goblin_idle_base() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.clear();
@@ -839,8 +850,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 779751)] // ceil(1.05 × 742620 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 786471)] // ceil(1.05 × 749020 measured)
     fn test_cost_goblin_dead_base() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.ai = opaque(ai::DEAD);
@@ -849,8 +860,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 825720)] // ceil(1.05 × 786400 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 832440)] // ceil(1.05 × 792800 measured)
     fn test_cost_goblin_knock() {
         let (mut goblin, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -859,8 +870,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 826140)] // ceil(1.05 × 786800 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 832860)] // ceil(1.05 × 793200 measured)
     fn test_cost_goblin_knock_idle() {
         let (mut goblin, sheets) = condition_cost_state();
         goblin.clear();
@@ -871,8 +882,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 808931)] // ceil(1.05 × 770410 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 815651)] // ceil(1.05 × 776810 measured)
     fn test_cost_goblin_apply_crippled() {
         let (mut goblin, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -881,8 +892,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 808931)] // ceil(1.05 × 770410 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 815651)] // ceil(1.05 × 776810 measured)
     fn test_cost_goblin_apply_bleeding() {
         let (mut goblin, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -891,8 +902,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 809351)] // ceil(1.05 × 770810 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 816071)] // ceil(1.05 × 777210 measured)
     fn test_cost_goblin_apply_dead() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.ai = opaque(ai::DEAD);
@@ -903,8 +914,8 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 856401)] // ceil(1.05 × 815620 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 863121)] // ceil(1.05 × 822020 measured)
     fn test_cost_goblin_oracle() {
         let (mut goblin, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -915,8 +926,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 810726)] // ceil(1.05 × 772120 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 817446)] // ceil(1.05 × 778520 measured)
     fn test_cost_goblin_cure() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.cure(opaque(condition::BLEEDING), opaque(52));
@@ -924,8 +935,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 788739)] // ceil(1.05 × 751180 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 795459)] // ceil(1.05 × 757580 measured)
     fn test_cost_goblin_predicates() {
         let (goblin, _sheets) = condition_cost_state();
         let t = opaque(52);
@@ -939,8 +950,8 @@ mod tests {
     // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank; its
     // caste's position and cap, its kit's.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 1087002)] // ceil(1.05 × 1035240 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 1087842)] // ceil(1.05 × 1036040 measured)
     fn test_goblin_load() {
         let caste = CasteSheet {
             id: 3,
@@ -977,8 +988,8 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 1368738)] // ceil(1.05 × 1303560 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 1375458)] // ceil(1.05 × 1309960 measured)
     fn test_goblin_load_store() {
         let content = Fixture::content();
         // Caste 2, level 10.
@@ -1003,8 +1014,8 @@ mod tests {
     // A caste skill missing from the content is refused when a goblin of the caste loads.
     #[test]
     #[should_panic(expected: 'tick: skill not in content')]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 463313)] // ceil(1.05 × 441250 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 463733)] // ceil(1.05 × 441650 measured)
     fn test_goblin_load_missing_skill() {
         let content = Content {
             skills: array![Fixture::skill(24, skill_kind::ATTACK, 3, 10)].span(),
@@ -1048,8 +1059,8 @@ mod tests {
 
     // AUD-182-6, a goblin's one slot (FX-30, FX-13): refreshed by its carrier, replaced by another.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 891576)] // ceil(1.05 × 849120 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 897036)] // ceil(1.05 × 854320 measured)
     fn test_goblin_hold() {
         let sheets = Fixture::hold_content().sheets();
         let mut goblin = Fixture::goblin(8, HOB);
@@ -1064,8 +1075,8 @@ mod tests {
     // AUD-182-6, adrenaline (§5.12, FX-12): a goblin's gains capped at its caste's, at most 252;
     // a dead goblin gains nothing.
     #[test]
-    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-    #[available_gas(l2_gas: 660146)] // ceil(1.05 × 628710 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 661826)] // ceil(1.05 × 630310 measured)
     fn test_goblin_adrenaline_gain() {
         let mut heavy = Fixture::skill(25, skill_kind::ATTACK, 0, 0);
         heavy.adrenaline = 63;

@@ -29,7 +29,7 @@ use crate::models::goblin::GoblinPlaceTrait;
 use crate::models::member::{MemberSnapshotTrait, MemberTrait, MemberWordsTrait};
 use crate::types::combat::{Placer, PlacerTrait};
 use crate::types::effect::{Entry, kind, shape};
-use crate::types::executor::{Board, BoardTrait, Body, Cache, ExecutorTrait, Levers};
+use crate::types::executor::{Board, BoardTrait, Body, Cache, ExecutorTrait, Levers, ORIGIN};
 use crate::types::infliction::Infliction;
 use crate::types::tick::{ABSENT_LANE, Sheets};
 use crate::types::window::{FAR, WindowTrait};
@@ -64,8 +64,16 @@ pub impl TrapImpl of TrapTrait {
         }
         // The window's 15 columns, the chunk's 15 tiles a side (`WIDTH`, `CHUNK_SIDE`).
         let (dy, dx) = DivRem::div_rem(position, 15);
+        // The location's tile: the board's origin is held plus `ORIGIN` (a negative origin near
+        // the West or South edge, D-134): a tile before the location's first is in none.
         let x: u16 = (*board.x).into() + dx.into();
         let y: u16 = (*board.y).into() + dy.into();
+        let origin: u16 = ORIGIN.into();
+        if x < origin || y < origin {
+            return None;
+        }
+        let x = x - origin;
+        let y = y - origin;
         let side: u16 = CHUNK_SIDE.into();
         let (cy, ly) = DivRem::div_rem(y, 15);
         let (cx, lx) = DivRem::div_rem(x, 15);
@@ -419,7 +427,8 @@ mod tests {
     // moves onto it: strength 3 × 20 = 60, rank 12; the hit 100 → 44, Crippled `D = 307`; the
     // object used.
     #[test]
-    #[available_gas(l2_gas: 12062102)] // ceil(1.05 × 11487716 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 13019107)] // ceil(1.05 × 12399149 measured)
     fn test_example_trap() {
         let sheets = sheets();
         let mut world = Fixture::world(
@@ -454,7 +463,8 @@ mod tests {
 
     // A placed trap never triggers on its own side: the member on its own trap.
     #[test]
-    #[available_gas(l2_gas: 9313227)] // ceil(1.05 × 8869740 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 9315201)] // ceil(1.05 × 8871620 measured)
     fn test_own_side() {
         let sheets = sheets();
         let mut world = Fixture::world(305, array![warden(@sheets)], array![]);
@@ -470,7 +480,7 @@ mod tests {
     // A terrain trap (kind 4, its `param` a `SKILL`) hits members only (FX-34), at its band's
     // lower level and rank 0 (the project manager, 2026-10-02): a goblin entering is not hit.
     #[test]
-    #[available_gas(l2_gas: 10635489)] // ceil(1.05 × 10129037 measured)
+    #[available_gas(l2_gas: 10625157)] // ceil(1.05 × 10119197 measured)
     fn test_terrain_trap() {
         let sheets = sheets();
         let mut world = Fixture::world(
@@ -507,7 +517,8 @@ mod tests {
     // `place` writes the object at the free index and leaves the others; an actor on the tile
     // refuses it (a dead goblin's remains do not).
     #[test]
-    #[available_gas(l2_gas: 16173820)] // ceil(1.05 × 15403638 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16209541)] // ceil(1.05 × 15437658 measured)
     fn test_place() {
         let sheets = sheets();
         let _ = sheets;
@@ -553,7 +564,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 10402694)] // ceil(1.05 × 9907327 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10404668)] // ceil(1.05 × 9909207 measured)
     fn test_cost_trigger() {
         let (mut world, sheets, mut ground) = trigger_state();
         assert(enter(ref world, @sheets, ref ground, Actor::Goblin(0), 0), 'triggered');
@@ -562,11 +574,12 @@ mod tests {
 
     // A window position's chunk and tile, the board's origin added; outside the window, none.
     #[test]
-    #[available_gas(l2_gas: 10910)] // ceil(1.05 × 10390 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12380)] // ceil(1.05 × 11790 measured)
     fn test_locate() {
         let board = board();
         assert(TrapTrait::locate(@board, SPOT) == Some((0, 142)), 'chunk 0');
-        let moved = crate::types::executor::Board { x: 10, y: 14, ..board };
+        let moved = crate::types::executor::BoardTrait::new(board.window, 10, 14);
         // (7, 9) + (10, 14) = (17, 23): chunk 15 + 1 = 16, tile 15 × 8 + 2 = 122.
         assert(TrapTrait::locate(@moved, SPOT) == Some((16, 122)), 'chunk 16');
         assert(TrapTrait::locate(@board, 240) == None, 'outside');

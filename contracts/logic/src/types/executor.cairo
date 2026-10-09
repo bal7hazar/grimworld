@@ -42,7 +42,10 @@ use core::dict::{Felt252Dict, Felt252DictTrait};
 use hexx::board::bits::Bits;
 use starknet::ClassHash;
 use crate::durations::effective_duration;
-use crate::interface::{IExecutorLibraryDispatcherTrait, IExecutorLibraryLibraryDispatcher};
+use crate::interface::{
+    IAiLibraryDispatcherTrait, IAiLibraryLibraryDispatcher, IExecutorLibraryDispatcherTrait,
+    IExecutorLibraryLibraryDispatcher,
+};
 use crate::models::goblin::{
     Goblin, GoblinConditionTrait, GoblinLifecycleTrait, GoblinPlaceTrait, GoblinTrait,
     GoblinWordsTrait,
@@ -52,7 +55,7 @@ use crate::models::member::{
     MemberWordsTrait,
 };
 use crate::types::action::Carry;
-use crate::types::combat::{Arc, HitClass, condition, skill_kind};
+use crate::types::combat::{Arc, HitClass, activation, condition, skill_kind};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
 use crate::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BLOCK};
 use crate::types::infliction::Infliction;
@@ -62,7 +65,7 @@ use crate::types::tick::{
 };
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, Window, WindowTrait, range};
-use crate::types::world::{Actor, Pending, Rules, Words, World, WorldTrait};
+use crate::types::world::{Actor, Pending, Rules, TickTrait, Words, World, WorldTrait};
 use crate::types::{FIRST_GOBLIN, MAX_CLOCK};
 
 /// A value's bounds at play (design/19 §6: a value outside its kind's bounds is clamped).
@@ -78,14 +81,23 @@ pub mod errors {
 }
 
 /// The board of a tick (ENG-07 assembles it, D-120): the window and the location's tile at its
-/// position 0. A tile `(x, y)` of the location is the window's position `15 (y − y0) + (x −
-/// x0)`, the location's axis orientation kept (ENG-02's note to ENG-07); outside it, `FAR`.
+/// position 0, `(x0, y0)`, each held plus `ORIGIN` so that a window near the location's West or
+/// South edge, whose origin is negative (down to −8), is not clamped (D-134; ENG-07, the
+/// orchestrator's ruling of escalation 3). A tile `(x, y)` of the location is the window's
+/// position `15 (y − y0) + (x − x0)`, the location's axis orientation kept (ENG-02's note to
+/// ENG-07); outside it, `FAR`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Board {
     pub window: Window,
+    /// `x0 + ORIGIN`.
     pub x: u8,
+    /// `y0 + ORIGIN`.
     pub y: u8,
 }
+
+/// What `Board` adds to its origin's coordinates: a chunk's side, so that every origin of a
+/// location's window (at least −8) is held in a `u8`.
+pub const ORIGIN: u8 = 15;
 
 /// A carrier the executor runs (§5.14's dispatch).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -294,13 +306,20 @@ pub impl NaiveLevers of Levers<Naive> {
 
 #[generate_trait]
 pub impl BoardImpl of BoardTrait {
+    /// The board of `window` whose position 0 is the location's tile `(x, y)` (a non-negative
+    /// origin; a negative one is written into `Board`'s fields as `x0 + ORIGIN`).
     fn new(window: Window, x: u8, y: u8) -> Board {
-        Board { window, x, y }
+        Board { window, x: x + ORIGIN, y: y + ORIGIN }
     }
 
-    /// The window's position of the location's tile `(x, y)`; `FAR` outside the window.
-    #[inline(always)]
+    /// The window's position of the location's tile `(x, y)`; `FAR` outside the window. Not
+    /// inlined (ENG-07): with `ORIGIN` added at every call site, inlined, `ExecutorLibrary`
+    /// measured 80,542 felts, above D-200's 80,420; a call measured +23,100 to +43,200 L2 gas a
+    /// carrier.
+    #[inline(never)]
     fn position(self: @Board, x: u8, y: u8) -> u8 {
+        let x = x + ORIGIN;
+        let y = y + ORIGIN;
         if x < *self.x || y < *self.y {
             return FAR;
         }
@@ -1133,8 +1152,10 @@ pub impl UnitBody of Body<Unit> {
     }
 }
 
-/// The rules of the tick's library class (ENG-01 §1.3): step 1's hook runs the executor on the
-/// activation that concluded; the others are ENG-07's (perception, the AI, the objectives). A
+/// The tick's rules in process (ENG-01 §1.3), `TickLibrary`'s `Delegate` without its calls: step
+/// 0's perception and awake set and step 2's acts as `Delegate` runs them (ENG-07; the executor and
+/// a trap's trigger in process), step 1's hook the executor on the activation that concluded; the
+/// objectives are ENG-07's. A
 /// `TRAP` carrier whose guard held is recorded in `placed` (the address, the source), for the
 /// placement (§5.11, CBT-05b).
 #[derive(Drop)]
@@ -1147,7 +1168,9 @@ pub struct Executor {
 }
 
 pub impl ExecutorRules of Rules<Executor> {
-    fn perceive(ref self: Executor, ref world: World) {}
+    fn perceive(ref self: Executor, ref world: World) {
+        TickTrait::perceive(ref world, @self.board);
+    }
 
     fn resolve(
         ref self: Executor, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
@@ -1162,6 +1185,10 @@ pub impl ExecutorRules of Rules<Executor> {
     }
 
     fn act(ref self: Executor, ref world: World, sheets: @Sheets, index: u32) {}
+
+    fn step(ref self: Executor, ref world: World, sheets: @Sheets, resolved: u128) -> Option<bool> {
+        Some(crate::types::ai::AiTrait::step(ref world, sheets, ref self, resolved))
+    }
 
     fn objectives(ref self: Executor, ref world: World) {}
 }
@@ -1224,10 +1251,25 @@ pub struct Delegate {
     pub placed: Array<(u16, Actor)>,
     /// The chunk objects a placement writes (CBT-05b, §5.11).
     pub ground: Ground,
+    /// The goblins' acts' class (`AiLibrary`, ENG-07 Open question 1), step 2's hook.
+    pub ai: ClassHash,
+    /// The traps' class (`TrapLibrary`, D-222), a move into a trap (§5.11), and the location
+    /// band's lower level, a terrain trap's source.
+    pub trap: ClassHash,
+    pub level: u8,
+    /// Inside `AiLibrary`: the window's tiles of the living goblins its world does not hold (a
+    /// bitmap of the window), which its moves and flood treat as occupied.
+    pub frozen: felt252,
+    /// Inside `AiLibrary`: the living goblins away from their spawn chunk its world does not hold
+    /// (D-238's roster count).
+    pub listed: u8,
 }
 
 pub impl DelegateRules of Rules<Delegate> {
-    fn perceive(ref self: Delegate, ref world: World) {}
+    /// Step 0: perception and the awake set in one pass (`TickTrait::perceive`, L4, ENG-07).
+    fn perceive(ref self: Delegate, ref world: World) {
+        TickTrait::perceive(ref world, @self.board);
+    }
 
     fn resolve(
         ref self: Delegate, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
@@ -1244,6 +1286,97 @@ pub impl DelegateRules of Rules<Delegate> {
     }
 
     fn act(ref self: Delegate, ref world: World, sheets: @Sheets, index: u32) {}
+
+    /// Step 2 in one call of `AiLibrary` (ENG-07 Open question 1, C), none on a tick where no
+    /// goblin of the awake set is free to act (D-225): every member and the awake set cross it,
+    /// with the records their loads need (lever (1)) and the other living goblins' tiles; the set
+    /// comes back in one rebuild, the members one by one.
+    fn step(ref self: Delegate, ref world: World, sheets: @Sheets, resolved: u128) -> Option<bool> {
+        let t = world.clock;
+        let woken = world.woken();
+        let mut free = false;
+        let mut bit: u128 = 1;
+        for index in woken {
+            let goblin = world.goblin(*index);
+            if goblin.act_slot == activation::NONE
+                && goblin.knocked < t
+                && goblin.is_alive()
+                && resolved & bit == 0 {
+                free = true;
+                break;
+            }
+            bit *= 2;
+        }
+        if !free {
+            return Some(false);
+        }
+        let mut members = array![];
+        let count = world.member_count();
+        let mut m = 0;
+        while m < count {
+            members.append(world.member(m).store());
+            m += 1;
+        }
+        let mut goblins = array![];
+        for index in woken {
+            goblins.append(world.goblin(*index).store());
+        }
+        let board = self.board;
+        let mut frozen: felt252 = 0;
+        let mut seen: u256 = 0;
+        let mut listed: u8 = 0;
+        for (i, state) in world.alive() {
+            if world.position(i).is_none() {
+                let (x, y, _) = GoblinPlaceTrait::at(state);
+                // D-238: a living goblin away from its spawn chunk holds a roster entry.
+                let spawn: u16 = (world.goblin(i).entity - FIRST_GOBLIN) / 16;
+                if spawn != ((y / 15) * 15 + x / 15).into() {
+                    listed += 1;
+                }
+                let at = board.position(x, y);
+                if at < FAR {
+                    let bit: u256 = Bits::pow(at).into();
+                    if seen & bit == 0 {
+                        seen += bit;
+                        frozen += Bits::pow(at);
+                    }
+                }
+            }
+        }
+        let words = Words { clock: t, members, goblins, killed: array![], defeated: false };
+        let content = ExecutorTrait::subcontent(@world, woken, @self.content);
+        let ground = self.ground;
+        let (out, ground) = IAiLibraryLibraryDispatcher { class_hash: self.ai }
+            .act(
+                words,
+                content,
+                board,
+                self.executor,
+                self.trap,
+                ground,
+                self.level,
+                frozen,
+                listed,
+                resolved,
+            );
+        self.ground = ground;
+        let mut m = 0;
+        for words in out.members {
+            world.set_member(m, MemberTrait::load(words, ref self.index, sheets));
+            m += 1;
+        }
+        let mut pending: Pending = array![];
+        let mut k = 0;
+        for words in out.goblins {
+            pending.append((k, GoblinTrait::load(words, ref self.index, sheets)));
+            k += 1;
+        }
+        world.flush(pending);
+        for entity in out.killed {
+            world.killed.append(entity);
+        }
+        Some(world.is_down())
+    }
 
     fn objectives(ref self: Delegate, ref world: World) {}
 }
@@ -2948,7 +3081,8 @@ pub mod tests {
     // 92,682 / 65,536⌋ = 113), in tile order: 57 (90 health) and 90 (100) die, `GoblinKilled` 57
     // then 90, Burning skipped on the dead; 24 goes 200 → 87 and burns to 44.
     #[test]
-    #[available_gas(l2_gas: 12274320)] // ceil(1.05 × 11689828 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12315102)] // ceil(1.05 × 11728668 measured)
     fn test_example_area_kills_two() {
         let sheets = sheets(40);
         let tiles = ring(AT);
@@ -2977,7 +3111,8 @@ pub mod tests {
     // against armor 70), then the knock-down (`D` 53) interrupts its smash (`A` 53): the field to
     // none, recharge 52 + 10 − 1 = 61. The adventurer +4 quarters, the Hobgoblin +1.
     #[test]
-    #[available_gas(l2_gas: 10959012)] // ceil(1.05 × 10437154 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10989074)] // ceil(1.05 × 10465784 measured)
     fn test_example_interrupt() {
         // R3: the Hobgoblin's cap is its caste's kit: its smash (24) costs 1 strike, 4 quarters.
         let base = content(70, array![].span());
@@ -3014,7 +3149,7 @@ pub mod tests {
     // evicts Warcry (deadlines 85 and 85: the lowest slot) into slot 1, `D` = 86, rank 12; Brace at
     // clock 82, a stance while one is held, takes slot 1.
     #[test]
-    #[available_gas(l2_gas: 11308133)] // ceil(1.05 × 10769650 measured)
+    #[available_gas(l2_gas: 11274491)] // ceil(1.05 × 10737610 measured)
     fn test_example_eviction_and_stance() {
         let content = content(40, array![].span());
         let sheets = content.sheets();
@@ -3044,7 +3179,8 @@ pub mod tests {
     // §10.6: a goblin's knock-down in step 2 of tick 201 interrupts the Arcanist's spell (`A`
     // 202): no effect, the recharge from `t₀` = 201.
     #[test]
-    #[available_gas(l2_gas: 10519157)] // ceil(1.05 × 10018244 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10550678)] // ceil(1.05 × 10048264 measured)
     fn test_example_fifth_cast_interrupted() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3068,7 +3204,8 @@ pub mod tests {
     // strength 60 = armor 60 (x = 0). In tile order A, the source, B: A 100 → 50; the source
     // heals 230 → 270, above half now; B is still hit, its guard read once: 100 → 50.
     #[test]
-    #[available_gas(l2_gas: 11484699)] // ceil(1.05 × 10937808 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11522079)] // ceil(1.05 × 10973408 measured)
     fn test_example_guard_crossing_half() {
         let sheets = sheets(60);
         let tiles = ring(AT);
@@ -3089,7 +3226,8 @@ pub mod tests {
     // §10.9 through the pipeline: a goblin's attack skill of activation 1 started at 50 (`A` 51)
     // resolves in step 1 of 51 through the executor's hook: its weapon hit lands on the member.
     #[test]
-    #[available_gas(l2_gas: 10783965)] // ceil(1.05 × 10270442 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11107323)] // ceil(1.05 × 10578402 measured)
     fn test_example_activated_attack_resolves() {
         let content = content(40, array![].span());
         let sheets = content.sheets();
@@ -3109,7 +3247,8 @@ pub mod tests {
     // →
     // 44; Crippled from 305 to 307. The placement first: the guard held, `Place`.
     #[test]
-    #[available_gas(l2_gas: 9979158)] // ceil(1.05 × 9503960 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10014018)] // ceil(1.05 × 9537160 measured)
     fn test_example_trap() {
         let sheets = sheets(40);
         let snare = at(@sheets, SNARE);
@@ -3154,7 +3293,7 @@ pub mod tests {
     // once, blocks goblin A's hit and is spent; goblin B's lands. The naive executor, reading it at
     // each hit, agrees.
     #[test]
-    #[available_gas(l2_gas: 22082508)] // ceil(1.05 × 21030960 measured)
+    #[available_gas(l2_gas: 22025976)] // ceil(1.05 × 20977120 measured)
     fn test_guard_two_hits() {
         let content = content(40, array![].span());
         let sheets = content.sheets();
@@ -3212,7 +3351,8 @@ pub mod tests {
     // A stopped hit stops the carrier on that actor (§5.5 step 2): Skullring blocked applies no
     // knock-down; the attack's adrenaline is not gained.
     #[test]
-    #[available_gas(l2_gas: 10786204)] // ceil(1.05 × 10272575 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10798206)] // ceil(1.05 × 10284005 measured)
     fn test_stopped_hit_stops_the_carrier() {
         let sheets = sheets(70);
         let front = *ring(AT)[0];
@@ -3240,7 +3380,8 @@ pub mod tests {
 
     // §5.9: a target dead or out of reach at resolution: nothing, `Illegal`.
     #[test]
-    #[available_gas(l2_gas: 9885303)] // ceil(1.05 × 9414574 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 9941268)] // ceil(1.05 × 9467874 measured)
     fn test_target_illegal_at_resolution() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3277,7 +3418,8 @@ pub mod tests {
 
     // A carrier with no actor (Cinder Ring alone): carrier-level effects only, nothing written.
     #[test]
-    #[available_gas(l2_gas: 9891178)] // ceil(1.05 × 9420169 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 9925156)] // ceil(1.05 × 9452529 measured)
     fn test_carrier_without_actor() {
         let sheets = sheets(40);
         let mut world = Fixture::world(
@@ -3295,7 +3437,8 @@ pub mod tests {
     // The instant kinds on the source (`HEAL` capped at max, `CURE`, `ENERGY` in thirds capped),
     // and never on a member at 0 (CBT-04's review): nothing cured or healed.
     #[test]
-    #[available_gas(l2_gas: 16150585)] // ceil(1.05 × 15381509 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16199053)] // ceil(1.05 × 15427669 measured)
     fn test_instant_kinds() {
         let sheets = sheets(40);
         let mut adventurer = member(AT, 0, weapon::STAFF);
@@ -3325,7 +3468,7 @@ pub mod tests {
     // A holding `ARMOR` (an enchantment: `ENCHANTED` holds) enters the member's defence once held:
     // the cache is updated at the hold (L3).
     #[test]
-    #[available_gas(l2_gas: 10269557)] // ceil(1.05 × 9780530 measured)
+    #[available_gas(l2_gas: 10257461)] // ceil(1.05 × 9769010 measured)
     fn test_hold_updates_the_defence() {
         let sheets = sheets(40);
         let mut world = Fixture::world(9, array![member(AT, 0, weapon::STAFF)], array![]);
@@ -3345,7 +3488,8 @@ pub mod tests {
     // `HIT_PENETRATION` with the carrier's hit (Static Lash's kind on an attack): 50 % of armor 80
     // gone, so the hit at strength 60 meets 40.
     #[test]
-    #[available_gas(l2_gas: 10742336)] // ceil(1.05 × 10230796 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10761478)] // ceil(1.05 × 10249026 measured)
     fn test_hit_penetration() {
         let sheets = sheets(80);
         let front = *ring(AT)[0];
@@ -3364,7 +3508,8 @@ pub mod tests {
 
     // §5.12: `ADRENALINE_EVERY_N` 2: the second weapon hit doubles (4, then 8), `hits` resets.
     #[test]
-    #[available_gas(l2_gas: 12308174)] // ceil(1.05 × 11722070 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12311639)] // ceil(1.05 × 11725370 measured)
     fn test_adrenaline_every_n() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3403,7 +3548,8 @@ pub mod tests {
     // D-179 through the executor: a sleeping goblin holding `EVADE` takes its first hit (critical)
     // and notices: Engaged.
     #[test]
-    #[available_gas(l2_gas: 10732005)] // ceil(1.05 × 10220957 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10750958)] // ceil(1.05 × 10239007 measured)
     fn test_asleep_first_hit() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];
@@ -3585,57 +3731,66 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 11503626)] // ceil(1.05 × 10955834 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11538066)] // ceil(1.05 × 10988634 measured)
     fn test_cost_area_fixture() {
         let (world, _) = area_state();
         assert(opaque(world.goblin_count()) == 8, 'fixture');
     }
 
     #[test]
-    #[available_gas(l2_gas: 16289892)] // ceil(1.05 × 15514182 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16347684)] // ceil(1.05 × 15569222 measured)
     fn test_cost_area_naive() {
         area(Naive {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16214764)] // ceil(1.05 × 15442632 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16272556)] // ceil(1.05 × 15497672 measured)
     fn test_cost_area_entries() {
         area(EntriesOnly {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16197607)] // ceil(1.05 × 15426292 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16255399)] // ceil(1.05 × 15481332 measured)
     fn test_cost_area_rebuild() {
         area(RebuildOnly {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16130040)] // ceil(1.05 × 15361942 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16187832)] // ceil(1.05 × 15416982 measured)
     fn test_cost_area_levered() {
         area(Levered {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 10921821)] // ceil(1.05 × 10401734 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 10956261)] // ceil(1.05 × 10434534 measured)
     fn test_cost_hits_fixture() {
         let (world, _) = hits_state();
         assert(opaque(world.goblin_count()) == 6, 'fixture');
     }
 
     #[test]
-    #[available_gas(l2_gas: 18035737)] // ceil(1.05 × 17176892 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 18051529)] // ceil(1.05 × 17191932 measured)
     fn test_cost_hits_naive() {
         hits(Naive {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16743975)] // ceil(1.05 × 15946642 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16831167)] // ceil(1.05 × 16029682 measured)
     fn test_cost_hits_defence() {
         hits(DefenceOnly {});
     }
 
     #[test]
-    #[available_gas(l2_gas: 16830978)] // ceil(1.05 × 16029502 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 16918170)] // ceil(1.05 × 16112542 measured)
     fn test_cost_hits_levered() {
         hits(Levered {});
     }
@@ -3645,7 +3800,8 @@ pub mod tests {
 
     // The source goblin read from the world and written back (one rebuild of the awake set).
     #[test]
-    #[available_gas(l2_gas: 11461133)] // ceil(1.05 × 10915364 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11495573)] // ceil(1.05 × 10948164 measured)
     fn test_cost_part_source() {
         let (mut world, _) = hits_state();
         for i in 0..6_u32 {
@@ -3656,7 +3812,8 @@ pub mod tests {
 
     // The member target read and written back.
     #[test]
-    #[available_gas(l2_gas: 11188910)] // ceil(1.05 × 10656104 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 11223350)] // ceil(1.05 × 10688904 measured)
     fn test_cost_part_member() {
         let (mut world, _) = hits_state();
         for _ in 0..6_u32 {
@@ -3667,7 +3824,8 @@ pub mod tests {
 
     // §5.14 step 4: the actor list of an implicit weapon hit on the member.
     #[test]
-    #[available_gas(l2_gas: 11922690)] // ceil(1.05 × 11354942 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12003624)] // ceil(1.05 × 11432022 measured)
     fn test_cost_part_actors() {
         let (world, _) = hits_state();
         let tiles = ring(AT);
@@ -3683,7 +3841,8 @@ pub mod tests {
     // The hit itself: the defence (kept), the geometry (`arc`, `front`), CBT-03a's `resolve`, the
     // damage and the hit recorded, on the member, with the goblins' offence.
     #[test]
-    #[available_gas(l2_gas: 12900275)] // ceil(1.05 × 12285976 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12920435)] // ceil(1.05 × 12305176 measured)
     fn test_cost_part_strike() {
         let (world, sheets) = hits_state();
         let tiles = ring(AT);
@@ -3760,7 +3919,8 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 12810320)] // ceil(1.05 × 12200304 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 12887180)] // ceil(1.05 × 12273504 measured)
     fn test_cost_class_hits_fixture() {
         let (words, content) = class_args();
         for i in 0..6_u32 {
@@ -3770,7 +3930,8 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 26060425)] // ceil(1.05 × 24819452 measured)
+    // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+    #[available_gas(l2_gas: 26407765)] // ceil(1.05 × 25150252 measured)
     fn test_cost_class_hits() {
         let class = declare("ExecutorLibrary").unwrap().contract_class();
         let library = IExecutorLibraryLibraryDispatcher { class_hash: *class.class_hash };

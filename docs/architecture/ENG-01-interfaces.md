@@ -137,6 +137,26 @@ their own ceiling:
   configuration (`trap_library`, constructor and `set_contracts`): **at most 78 %** (63,900 felts),
   nothing cut; 63,151 (77.09 %) at CBT-05b's head. A later lot shrinks `TickLibrary` and
   `TrapLibrary` together, after ENG-07 is placed (PLAN).
+- **ENG-07's classes (D-233 to D-236, the project manager, 2026-10-07)**, `play`'s path:
+  `Instances.play` → `PlayLibrary` (by `library_call`, in `Instances`' context) → `SegmentLibrary`
+  (once a segment) → `ActionLibrary` (a combat action) and `TickLibrary` (a tick with a fight) →
+  `AiLibrary` (step 2, once a tick with a goblin free) → `ExecutorLibrary` (a carrier) and
+  `TrapLibrary` (a trap entered):
+  - **`AiLibrary`** (`contracts/logic/src/systems/ai.cairo`), the goblins' acts, all of step 2 in
+    it: **at most 80 %** (65,536 felts; D-233); the size probe measured 64,683 (78.96 %), 62,808
+    (76.67 %) at ENG-07's head.
+  - **`ActionLibrary`** (`systems/action.cairo`), CBT-05b's action phase, called only for an Attack,
+    a Skill or an Item: **at most 57,476 felts** (70.16 %), its measure 54,739 + 5 % (D-234).
+  - **`SegmentLibrary`** (`systems/segment.cairo`), the batch's segments (the actions in order, the
+    moves, the window, the fast path of a tick with no goblin in the window): **at most 56,167
+    felts** (68.56 %), its measure 53,492 + 5 % (D-236).
+  - **`PlayLibrary`** (`contracts/ephemeral/src/systems/play.cairo`), `play`'s body (its admission
+    first, D-236), on `Instances`' storage and events through `Instances`' own store: **at most
+    80 %** (D-235); 58,483 (71.39 %) at ENG-07's head.
+  - **`TickLibrary`** keeps **one entrypoint, `ticks`** (D-235: the old `run` removed, `act` moved to
+    `ActionLibrary`), at most 88 %: 62,307 (76.06 %) at ENG-07's head.
+  - **`Instances`** stays under 50 % with no exception: `play` is one call (40,921, 49.95 %); the
+    classes are set by `set_play_class(key, class)` (`play_class`: `PLAY` … `SEGMENT`).
 
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
 every other at 50 %.
@@ -1427,7 +1447,7 @@ less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake 
 - **At CBT-05b's head the worst tick measured is 46,517,111** (`rep_all` 56,227,075 less
   `rep_fixture` 9,709,964), +627,080 over CBT-05a's 45,890,031: the skill sheet carries the
   header's energy and profession across each call (+2,420 a sheet read) and step 1 places a trap.
-  Sent to the project manager (D-144).
+  Accepted as the worst tick's figure (the project manager, 2026-10-07, D-222).
 - **The action phase's line (CBT-05b, design/19 §5.3; `types::action`, `TickLibrary::act`, D-222)**,
   one action between two ticks: its floor, a Wait (legality only), 40,840 in process; through
   `act`, a Wait and its idle tick cost 4,211,967 against 4,291,507 for an idle tick through `run`
@@ -1618,6 +1638,35 @@ That is an **upper bound**, not a demonstrated reachability (corrected in fix lo
 
 This is still an upper bound: it assumes runs spread over every index they can reach. Each dungeon
 run adds at most 12 × 22 = 264 keys ($0.11), only for indexes no earlier run of the slot used.
+
+**ENG-07's line (D-233 to D-236, measured; snforge on the VPS capped, each test less its fixture;
+the node the maximum of six runs of `lifecycle_probe.py --play on`).** The chain of a fight tick:
+`Instances.play` → `PlayLibrary` (in `Instances`' context) → `SegmentLibrary` (once a segment) →
+`ActionLibrary` (a combat action) and `TickLibrary` (a tick with a fight) → `AiLibrary` (step 2) →
+`ExecutorLibrary` (a carrier).
+
+| Figure | L2 gas | Source |
+|---|---:|---|
+| `AiLibrary`'s call alone, 8 awake goblins doing nothing | 3,954,544 | `test_cost_ai_call_returning` |
+| A tick with that call against the same tick with no call (accepted, D-233 #2) | 4,559,107 | `test_cost_ai_tick_returning` − `_busy` |
+| A tick with no goblin free in the window | no call | D-225 |
+| `SegmentLibrary`'s call, once a batch (D-236 #3) | 1,388,870 (exploration), 1,409,090 (fight) | `test_cost_segment_call_*` − `test_cost_segment_*` |
+| One tick, the 8 goblins attacking with their weapons in step 2 | ≈ 42,117,272 (42,636,642 at the rebased head) | `test_cost_ai_tick_attacks`, `test_cost_lever_tick_uncapped` |
+| The member's activation (Cinder Ring) in the same tick as the 8 attacks: **the worst tick measured** | **51,894,364** | `test_cost_landing` |
+| The fight batch, 10 Attacks, 8 goblins attacking every tick, the member at 20,000 (every tick a worst-case one) | **485,147,384** (snforge, in process); 485,202,174 through `SegmentLibrary` | `test_cost_segment_fight_whole`, `test_cost_segment_call_fight` |
+| The same at the member's real health (480): defeated on its 4th tick | 189,431,756 | `test_cost_segment_fight` |
+| Lever 1 (at most 4 attackers, the cap stood in for): a tick; the batch at real health; whole | 26,435,796; 253,005,613; 366,384,550 | `test_cost_lever_*` |
+| The exploration batch, 10 Moves, every tick on the fast path (node) | 18,992,640 (+ 5 %: 19,942,272) | `lifecycle_probe.py --play on` |
+| One Move, legal; refused (a wall) (node) | 6,792,640; 5,392,640 | the same |
+| A reveal in play, one chunk, end to end (node: a 1-Move walk revealing less a 1-Move batch) | 8,105,600 | the same |
+
+The fixed cost of a fight tick's chain before any hit (D-236 #4), from the calls measured: the
+`ActionLibrary` call with the whole words (2,578,020 to 3,323,680, this section's library call) +
+the `TickLibrary` call (≈ 4.17 M with 8 goblins, `rep_idle` − `rep_fixture` at CBT-05b's head) +
+`AiLibrary`'s 4,559,107: **≈ 11.3 M to 12.1 M a tick**; once a batch, `SegmentLibrary`'s ≈ 1.4 M and
+`PlayLibrary`'s reads and writes (the node's refused Move, 5,392,640, holds them with the
+transaction's base). **E-12's weight stays 2** (D-225: measured end to end): a reveal, 8,105,600,
+is about a sixth of a representative fight tick (≈ 47.4 M at real health).
 
 ### 9.3 Every public entrypoint: its complete write set
 
@@ -2281,7 +2330,7 @@ follows the **default** named; the project manager decides.
 | # | Question | Options, with their cost | Default in the code |
 |---|---|---|---|
 | **E-1** (fix loop 3; decided (a), D-141; recomputed, ENG-01b) | **A goblin's first key in a slot costs N** (2 words: 0.84 M over O). Cold, the worst capped batch without a weight wrote 35 new keys (32 goblin words, 2 roster pages, the counter): **62.02 M against 47.34 M** initialised (§10.1). **With the weight (a), the worst cold batch is 48.54 M** (`n = 0` first records, 10 ticks; each first record replaces a tick), which is the gas maximum; the branch with the most new keys is another (21 N / 41 O, 17.56 M, nine first records and one tick). The key is cold whenever this slot never woke that goblin index, in any generation (§9.1) | (a) **weigh it**: +1 per goblin record written for the first time in the slot (the contract reads the record as 0). (b) **one word per goblin**: drop `GoblinTimers`. That loses **the activation** (slot, target and deadline: the telegraphed skills of design/04, the hobgoblin's wind-up and its interruption), **the five conditions** and **the effect** (a shaman's enchantment, a hex). A cold 3-tick action then costs 38.56 M instead of 57.61 M (E-21); the initialised batch saves the 16 overwritten words, 513,152, about 46.82 M, still above 40 M. Keeping the activation in one word would need two of the four recharge lanes of `GoblinState` (a caste then tracks 2 skills' recharges), and the conditions would still have no room: a change of the combat design. (c) accept | **(a)**, a rule of `play` (ENG-07), decided by D-141; the tables count it (`n` first records run `10 − n` ticks). (b) only with a combat design that gives up what it loses |
-| **E-2** | **The roster holds 60 entries**: displaced goblins, alive or dead and not looted (F-6). Design/02 bounds awake goblins, not displaced ones or unlooted remains | (a) 60, four pages, only pages in use are written; (b) no roster: scan the touched records of every revealed chunk (up to 2,250 records a view, and a tick cannot find followers cheaply) | (a). **The rule for a 61st** (a goblin that would be displaced, or would die away from its spawn, with the roster full) is a game rule to decide: it stays in its first state? its remains are not left? |
+| **E-2** | **The roster holds 60 entries**: displaced goblins, alive or dead and not looted (F-6). Design/02 bounds awake goblins, not displaced ones or unlooted remains | (a) 60, four pages, only pages in use are written; (b) no roster: scan the touched records of every revealed chunk (up to 2,250 records a view, and a tick cannot find followers cheaply) | (a). **The rule for a 61st, D-238 (the project manager, 2026-10-09):** the roster lists the living goblins away from their spawn chunk; when it holds 60, a goblin whose move would need a new entry (leaving its spawn chunk) does not leave the chunk: that move becomes a Wait, the same in a batch and in single batches; goblins already listed move freely; an entry freed (a goblin killed, or one back in its spawn chunk) lets the next one leave; no new `Stop`. A goblin killed away from its spawn leaves the roster (its remains are found through the roster no more until `loot`'s lot). Never reached in the representative fight (its 8 goblins stay in their spawn chunk: 0 away, `test_fight_roster_count`) |
 | **E-3** | At most 2 packs of 5 and 3 objects per chunk (the features word) | a third pack or a fourth object: a third chunk word (+1 slot a reveal) | 2 / 5 / 3; ENG-05 caps |
 | **E-4** (corrected, fix loops 1 and 2) | **Every deadline is at most `MAX_CLOCK` = 2^28 − 1**, not only the clock. An action runs only while `clock ≤ LAST_TICK = MAX_CLOCK − MAX_DURATION − 10`. `MAX_DURATION` = 65,535 is the widest **effective** duration: the registry holds bases of at most 43,688 ticks, the modifiers' percents are capped at +50 % and their flat bonuses at +3 (F-9, `durations.cairo`), so the effective maximum is exactly 65,535 (tested). The packers refuse a deadline above `MAX_CLOCK` or 2^28 (tested) | 32-bit deadlines: recharges need 2 slots a member | 2^28 − 1; an action past `LAST_TICK` is invalid (268,369,910 ticks: 8.5 years at a tick a second) |
 | **E-5** (decided, D-141; frozen, ENG-01b) | The ephemeral domain reads the registry during play (content, not a persistent model); a content update during an instance changes outcomes | (a) one `bundle` call an invocation (0.14 M); (b) mirror play's content in `Instances`; (c) (a) plus a content version checked at every invocation | **a content version**: `Registry.content_version` (`u32`), returned first by `bundle`; `play(…, sequence, version, actions)` compares it and refuses a different one whole (`Stop::Version`), `BatchPlayed.version` says so; +1 calldata felt (5,120) and one compared value, measured by ENG-03. **Also carried by `open`, `mine` and `barter`** (a mismatch: `Refused`, `Refusal::Version`, before any tick); not by `loot`, `leave`, `travel_back`, `enter` (project manager's decision, 2026-09-29; §4.1). Closed |

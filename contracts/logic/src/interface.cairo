@@ -8,6 +8,7 @@ use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::action::Illegal;
 use crate::types::executor::{Board, Cache, Carrier};
+use crate::types::play::{Area, Classes, Done};
 use crate::types::reveal::outline::Outline;
 use crate::types::reveal::{Progress, Site};
 use crate::types::tick::Content;
@@ -125,17 +126,31 @@ pub trait IFate<T> {
 #[starknet::interface]
 pub trait ITickLibrary<T> {
     /// Runs `ticks` world ticks over the stored `words` with the batch's `content` on the tick's
-    /// `board` (the window and where it lies), each carrier through the executor's class
-    /// `executor` (route (c), CBT-05a), stopping after a tick that defeated the adventurer;
-    /// returns the words.
-    fn run(
-        self: @T, words: Words, content: Content, board: Board, executor: ClassHash, ticks: u8,
-    ) -> Words;
-    /// The adventurer's `action` (member 0) at the words' clock, then its ticks (design/19 §5.3,
-    /// CBT-05b, D-222): its legality, costs, facing and resolution through the executor's class
-    /// `executor`, a trap placed in `ground` (the chunks it can touch, ENG-07's). Returns the
-    /// words, the ground, and `None`, or why the action is illegal (nothing changed: the batch
-    /// stops).
+    /// `board`, each carrier through `classes.executor` (route (c)), perception in process and
+    /// step 2 through `classes.ai` (ENG-07), a trap through `classes.trap` (`level`, the location
+    /// band's lower level), the chunk objects `ground` carried across them (Open question 3);
+    /// stops after a tick that defeated the adventurer. Returns the words and the ground.
+    fn ticks(
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        classes: Classes,
+        level: u8,
+        ground: Array<(u8, Features)>,
+        ticks: u8,
+    ) -> (Words, Array<(u8, Features)>);
+}
+
+/// The adventurer's combat action as its own library class (D-233; design/19 §5.3, CBT-05b):
+/// `TickLibrary`'s segment calls it through `IActionLibraryLibraryDispatcher` for an Attack, a
+/// Skill or an Item only, the class hash being `Instances`' configuration.
+#[starknet::interface]
+pub trait IActionLibrary<T> {
+    /// The adventurer's `action` (member 0) at the words' clock (§5.3): its legality, costs,
+    /// facing and resolution through the executor's class `executor`, a trap placed in `ground`.
+    /// Returns the words, the ground, and the action's tick cost, or why it is illegal (the words
+    /// unchanged: the batch stops).
     fn act(
         self: @T,
         words: Words,
@@ -144,7 +159,50 @@ pub trait ITickLibrary<T> {
         executor: ClassHash,
         ground: Array<(u8, Features)>,
         action: Action,
-    ) -> (Words, Array<(u8, Features)>, Option<Illegal>);
+    ) -> (Words, Array<(u8, Features)>, Result<u8, Illegal>);
+}
+
+#[starknet::interface]
+pub trait ISegmentLibrary<T> {
+    fn segment(
+        self: @T,
+        words: Words,
+        content: Content,
+        area: Area,
+        classes: Classes,
+        level: u8,
+        ground: Array<(u8, Features)>,
+        actions: Span<Action>,
+        owed: u8,
+        weight: u8,
+    ) -> (Words, Array<(u8, Features)>, Done);
+}
+
+/// The goblins' acts as their own library class (ENG-07 Open question 1, candidate C): the tick's
+/// rules (`TickLibrary`'s `Delegate`) call it through `IAiLibraryLibraryDispatcher` once a tick
+/// for step 2, only on a tick where a goblin of the window is free to act (D-225), the class hash
+/// being `Instances`' configuration.
+#[starknet::interface]
+pub trait IAiLibrary<T> {
+    /// Step 2 over `words` (every member, then the awake set's goblins in their order, each awake)
+    /// on `board`, `resolved` holding those that resolved in step 1 (bit `2^k` for the `k`-th) and
+    /// `frozen` the window's tiles of the other living goblins (a bitmap of the window): each free
+    /// goblin's act (`types::ai`), its carriers through the executor's class `executor`, a trap
+    /// it enters through `trap` (`level`, the location band's lower level) with the chunk objects
+    /// `ground`. Returns the words and the ground.
+    fn act(
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        executor: ClassHash,
+        trap: ClassHash,
+        ground: Array<(u8, Features)>,
+        level: u8,
+        frozen: felt252,
+        listed: u8,
+        resolved: u128,
+    ) -> (Words, Array<(u8, Features)>);
 }
 
 /// A trap's trigger as its own library class (design/19 §5.11, CBT-05b, D-222): the move's owner

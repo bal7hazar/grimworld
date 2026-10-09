@@ -27,6 +27,7 @@ use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
 };
+use grimworld_logic::models::caste::{CasteRecord, WeaponTrait};
 use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking, object};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
@@ -110,6 +111,70 @@ mod RegistryDouble {
         }
         fn content_version(self: @ContractState) -> u32 {
             0
+        }
+    }
+}
+
+/// t-0110, minor 2: a reveal that makes every chunk open and puts on chunk 1 an alerted pack of 3
+/// on its tile (1, 7), at its edge with chunk 0 (global (15..17, 7)): its goblins reach the window
+/// of an adventurer on chunk 0's row 7 once chunk 1 is revealed. A test double of `RevealLibrary`,
+/// called by `library_call` as it is.
+#[starknet::contract]
+mod RevealDouble {
+    use grimworld_logic::interface::IRevealLibrary;
+    use grimworld_logic::models::chunk::{
+        Features, FeaturesStorePacking, PackPlacement, Terrain, TerrainStorePacking,
+    };
+    use grimworld_logic::types::reveal::{Progress, Site};
+    use starknet::storage_access::StorePacking;
+
+    #[storage]
+    struct Storage {}
+
+    #[abi(embed_v0)]
+    impl RevealImpl of IRevealLibrary<ContractState> {
+        fn reveal(
+            self: @ContractState,
+            site: Site,
+            progress: Progress,
+            instance_id: felt252,
+            known: Span<(u8, Terrain)>,
+            chunks: Span<u8>,
+        ) -> (Progress, Span<(u8, felt252, felt252)>) {
+            let mut progress = progress;
+            let mut out = array![];
+            for chunk in chunks {
+                let mut bit: felt252 = 1;
+                let mut k: u8 = 0;
+                while k < *chunk {
+                    bit *= 2;
+                    k += 1;
+                }
+                progress.revealed += bit;
+                progress.count += 1;
+                let terrain: felt252 = StorePacking::pack(Terrain { walls: 0, edges: 0 });
+                let pack = if *chunk == 1 {
+                    PackPlacement {
+                        tile: 7 * 15 + 1,
+                        template: 1,
+                        level: 1,
+                        count: 3,
+                        offsets: 9 + 8 * 32 + 10 * 1024,
+                        alert: 2,
+                    }
+                } else {
+                    Default::default()
+                };
+                let features: felt252 = StorePacking::pack(
+                    Features {
+                        packs: [pack, Default::default()],
+                        objects: [Default::default(); 3],
+                        touched: 0,
+                    },
+                );
+                out.append((*chunk, terrain, features));
+            }
+            (progress, out.span())
         }
     }
 }
@@ -371,6 +436,8 @@ fn setup() -> World {
     // ENG-05: into the zone at chunk 16's tile 16 (`(16, 16)`), next to its South-East corner:
     // sight touches chunks 0, 1, 15 and 16.
     records.set(GATE, 14, gate(TOWN, ZONE, (0, 0), (16, 16), gate_kind::HUB, 0, 0));
+    // ENG-07: into the zone on chunk 16's tile 32 (`(17, 17)`), a floor tile of its terrain.
+    records.set(GATE, 15, gate(TOWN, ZONE, (0, 0), (16, 32), gate_kind::HUB, 0, 0));
     World { instances, registry, fate, hub }
 }
 
@@ -510,8 +577,8 @@ fn placement_of(world: World, adventurer: u32) -> Placement {
 // the member's 8 words, ⌈16 / 4⌉ = 4 task pages and the entry chunk's 2 words new: 19;
 // `next_slot` overwritten.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 38987798)] // ceil(1.05 × 37131236 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 41259225)] // ceil(1.05 × 39294500 measured)
 fn test_create_first_entry() {
     let world = setup();
     let keys = watched();
@@ -616,8 +683,8 @@ fn test_create_first_entry() {
 
 // The same with no task: no task page is written (19 − 4 = 15 new).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 34639761)] // ceil(1.05 × 32990248 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 36843476)] // ceil(1.05 × 35089024 measured)
 fn test_create_without_tasks() {
     let world = setup();
     let keys = watched();
@@ -631,8 +698,8 @@ fn test_create_without_tasks() {
 // A later entry reuses the slot: generation + 1, `next_slot` untouched, every key already written
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 60138794)] // ceil(1.05 × 57275041 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 62494063)] // ceil(1.05 × 59518155 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -654,8 +721,8 @@ fn test_create_reuses_the_slot() {
 }
 
 #[test]
-// gas: raised, ENG-10b: a larger Instances deployed, a zone's Site two felts longer
-#[available_gas(l2_gas: 44352792)] // ceil(1.05 × 42240754 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 45005735)] // ceil(1.05 × 42862604 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -683,8 +750,8 @@ fn test_create_refusals() {
 
 // A sealed destination sets the header's flag (design/17).
 #[test]
-// gas: raised, ENG-10b: a Rift floor is a dungeon floor, its outline and hosts drawn at create
-#[available_gas(l2_gas: 37235321)] // ceil(1.05 × 35462210 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 38326974)] // ceil(1.05 × 36501880 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -751,8 +818,8 @@ fn fill_slot(world: World) {
 // A slot another generation used, with stale data in every word: the new instance shows nothing of
 // it, through the view and through the stored words its gates reach.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 57589809)] // ceil(1.05 × 54847437 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 59848773)] // ceil(1.05 × 56998831 measured)
 fn test_generation_isolation() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -870,8 +937,8 @@ fn test_generation_isolation() {
 // unlocked, the belt's counts reported (ENG-01 §9.3: header, member state, placement: 0 new, 3
 // overwritten; `InstanceClosed`; one report).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40627869)] // ceil(1.05 × 38693208 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 42832151)] // ceil(1.05 × 40792524 measured)
 fn test_leave_to_a_hub() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -920,8 +987,8 @@ fn test_leave_to_a_hub() {
 // entropy, revealed, quotas, the 4 transient member words, the placement: 9 overwritten; and the
 // entry reveal (ENG-05): floor 1's entry chunk 112, its 2 words new in this slot.
 #[test]
-// gas: raised, ENG-10b: the link enters a dungeon floor, its outline and hosts drawn and stored
-#[available_gas(l2_gas: 64714018)] // ceil(1.05 × 61632398 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 65659249)] // ceil(1.05 × 62532618 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -1038,8 +1105,8 @@ fn test_leave_to_a_location() {
 
 // Travel back: Returned to the last hub (the hub settles `hub` 0 as its last one, D-04).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 38831742)] // ceil(1.05 × 36982611 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 41035604)] // ceil(1.05 × 39081527 measured)
 fn test_travel_back() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1094,8 +1161,8 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 }
 
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40479493)] // ceil(1.05 × 38551898 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 42686589)] // ceil(1.05 × 40653894 measured)
 fn test_refused_sequence() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1109,8 +1176,8 @@ fn test_refused_sequence() {
 
 // An id of an earlier generation, and an instance already closed.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 49665440)] // ceil(1.05 × 47300419 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 51735549)] // ceil(1.05 × 49271951 measured)
 fn test_refused_closed() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1123,8 +1190,8 @@ fn test_refused_closed() {
 
 // The adventurer is not in that instance (another's, in another slot), or is down.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 52410389)] // ceil(1.05 × 49914656 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 54576216)] // ceil(1.05 × 51977348 measured)
 fn test_refused_absent() {
     let world = setup();
     create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1139,8 +1206,8 @@ fn test_refused_absent() {
 // Every gate that cannot be taken from where the member stands (design/02: "the gate is
 // reachable"), before any draw.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 68400169)] // ceil(1.05 × 65143018 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 70621356)] // ceil(1.05 × 67258434 measured)
 fn test_refused_gate() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1156,8 +1223,8 @@ fn test_refused_gate() {
 
 // A sealed Red Rift: no travel back (design/17).
 #[test]
-// gas: raised, ENG-10b: a Rift floor is a dungeon floor, its outline and hosts drawn at create
-#[available_gas(l2_gas: 40781479)] // ceil(1.05 × 38839503 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 41874455)] // ceil(1.05 × 39880433 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1166,8 +1233,8 @@ fn test_refused_sealed() {
 
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 35310656)] // ceil(1.05 × 33629196 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 37620980)] // ceil(1.05 × 35829504 measured)
 fn test_not_controller() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1183,8 +1250,8 @@ fn test_not_controller() {
 // ---- set_controller -----------------------------------------------------------------------------
 
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40390607)] // ceil(1.05 × 38467244 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 42596054)] // ceil(1.05 × 40567670 measured)
 fn test_set_controller() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -1287,7 +1354,8 @@ fn template() -> Pack {
 // reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
 // question 6); `instance_region` tells void, not yet revealed and revealed apart.
 #[test]
-#[available_gas(l2_gas: 54159866)] // ceil(1.05 × 51580824 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 54812808)] // ceil(1.05 × 52202674 measured)
 fn test_entry_reveal_through_the_engine() {
     let world = setup();
     let mask = zone_content(world);
@@ -1386,7 +1454,8 @@ fn test_entry_reveal_through_the_engine() {
 
 // `instance_region` refuses a page above 16 (`REGION_PAGE`).
 #[test]
-#[available_gas(l2_gas: 32860914)] // ceil(1.05 × 31296108 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 35073764)] // ceil(1.05 × 33403584 measured)
 #[feature("safe_dispatcher")]
 fn test_region_page_bound() {
     let world = setup();
@@ -1460,8 +1529,8 @@ fn reveal_rest(
 // engine on the stored state then reveals the rest in two orders, by index and backward: the same
 // words in every chunk, one exit, on a chunk of the farthest layer.
 #[test]
-// gas: raised, ENG-10b: A2, the stored floor against the pure draw, revealed in two orders
-#[available_gas(l2_gas: 76637455)] // ceil(1.05 × 72988052 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 77290398)] // ceil(1.05 × 73609902 measured)
 fn test_entry_reveal_of_a_dungeon() {
     let world = setup();
     let records = IRecordsDispatcher { contract_address: world.registry };
@@ -1583,7 +1652,8 @@ fn test_entry_reveal_of_a_dungeon() {
 // outline, the hosts, the three outline slots and the hosts written, the entry chunk revealed), to
 // read next to `test_cost_create_reveals`' zone entries (the node's figures: `lifecycle_probe.py`).
 #[test]
-#[available_gas(l2_gas: 41302152)] // ceil(1.05 × 39335382 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 42393805)] // ceil(1.05 × 40375052 measured)
 fn test_cost_create_floor() {
     let world = setup();
     let records = IRecordsDispatcher { contract_address: world.registry };
@@ -1649,16 +1719,542 @@ fn create_gas_zone(quotas: bool) -> u128 {
 // D-210 (review note 5 at 46d7d89): `begin`'s cost with and without the zone block, on the same
 // zone; the difference also holds the collector's placement when a host is revealed.
 #[test]
-#[available_gas(l2_gas: 86718894)] // ceil(1.05 × 82589422 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 88024779)] // ceil(1.05 × 83833122 measured)
 fn test_cost_create_zone_block() {
     println!("gas create, zone with a quota (the zone block): {}", create_gas_zone(true));
     println!("gas create, zone without a quota (no zone block): {}", create_gas_zone(false));
 }
 
 #[test]
-#[available_gas(l2_gas: 110226220)] // ceil(1.05 × 104977352 measured)
+// gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
+#[available_gas(l2_gas: 116237132)] // ceil(1.05 × 110702030 measured)
 fn test_cost_create_reveals() {
     println!("gas create revealing 1 chunk: {}", create_gas(INTO_ZONE, 1));
     println!("gas create revealing 2 chunks: {}", create_gas(FLOOR_TO_ZONE, 2));
     println!("gas create revealing 4 chunks: {}", create_gas(14, 4));
+}
+
+// ---- ENG-07: `play` (D-233 to D-236) ------------------------------------------------------------
+// `Instances.play` calls `PlayLibrary` in its context; the segment runs in `SegmentLibrary`, a tick
+// with a fight in `TickLibrary`. The member's bar skills (11, 12) and belt potions (41, 42) are
+// registered so that its load finds them.
+
+fn play_classes(world: World) {
+    let classes: Array<starknet::ClassHash> = array![
+        *declare("PlayLibrary").unwrap().contract_class().class_hash,
+        *declare("TickLibrary").unwrap().contract_class().class_hash,
+        *declare("AiLibrary").unwrap().contract_class().class_hash,
+        *declare("ActionLibrary").unwrap().contract_class().class_hash,
+        *declare("ExecutorLibrary").unwrap().contract_class().class_hash,
+        *declare("SegmentLibrary").unwrap().contract_class().class_hash,
+    ];
+    start_cheat_caller_address(world.instances, addr(ADMIN));
+    let admin = grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
+        contract_address: world.instances,
+    };
+    let mut key: u8 = 0;
+    for class in classes {
+        grimworld_ephemeral::systems::instances::IInstancesAdminDispatcherTrait::set_play_class(
+            admin, key, class,
+        );
+        key += 1;
+    }
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let skill = grimworld_logic::models::skill::SkillTrait::new(
+        1, 1, 1, 0, 0, 0, 0, 1, 1, false, [Default::default(); 3],
+    );
+    records
+        .set(
+            grimworld_logic::content::SKILL,
+            11,
+            grimworld_logic::models::skill::SkillRecord::pack(@skill),
+        );
+    records
+        .set(
+            grimworld_logic::content::SKILL,
+            12,
+            grimworld_logic::models::skill::SkillRecord::pack(@skill),
+        );
+}
+
+fn batch(actions: Span<grimworld_logic::actions::Action>) -> felt252 {
+    grimworld_logic::actions::encode_batch(actions).unwrap()
+}
+
+/// The `BatchPlayed` of the call: `(played, stop, sequence, clock)`, the stop as its variant index.
+fn batch_played(
+    ref spy: snforge_std::EventSpy, world: World,
+) -> (felt252, felt252, felt252, felt252) {
+    let events = spy.get_events().emitted_by(world.instances);
+    let mut found = (0, 0, 0, 0);
+    for (_, event) in events.events.span() {
+        if event.keys.len() == 2 && event.data.len() == 7 {
+            found = (*event.data[2], *event.data[3], *event.data[4], *event.data[5]);
+        }
+    }
+    found
+}
+
+// Two Moves (West, then East back) from a floor tile: each one tick on the fast path, the facing
+// the direction, the sequence and the clock moved by two, `BatchPlayed` with no stop (A2, A3).
+#[test]
+#[available_gas(l2_gas: 59209100)] // ceil(1.05 × 56389619 measured)
+fn test_play_moves() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', 15, 0);
+    let mut spy = spy_events();
+    let actions = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
+    ];
+    play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
+    let (played, stop, sequence, clock) = batch_played(ref spy, world);
+    assert(played == 2 && stop == 0 && sequence == 2 && clock == 2, 'two moves');
+    let header = header_of(world, 1);
+    let after = state_of(world, 1);
+    assert(header.sequence == 2 && header.clock == 2, 'header');
+    assert(after.x == 17 && after.y == 17 && after.facing == 0, 'back, facing East');
+}
+
+// A Move into a wall is illegal: the batch stops there, the two Moves before it kept (A2, A3).
+#[test]
+#[available_gas(l2_gas: 59269356)] // ceil(1.05 × 56447005 measured)
+fn test_play_move_blocked() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', 15, 0);
+    let mut spy = spy_events();
+    let actions = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(5),
+        grimworld_logic::actions::Action::Move(5),
+    ];
+    play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
+    let (played, stop, sequence, _) = batch_played(ref spy, world);
+    let after = state_of(world, 1);
+    assert(played == 2 && stop == 2 && sequence == 2, 'stopped invalid');
+    assert(after.x == 18 && after.y == 16, 'two moves kept');
+}
+
+// A stale sequence, a different content version and an Interact (Open question 6) run nothing.
+#[test]
+#[available_gas(l2_gas: 60702099)] // ceil(1.05 × 57811522 measured)
+fn test_play_refusals() {
+    let world = setup();
+    play_classes(world);
+    let id = create(world, 7, 'alice', 15, 0);
+    let mut spy = spy_events();
+    let one = batch(array![grimworld_logic::actions::Action::Wait].span());
+    play(world, 'alice').play(id, 7, 3, 0, one);
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 1, 'sequence');
+    play(world, 'alice').play(id, 7, 0, 9, one);
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 6, 'version');
+    play(world, 'alice')
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Interact(0)].span()));
+    let (played, stop, _, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 2, 'interact refused');
+    assert(header_of(world, 1).sequence == 0, 'nothing ran');
+}
+
+// ---- t-0109: a batch is its actions sent as single batches (design/02, ENG-01 E-13 item 5) ----
+// Major 1 and minor 4: between segments the area moves with the goblins of its new chunks. Each
+// walk is played as one batch in one world and as single batches in a twin world built the same
+// way; the words (the member, the header, the revealed set, the chunks' words, every goblin record
+// of the chunks around) and the events (`GoblinKilled`, `ChunkRevealed`) are equal.
+
+const PACK_ZONE: u16 = 6;
+const INTO_PACK_ZONE: u16 = 16;
+
+/// The content of the packs: caste 1 (no skill, a melee weapon), pack template 1 (1 to 3 of caste
+/// 1); a zone of 3 × 3 chunks whose spawn table places pack 1 at the densest, entered on chunk 0's
+/// tile (7, 7); `missing` caste 99 not registered, named by template 2.
+fn pack_content(world: World) {
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let caste = grimworld_logic::models::caste::CasteTrait::new(
+        1,
+        0,
+        100,
+        10,
+        0,
+        [0; 9],
+        WeaponTrait::new(grimworld_logic::types::combat::weapon::AXE, 10, 1, 1, 1),
+        0,
+        0,
+        [0; 4],
+        0,
+        0,
+        0,
+        false,
+    );
+    records.set(grimworld_logic::content::CASTE, 1, CasteRecord::pack(@caste));
+    let one = PackCaste { caste: 1, min: 1, max: 3 };
+    let pack = Pack {
+        castes: [
+            one, Default::default(), Default::default(), Default::default(), Default::default(),
+        ],
+        level: 0,
+    };
+    records.set(PACK, 1, PackRecord::pack(@pack));
+    let ghost = PackCaste { caste: 99, min: 1, max: 1 };
+    let pack = Pack {
+        castes: [
+            ghost, Default::default(), Default::default(), Default::default(), Default::default(),
+        ],
+        level: 0,
+    };
+    records.set(PACK, 2, PackRecord::pack(@pack));
+    let spawn = Spawn { template: 1, weight: 1 };
+    let table = SpawnTable {
+        spawns: [
+            spawn, Default::default(), Default::default(), Default::default(), Default::default(),
+            Default::default(), Default::default(),
+        ],
+        density: 255,
+    };
+    records.set(SPAWN_TABLE, 1, SpawnTableRecord::pack(@table));
+    let zone = LocationTrait::new(
+        location_kind::ZONE,
+        1,
+        1,
+        1,
+        3,
+        0,
+        3,
+        3,
+        0,
+        0,
+        0,
+        1,
+        false,
+        0,
+        112,
+        Lanes16 { lanes: [0; 15] },
+    );
+    records.set(LOCATION, PACK_ZONE.into(), zone.pack());
+    records
+        .set(
+            GATE,
+            INTO_PACK_ZONE.into(),
+            gate(TOWN, PACK_ZONE, (0, 0), (0, 112), gate_kind::HUB, 0, 0),
+        );
+}
+
+fn chunk_key(slot: u32, chunk: u8) -> felt252 {
+    key(selector!("chunks"), array![slot.into(), chunk.into()])
+}
+
+/// Chunk `chunk` of slot 1 revealed, every tile walkable (its features kept).
+fn open_chunk(world: World, chunk: u8) {
+    let terrain: felt252 = StorePacking::pack(Terrain { walls: 0, edges: 0 });
+    write(world.instances, chunk_key(1, chunk), terrain);
+    let at = key(selector!("revealed"), array![1]);
+    let bits: u256 = (read(world.instances, at) - LIVE).into();
+    let mut bit: u256 = 1;
+    let mut k: u8 = 0;
+    while k < chunk {
+        bit *= 2;
+        k += 1;
+    }
+    if bits & bit == 0 {
+        write(world.instances, at, read(world.instances, at) + bit.try_into().unwrap());
+    }
+}
+
+/// The member of slot 1 on the tile `(x, y)`.
+fn put_member(world: World, x: u8, y: u8) {
+    let at = member_word(1, 0);
+    let state: MemberState = StorePacking::unpack(read(world.instances, at));
+    write(world.instances, at, StorePacking::pack(MemberState { x, y, ..state }));
+}
+
+/// The words a batch writes: the member's state, the header, the revealed set, each chunk's two
+/// words and its ten goblin records' words, for `chunks`.
+fn snapshot_of(world: World, chunks: Span<u8>) -> Array<felt252> {
+    let mut out = array![
+        read(world.instances, member_word(1, 0)),
+        read(world.instances, key(selector!("headers"), array![1])),
+        read(world.instances, key(selector!("revealed"), array![1])),
+    ];
+    for chunk in chunks {
+        out.append(read(world.instances, chunk_key(1, *chunk)));
+        out.append(read(world.instances, chunk_key(1, *chunk) + 1));
+        let mut k: u16 = 0;
+        while k < 10 {
+            let entity: u16 = 8 + 16 * (*chunk).into() + k;
+            let at = key(selector!("goblins"), array![1, entity.into()]);
+            out.append(read(world.instances, at));
+            out.append(read(world.instances, at + 1));
+            k += 1;
+        }
+    }
+    out
+}
+
+/// The events of `GoblinKilled` and `ChunkRevealed` (two keys and not seven data felts), in order.
+fn kills_and_reveals(ref spy: snforge_std::EventSpy, world: World) -> Array<felt252> {
+    let mut out = array![];
+    for (_, event) in spy.get_events().emitted_by(world.instances).events.span() {
+        if event.keys.len() == 2 && event.data.len() != 7 && event.data.len() != 3 {
+            out.append(*event.keys[1]);
+            for felt in event.data.span() {
+                out.append(*felt);
+            }
+        }
+    }
+    out
+}
+
+/// Plays `moves` as one batch, then in a twin world as one batch a move, from the same start;
+/// returns both worlds' words and events.
+fn twin(
+    which: u8, gate: u16, moves: Span<grimworld_logic::actions::Action>, chunks: Span<u8>,
+) -> (Array<felt252>, Array<felt252>, Array<felt252>, Array<felt252>) {
+    let one = setup();
+    play_classes(one);
+    pack_content(one);
+    if which == 3 {
+        reveal_double(one);
+    }
+    let id = create(one, 7, 'alice', gate, 0);
+    prepare(which, one);
+    let mut spy = spy_events();
+    play(one, 'alice').play(id, 7, 0, 0, batch(moves));
+    let events_one = kills_and_reveals(ref spy, one);
+    let words_one = snapshot_of(one, chunks);
+    let two = setup();
+    play_classes(two);
+    pack_content(two);
+    if which == 3 {
+        reveal_double(two);
+    }
+    let id = create(two, 7, 'alice', gate, 0);
+    prepare(which, two);
+    let mut spy = spy_events();
+    let mut sequence: u32 = 0;
+    for action in moves {
+        play(two, 'alice').play(id, 7, sequence, 0, batch(array![*action].span()));
+        sequence = header_of(two, 1).sequence;
+    }
+    let events_two = kills_and_reveals(ref spy, two);
+    let words_two = snapshot_of(two, chunks);
+    (words_one, words_two, events_one, events_two)
+}
+
+/// The twins' start: 0 the reveal walk's, 1 the ten Moves', 2 the round trip's, 3 the reveal
+/// double's (nothing: its chunks are open).
+fn prepare(which: u8, world: World) {
+    if which == 0 {
+        prepare_reveal(world);
+    } else if which == 1 {
+        prepare_walk(world);
+    } else if which == 2 {
+        prepare_walk(world);
+        put_member(world, 29, 22);
+    }
+}
+
+/// `Instances`' reveal class replaced by `RevealDouble`.
+fn reveal_double(world: World) {
+    let double = *declare("RevealDouble").unwrap().contract_class().class_hash;
+    let hosts = *declare("HostsLibrary").unwrap().contract_class().class_hash;
+    let traps = *declare("TrapLibrary").unwrap().contract_class().class_hash;
+    start_cheat_caller_address(world.instances, addr(ADMIN));
+    grimworld_ephemeral::systems::instances::IInstancesAdminDispatcherTrait::set_contracts(
+        grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
+            contract_address: world.instances,
+        },
+        world.hub,
+        world.registry,
+        world.fate,
+        double,
+        hosts,
+        traps,
+    );
+}
+
+fn prepare_reveal(world: World) {
+    open_chunk(world, 0);
+}
+
+// A walk West (the window's `+x`) from chunk 0's (7, 7): at (9, 7) sight touches chunk 1, which the
+// reveal generates with the spawn table's packs; then back to (7, 7).
+#[test]
+#[available_gas(l2_gas: 266191224)] // ceil(1.05 × 253515451 measured)
+fn test_play_batch_equals_singles_reveal() {
+    let moves = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+    ];
+    let (words_one, words_two, events_one, events_two) = twin(
+        0, INTO_PACK_ZONE, moves.span(), array![0, 1, 15, 16].span(),
+    );
+    // Chunk 1 revealed, holding a pack (its features' first pack, count at bits 32–35)
+    let features: u256 = (*words_one[3 + 22 + 1]).into();
+    let count = (features.low / 0x100000000) % 0x10;
+    println!("reveal: chunk 1's first pack holds {} goblins", count);
+    assert(count > 0, 'chunk 1 holds a pack');
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+fn prepare_walk(world: World) {
+    for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
+        open_chunk(world, chunk);
+    }
+    // An alerted pack of 3 on chunk 15's East edge (its tile (13, 7), global (13, 22)), every
+    // goblin within 2 of it: it enters the window as the adventurer nears x = 20, then walks to it
+    let pack = grimworld_logic::models::index::PackPlacement {
+        tile: 7 * 15 + 13,
+        template: 1,
+        level: 1,
+        count: 3,
+        offsets: 9 + 8 * 32 + 10 * 1024,
+        alert: 2,
+    };
+    let features = grimworld_logic::models::index::Features {
+        packs: [pack, Default::default()], objects: [Default::default(); 3], touched: 0,
+    };
+    write(world.instances, chunk_key(1, 15) + 1, StorePacking::pack(features));
+    put_member(world, 30, 22);
+}
+
+// Ten Moves toward lower `x` (East) from chunk 17's first column, (30, 22): the area moves when the
+// adventurer enters chunk 16, so chunk 15's alerted pack is in the batch's world from there and
+// walks toward it, as in each single batch (minor 4; without the area's move the batch would not
+// hold it, and the words would differ).
+#[test]
+#[available_gas(l2_gas: 314554307)] // ceil(1.05 × 299575530 measured)
+fn test_play_batch_equals_singles_ten_east() {
+    let mut moves = array![];
+    let mut k: u8 = 0;
+    while k < 10 {
+        moves.append(grimworld_logic::actions::Action::Move(0));
+        k += 1;
+    }
+    let (words_one, words_two, events_one, events_two) = twin(
+        1, 1, moves.span(), array![0, 1, 2, 15, 16, 17].span(),
+    );
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+fn prepare_ghost(world: World) {
+    prepare_walk(world);
+    let pack = grimworld_logic::models::index::PackPlacement {
+        tile: 7 * 15 + 13, template: 2, level: 1, count: 1, offsets: 9, alert: 0,
+    };
+    let features = grimworld_logic::models::index::Features {
+        packs: [pack, Default::default()], objects: [Default::default(); 3], touched: 0,
+    };
+    write(world.instances, chunk_key(1, 15) + 1, StorePacking::pack(features));
+    put_member(world, 20, 22);
+}
+
+// t-0109, note 5: a goblin whose caste the registry does not hold refuses the batch
+// (`Stop::Invalid`), nothing run.
+#[test]
+#[available_gas(l2_gas: 59413860)] // ceil(1.05 × 56584628 measured)
+fn test_play_unloadable_goblin_refused() {
+    let world = setup();
+    play_classes(world);
+    pack_content(world);
+    let id = create(world, 7, 'alice', 1, 0);
+    prepare_ghost(world);
+    let mut spy = spy_events();
+    play(world, 'alice')
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+    let (played, stop, sequence, _) = batch_played(ref spy, world);
+    assert(played == 0 && stop == 2 && sequence == 0, 'refused, nothing run');
+}
+
+// t-0110, major 1: a Move across a chunk border and back. From chunk 16's last column, (29, 22),
+// one Move West into chunk 17 (the area moves away from chunk 15, whose alerted pack leaves the
+// batch's world), then nine Moves East back through chunk 16 to (21, 22), where the window reaches
+// chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
+#[test]
+#[available_gas(l2_gas: 291467714)] // ceil(1.05 × 277588299 measured)
+fn test_play_batch_equals_singles_round_trip() {
+    let mut moves = array![grimworld_logic::actions::Action::Move(3)];
+    let mut k: u8 = 0;
+    while k < 9 {
+        moves.append(grimworld_logic::actions::Action::Move(0));
+        k += 1;
+    }
+    let (words_one, words_two, events_one, events_two) = twin(
+        2, 1, moves.span(), array![15, 16, 17].span(),
+    );
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+// t-0110, minor 2: the reveal twin that discriminates. The reveal double opens every chunk and puts
+// an alerted pack at chunk 1's edge; the walk West from chunk 0's (7, 7) reveals chunk 1 at
+// (9, 7), and the pack's goblins, in the window from there, act: a goblin of chunk 1 has a record.
+#[test]
+#[available_gas(l2_gas: 302030505)] // ceil(1.05 × 287648100 measured)
+fn test_play_batch_equals_singles_reveal_acts() {
+    let moves = array![
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
+        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+    ];
+    let (words_one, words_two, events_one, events_two) = twin(
+        3, INTO_PACK_ZONE, moves.span(), array![0, 1].span(),
+    );
+    // Chunk 1's goblin records follow chunk 0's 22 felts and chunk 1's two words (3 + 22 + 2)
+    let mut acted = false;
+    let mut k: u32 = 0;
+    while k < 6 {
+        if *words_one[3 + 22 + 2 + k] != 0 {
+            acted = true;
+        }
+        k += 1;
+    }
+    assert(acted, 'a goblin of chunk 1 acted');
+    assert(words_one == words_two, 'batch = singles: words');
+    assert(events_one == events_two, 'batch = singles: events');
+}
+
+fn prepare_ghost_far(world: World) {
+    prepare_ghost(world);
+    put_member(world, 30, 22);
+}
+
+// t-0110, note 3: a goblin the registry cannot load arriving mid-batch (chunk 15's pack names caste
+// 99): the batch stops `Invalid` after the Move into chunk 16, whose tick has run.
+#[test]
+#[available_gas(l2_gas: 67405093)] // ceil(1.05 × 64195326 measured)
+fn test_play_unloadable_arrival_runs_the_ticks() {
+    let world = setup();
+    play_classes(world);
+    pack_content(world);
+    let id = create(world, 7, 'alice', 1, 0);
+    prepare_ghost_far(world);
+    let mut spy = spy_events();
+    let moves = array![
+        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+    ];
+    play(world, 'alice').play(id, 7, 0, 0, batch(moves.span()));
+    let (played, stop, sequence, clock) = batch_played(ref spy, world);
+    assert(played == 1 && stop == 2, 'one move, then refused');
+    assert(sequence == 1 && clock == 1, 'its tick has run');
+}
+
+// t-0109, note 6: a play class's key past `SEGMENT` is refused.
+#[test]
+#[should_panic(expected: ('play class: no such key',))]
+#[available_gas(l2_gas: 22145403)] // ceil(1.05 × 21090860 measured)
+fn test_set_play_class_key_refused() {
+    let world = setup();
+    start_cheat_caller_address(world.instances, addr(ADMIN));
+    grimworld_ephemeral::systems::instances::IInstancesAdminDispatcherTrait::set_play_class(
+        grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
+            contract_address: world.instances,
+        },
+        6,
+        *declare("TickLibrary").unwrap().contract_class().class_hash,
+    );
 }

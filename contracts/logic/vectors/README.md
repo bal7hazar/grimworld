@@ -42,6 +42,20 @@ The cases:
 - `distance`: from `(7, 7)`, `(7, 8)` and `(0, 0)` to every tile, and a position outside the window (240, 255) at either end or both, whose distance is 255 (`FAR`, above every range).
 - `shape`: each shape at the corners, the edges, the centre and next to walls.
 
+## `movement.jsonl`: moves, the window, the flood, the awake set (ENG-07)
+
+Printed by `types::play::tests::test_vectors`, with its digest. One line: `{"id", "fn", "case", "ok"}`;
+a position is the window's index `15 y + x` (0–239), a direction `0..=5` (East, North-East,
+North-West, West, South-West, South-East), 255 none.
+
+| `fn` | `case` | `ok` |
+|---|---|---|
+| `origin` | the adventurer's tile `x`, `y` (global) | `Board.x`, `Board.y` (the window's origin plus 15, so a negative origin at a West or South edge holds, D-134) and its window position: local `(7, 7)` (112) on an odd row, `(7, 8)` (127) on an even one |
+| `move` | `from`, a direction | the tile a Move reaches (`hexx`'s `LayoutTrait::neighbor` on the window), 255 at the window's edge |
+| `ticks` | Crippled's deadline, `t0`, a `MOVEMENT` effect held (0 or 1) | a Move's ticks: 2 while Crippled without `MOVEMENT`, else 1 |
+| `flood` | the walkable grid, the flood's source, a walker | the walker's step toward the source and its distance, 255 when beyond the 15 layers (it holds, D-127) |
+| `awake` | each goblin's distance (entity `8 + k`; the fourth asleep) | the awake set's entities: the 8 nearest, ties by the lowest id |
+
 ## `hit.jsonl`: one hit (CBT-03a)
 
 Printed by `types::hit::tests::test_vectors`, with its digest. One line: `{"id", "case", "ok"}`.

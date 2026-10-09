@@ -44,6 +44,7 @@ use starknet::storage::{
 use starknet::{ClassHash, ContractAddress};
 use crate::helpers::stored::{Stored, StoredTrait};
 use crate::models::chunk::{Chunk, Terrain, TerrainStorePacking};
+use crate::models::goblin::Goblin;
 use crate::models::instance::{Header, Placement, Quotas};
 use crate::models::member::{
     EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, MemberAssert, MemberState,
@@ -227,6 +228,16 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.outline.entry((slot, 0)).read()
     }
 
+    /// A dungeon floor's outline (ENG-10b) as stored: its chunks, open West seams, open North
+    /// seams (ENG-07: the reveal in play reads it, D-229).
+    fn get_outline(self: @InstancesState, slot: u32) -> (felt252, felt252, felt252) {
+        (
+            self.outline.entry((slot, 0)).read(),
+            self.outline.entry((slot, 1)).read(),
+            self.outline.entry((slot, 2)).read(),
+        )
+    }
+
     /// A dungeon floor's outline (ENG-10b): its three felts, written once at the generation's
     /// start.
     fn set_outline(ref self: InstancesState, slot: u32, outline: @Outline) {
@@ -281,6 +292,12 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     fn get_chunk_words(self: @InstancesState, slot: u32, chunk: u8) -> (felt252, felt252) {
         let entry = self.chunks.entry((slot, chunk)).read();
         (entry.terrain.word, entry.features.word)
+    }
+
+    /// A chunk's `Features` word as stored (ENG-07: a batch's traps, touched bits).
+    #[inline(always)]
+    fn set_features(ref self: InstancesState, slot: u32, chunk: u8, features: felt252) {
+        self.chunks.entry((slot, chunk)).features.write(Stored { word: features })
     }
 
     /// The reveal's two writes of a chunk: its words as the reveal's library packed them.
@@ -355,6 +372,57 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         slots.timers.write(Stored { word: EMPTY_TIMERS });
         slots.effects.write(Stored { word: EMPTY_EFFECTS });
         slots.recharges.write(Stored { word: EMPTY_RECHARGES });
+    }
+
+    /// A member's four words that change in play, as the tick's library returns them (ENG-07).
+    fn set_member_words(
+        ref self: InstancesState,
+        slot: u32,
+        member: u8,
+        state: felt252,
+        timers: felt252,
+        effects: felt252,
+        recharges: felt252,
+    ) {
+        let slots = self.members.entry((slot, member)).sub_pointers_mut();
+        slots.state.write(Stored { word: state });
+        slots.timers.write(Stored { word: timers });
+        slots.effects.write(Stored { word: effects });
+        slots.recharges.write(Stored { word: recharges });
+    }
+
+    // Goblins: `goblins[(slot, entity)]`, two slots each (typed, ENG-07)
+
+    /// A goblin record's two words as stored (0 when it has none).
+    fn get_goblin_words(self: @InstancesState, slot: u32, entity: u16) -> (felt252, felt252) {
+        let record = self.goblins.entry((slot, entity)).read();
+        (record.state.word, record.timers.word)
+    }
+
+    fn set_goblin_words(
+        ref self: InstancesState, slot: u32, entity: u16, state: felt252, timers: felt252,
+    ) {
+        self
+            .goblins
+            .entry((slot, entity))
+            .write(Goblin { state: Stored { word: state }, timers: Stored { word: timers } })
+    }
+
+    #[inline(always)]
+    fn set_roster_page(ref self: InstancesState, slot: u32, page: u8, lanes: Lanes16) {
+        self.roster.entry((slot, page)).write(lanes)
+    }
+
+    // The play classes (ENG-07, D-233 to D-235): `play_classes[k]`, `PLAY` … `EXECUTOR`
+
+    #[inline(always)]
+    fn get_play_class(self: @InstancesState, k: u8) -> ClassHash {
+        self.play_classes.entry(k).read()
+    }
+
+    #[inline(always)]
+    fn store_play_class(ref self: InstancesState, k: u8, class: ClassHash) {
+        self.play_classes.entry(k).write(class)
     }
 
     /// The eight words of each of the first `members` members as stored, in `Member`'s order (the
