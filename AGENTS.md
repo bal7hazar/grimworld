@@ -34,8 +34,8 @@ vector or logic change (the client mirror reads those tables).
 
 | Part | Local test command | Known memory peak (source) |
 |---|---|---|
-| `contracts/logic`, `persistent`, `ephemeral` (Scarb workspace) | `cd contracts && snforge test -p grimworld_logic --max-threads 2` (or `grimworld_persistent`, `grimworld_ephemeral`; a filter goes last). The heavy vector and shape tests (window, hit, ENG-02's window tests) are not split yet (FND-23): run those modules with `snforge test <filter>` | Whole workspace, 2 threads: 4.88 GB capped; 8 threads: 8.29 GB, fails (`docs/reports/FND-20-tests-under-8gb.md`). One package alone: unknown, **measure first†** |
-| `contracts/` gas, generated files | `python3 scripts/gas_budgets.py --check`; `python3 contracts/tools/exp2_table.py --check`; `python3 contracts/logic/vectors/check.py` | 4.88 GB; none recorded; 4.03 GB (same report) |
+| `contracts/logic`, `persistent`, `ephemeral` (Scarb workspace) | `cd contracts && snforge test -p grimworld_logic --max-threads 2` (or `grimworld_persistent`, `grimworld_ephemeral`; a filter goes last). The heavy vector and shape tests (window, hit, ENG-02's window tests) are not split yet (FND-23): run those modules with `snforge test <filter>` | Whole workspace, 2 threads: 4.88 GB capped, so `prlimit --as=8589934592` (8 GiB); 8 threads: 8.29 GB, fails: Mac (`docs/reports/FND-20-tests-under-8gb.md`). One package alone: unknown, **measure first†** |
+| `contracts/` gas, generated files | `python3 scripts/gas_budgets.py --check`; `python3 contracts/tools/exp2_table.py --check`; `python3 contracts/logic/vectors/check.py` | 4.88 GB, cap `--as=8589934592` (8 GiB); none recorded; 4.03 GB, cap `--as=7516192768` (7 GiB) (same report) |
 | `indexer/emitter` (Cairo 2.19) | `cd indexer/emitter && snforge test --max-threads 2` | unknown, **measure first†** |
 | `client/sim` | `pnpm --filter @grimworld/sim test` | none recorded; under a minute (orchestrators) |
 | `client/app` | `pnpm --filter @grimworld/app test`, plus `lint` and `typecheck` | none recorded; under a minute (orchestrators) |
@@ -47,5 +47,9 @@ vector or logic change (the client mirror reads those tables).
 | `spikes/*` (each its own Scarb or pnpm package) | from its folder: `snforge test` or `pnpm test`, only if you touched it | unknown, **measure first†** |
 | `tools/site` | no tests | n/a |
 
-† Measure first, capped (`prlimit --as=8589934592 -- /usr/bin/time -v …`) or on the Mac; never uncapped on the
-VPS. The same for any build that may pass 8 GB.
+† Memory rule (the address-space cap `prlimit --as` stops a runaway, it does not measure: address space exceeds
+resident memory, and a real 7.3 GB peak aborted under 8 GiB). Measure the peak RSS of every build or test run first:
+on the Mac, or on the VPS under `prlimit --as=8589934592 -- /usr/bin/time -v …` (8 GiB); if that capped run aborts,
+measure on the Mac. Never measure an unknown peak on the VPS under a larger cap. A run whose measured peak RSS is
+under about 8 GB may run on the VPS under `prlimit --as` set to 1.5 × its peak, rounded up, at most 16 GiB. A run
+above about 8 GB runs on the Mac, never on the VPS. Never uncapped on the VPS.
