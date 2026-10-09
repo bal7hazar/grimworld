@@ -33,7 +33,7 @@ import {
   movedBy,
   newObject,
 } from "./objects";
-import { buildingFootprint, doorOf, doorOffset, placedOn } from "./pack";
+import { buildingFootprint, doorOf, doorOffset, paintedFootprint, placedOn } from "./pack";
 import { doorChoices, kindOf as packKindOf } from "./palette";
 import { DEFAULT_LAYERS, LAYER_NAMES, type Layers } from "./view";
 
@@ -115,7 +115,18 @@ export class EditorSession {
   clip: Clip | null = null;
   pasting = false;
   /** The stroke's mode: what a drag does, fixed at its start. */
-  private stroke: "brush" | "erase" | "outlineIn" | "outlineOut" | "box" | "move" | null = null;
+  private stroke:
+    | "brush"
+    | "erase"
+    | "outlineIn"
+    | "outlineOut"
+    | "box"
+    | "move"
+    | "footprintAdd"
+    | "footprintRemove"
+    | null = null;
+  /** The building a footprint stroke paints, fixed at its start. */
+  private footprintId: number | null = null;
 
   constructor(
     readonly doc: MapDocument,
@@ -143,6 +154,11 @@ export class EditorSession {
     this.said = "";
     if (tool === "outline" && !this.zone) {
       this.said = "A town has no outline: paint its island as ground.";
+      this.onChange();
+      return;
+    }
+    if (tool === "footprint" && this.footprintTarget() === null) {
+      this.said = "Footprint: select a pack building first.";
       this.onChange();
       return;
     }
@@ -185,8 +201,16 @@ export class EditorSession {
 
   /** The hexes under the brush at a hex, for the tool armed (Fill, Pick, Select, Place take one). */
   footprint(tile: Tile): Tile[] {
-    const one = ["fill", "pick", "select", "place"].includes(this.tool) || this.pasting;
+    const one =
+      ["fill", "pick", "select", "place", "footprint"].includes(this.tool) || this.pasting;
     return brushAt(tile, one ? 0 : this.brush);
+  }
+
+  /** The pack building the Footprint tool paints: the one object selected, when it is one. */
+  footprintTarget(): number | null {
+    if (this.selection.objects.size !== 1) return null;
+    const [id] = this.selection.objects;
+    return this.doc.objects.get(id!)?.kind === "building" ? id! : null;
   }
 
   private record(changes: readonly Change[]): void {
@@ -269,6 +293,21 @@ export class EditorSession {
         this.history.end();
         return;
       }
+      case "footprint": {
+        // A press on a hex of the footprint removes hexes; on any other, adds them (right click
+        // removes): fixed for the drag, so that the stroke does one thing.
+        const id = this.footprintTarget();
+        const object = id === null ? undefined : this.doc.objects.get(id);
+        if (id === null || object?.kind !== "building") {
+          this.said = "Footprint: select a pack building first.";
+          this.onChange();
+          return;
+        }
+        const inside = buildingFootprint(object).some((t) => t.x === tile.x && t.y === tile.y);
+        this.footprintId = id;
+        this.stroke = how.erase || inside ? "footprintRemove" : "footprintAdd";
+        break;
+      }
       case "outline":
         this.stroke = how.erase ? "outlineOut" : "outlineIn";
         break;
@@ -291,6 +330,10 @@ export class EditorSession {
       if (this.box) this.box = { ...this.box, to: last };
       if (this.moving) this.moving = { ...this.moving, to: last };
       this.onChange();
+      return;
+    }
+    if (this.stroke === "footprintAdd" || this.stroke === "footprintRemove") {
+      for (const tile of tiles) this.paintFootprint(tile, this.stroke === "footprintAdd");
       return;
     }
     for (const tile of tiles) {
@@ -317,9 +360,23 @@ export class EditorSession {
     }
   }
 
+  /** One hex of a footprint stroke: the building's footprint with it added or removed. */
+  private paintFootprint(tile: Tile, add: boolean): void {
+    const before = this.footprintId === null ? undefined : this.doc.objects.get(this.footprintId);
+    if (this.footprintId === null || before?.kind !== "building") return;
+    const after = paintedFootprint(before, tile, add);
+    if (typeof after === "string") {
+      this.said = after;
+      this.onChange();
+      return;
+    }
+    if (after !== before) this.record([{ object: this.footprintId, before, after }]);
+  }
+
   strokeEnd(): void {
     const stroke = this.stroke;
     this.stroke = null;
+    this.footprintId = null;
     this.history.end();
     if (stroke === "box" && this.box) this.endBox(this.box);
     if (stroke === "move" && this.moving) this.endMove(this.moving);

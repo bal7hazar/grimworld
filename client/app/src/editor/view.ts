@@ -93,6 +93,7 @@ export function holds(window: TileBox, visible: TileBox): boolean {
  * - Ground off: every painted hex is drawn as grass, so terrain alone reads.
  * - Obstacles off: walls are drawn with the renderer's unrevealed look (a flat dark hex) instead of
  *   their rocks, bushes and trees, so the walkable plane reads at a glance.
+ * - Every placed object's hex is in sight, so that none is drawn dimmed (CLI-09h).
  * - The map's buildings, props and bridges (a town's and the pack's, CLI-09b and CLI-09e) stand as
  *   the game draws them, with the objects layer, on a zone as on a town; its characters stand in
  *   their idle loop (CLI-09e part 3). The renderer draws them all: the overlay draws none.
@@ -129,16 +130,21 @@ export function editorView(doc: MapDocument, layers: Layers, window: TileBox): V
       }
     }
   }
+  const structures = layers.objects ? townStructures(doc) : [];
+  // The renderer dims a structure whose hex is not in sight: every placed object's hex counts as
+  // seen, on an unpainted hex or beyond the window as well (the window's painted tiles alone
+  // would dim it).
+  const sight = structures.length > 0 ? [...tiles, ...structures.map((s) => s.at)] : tiles;
   return {
     tiles,
     actors: [],
     adventurerId: -1,
-    sight: tiles,
+    sight,
     arcs: null,
     path: [],
     dropped: [],
     selectedTile: null,
-    structures: layers.objects ? townStructures(doc) : [],
+    structures,
     void: "water",
   };
 }

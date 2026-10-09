@@ -6,7 +6,7 @@ fields, not the packed felts.
 
 | File | What |
 |---|---|
-| `test-region.json` | The test region: one region, its town, one zone, a dungeon of two floors, their gates; the reveal's content (ENG-05): two pack templates, a spawn table, the zone's and floor 1's quotas |
+| `test-region.json` | The test region: one region, its town, one zone, a dungeon of two floors, their gates; the reveal's content (ENG-05): two pack templates, a spawn table, the zone's and floor 1's quotas; the castes and the skill the packs name (ENG-07t) |
 
 ## The test region
 
@@ -37,9 +37,23 @@ lot's). `QUOTAS` 4, floor 2's boss arena, a set-piece quota, waits for a `SET_PI
 chunk, CM-7 and TOOL-01). The town (1) has no map and no quota. The registry accepts them only after
 their location.
 
-**Packs (ENG-05, `models::pack`, `models::spawn_table`).** The castes 1 to 3 the templates name are
-`CASTE` ids the seed does not write yet (CBT's lots and DES-06 fill them); the registry checks only
-that a template's `min` is not above its `max` (`PackAssert`).
+**Packs (ENG-05, `models::pack`, `models::spawn_table`).** The registry checks only that a template's
+`min` is not above its `max` (`PackAssert`).
+
+**Castes and skill (ENG-07t).** The castes 1 to 3 the templates name are written, with the one skill
+they carry, so that a fight runs on the node (`lifecycle_probe.py --fight on` writes them from this
+file). Placeholders for the mechanics, not DES-06's sheets (DES-06 fills the real ones):
+
+| Kind | Id | What |
+|---|---|---|
+| `SKILL` | 1 | An attack (kind 1), range 1, 4 strikes of adrenaline, one `ATTACK_BONUS` entry (+2 at rank 0, +6 at rank 12) |
+| `CASTE` | 1 | Grunt: tier 1, 100 % health, an axe (damage 6, slashing, 2 ticks, range 1), skill 1 |
+| `CASTE` | 2 | Slinger: tier 1, 100 % health, a bow (damage 5, piercing, 3 ticks, range 4), skill 1 |
+| `CASTE` | 3 | Brute: tier 2, 150 % health, armor 2, a maul (damage 9, blunt, 3 ticks, range 1), skill 1 |
+
+Skills come first in the file's order of writing (a caste names its skills, the registry reads
+them), and `skill_fields` and `caste_fields` give the columns (a skill's three entries are `e1_` to
+`e3_` and the entry's twelve fields; a caste's armors are `armor_vs_1` to `armor_vs_9`).
 
 A chunk of the chunk set with no tile mask is whole. No set piece, book or quest is referenced:
 those kinds' content is later tasks'.

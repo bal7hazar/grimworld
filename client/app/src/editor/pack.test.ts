@@ -10,6 +10,7 @@ import {
   createMap,
   keyOf,
   nextObjectId,
+  sideOf,
 } from "./model";
 import { KINDS, type MapObject, TOWN_OBJECTS, ZONE_OBJECTS, kindOf, newObject } from "./objects";
 import {
@@ -19,6 +20,8 @@ import {
   buildingFootprint,
   doorOf,
   doorOffset,
+  footprintOffsets,
+  paintedFootprint,
   propSprite,
   recordFor,
 } from "./pack";
@@ -536,5 +539,210 @@ describe("the pack in the file (CLI-09e part 2)", () => {
     file.objects = [{ kind: "npc", x: 1, y: 1, type: "pawn" }];
     const read = loadMap(JSON.stringify(file));
     expect("problem" in read && read.problem).toContain('an object "npc" at (1, 1) is not read');
+  });
+});
+
+describe("a building's footprint, painted hex by hex (CLI-09h)", () => {
+  /** A town with a tower selected, the Footprint tool armed. */
+  function armed(type = "tower", door = "0,0") {
+    const doc = block(town());
+    const id = add(doc, building({ x: 10, y: 6 }, type, door));
+    const s = new EditorSession(doc);
+    s.select({ hexes: new Set(), objects: new Set([id]) });
+    s.armTool("footprint");
+    return { doc, id, s };
+  }
+  const footprintOf = (doc: MapDocument, id: number) => {
+    const o = doc.objects.get(id);
+    return o?.kind === "building" ? buildingFootprint(o) : [];
+  };
+  const has = (hexes: Tile[], t: Tile) => hexes.some((h) => h.x === t.x && h.y === t.y);
+
+  it("is armed on one selected building only", () => {
+    const doc = block(town());
+    const s = new EditorSession(doc);
+    s.armTool("footprint");
+    expect(s.tool).toBe("paint");
+    expect(s.said).toContain("select a pack building");
+    const id = add(doc, npc({ x: 3, y: 3 }));
+    s.select({ hexes: new Set(), objects: new Set([id]) });
+    s.armTool("footprint");
+    expect(s.tool).toBe("paint");
+    const house = add(doc, building({ x: 8, y: 8 }));
+    s.select({ hexes: new Set(), objects: new Set([house]) });
+    s.armTool("footprint");
+    expect(s.tool).toBe("footprint");
+    expect(s.footprintTarget()).toBe(house);
+  });
+
+  it("starts from the kind's default footprint; a click on a free hex adds it, on a hex of it removes it", () => {
+    const { doc, id, s } = armed();
+    const start = footprintOf(doc, id);
+    const free = { x: 10, y: 12 };
+    expect(has(start, free)).toBe(false);
+    click(s, free);
+    const grown = footprintOf(doc, id);
+    expect(grown).toHaveLength(start.length + 1);
+    expect(has(grown, free)).toBe(true);
+    const gone = grown.find((t) => t.x !== 10 || t.y !== 6)!;
+    click(s, gone);
+    expect(has(footprintOf(doc, id), gone)).toBe(false);
+    expect(footprintOf(doc, id)).toHaveLength(start.length);
+  });
+
+  it("right click removes, even from a hex the footprint does not hold (nothing happens)", () => {
+    const { doc, id, s } = armed();
+    const start = footprintOf(doc, id);
+    const inside = start.find((t) => t.x !== 10 || t.y !== 6)!;
+    s.strokeStart(inside, { erase: true, alt: false });
+    s.strokeEnd();
+    expect(has(footprintOf(doc, id), inside)).toBe(false);
+    s.strokeStart({ x: 20, y: 15 }, { erase: true, alt: false });
+    s.strokeEnd();
+    expect(footprintOf(doc, id)).toHaveLength(start.length - 1);
+    expect(s.history.steps).toBe(1);
+  });
+
+  it("a drag is one stroke of one kind, and one undo step", () => {
+    const { doc, id, s } = armed();
+    const start = footprintOf(doc, id);
+    const row = [
+      { x: 14, y: 12 },
+      { x: 15, y: 12 },
+      { x: 16, y: 12 },
+    ];
+    s.strokeStart(row[0]!, { erase: false, alt: false });
+    s.strokeMove(row.slice(1));
+    s.strokeEnd();
+    expect(footprintOf(doc, id)).toHaveLength(start.length + 3);
+    expect(s.history.steps).toBe(1);
+    // A drag that starts on the footprint removes: it does not add on the way out.
+    const begin = start.find((t) => t.x !== 10 || t.y !== 6)!;
+    s.strokeStart(begin, { erase: false, alt: false });
+    s.strokeMove([row[0]!]);
+    s.strokeEnd();
+    expect(has(footprintOf(doc, id), row[0]!)).toBe(false);
+    expect(s.history.steps).toBe(2);
+    s.undo();
+    expect(has(footprintOf(doc, id), row[0]!)).toBe(true);
+    s.undo();
+    expect(footprintOf(doc, id)).toEqual(start);
+    expect((doc.objects.get(id) as PackObject & { kind: "building" }).footprint).toBe("");
+    s.redo();
+    s.redo();
+    expect(has(footprintOf(doc, id), row[0]!)).toBe(false);
+    expect(footprintOf(doc, id)).toHaveLength(start.length + 1);
+  });
+
+  it("the door hex cannot be removed", () => {
+    const { doc, id, s } = armed();
+    const before = footprintOf(doc, id);
+    click(s, { x: 10, y: 6 });
+    expect(s.said).toContain("door");
+    expect(footprintOf(doc, id)).toEqual(before);
+    expect(s.history.steps).toBe(0);
+    // Even in a drag across it.
+    const other = before.find((t) => t.x !== 10 || t.y !== 6)!;
+    s.strokeStart(other, { erase: false, alt: false });
+    s.strokeMove([{ x: 10, y: 6 }]);
+    s.strokeEnd();
+    expect(has(footprintOf(doc, id), { x: 10, y: 6 })).toBe(true);
+  });
+
+  it("a hex that would close the door in is refused; the door stays on the border", () => {
+    const b = building({ x: 10, y: 6 }, "tower") as PackObject & { kind: "building" };
+    const door = doorOf(b)!;
+    const ring = [0, 1, 2, 3, 4, 5].map((side) => sideOf(door, side));
+    const wrapped = paintedFootprint(
+      { ...b, footprint: footprintOffsets(b.at, [door, ...ring.slice(0, 5)]) },
+      ring[5]!,
+      true,
+    );
+    expect(typeof wrapped).toBe("string");
+    expect(wrapped).toContain("door");
+  });
+
+  it("the file saves the painted footprint, and reads it back", () => {
+    const { doc, id, s } = armed();
+    click(s, { x: 10, y: 12 });
+    click(s, { x: 11, y: 12 });
+    const painted = footprintOf(doc, id);
+    const read = loadMap(saveMap(doc));
+    if ("problem" in read) throw new Error(read.problem);
+    expect(footprintOf(read.doc, id)).toEqual(painted);
+    expect(doorOf(read.doc.objects.get(id) as PackObject & { kind: "building" })).toEqual({
+      x: 10,
+      y: 6,
+    });
+  });
+
+  it("the export writes the painted footprint as ENG-08's record", () => {
+    const { doc, id, s } = armed();
+    click(s, { x: 10, y: 12 });
+    const placed = recordFor(doc.objects.get(id) as PackObject);
+    if ("problem" in placed || placed.category !== "building") throw new Error("no record");
+    const painted = footprintOf(doc, id);
+    expect(placed.record.footprint).toHaveLength(painted.length);
+    expect(placed.record.footprint.map(keyOf).sort()).toEqual(painted.map(keyOf).sort());
+    expect(placed.record.anchor).toEqual({ x: 10, y: 6 });
+  });
+
+  it("the checks hold: a painted piece apart fails E-16, one off the border door fails E-20", () => {
+    const { doc, id, s } = armed();
+    expect(findings(doc, "E-16")).toEqual([]);
+    // A hex apart from the building: not one piece.
+    click(s, { x: 20, y: 15 });
+    fails(doc, "E-16");
+    s.undo();
+    expect(findings(doc, "E-16")).toEqual([]);
+    expect(findings(doc, "E-20")).toEqual([]);
+    // The door painted off the border by the file: E-20 names it.
+    const o = doc.objects.get(id) as PackObject & { kind: "building" };
+    doc.objects.set(id, { ...o, door: "40,40" });
+    fails(doc, "E-20");
+  });
+
+  it("a footprint outside the painted map fails E-16", () => {
+    const { doc, s } = armed();
+    click(s, { x: 10, y: 25 });
+    fails(doc, "E-16");
+  });
+
+  it("the walk's world makes walls of the painted hexes but the door", () => {
+    const { doc, s } = armed();
+    click(s, { x: 12, y: 12 });
+    const o = [...doc.objects.values()].find((v) => v.kind === "building")!;
+    const covers = coversOf(o).map(keyOf);
+    expect(covers).toContain(keyOf({ x: 12, y: 12 }));
+    expect(covers).not.toContain(keyOf({ x: 10, y: 6 }));
+  });
+});
+
+describe("every placed object's hex is in sight in the editor's view (CLI-09h)", () => {
+  const window = { x0: -15, y0: -15, x1: 44, y1: 29 };
+  const seen = (view: ReturnType<typeof editorView>, t: Tile) =>
+    view.sight.some((s) => s.x === t.x && s.y === t.y);
+
+  it("a pack object on an unpainted hex, or beyond the window, is not dimmed", () => {
+    const doc = block(town(), 10, 10);
+    add(doc, prop({ x: 20, y: 5 }));
+    add(doc, building({ x: 100, y: 100 }, "house1"));
+    add(doc, npc({ x: 3, y: 3 }));
+    const view = editorView(doc, DEFAULT_LAYERS, window);
+    for (const t of [
+      { x: 20, y: 5 },
+      { x: 100, y: 100 },
+      { x: 3, y: 3 },
+    ]) {
+      expect(seen(view, t), `(${t.x}, ${t.y})`).toBe(true);
+    }
+    expect(view.structures!.every((st) => seen(view, st.at))).toBe(true);
+  });
+
+  it("with the objects layer off, the sight is the tiles alone", () => {
+    const doc = block(town(), 10, 10);
+    add(doc, prop({ x: 20, y: 5 }));
+    const view = editorView(doc, { ...DEFAULT_LAYERS, objects: false }, window);
+    expect(view.sight).toBe(view.tiles);
   });
 });

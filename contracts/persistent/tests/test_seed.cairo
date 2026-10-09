@@ -9,9 +9,10 @@
 // therefore holds, per kind, one flat array (a record a line, fixed columns, never empty) and the
 // names of its columns, which are read with a cursor (`Stream`) and checked (`SeedAssert`).
 use grimworld_logic::content::{
-    GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, Record, SPAWN_TABLE, parts,
+    CASTE, GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, Record, SKILL, SPAWN_TABLE, parts,
 };
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
+use grimworld_logic::models::caste::{Caste, CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait, biome, kind};
 use grimworld_logic::models::outline::{CHUNK_SET, Outline, OutlineRecord, OutlineTrait};
@@ -20,8 +21,10 @@ use grimworld_logic::models::quotas::{
     Quota, QuotaSet, QuotaSetRecord, QuotaSetTrait, kind as quota,
 };
 use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
+use grimworld_logic::models::skill::{Skill, SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
 use grimworld_logic::packing::Lanes16;
+use grimworld_logic::types::effect::{Entry, EntryTrait};
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
 };
@@ -43,6 +46,9 @@ const GATE_COLUMNS: u32 = 10;
 const PACK_COLUMNS: u32 = 17;
 const SPAWN_TABLE_COLUMNS: u32 = 16;
 const QUOTA_COLUMNS: u32 = 19;
+/// Columns of a skill's row (three entries of 12) and of a caste's (ENG-07t).
+const SKILL_COLUMNS: u32 = 47;
+const CASTE_COLUMNS: u32 = 30;
 
 pub mod errors {
     pub const TRUNCATED: felt252 = 'seed: truncated';
@@ -67,6 +73,8 @@ struct RegionRow {
 /// The file, in the order `read_json` gives its keys.
 #[derive(Drop)]
 pub struct Seed {
+    caste_fields: Array<ByteArray>,
+    castes: Span<felt252>,
     gate_fields: Array<ByteArray>,
     gates: Span<felt252>,
     location_fields: Array<ByteArray>,
@@ -79,6 +87,8 @@ pub struct Seed {
     quotas: Span<felt252>,
     region_fields: Array<ByteArray>,
     regions: Array<RegionRow>,
+    skill_fields: Array<ByteArray>,
+    skills: Span<felt252>,
     spawn_table_fields: Array<ByteArray>,
     spawn_tables: Span<felt252>,
 }
@@ -225,6 +235,65 @@ impl RowImpl of Row {
         }
     }
 
+    /// A skill: its header, then three entries of 12 fields.
+    fn skill(self: Span<felt252>) -> Skill {
+        SkillTrait::new(
+            self.field(1),
+            self.field(2),
+            self.field(3),
+            self.field(4),
+            self.field(5),
+            self.field(6),
+            self.field(7),
+            self.field(8),
+            self.field(9),
+            self.field(10) == 1,
+            [self.entry(11), self.entry(23), self.entry(35)],
+        )
+    }
+
+    fn entry(self: Span<felt252>, at: u32) -> Entry {
+        EntryTrait::new(
+            self.field(at),
+            self.field(at + 1),
+            self.field(at + 2),
+            self.field(at + 3),
+            self.field(at + 4),
+            self.field(at + 5),
+            self.field(at + 6),
+            self.field(at + 7),
+            self.field(at + 8),
+            self.field(at + 9),
+            self.field(at + 10),
+            self.field(at + 11),
+        )
+    }
+
+    /// A caste: the sheet's fields in order, the weapon's five inline.
+    fn sheet(self: Span<felt252>) -> Caste {
+        CasteTrait::new(
+            self.field(1),
+            self.field(2),
+            self.field(3),
+            self.field(4),
+            self.field(5),
+            [
+                self.field(6), self.field(7), self.field(8), self.field(9), self.field(10),
+                self.field(11), self.field(12), self.field(13), self.field(14),
+            ],
+            WeaponTrait::new(
+                self.field(15), self.field(16), self.field(17), self.field(18), self.field(19),
+            ),
+            self.field(20),
+            self.field(21),
+            [self.field(22), self.field(23), self.field(24), self.field(25)],
+            self.field(26),
+            self.field(27),
+            self.field(28),
+            self.field(29) == 1,
+        )
+    }
+
     fn gate(self: Span<felt252>) -> Gate {
         GateTrait::new(
             self.field(1),
@@ -314,6 +383,8 @@ pub impl SeedImpl of SeedTrait {
         let file = FileTrait::new("../seed/test-region.json");
         let felts = read_json(@file);
         let mut stream = felts.span();
+        let caste_fields = stream.names();
+        let castes = stream.numbers();
         let gate_fields = stream.names();
         let gates = stream.numbers();
         let location_fields = stream.names();
@@ -336,10 +407,14 @@ pub impl SeedImpl of SeedTrait {
             );
             regions.append(RegionRow { numbers, name });
         }
+        let skill_fields = stream.names();
+        let skills = stream.numbers();
         let spawn_table_fields = stream.names();
         let spawn_tables = stream.numbers();
         SeedAssert::assert_read(stream);
         Seed {
+            caste_fields,
+            castes,
             gate_fields,
             gates,
             location_fields,
@@ -352,6 +427,8 @@ pub impl SeedImpl of SeedTrait {
             quotas,
             region_fields,
             regions,
+            skill_fields,
+            skills,
             spawn_table_fields,
             spawn_tables,
         }
@@ -449,6 +526,47 @@ pub impl SeedImpl of SeedTrait {
             let row = self.quotas.slice(QUOTA_COLUMNS * i, QUOTA_COLUMNS);
             written.add(row.field(0), @row.quotas());
         }
+
+        // ENG-07t: the skills the castes name (a caste is written after its skills), then the
+        // castes the pack templates name, so that a fight runs on the node.
+        let mut columns: Array<ByteArray> = array![
+            "id", "profession", "attribute", "kind", "energy", "adrenaline", "activation",
+            "recharge", "range", "target", "elite",
+        ];
+        for e in 1..4_u8 {
+            let names: Array<ByteArray> = array![
+                "kind", "param", "v0", "v12", "d0", "d12", "charges", "target", "shape", "filter",
+                "guard", "scope",
+            ];
+            for name in names {
+                columns.append(format!("e{}_{}", e, name));
+            }
+        }
+        let rows = SeedAssert::assert_columns(self.skill_fields, columns, *self.skills);
+        for i in 0..rows {
+            let row = self.skills.slice(SKILL_COLUMNS * i, SKILL_COLUMNS);
+            written.add(row.field(0), @row.skill());
+        }
+
+        let mut columns: Array<ByteArray> = array![
+            "id", "tier", "ai", "health", "health_regen", "armor",
+        ];
+        for i in 1..10_u8 {
+            columns.append(format!("armor_vs_{}", i));
+        }
+        let names: Array<ByteArray> = array![
+            "weapon_class", "weapon_damage", "weapon_damage_type", "weapon_ticks", "weapon_range",
+            "energy", "energy_regen", "skill_1", "skill_2", "skill_3", "skill_4", "rank", "flee",
+            "loot_table", "boss",
+        ];
+        for name in names {
+            columns.append(name);
+        }
+        let rows = SeedAssert::assert_columns(self.caste_fields, columns, *self.castes);
+        for i in 0..rows {
+            let row = self.castes.slice(CASTE_COLUMNS * i, CASTE_COLUMNS);
+            written.add(row.field(0), @row.sheet());
+        }
         written
     }
 
@@ -496,16 +614,16 @@ impl SeedFixture of Fixture {
 // The test region, written and read back in one `bundle` (AC-4): 18 records, 22 slots (ENG-05: two
 // pack templates, a spawn table, the zone's and floor 1's quotas).
 #[test]
-// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
-#[available_gas(l2_gas: 32941682)] // ceil(1.05 × 31373030 measured)
+// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
+#[available_gas(l2_gas: 49491939)] // ceil(1.05 × 47135180 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
-    assert(written.requests.len() == 18, '18 records');
-    assert(written.felts.len() == 22, '22 slots');
+    assert(written.requests.len() == 22, '22 records');
+    assert(written.felts.len() == 30, '30 slots');
     let read = IRegistryReadDispatcher { contract_address: registry };
     let (version, inputs, felts) = read.bundle(written.requests.span());
-    assert(version == 18, 'one version a record');
+    assert(version == 22, 'one version a record');
     // Every record is new: no stored snapshot can name it (D-169).
     assert(inputs == 0, 'no input rewritten');
     assert(felts == written.felts.span(), 'read back as written');
@@ -568,12 +686,22 @@ fn test_seed_written_and_read_back() {
     assert(*camp.quotas.span()[0] == Quota { kind: quota::COLLECTOR, param: 1, count: 1 }, 'camp');
     let exit = QuotaSetRecord::unpack(felts.slice(21, 1));
     assert(*exit.quotas.span()[0] == Quota { kind: quota::EXIT, param: 5, count: 1 }, 'exit');
+    // ENG-07t: the skill and the three castes the packs name.
+    assert(admin.last_id(SKILL) == 1 && admin.last_id(CASTE) == 3, 'a skill, three castes');
+    let rend = Record::<Skill>::unpack(felts.slice(22, 2));
+    assert(rend.is_attack() && rend.count() == 1 && rend.range == 1, 'skill 1: an attack');
+    for k in 0..3_u32 {
+        let caste = Record::<Caste>::unpack(felts.slice(24 + 2 * k, 2));
+        assert(*caste.skills.span()[0] == 1 && caste.health >= 100, 'a caste of skill 1');
+    }
+    let brute = Record::<Caste>::unpack(felts.slice(28, 2));
+    assert(brute.tier == 2 && brute.weapon.damage == 9, 'caste 3: the brute');
 }
 
 // The baseline of the next test: the deployment, and the file read and packed.
 #[test]
-// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
-#[available_gas(l2_gas: 9202904)] // ceil(1.05 × 8764670 measured)
+// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
+#[available_gas(l2_gas: 14452127)] // ceil(1.05 × 13763930 measured)
 fn test_gas_seed_baseline() {
     Fixture::deploy();
     SeedTrait::load().records();
@@ -581,8 +709,8 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 18 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
-#[available_gas(l2_gas: 29624595)] // ceil(1.05 × 28213900 measured)
+// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
+#[available_gas(l2_gas: 45014099)] // ceil(1.05 × 42870570 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -590,12 +718,12 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
-#[available_gas(l2_gas: 43327022)] // ceil(1.05 × 41263830 measured)
+// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
+#[available_gas(l2_gas: 68656077)] // ceil(1.05 × 65386740 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);
     SeedTrait::write(registry);
     let read = IRegistryReadDispatcher { contract_address: registry };
-    assert(read.content_version() == 18, 'version kept');
+    assert(read.content_version() == 22, 'version kept');
 }
