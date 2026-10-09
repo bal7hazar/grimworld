@@ -2153,8 +2153,7 @@ fn prepare_reveal(world: World) {
 // A walk West (the window's `+x`) from chunk 0's (7, 7): at (9, 7) sight touches chunk 1, which the
 // reveal generates with the spawn table's packs; then back to (7, 7).
 #[test]
-// gas: raised, ENG-07b: the twin plays every move singly and reads the words after each (the stop
-// of E-16, E-1 checked)
+// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
 #[available_gas(l2_gas: 293396651)] // ceil(1.05 × 279425381 measured)
 fn test_play_batch_equals_singles_reveal() {
     let moves = array![
@@ -2200,8 +2199,7 @@ fn prepare_walk(world: World) {
 // walks toward it, as in each single batch (minor 4; without the area's move the batch would not
 // hold it, and the words would differ).
 #[test]
-// gas: raised, ENG-07b: the twin plays every move singly and reads the words after each (the stop
-// of E-16, E-1 checked)
+// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
 #[available_gas(l2_gas: 351581934)] // ceil(1.05 × 334839937 measured)
 fn test_play_batch_equals_singles_ten_east() {
     let mut moves = array![];
@@ -2251,8 +2249,7 @@ fn test_play_unloadable_goblin_refused() {
 // batch's world), then nine Moves East back through chunk 16 to (21, 22), where the window reaches
 // chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
 #[test]
-// gas: raised, ENG-07b: the twin plays every move singly and reads the words after each (the stop
-// of E-16, E-1 checked)
+// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
 #[available_gas(l2_gas: 333150597)] // ceil(1.05 × 317286282 measured)
 fn test_play_batch_equals_singles_round_trip() {
     let mut moves = array![grimworld_logic::actions::Action::Move(3)];
