@@ -42,11 +42,15 @@ pub mod object {
     pub const PLACED_TRAP: u8 = 9;
 }
 
-/// A pack's shared state while none of its goblins has a record.
+/// A pack's shared state, the one its goblins without a record are derived with (the AI states
+/// of `types::tick::ai`).
 pub mod alert {
     pub const ASLEEP: u8 = 0;
     pub const WATCH: u8 = 1;
     pub const ALERTED: u8 = 2;
+    /// ENG-07b: written by `play` when perception engaged the pack and a goblin without a record
+    /// did nothing else.
+    pub const ENGAGED: u8 = 3;
 }
 
 /// The index of the pack's own tile in `OFFSETS`.

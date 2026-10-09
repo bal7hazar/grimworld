@@ -2006,8 +2006,13 @@ fn kills_and_reveals(ref spy: snforge_std::EventSpy, world: World) -> Array<felt
     out
 }
 
-/// Plays `moves` as one batch, then in a twin world as one batch a move, from the same start;
-/// returns both worlds' words and events.
+/// Plays `moves` as one batch, then in a twin world each move as one batch, from the same start;
+/// returns both worlds' words and events over the moves the batch played (`BatchPlayed.played`).
+/// ENG-07b (E-16, E-1): the batch's stop is asserted where the single batches put it: before the
+/// first move, but the first (E-21), whose weight (its ticks, at least 1, and 1 a goblin record it
+/// writes first) passes what the moves before it left of 10, or whose records with theirs pass 16
+/// goblins (`Stop::Weight`); else every move (`Stop::None`). The 2 a chunk a move reveals are
+/// taken after it, from what the next moves have.
 fn twin(
     which: u8, gate: u16, moves: Span<grimworld_logic::actions::Action>, chunks: Span<u8>,
 ) -> (Array<felt252>, Array<felt252>, Array<felt252>, Array<felt252>) {
@@ -2021,6 +2026,7 @@ fn twin(
     prepare(which, one);
     let mut spy = spy_events();
     play(one, 'alice').play(id, 7, 0, 0, batch(moves));
+    let (played, stop, _, _) = batch_played(ref spy, one);
     let events_one = kills_and_reveals(ref spy, one);
     let words_one = snapshot_of(one, chunks);
     let two = setup();
@@ -2033,12 +2039,81 @@ fn twin(
     prepare(which, two);
     let mut spy = spy_events();
     let mut sequence: u32 = 0;
+    let mut events_two = array![];
+    let mut words_two = snapshot_of(two, chunks);
+    let mut before = words_two.span();
+    let mut used: u32 = 0;
+    let mut changed: Array<u32> = array![];
+    let mut expected: Option<u32> = None;
+    let mut i: u32 = 0;
     for action in moves {
+        if i == played.try_into().unwrap() {
+            events_two = kills_and_reveals(ref spy, two);
+            words_two = snapshot_of(two, chunks);
+        }
         play(two, 'alice').play(id, 7, sequence, 0, batch(array![*action].span()));
         sequence = header_of(two, 1).sequence;
+        let after = snapshot_of(two, chunks);
+        // The action's weight and records, from the words it wrote (`snapshot_of`: the header at
+        // 1, the revealed set at 2, each chunk's ten goblin records from 3 + 22 c + 2)
+        let header_before: Header = StorePacking::unpack(*before[1]);
+        let header_after: Header = StorePacking::unpack(*after[1]);
+        let ticks = header_after.clock - header_before.clock;
+        let mut weight = if ticks == 0 {
+            1
+        } else {
+            ticks
+        };
+        let revealed_before: u256 = (*before[2]).into();
+        let revealed_after: u256 = (*after[2]).into();
+        // A reveal's weight is taken after the Move that caused it, floored at 0 (t-0115, note 4)
+        let mut reveal: u32 = 0;
+        let mut bits = revealed_after - revealed_before;
+        while bits != 0 {
+            reveal += 2 * (bits % 2).try_into().unwrap();
+            bits /= 2;
+        }
+        let mut fresh: Array<u32> = array![];
+        let mut at: u32 = 0;
+        while at < after.len() {
+            if at >= 3 && (at - 3) % 22 >= 2 && (at - 3) % 22 % 2 == 0 {
+                let record = (at - 3) / 22 * 10 + ((at - 3) % 22 - 2) / 2;
+                let moved = *before[at] != *after[at] || *before[at + 1] != *after[at + 1];
+                let mut held = false;
+                for c in changed.span() {
+                    if *c == record {
+                        held = true;
+                    }
+                }
+                if moved && !held {
+                    fresh.append(record);
+                    if *before[at] == 0 {
+                        weight += 1;
+                    }
+                }
+            }
+            at += 1;
+        }
+        if expected.is_none() && i > 0 && (used + weight > 10 || changed.len() + fresh.len() > 16) {
+            expected = Some(i);
+        }
+        used += weight + reveal;
+        changed.append_span(fresh.span());
+        before = after.span();
+        i += 1;
     }
-    let events_two = kills_and_reveals(ref spy, two);
-    let words_two = snapshot_of(two, chunks);
+    if played.try_into().unwrap() == moves.len() {
+        events_two = kills_and_reveals(ref spy, two);
+        words_two = snapshot_of(two, chunks);
+    }
+    let (count, reason) = match expected {
+        Some(at) => (at, 3),
+        None => (moves.len(), 0),
+    };
+    println!(
+        "twin {}: played {} stop {} (single batches: {} {})", which, played, stop, count, reason,
+    );
+    assert(played == count.into() && stop == reason, 'batch stop: E-16, E-1');
     (words_one, words_two, events_one, events_two)
 }
 
@@ -2081,7 +2156,8 @@ fn prepare_reveal(world: World) {
 // A walk West (the window's `+x`) from chunk 0's (7, 7): at (9, 7) sight touches chunk 1, which the
 // reveal generates with the spawn table's packs; then back to (7, 7).
 #[test]
-#[available_gas(l2_gas: 266191224)] // ceil(1.05 × 253515451 measured)
+// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
+#[available_gas(l2_gas: 293396651)] // ceil(1.05 × 279425381 measured)
 fn test_play_batch_equals_singles_reveal() {
     let moves = array![
         grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
@@ -2126,7 +2202,8 @@ fn prepare_walk(world: World) {
 // walks toward it, as in each single batch (minor 4; without the area's move the batch would not
 // hold it, and the words would differ).
 #[test]
-#[available_gas(l2_gas: 314554307)] // ceil(1.05 × 299575530 measured)
+// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
+#[available_gas(l2_gas: 351581934)] // ceil(1.05 × 334839937 measured)
 fn test_play_batch_equals_singles_ten_east() {
     let mut moves = array![];
     let mut k: u8 = 0;
@@ -2156,7 +2233,7 @@ fn prepare_ghost(world: World) {
 // t-0109, note 5: a goblin whose caste the registry does not hold refuses the batch
 // (`Stop::Invalid`), nothing run.
 #[test]
-#[available_gas(l2_gas: 59413860)] // ceil(1.05 × 56584628 measured)
+#[available_gas(l2_gas: 59413828)] // ceil(1.05 × 56584598 measured)
 fn test_play_unloadable_goblin_refused() {
     let world = setup();
     play_classes(world);
@@ -2175,7 +2252,8 @@ fn test_play_unloadable_goblin_refused() {
 // batch's world), then nine Moves East back through chunk 16 to (21, 22), where the window reaches
 // chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
 #[test]
-#[available_gas(l2_gas: 291467714)] // ceil(1.05 × 277588299 measured)
+// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
+#[available_gas(l2_gas: 333150597)] // ceil(1.05 × 317286282 measured)
 fn test_play_batch_equals_singles_round_trip() {
     let mut moves = array![grimworld_logic::actions::Action::Move(3)];
     let mut k: u8 = 0;
@@ -2194,7 +2272,8 @@ fn test_play_batch_equals_singles_round_trip() {
 // an alerted pack at chunk 1's edge; the walk West from chunk 0's (7, 7) reveals chunk 1 at
 // (9, 7), and the pack's goblins, in the window from there, act: a goblin of chunk 1 has a record.
 #[test]
-#[available_gas(l2_gas: 302030505)] // ceil(1.05 × 287648100 measured)
+// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
+#[available_gas(l2_gas: 316371584)] // ceil(1.05 × 301306270 measured)
 fn test_play_batch_equals_singles_reveal_acts() {
     let moves = array![
         grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),

@@ -78,6 +78,21 @@ at 52.91 % (43,345 felts) before any content, goblin or reveal:
 | 4 | A goblin whose caste, caste skill or held effect's skill the registry cannot load refuses the batch with `Stop::Invalid` (note 5) | the orchestrator |
 | 5 | `set_play_class` asserts `key <= play_class::SEGMENT` (note 6) | the orchestrator |
 
+**ENG-07b (the orchestrator's follow-up lot, 2026-10-09; its readings, each reversible):** E-16 and
+E-1 built (D-141), the packs' `alert` bits written back, t-0111's note on a changed goblin outside
+the area.
+
+| # | Reading | Reversed by |
+|---|---|---|
+| 1 | **E-16, what counts**: the distinct goblins whose words an action and its ticks change, carried across the invocation's segments (`Area.changed`, `Done.changed`); an untouched goblin (no record yet) whose only change is its engagement is not one (its pack's `alert` bits hold it, #3). Past 16 the batch stops before the action (`Stop::Weight`); the invocation's first action binds neither the cap nor E-1 (E-21) | the orchestrator |
+| 2 | **E-1, a first record**: a goblin whose spawn chunk's `touched` bit is clear (the contract never reads a derived goblin's slot: a reused slot's word of an earlier generation is not looked at, so the weight errs high, never low); it weighs 1 more, the batch stopping before the action that would pass the weight left | the orchestrator |
+| 3 | **The `alert` bits**: an untouched goblin engaged and nothing else (perception engaged its pack; it was not awake to act) gets no record: its pack's `alert` bits become 3, Engaged (the field's three bits hold it; ENG-01 §3.2 lists 0–2), which its untouched packmates take when derived again, so a single batch loads it as the batch holds it | the orchestrator; ENG-01 §3.2's list gains Engaged at the next bookkeeping |
+| 4 | **A Move's owed ticks** (across a reveal or a chunk change) run whatever they change: their records count with the next segment's first action, which stops if they leave it no room (the same as their first records floored at 0 and then the action's cost); an invocation can so write 16 records plus one Move's owed ticks' (ENG-01 E-16: at most 44 at §9.2's 14 a tick; `test_play_records_owed_ticks`: 17) | the orchestrator |
+| 5 | **Undoing the stopped action**: the segment flags it (`Done.undo`); `PlayLibrary` calls the segment again from the same inputs with the actions before it (a second call only on that stop). `SegmentLibrary` has no room for a copy of the world at each action | the project manager (a class cap) |
+| 6 | **t-0111's note**: a goblin home, its spawn chunk outside the 3 × 3, leaves the batch's world when the area moves, written back first if it changed (a record, or its pack's `alert` bits); a goblin the batch killed stays until its `GoblinKilled` | the orchestrator |
+| 7 | **The fast path and the awake set** (found by #6's twin): a goblin awake at the last tick and outside the window since went on regenerating on the fast path, whose rules never form the set again; the fast path is not taken while the awake set is not empty (one `TickLibrary` tick forms it again, as a single batch's load does) | the orchestrator |
+| 8 | **A Move's ticks against the weight left**: `step` checked them against the segment's weight at its start, so a 2-tick Move could write the member before the stop for weight; it checks the weight left (t-0109's minor 2, completed) | the orchestrator |
+
 ## Goal
 After this lot `Instances.play` runs a played batch (design/02 *Planned queues and played batches*,
 D-133): each action checked against the state it meets, the adventurer's moves with facing, occupancy
