@@ -755,7 +755,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::test_ally_and_self` | 12324331 | 12936453 | 2026-10-09 | 8edea17 |
 | grimworld_logic | `types::action::tests::test_attack` | 12779239 | 13418201 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::action::tests::test_attack_skill_without_its_weapon` | 12466109 | 13089415 | 2026-10-09 | 8edea17 |
-| grimworld_logic | `types::action::tests::test_clock_absent_kind` | 9866600 | 10360140 | 2026-10-09 | 8edea17 |
+| grimworld_logic | `types::action::tests::test_clock_absent_kind` | 9866600 | 10359930 | 2026-10-09 | 8edea17 |
 | grimworld_logic | `types::action::tests::test_energy_reductions` | 12828190 | 13453209 | 2026-10-09 | 8edea17 |
 | grimworld_logic | `types::action::tests::test_example_fifth_cast_interrupted` | 9916452 | 10412275 | 2026-10-07 | 44961f2 |
 | grimworld_logic | `types::action::tests::test_example_fifth_cast_through_act` | 12972056 | 13620659 | 2026-10-09 | 8edea17 |
