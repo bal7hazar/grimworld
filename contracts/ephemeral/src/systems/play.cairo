@@ -480,8 +480,10 @@ pub impl PlayImpl of PlayTrait {
         };
         // Every goblin as loaded, by entity: the write-back's reference
         let mut loaded: Array<GoblinWords> = Self::copy(goblins);
-        let initial = ground.span();
-        let mut ground = Self::copy_ground(initial);
+        // Each chunk's features as stored when the batch first held it: the write-back's
+        // reference (a chunk added mid-batch is written only if changed, t-0110 note 4)
+        let mut stored = Self::copy_ground(ground.span());
+        let mut ground = ground;
         let classes = Classes {
             executor: self.get_play_class(play_class::EXECUTOR),
             ai: self.get_play_class(play_class::AI),
@@ -568,25 +570,31 @@ pub impl PlayImpl of PlayTrait {
                     );
                 for chunk in chunks.span() {
                     revealed.append(*chunk);
+                    for (c, features) in ground.span() {
+                        if *c == *chunk {
+                            stored.append((*c, *features));
+                        }
+                    }
                 }
             }
-            // The area's chunks not yet held (a chunk the reveal just wrote is in `ground`, its
-            // goblins not yet in the words)
+            // The area's chunks: those not yet in `ground` read (their features as stored kept in
+            // `stored`, for the write-back); then the goblins of EVERY chunk of the 3 × 3, those the
+            // words do not hold (t-0110, major 1: a chunk the area left and came back to has its
+            // goblins again, as a batch sent from here would)
             let mut held: Array<u16> = array![];
             for goblin in words.goblins.span() {
                 held.append(*goblin.entity);
             }
             let fresh = Self::ground(@self, slot, area.revealed, x, y, ground.span());
-            let mut arrived: Array<(u8, Features)> = array![];
             for (chunk, features) in fresh.span() {
-                arrived.append((*chunk, *features));
                 ground.append((*chunk, *features));
+                stored.append((*chunk, *features));
             }
-            for chunk in chunks.span() {
-                for (c, features) in ground.span() {
-                    if *c == *chunk {
-                        arrived.append((*c, *features));
-                    }
+            let around = Self::around(x, y);
+            let mut arrived: Array<(u8, Features)> = array![];
+            for (chunk, features) in ground.span() {
+                if Self::within(around.span(), *chunk) {
+                    arrived.append((*chunk, *features));
                 }
             }
             let new =
@@ -595,11 +603,32 @@ pub impl PlayImpl of PlayTrait {
                 ) {
                 Some(new) => new,
                 None => {
+                    // A goblin the registry cannot load refuses the rest of the batch; the Move that
+                    // ended the segment is counted, so its ticks run first, in a segment of no
+                    // action (t-0110, note 3)
+                    let content = Content {
+                        skills: book.skills.span(),
+                        potions: book.potions.span(),
+                        castes: book.castes.span(),
+                    };
+                    let (out, next, _) = segment
+                        .segment(
+                            words,
+                            content,
+                            area,
+                            classes,
+                            location.level_min,
+                            ground,
+                            array![].span(),
+                            owed,
+                            weight,
+                        );
+                    words = out;
+                    ground = next;
                     stop = Stop::Invalid;
                     break;
                 },
             };
-            let around = Self::around(x, y);
             let mut kept: Array<GoblinWords> = array![];
             for goblin in words.goblins.span() {
                 // A goblin leaves the batch's world only as a batch sent from here would not load
@@ -618,7 +647,8 @@ pub impl PlayImpl of PlayTrait {
                 loaded.append(*goblin);
             }
             words.goblins = Self::sorted(kept.span());
-            area = Self::area(@self, slot, @location, area.known, area.revealed, @ground);
+            // The area: the current 3 × 3 only (t-0110, note 5)
+            area = Self::area(@self, slot, @location, area.known, area.revealed, @arrived);
         }
         let out = words;
         // [Effect] The words written back
@@ -639,7 +669,7 @@ pub impl PlayImpl of PlayTrait {
         }
         for (chunk, features) in ground.span() {
             let mut changed = true;
-            for (c, before) in initial {
+            for (c, before) in stored.span() {
                 if *c == *chunk {
                     changed = *features != *before;
                     break;
