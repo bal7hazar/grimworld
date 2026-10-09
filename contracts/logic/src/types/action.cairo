@@ -8,11 +8,12 @@
 //! 1. **Legality** against the state as it is (design/02 *Executing a batch*): the clock past
 //!    `LAST_TICK` (E-4); the adventurer knocked down acts only by Wait (FX-7); a second Turn or a
 //!    second instant skill between two ticks (`MemberState.flags` bits 0–1); an empty bar or belt
-//!    slot, a belt count at 0; the skill recharging; energy short after reductions; adrenaline
-//!    short; a target its carrier does not address (§2.3: a dead goblin is neither foe nor ally; a
-//!    tile for an entity), out of range or of sight (ENG-02's `reach`); a trap tile that cannot
-//!    take one (§5.11, FX-14). Illegal is a refusal (`Illegal`): nothing is written, the batch
-//!    stops (`Stop::Invalid`). Never a panic on a legal action (D-140).
+//!    slot, a belt count at 0; an attack skill without the weapon of its attribute (§3.4); the
+//!    skill recharging; energy short after reductions; adrenaline short; a target its carrier
+//!    does not address (§2.3: a dead goblin is neither foe nor ally; a tile for an entity), out
+//!    of range or of sight (ENG-02's `reach`); a trap tile that cannot take one (§5.11, FX-14).
+//!    Illegal is a refusal (`Illegal`): nothing is written, the batch stops (`Stop::Invalid`).
+//!    Never a panic on a legal action (D-140).
 //! 2. **Costs** at once (FX-0): energy after *Fieldcraft* (`ENERGY_COST` of a Warden's skills,
 //!    design/20 §1.3) and the glyphs held (`NEXT_SPELL_COST`, at a spell's start, consumed),
 //!    floored at 0 (§6); adrenaline; an instant skill's recharge from its use (§5.1); the
@@ -29,11 +30,12 @@
 //!    attack its weapon's `k`, an attack skill `max(k, n)` (FX-5), any other skill its activation
 //!    (an instant one 0), a potion 1 (design/04).
 //!
-//! **Not built** (CBT-05b's escalations): an attack skill's weapon of its attribute (§3.4: no
-//! attribute id names a weapon class; the attribute id space is open, ENG-01 §7.2), and which
-//! quick-cast pair a spell counts for (its attribute is a global id, the pair's a build-local
-//! index, D-157 A: no word of the member maps one to the other). `QuickCastTrait::count` is the
-//! rule, held to §10.6; the action phase passes it no matching pair until the mapping exists.
+//! **The attribute mappings** (CBT-05f, CBT-05b's escalation 2): the skill's attribute is a global
+//! id, a quick-cast pair's a build-local index (D-157 A), and no attribute id names a weapon class
+//! (the id space is open, ENG-01 §7.2). `set_build`'s flattening maps them once, into
+//! `MemberStats`' free bits: the pairs each bar slot counts for (`quick_cast_matches`, the
+//! `matches` of `QuickCastTrait::count`) and whether its attack skill needs a weapon of another
+//! attribute than the one held (`weapon_required`: refused, `Illegal::Kind`).
 
 use crate::actions::Action;
 use crate::models::member::{
@@ -85,8 +87,11 @@ pub enum Illegal {
     Reach,
     /// A trap tile that cannot take one (§5.11, FX-14).
     Trap,
-    /// Move and Interact: ENG-07's (the segment's own: Interact is refused until its entrypoints
-    /// exist, ENG-07 Open question 6).
+    /// An action the member cannot take: Move and Interact here (ENG-07's, the segment's own:
+    /// Interact is refused until its entrypoints exist, ENG-07 Open question 6); an attack skill
+    /// without the weapon of its attribute (design/19 §3.4's skill kinds; `MemberStats`'
+    /// weapon-required bit, CBT-05f: a variant of its own would grow the classes that deserialize
+    /// `Illegal`, D-240).
     Kind,
     /// A Move onto a tile that is not walkable or holds a living actor (ENG-07).
     Blocked,
@@ -177,6 +182,9 @@ pub impl ActionImpl of ActionTrait {
                 let at: u32 = at.try_into().unwrap();
                 let sheet = *sheets.skills[at];
                 let attack = sheet.kind == skill_kind::ATTACK;
+                if attack && member.weapon_required(slot) {
+                    return Err(Illegal::Kind);
+                }
                 let instant = sheet.activation == 0 && !attack;
                 if instant && member.flags & flag::INSTANT != 0 {
                     return Err(Illegal::Instant);
@@ -212,7 +220,9 @@ pub impl ActionImpl of ActionTrait {
                 let mut n = sheet.activation;
                 if spell && n >= 1 {
                     let (casts, quick) = QuickCastTrait::count(
-                        [member.casts(0), member.casts(1)], member.quick_casts(), 0,
+                        [member.casts(0), member.casts(1)],
+                        member.quick_casts(),
+                        member.quick_cast_matches(slot),
                     );
                     let [c0, c1] = casts;
                     member.set_casts(0, c0);
@@ -957,5 +967,61 @@ mod tests {
         assert(member.recharge(0) == 201 + 10 - 1 && member.energy == 15, 'R from 201, paid');
         let (casts, _) = QuickCastTrait::count([member.casts(0), 0], [(1, 5), (0, 0)], 1);
         assert(casts == [1, 0], 'next: casts 1');
+    }
+
+    // §10.6 through `act` (CBT-05f; review t-0092 note 3): the kit's `QUICK_CAST_EVERY_N` Fire 5
+    // is pair 0 (`MemberBar` 208–219), the Fire spell's slot counts for it (`MemberStats` 168),
+    // `casts = 4`. At clock 200 the spell starts: `casts` 4 → 0, activation 3 − 1 = 2, `A =
+    // 202`.
+    // Knocked down in step 2 of 201: interrupted, energy paid, the recharge from 201. The bonus is
+    // spent: the next Fire spell makes `casts` 1 and keeps its activation 3. A spell whose slot
+    // counts for no pair leaves the counter alone.
+    #[test]
+    fn test_example_fifth_cast_through_act() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![FIRE, FIRE].span());
+        member.words.bar += 5 * two(212);
+        member.words.stats += two(168);
+        member.set_casts(0, 4);
+        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 4, 0, 100)]);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(2), 'n = 2');
+        let mut member = world.member(0);
+        assert(member.casts(0) == 0 && member.act_deadline == 202, 'casts 0, A = 202');
+        assert(member.energy == 15, 'paid');
+        member.knock(1, @Infliction { condition: 0, percent: 0, knockdown: 0 }, 201, @sheets);
+        assert(member.act_slot == crate::types::tick::NO_SLOT, 'interrupted');
+        assert(member.recharge(0) == 201 + 10 - 1 && member.energy == 15, 'R from 201, paid');
+        world.set_member(0, member);
+        world.clock = member.recharge(0);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3), 'n = 3');
+        let mut member = world.member(0);
+        assert(member.casts(0) == 1, 'next: casts 1');
+        member.act_slot = crate::types::tick::NO_SLOT;
+        member.energy = 15;
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(3), 'slot 1');
+        assert(world.member(0).casts(0) == 1, 'slot 1 counts for none');
+    }
+
+    // CBT-05f: an attack skill whose attribute is not the weapon's (`MemberStats` bit 40 + slot,
+    // design/19 §3.4) is refused and writes nothing; the same skill on a slot without the bit
+    // lands for the weapon's `k`.
+    #[test]
+    fn test_attack_skill_without_its_weapon() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![RAGE, RAGE].span());
+        member.adrenaline = 9;
+        member.words.stats += two(40);
+        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 1, 0, 100)]);
+        let before = world.member(0);
+        assert(
+            act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Err(Illegal::Kind),
+            'not its weapon',
+        );
+        assert(world.member(0) == before && world.goblin(0).health == 100, 'nothing written');
+        assert(
+            act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(1), 'its weapon',
+        );
+        assert(world.goblin(0).health < 100, 'landed');
     }
 }

@@ -34,6 +34,8 @@ use crate::types::passive::{Passive, Source, id};
 pub const MAX_UNGUARDED_ARMOR: i16 = 9995;
 
 const P92: u128 = 0x100000000000000000000000;
+/// 2^114: `MemberStats`' bit 242 in its high limb (the quick-cast slots 4–7).
+const P114: u128 = 0x40000000000000000000000000000;
 
 pub mod errors {
     pub const ARMOR_VS: felt252 = 'snapshot: armor vs above 63';
@@ -152,6 +154,14 @@ pub struct MemberStats {
     pub requirement_met: u8,
     /// Set bonuses in effect, one bit each.
     pub set_bonuses: u16,
+    /// The quick-cast pairs each bar slot's skill counts for (CBT-05f, D-157 A: the skill's global
+    /// attribute against the pair's build-local index): slot `i`'s pair `p` at bit `2 i + p`;
+    /// slots 0–3 at bits 168–175, slots 4–7 at 242–249.
+    pub quick_cast_slots: u16,
+    /// The bar slots whose attack skill names an attribute other than the weapon's (CBT-05f,
+    /// design/19 §3.4's skill kinds: "needs the weapon of its attribute"), slot `i` at bit
+    /// `40 + i`.
+    pub weapon_required: u8,
 }
 
 pub fn pack_stats(s: MemberStats) -> felt252 {
@@ -161,6 +171,7 @@ pub fn pack_stats(s: MemberStats) -> felt252 {
         + s.max_energy.into() * P16
         + s.energy_regen.into() * P24
         + s.health_regen.into() * P32
+        + s.weapon_required.into() * P40
         + v1.into() * P48
         + v2.into() * 0x40000000000000
         + s.level.into() * P64
@@ -171,8 +182,10 @@ pub fn pack_stats(s: MemberStats) -> felt252 {
         + s.weapon_ticks.into() * P104
         + s.weapon_range.into() * P112
         + s.weapon_strength.into() * P120;
+    let (slots_high, slots_low) = DivRem::div_rem(s.quick_cast_slots, 0x100);
     let high: u128 = s.ranks.into()
         + s.damage_type.into() * P32
+        + slots_low.into() * P40
         + s.requirement_met.into() * P48
         + s.set_bonuses.into() * P56
         + v3.into() * P72
@@ -181,7 +194,8 @@ pub fn pack_stats(s: MemberStats) -> felt252 {
         + v6.into() * 0x40000000000000000000000
         + v7.into() * P96
         + v8.into() * 0x40000000000000000000000000
-        + v9.into() * P108;
+        + v9.into() * P108
+        + slots_high.into() * P114;
     join(low, high)
 }
 
@@ -194,8 +208,8 @@ pub fn unpack_stats(word: felt252) -> MemberStats {
     let (low, max_energy) = DivRem::div_rem(low, b8);
     let (low, energy_regen) = DivRem::div_rem(low, b8);
     let (low, health_regen) = DivRem::div_rem(low, b8);
-    // Bits 40–47 are free (the single armor moved to `MemberBar`, FX-24).
-    let (low, v1) = DivRem::div_rem(low / P8, b6);
+    let (low, weapon_required) = DivRem::div_rem(low, b8);
+    let (low, v1) = DivRem::div_rem(low, b6);
     let (low, v2) = DivRem::div_rem(low, b6);
     // Bits 60–63 are free.
     let (low, level) = DivRem::div_rem(low / 0x10, b8);
@@ -207,15 +221,16 @@ pub fn unpack_stats(word: felt252) -> MemberStats {
     let (weapon_strength, weapon_range) = DivRem::div_rem(low, b8);
     let (high, ranks) = DivRem::div_rem(high, P32.try_into().unwrap());
     let (high, damage_type) = DivRem::div_rem(high, b8);
-    // Bits 168–175 are free (the single penetration moved to `MemberBar`, FX-24).
-    let (high, requirement_met) = DivRem::div_rem(high / P8, b8);
+    let (high, slots_low) = DivRem::div_rem(high, b8);
+    let (high, requirement_met) = DivRem::div_rem(high, b8);
     let (high, set_bonuses) = DivRem::div_rem(high, b16);
     let (high, v3) = DivRem::div_rem(high, b6);
     let (high, v4) = DivRem::div_rem(high, b6);
     let (high, v5) = DivRem::div_rem(high, b6);
     let (high, v6) = DivRem::div_rem(high, b6);
     let (high, v7) = DivRem::div_rem(high, b6);
-    let (v9, v8) = DivRem::div_rem(high, b6);
+    let (high, v8) = DivRem::div_rem(high, b6);
+    let (slots_high, v9) = DivRem::div_rem(high, b6);
     MemberStats {
         max_health: max_health.try_into().unwrap(),
         max_energy: max_energy.try_into().unwrap(),
@@ -238,6 +253,8 @@ pub fn unpack_stats(word: felt252) -> MemberStats {
         damage_type: damage_type.try_into().unwrap(),
         requirement_met: requirement_met.try_into().unwrap(),
         set_bonuses: set_bonuses.try_into().unwrap(),
+        quick_cast_slots: (slots_low + slots_high * 0x100).try_into().unwrap(),
+        weapon_required: weapon_required.try_into().unwrap(),
     }
 }
 
@@ -573,8 +590,11 @@ pub struct Loadout {
     /// The build's attribute points by attribute id, the primary first (design/03). A
     /// quick-cast pair's attribute is its index here, the build-local index of D-157 A.
     pub points: Span<(u8, u8)>,
-    /// The attribute of each bar skill (0 for an empty slot), for `MemberStats.ranks`.
+    /// The attribute of each bar skill (0 for an empty slot), for `MemberStats.ranks` and the
+    /// attribute mappings (`quick_cast_slots`, `weapon_required`).
     pub bar_attributes: [u8; 8],
+    /// The bar slots holding an attack skill (design/19 §3.4's kind 1), slot `i` at bit `i`.
+    pub bar_attacks: u8,
     pub skills: [u16; 8],
     pub elite_slot: u8,
     /// The weapon: class, damage at its requirement (before personalisation), ticks, range, type,
@@ -879,6 +899,37 @@ impl FlattenImpl of FlattenTrait {
         core::panic_with_felt252(errors::QUICK_CAST_ATTRIBUTE)
     }
 
+    /// The bar's attribute mappings (CBT-05f), which no other word holds: the quick-cast pairs
+    /// each slot's skill counts for, its global attribute against the global attributes `pairs`
+    /// name (D-157 A: the pairs store build-local indices), slot `i`'s pair `p` at bit `2 i + p`;
+    /// and the slots whose attack skill names an attribute other than the weapon's (design/19
+    /// §3.4), slot `i` at bit `i`. A slot of attribute 0 (none) counts for no pair.
+    fn mappings(loadout: @Loadout, pairs: [u8; 2]) -> (u16, u8) {
+        let [g0, g1] = pairs;
+        let weapon = *loadout.weapon_attribute;
+        let mut attacks = *loadout.bar_attacks;
+        let mut slots: u32 = 0;
+        let mut required: u32 = 0;
+        let mut bit: u32 = 1;
+        let mut slot_bit: u32 = 1;
+        for attribute in loadout.bar_attributes.span() {
+            let a = *attribute;
+            if a != 0 && a == g0 {
+                slots += bit;
+            }
+            if a != 0 && a == g1 {
+                slots += 2 * bit;
+            }
+            if attacks % 2 == 1 && a != weapon {
+                required += slot_bit;
+            }
+            attacks /= 2;
+            bit *= 4;
+            slot_bit *= 2;
+        }
+        (slots.try_into().unwrap(), required.try_into().unwrap())
+    }
+
     /// The rank of `attribute` (0: none): the build's points plus the highest `ATTRIBUTE` rune for
     /// it (design/15; runes only, DS-4), at most 15 (DS-8). `runes` are `(instance, attribute,
     /// value)` in the order held, one instance's adjacent; a rune's contribution is the sum of
@@ -982,6 +1033,8 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
     /// - The rest as design/19 §7.2 flattens it: damage percents per guard and hit class (each
     ///   within ±126) and penetration per hit class (≤ 252), guarded and unguarded armor,
     ///   quick-cast pairs, the lowest N, life steal, energy on hit.
+    /// - The bar's attribute mappings (CBT-05f, `FlattenTrait::mappings`): each slot's quick-cast
+    ///   pairs, and its attack skill's weapon requirement.
     fn build(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
         BuildAssert::assert_loadout(loadout);
         // The sums, and the counts: a new instance is numbered above the last.
@@ -1015,6 +1068,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         let mut health_runes: Array<(u32, i32)> = array![];
         let mut attribute_runes: Array<(u8, u8, i32)> = array![];
         let mut pairs: Array<QuickCast> = array![];
+        let mut globals: Array<u8> = array![];
         let mut every: u8 = 0;
         let mut halving = false;
         let mut damage_type = *loadout.damage_type;
@@ -1032,6 +1086,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
             } else if id == id::QUICK_CAST_EVERY_N {
                 let attribute = FlattenTrait::local_index(*loadout.points, p.param);
                 pairs.append(QuickCast { attribute, every: fit(value) });
+                globals.append(p.param);
             } else if id == id::ADRENALINE_EVERY_N {
                 let n: u8 = fit(value);
                 if every == 0 || n < every {
@@ -1048,7 +1103,11 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         assert(pairs.len() <= 2, errors::QUICK_CAST_ATTRIBUTE);
         while pairs.len() < 2 {
             pairs.append(Default::default());
+            globals.append(0);
         }
+        let (quick_cast_slots, weapon_required) = FlattenTrait::mappings(
+            loadout, [*globals[0], *globals[1]],
+        );
 
         let level: i32 = (*loadout.level).into();
         let profession = *loadout.profession;
@@ -1128,6 +1187,8 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
                 damage_type,
                 requirement_met: *loadout.requirement_met,
                 set_bonuses: *loadout.set_bonuses,
+                quick_cast_slots,
+                weapon_required,
             },
             bar: MemberBar {
                 skills: *loadout.skills,
@@ -1350,6 +1411,15 @@ mod tests {
     /// CBT-02's sums, the oracle's.
     #[generate_trait]
     impl Oracle of OracleTrait {
+        /// `2^n`.
+        fn bit(n: u32) -> u32 {
+            let mut out: u32 = 1;
+            for _ in 0..n {
+                out *= 2;
+            }
+            out
+        }
+
         /// The sum of the passives `id` (any param).
         fn total(held: Span<HeldPassive>, id: u8) -> i32 {
             let mut total: i32 = 0;
@@ -1568,6 +1638,29 @@ mod tests {
             pairs.append(Default::default());
         }
 
+        // The attribute mappings (CBT-05f): a slot counts for a pair whose passive names its
+        // attribute (not 0); an attack skill of another attribute than the weapon's needs it.
+        let mut quick_cast_slots: u16 = 0;
+        let mut weapon_required: u8 = 0;
+        let mut slot: u32 = 0;
+        for attribute in loadout.bar_attributes.span() {
+            let mut p: u32 = 0;
+            for h in held {
+                if *h.passive.id == id::QUICK_CAST_EVERY_N {
+                    if *attribute != 0 && *attribute == *h.passive.param {
+                        quick_cast_slots += Oracle::bit(2 * slot + p).try_into().unwrap();
+                    }
+                    p += 1;
+                }
+            }
+            let attacks: u32 = (*loadout.bar_attacks).into();
+            let attack = attacks / Oracle::bit(slot) % 2 == 1;
+            if attack && *attribute != *loadout.weapon_attribute {
+                weapon_required += Oracle::bit(slot).try_into().unwrap();
+            }
+            slot += 1;
+        }
+
         let mut every: u8 = 0;
         for h in held {
             if *h.passive.id == id::ADRENALINE_EVERY_N {
@@ -1618,6 +1711,8 @@ mod tests {
                 damage_type,
                 requirement_met: *loadout.requirement_met,
                 set_bonuses: *loadout.set_bonuses,
+                quick_cast_slots,
+                weapon_required,
             },
             bar: MemberBar {
                 skills: *loadout.skills,
@@ -1704,6 +1799,7 @@ mod tests {
             profession,
             points: array![(PRIMARY, 12), (OTHER, 10)].span(),
             bar_attributes: [PRIMARY, OTHER, 0, 0, 0, 0, 0, 0],
+            bar_attacks: 0,
             skills: [1, 2, 0, 0, 0, 0, 0, 0],
             elite_slot: 255,
             weapon: weapon::SWORD,
@@ -2218,6 +2314,30 @@ mod tests {
         assert(second == QuickCast { attribute: 0, every: 9 }, 'primary: index 0');
     }
 
+    // CBT-05f: each bar slot counts for the pairs of its skill's attribute (slot `i`'s pair `p` at
+    // bit `2 i + p`; an empty slot, attribute 0, for none); an attack skill of another attribute
+    // than the weapon's (the sword's, OTHER) needs its weapon. Without pairs, no slot counts.
+    #[test]
+    fn test_attribute_mappings() {
+        let all = array![
+            held(passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1),
+            held(passive(id::QUICK_CAST_EVERY_N, PRIMARY, 9), Source::Inscription, 4, 2),
+        ];
+        let build = Loadout {
+            bar_attributes: [PRIMARY, OTHER, OTHER, 0, 0, 0, 0, PRIMARY],
+            bar_attacks: 0x83,
+            ..loadout(1, 20),
+        };
+        let snapshot = flatten(@build, all.span());
+        // Slot 0 pair 1, slots 1 and 2 pair 0, slot 7 pair 1.
+        assert(snapshot.stats.quick_cast_slots == 0x2 + 0x4 + 0x10 + 0x8000, 'quick-cast slots');
+        // Attacks on 0 (PRIMARY), 1 (OTHER, the weapon's), 7 (PRIMARY).
+        assert(snapshot.stats.weapon_required == 0x81, 'weapon required');
+        let snapshot = flatten(@build, array![].span());
+        assert(snapshot.stats.quick_cast_slots == 0, 'no pair');
+        assert(snapshot.stats.weapon_required == 0x81, 'kept without pairs');
+    }
+
     #[test]
     #[should_panic(expected: 'build: quick-cast attribute')]
     #[available_gas(l2_gas: 186337)] // ceil(1.05 × 177463 measured)
@@ -2277,8 +2397,18 @@ mod tests {
             damage_type: 14,
             requirement_met: 1,
             set_bonuses: 0xFFFF,
+            quick_cast_slots: 0xFFFF,
+            weapon_required: 0xFF,
         };
         assert(unpack_stats(pack_stats(stats)) == stats, 'round trip');
+        // CBT-05f: the weapon-required slots at 40–47; the quick-cast slots 0–3 at 168–175,
+        // 4–7 at 242–249, below `LIVE`.
+        let required = MemberStats { weapon_required: 1, ..Default::default() };
+        assert(pack_stats(required) == 0x10000000000 + LIVE, 'weapon required at 40');
+        let quick = MemberStats { quick_cast_slots: 0x0101, ..Default::default() };
+        let at168 = 0x1000000000000000000000000000000000000000000;
+        let at242 = 0x4000000000000000000000000000000000000000000000000000000000000;
+        assert(pack_stats(quick) == at168 + at242 + LIVE, 'quick cast at 168, 242');
         let level = MemberStats { level: 1, ..Default::default() };
         assert(pack_stats(level) == 0x10000000000000000 + LIVE, 'level at bit 64');
         let ranks = MemberStats { ranks: 1, ..Default::default() };

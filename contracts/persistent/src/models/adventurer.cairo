@@ -212,7 +212,8 @@ pub impl BuildImpl of BuildTrait {
     /// holds yet keeps the value the snapshot had before the flattening (`SnapshotTrait::new`;
     /// escalated in CBT-02b's report):
     /// - no attribute rank: `Build.attributes` holds build-local indices, and the global attribute
-    ///   ids that runes, quick-cast pairs and skills name are not numbered (D-157 A);
+    ///   ids that runes, quick-cast pairs and skills name are not numbered (D-157 A); so no bar
+    ///   attribute and no attack slot either, and the attribute mappings (CBT-05f) are 0;
     /// - no weapon statistics and a strength cap of 0: `BASE` lays out only the slot and the hands
     ///   (D-158), and the cap's curve is BAL-01's (DS-9);
     /// - the class's armor as the rating (design/03, D-148: the class's value until ratings are
@@ -231,6 +232,7 @@ pub impl BuildImpl of BuildTrait {
             profession,
             points: array![].span(),
             bar_attributes: [0; 8],
+            bar_attacks: 0,
             skills: *self.bar,
             elite_slot: *self.elite_slot,
             weapon: 0,
