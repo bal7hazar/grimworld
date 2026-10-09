@@ -55,6 +55,19 @@ stream the indexer reads and the storage `Hub` keeps: ENG-R1b and every later lo
 frozen events or layout (D-149). With `--expect <file>` it compares its stream with that file's and exits 1
 on the first difference.
 
+ENG-07t (`--fight on`, with `--play on`): the seed's castes and skill (`contracts/seed/test-region.json`)
+and the packs and spawn table the zone names are written (the zone, location 2, then names spawn table
+1), and after the exploration the adventurer walks to the nearest pack of the revealed chunks (revealing
+what sight touches on the way), then plays 10 Waits within 3 tiles of it: a fight batch, the goblins
+engaging it. The case is behind the option, so the compared streams (`--stream`, `--expect`) and the
+recorded output do not move without it. The scenario is fixed (the zone's entry, the walk toward the
+nearest pack of the revealed chunks, 10 Waits within 3 tiles of it), the packs are not: the entry
+draw follows the transaction hash, which the node does not let a script fix. A run counts only when
+the member is engaged (its health fell, or a goblin of the pack has a record afterwards); the line
+`fight` gives the pack's goblins (entity ids), those with a record (tile, health) and the member's
+health before and after, and the run exits 3 when no pack was reached or nobody engaged. The node
+emits no event per hit, so the ticks with attacks are not observable from a batch.
+
 ENG-R1b (`Instances` and `Registry` on the store, AC-3): with `--scope r1b` the same two options
 write and compare another stream, of the same transactions: `Instances`' and `Registry`'s storage
 writes (key, value) and every event of `Instances` with its keys and data, in emission order; then
@@ -68,7 +81,8 @@ terrain, is left out of the stream: it is written only when the draw places some
 key depends on the draw (#348's delta review: the stream must not change between two runs). A
 zone's quota hosts (D-208), `Instances`' `hosts` entries `(slot, quota)` written at the entry, are
 drawn too: their keys are computed by starknet.js (the client's dependency, through Node, which
-`scripts/with-node.sh` provides) and their values recorded as `"draw"`.
+`scripts/with-node.sh` provides) and their values recorded as `"draw"`. So are the three `outline`
+words of a dungeon floor entered (ENG-10b, FND-26: the gate-6 leave enters one).
 `RevealLibrary` and `HostsLibrary` (D-210) are declared before `Hub`'s deployment, and their class
 hashes given to `Instances`' constructor, so the transactions recorded are the same. `lifecycle-stream-before-r1b.json`,
 recorded on `main`'s code before
@@ -146,9 +160,9 @@ def region(town, book, first, name):
     return [town + (book << 16) + (first << 32) + (short(name) << 128) + LIVE]
 
 
-def location(kind, width, target, floors, next_floor, entry_chunk, entry_tile):
+def location(kind, width, target, floors, next_floor, entry_chunk, entry_tile, spawn_table=0):
     low = (kind + (1 << 8) + (1 << 24) + (1 << 32) + (3 << 40) + (width << 56) + (width << 64)
-           + (target << 72) + (floors << 80) + (next_floor << 88))
+           + (target << 72) + (floors << 80) + (next_floor << 88) + (spawn_table << 104))
     return [low + ((entry_chunk + (entry_tile << 8)) << 128) + LIVE, LIVE]
 
 
@@ -164,6 +178,62 @@ def item(klass):
     (D-166, `ItemAssert::assert_legal`)."""
     entry = 3 + (20 << 16) + (20 << 32) + (1 << 88) if klass == POTION else 0
     return [klass + (1 << 8) + (1 << 32) + (entry << 128) + LIVE]
+
+
+def seed_rows(name, columns):
+    """The rows of one table of `contracts/seed/test-region.json`, `columns` numbers a row."""
+    with open(os.path.join(CONTRACTS, "seed", "test-region.json")) as seed_file:
+        flat = json.load(seed_file)[name]
+    assert len(flat) % columns == 0, f"seed: {name} is not whole rows"
+    return [flat[i:i + columns] for i in range(0, len(flat), columns)]
+
+
+def entry_bits(row):
+    """`EntryTrait::pack`: kind 0, param 8, v0 16, v12 32, d0 48, d12 64, charges 80, target 86,
+    shape 88, filter 91, guard 92, scope 95 (the values here are not negative)."""
+    kind, param, v0, v12, d0, d12, charges, target, shape, filter_, guard, scope = row
+    return (kind + (param << 8) + (v0 << 16) + (v12 << 32) + (d0 << 48) + (d12 << 64)
+            + (charges << 80) + (target << 86) + (shape << 88) + (filter_ << 91) + (guard << 92)
+            + (scope << 95))
+
+
+def skill_record(row):
+    """`SkillRecord::pack`: the header, then the first entry above it; the other two."""
+    _, prof, attr, kind, energy, adrenaline, activation, recharge, range_, target, elite = row[:11]
+    header = (prof + (attr << 8) + (kind << 16) + (energy << 24) + (adrenaline << 32)
+              + (activation << 40) + (recharge << 56) + (range_ << 72) + (target << 80)
+              + (elite << 82))
+    a, b, c = (entry_bits(row[11 + 12 * i:23 + 12 * i]) for i in range(3))
+    return [header + (a << 128) + LIVE, b + (c << 128) + LIVE]
+
+
+def caste_record(row):
+    """`CasteRecord::pack`: the sheet's low limb and the per-type armors and loot table, then the
+    four skills."""
+    (_, tier, ai, health, regen, armor), vs = row[:6], row[6:15]
+    wclass, wdamage, wtype, wticks, wrange = row[15:20]
+    energy, energy_regen, skills, (rank, flee, loot, boss) = row[20], row[21], row[22:26], row[26:30]
+    weapon = wclass + (wdamage << 4) + (wtype << 20) + (wticks << 24) + (wrange << 28)
+    low = (tier + (ai << 8) + (health << 16) + (regen << 32) + (armor << 40) + (weapon << 48)
+           + (energy << 80) + (energy_regen << 88) + (flee << 96) + (rank << 104) + (boss << 108))
+    high = sum(v << (6 * i) for i, v in enumerate(vs)) + (loot << 54)
+    packed = sum(sk << (16 * i) for i, sk in enumerate(skills))
+    return [low + (high << 128) + LIVE, packed + LIVE]
+
+
+def pack_record(row):
+    """`PackRecord::pack`: five `(caste, min, max)` of 32 bits, the level (signed 8 bits) above."""
+    bits = [row[1 + 3 * i] + (row[2 + 3 * i] << 16) + (row[3 + 3 * i] << 24) for i in range(5)]
+    level = row[16] % 256
+    low = bits[0] + (bits[1] << 32) + (bits[2] << 64) + (bits[3] << 96)
+    return [low + ((bits[4] + (level << 32)) << 128) + LIVE]
+
+
+def spawn_table_record(row):
+    """`SpawnTableRecord::pack`: seven `(template, weight)` of 24 bits, the density above."""
+    bits = [row[1 + 2 * i] + (row[2 + 2 * i] << 16) for i in range(7)]
+    low = sum(b << (24 * i) for i, b in enumerate(bits[:5]))
+    return [low + ((bits[5] + (bits[6] << 24) + (row[15] << 48)) << 128) + LIVE]
 
 
 # `set_build`'s words, without `LIVE` (ENG-01 §3.3): an empty bar (elite slot 255, bit 168), and a
@@ -279,21 +349,32 @@ def entropy_of(instance_id):
     return view("instance_state", instance_id)[2]
 
 
-HOSTS_KEYS = {}
+MAP_KEYS = {}
 
 
-def hosts_keys(slot):
-    """ENG-05 (D-208): the storage keys of `Instances`' `hosts` entries of `slot`, quotas 0-13: the
-    Pedersen chain of the map's name and the key's parts, as a storage address."""
-    if slot not in HOSTS_KEYS:
-        script = ("const {hash}=require('starknet');const b=hash.starknetKeccak('hosts');"
-                  f"for(let i=0;i<14;i++)console.log(hash.computePedersenHash("
+def map_keys(name, slot, count):
+    """The storage keys of `Instances`' map `name` at `(slot, 0..count)`: the Pedersen chain of the
+    map's name and the key's parts, as a storage address."""
+    if (name, slot) not in MAP_KEYS:
+        script = (f"const {{hash}}=require('starknet');const b=hash.starknetKeccak('{name}');"
+                  f"for(let i=0;i<{count};i++)console.log(hash.computePedersenHash("
                   f"hash.computePedersenHash(b,{slot}),i));")
         node_path = os.path.join(os.path.dirname(CONTRACTS), "client", "app", "node_modules")
         out = subprocess.run(["node", "-e", script], env={**os.environ, "NODE_PATH": node_path},
                              capture_output=True, text=True, check=True).stdout
-        HOSTS_KEYS[slot] = [int(line, 16) % (2 ** 251 - 256) for line in out.split()]
-    return HOSTS_KEYS[slot]
+        MAP_KEYS[(name, slot)] = [int(line, 16) % (2 ** 251 - 256) for line in out.split()]
+    return MAP_KEYS[(name, slot)]
+
+
+def hosts_keys(slot):
+    """ENG-05 (D-208): the keys of `Instances`' `hosts` entries of `slot`, quotas 0-13."""
+    return map_keys("hosts", slot, 14)
+
+
+def outline_keys(slot):
+    """FND-26: the keys of `Instances`' `outline` words of `slot` (ENG-10b): a dungeon floor's
+    chunks and its two seam words, drawn at the entry."""
+    return map_keys("outline", slot, 3)
 
 
 def drawn_words(instance_id):
@@ -320,7 +401,7 @@ def streamed_r1b(label, function, receipt, diff):
             entered_id = int(event["keys"][1], 16)
             entropy = entropy_of(entered_id)
             terrains, quotas = drawn_words(entered_id)
-            for key in hosts_keys(entered_id >> 32):
+            for key in hosts_keys(entered_id >> 32) + outline_keys(entered_id >> 32):
                 DRAWN.add((int(instances, 16), key))
             for entry in diff:
                 if int(entry["address"], 16) == int(instances, 16):
@@ -438,6 +519,14 @@ if OPTIONS.get("--floor") == "on":
     records.append((GATE, 7, gate(1, 3, (0, 0), (112, 112), LINK)))
 # Items 1 to 22 (sequential ids): potions 1, 8, 15, 22, one per pack page; the others ingredients.
 records += [(ITEM, i, item(POTION if i in POTIONS else INGREDIENT)) for i in range(1, 23)]
+# ENG-07t (`--fight on`): the seed's skill and castes, the packs and the spawn table the zone names,
+# and the zone itself (location 2) naming spawn table 1, so that a chunk revealed holds goblins.
+if OPTIONS.get("--fight") == "on":
+    records[2] = (LOCATION, 2, location(3, 3, 0, 0, 0, 0, 105, spawn_table=1))
+    records += [(9, row[0], skill_record(row)) for row in seed_rows("skills", 47)]
+    records += [(8, row[0], caste_record(row)) for row in seed_rows("castes", 30)]
+    records += [(7, row[0], pack_record(row)) for row in seed_rows("packs", 17)]
+    records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 16)]
 for kind, rid, parts in records:
     invoke(f"set_record {kind} {rid}", registry, "set_record", kind, rid, len(parts), *parts,
            record=False)
@@ -633,6 +722,160 @@ if OPTIONS.get("--play") == "on":
             emit({"batch": "reveal walk", "played": data, "chunks_revealed": reveals})
             sequence = data[4]
 
+        # ENG-07t (`--fight on`): a fight on the node. The zone names spawn table 1, so the chunks
+        # revealed hold packs of the seed's castes. The adventurer looks at the goblins of its window
+        # (`instance_state`), walks toward the nearest one, within 3 tiles (`bfs`, one batch of at
+        # most 10 Moves at a time, exploring when no goblin is in the window or none can be
+        # reached), then plays 10 Waits: the goblins engage and hit it (`TickLibrary`, `AiLibrary`,
+        # `ExecutorLibrary` on the node). The fight batch is the figure; the member's health before
+        # and after shows the fight. Behind the option: the compared streams do not move.
+        if OPTIONS.get("--fight") == "on":
+            def batch_codes(codes):
+                """`batch` for action codes: 2 is a Wait (`actions::encode_action`)."""
+                word = len(codes)
+                for i, code in enumerate(codes):
+                    word += code << (4 + 24 * i if i < 5 else 128 + 24 * (i - 5))
+                return word
+
+            def play_codes(label, codes):
+                global sequence
+                receipt = invoke(label, instances, "play", fifth, 1, sequence, version,
+                                 batch_codes(codes))
+                data, reveals = played(receipt)
+                emit({"batch": label, "played": data, "chunks_revealed": reveals})
+                sequence = data[4]
+                return data
+
+            def region_sets():
+                """The walkable tiles of the revealed chunks, the chunks not revealed and the packs
+                of the revealed ones as `(chunk, x, y, count, alert)`: `instance_state` lists no
+                goblin yet, so the packs are read from the chunks' features (`PackPlacement`: tile
+                0-7, count 32-35, alert 61-63; the pack at bit 0 and at bit 64)."""
+                walkable, unrevealed, packs = set(), set(), []
+                for page in (0, 16, 32):
+                    raw = view("instance_region", fifth, page, 16)
+                    i = 1
+                    while i < len(raw):
+                        chunk, kind, terrain = raw[i], raw[i + 1], raw[i + 2]
+                        i += 5
+                        cx, cy = chunk % 15, chunk // 15
+                        if kind == 2:
+                            walls = terrain % (1 << 225)
+                            for t in range(225):
+                                if not (walls >> t) & 1:
+                                    walkable.add((cx * 15 + t % 15, cy * 15 + t // 15))
+                            features = raw[i - 2] % (1 << 128)
+                            for slot in range(2):
+                                pack = (features >> (64 * slot)) % (1 << 64)
+                                tile, count, alert = pack % 256, (pack >> 32) % 16, pack >> 61
+                                if count:
+                                    packs.append((chunk, cx * 15 + tile % 15, cy * 15 + tile // 15,
+                                                  count, alert))
+                        elif kind == 1:
+                            unrevealed.add(chunk)
+                return walkable, unrevealed, packs
+
+            def bfs(start, walkable, goal, limit=40):
+                frontier, seen = [(start, [])], {start}
+                while frontier:
+                    nxt = []
+                    for tile, moves_so_far in frontier:
+                        if goal(tile):
+                            return moves_so_far
+                        if len(moves_so_far) >= limit:
+                            continue
+                        for d in range(6):
+                            n = step(*tile, d)
+                            if n in walkable and n not in seen:
+                                seen.add(n)
+                                nxt.append((n, moves_so_far + [d]))
+                    frontier = nxt
+                return None
+
+            def unseen(unrevealed):
+                def sees(tile):
+                    for chunk in unrevealed:
+                        cx, cy = chunk % 15, chunk // 15
+                        for t in range(225):
+                            if distance(tile, (cx * 15 + t % 15, cy * 15 + t // 15)) <= 6:
+                                return True
+                    return False
+                return sees
+
+            near = None
+            FIGHT_FOUND = False
+            blocked = set()
+            for attempt in range(14):
+                st = view("instance_state", fifth)
+                word = st[6 + st[5] + 1]
+                at = ((word >> 32) % 256, (word >> 40) % 256)
+                walkable, unrevealed, packs = region_sets()
+                walkable -= blocked
+                emit({"fight_scan": attempt, "at": at, "packs": packs,
+                      "unrevealed": sorted(unrevealed)})
+                if packs:
+                    nearest = min(packs, key=lambda g: distance(at, g[1:3]))
+                    if distance(at, nearest[1:3]) <= 3:
+                        near = nearest
+                        break
+                    taken = {g[1:3] for g in packs}
+                    path = bfs(at, walkable - taken, lambda t: distance(t, nearest[1:3]) <= 3)
+                else:
+                    path = None
+                if path is None:
+                    path = bfs(at, walkable, unseen(unrevealed)) if unrevealed else None
+                if not path:
+                    break
+                data = play_codes(f"play, {len(path[:10])} Moves toward a goblin or the unrevealed",
+                                  [d * 8 for d in path[:10]])
+                if data[3] == 2:
+                    # Invalid: the tile after the Moves played is not enterable (a goblin on it)
+                    tile = at
+                    for d in path[:data[2] + 1]:
+                        tile = step(*tile, d)
+                    blocked.add(tile)
+            emit({"fight_target": near, "attempts": attempt + 1})
+            FIGHT_FOUND = near is not None
+            if near is not None:
+                def goblin_word(slot, entity, word):
+                    """A goblin's stored word `word` (0 state, 1 timers) in `slot`: the Pedersen chain
+                    of the map's name and the key's parts (`hosts_keys`' way)."""
+                    script = ("const {hash}=require('starknet');const b=hash.starknetKeccak("
+                              f"'goblins');console.log(hash.computePedersenHash(hash.computePed"
+                              f"ersenHash(b,{slot}),{entity}));")
+                    node_path = os.path.join(os.path.dirname(CONTRACTS), "client", "app",
+                                             "node_modules")
+                    out = subprocess.run(["node", "-e", script],
+                                         env={**os.environ, "NODE_PATH": node_path},
+                                         capture_output=True, text=True, check=True).stdout
+                    key = int(out.split()[0], 16) % (2 ** 251 - 256) + word
+                    return int(rpc("starknet_getStorageAt", {"contract_address": instances, "key": hex(key),
+                                                              "block_id": "latest"}), 16)
+
+                st = view("instance_state", fifth)
+                health = lambda s: (s[6 + s[5] + 1] >> 64) % 65536
+                before = health(st)
+                chunk, _, _, count, alert = near
+                entities = [8 + 16 * chunk + k for k in range(count)]
+                data = play_codes("play, a fight: 10 Waits within 3 tiles of a goblin", [2] * 10)
+                st = view("instance_state", fifth)
+                after = health(st)
+                # A goblin has a record once it changed (awake and acting): the engaged ones, with
+                # their tile and health (`GoblinState` bits 0-15 and 32-47).
+                touched = []
+                for entity in entities:
+                    word = goblin_word(1, entity, 0)
+                    if word % (1 << 250):
+                        touched.append({"entity": entity, "x": word % 256, "y": (word >> 8) % 256,
+                                        "health": (word >> 32) % 65536})
+                engaged = after < before or bool(touched)
+                emit({"fight": engaged, "pack_chunk": chunk, "pack_alert": alert,
+                      "pack_entities": entities, "engaged_goblins": touched,
+                      "played": data, "health_before": before, "health_after": after,
+                      "note": "figure counts only if fight is true; the node gives no per-tick "
+                              "attack events, so the ticks with attacks are not observable here"})
+                FIGHT_FOUND = FIGHT_FOUND and engaged
+
 # CBT-02e fix loop 1 (AC-5): a snapshot word's overwrite on the node. Three `set_build` of
 # adventurer 2 with the same reads and the same computation (two potions, pages 0 and 1): the
 # belt's counts changed (the belt word overwritten; the snapshot's words written with the values
@@ -703,3 +946,8 @@ if OPTIONS:
         emit({"stream": "equal", "scope": SCOPE, "transactions": len(STREAM),
               "events": sum(len(t["events"]) for t in STREAM), **keys,
               **({"drawn_keys": len(DRAWN)} if SCOPE == "r1b" else {})})
+
+# ENG-07t: `--fight on` exits 3 when no pack was reached or the member was not engaged: such a run
+# gives no figure (the batch gas of its line is not a fight's).
+if OPTIONS.get("--fight") == "on" and not globals().get("FIGHT_FOUND", False):
+    sys.exit(3)

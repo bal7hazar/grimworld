@@ -608,6 +608,7 @@ const TOOLS: readonly { tool: EditorTool; key: string; label: string }[] = [
   { tool: "select", key: "U", label: "Select" },
   { tool: "place", key: "O", label: "Place" },
   { tool: "outline", key: "T", label: "Outline" },
+  { tool: "footprint", key: "F", label: "Footprint" },
 ];
 
 const LAYER_LABELS: Readonly<Record<keyof Layers, string>> = {
@@ -979,6 +980,9 @@ function EditorScreen({
   const run = (command: EditorCommand): boolean => {
     const c = canvas.current;
     switch (command.kind) {
+      case "footprint":
+        session.armTool("footprint");
+        return true;
       case "tool":
         session.armTool(command.tool);
         return true;
@@ -1159,7 +1163,10 @@ function EditorScreen({
                 type="button"
                 data-tool={t.tool}
                 aria-pressed={session.tool === t.tool}
-                disabled={t.tool === "outline" && !session.zone}
+                disabled={
+                  (t.tool === "outline" && !session.zone) ||
+                  (t.tool === "footprint" && session.footprintTarget() === null)
+                }
                 onClick={() => session.armTool(t.tool)}
               >
                 [{t.key}] {t.label}

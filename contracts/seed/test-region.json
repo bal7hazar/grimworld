@@ -67,5 +67,30 @@
   "quotas": [
     2, 4, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     3, 1, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  ],
+
+  "skill_fields": [
+    "id", "profession", "attribute", "kind", "energy", "adrenaline", "activation", "recharge",
+    "range", "target", "elite", "e1_kind", "e1_param", "e1_v0", "e1_v12", "e1_d0", "e1_d12",
+    "e1_charges", "e1_target", "e1_shape", "e1_filter", "e1_guard", "e1_scope", "e2_kind",
+    "e2_param", "e2_v0", "e2_v12", "e2_d0", "e2_d12", "e2_charges", "e2_target", "e2_shape",
+    "e2_filter", "e2_guard", "e2_scope", "e3_kind", "e3_param", "e3_v0", "e3_v12", "e3_d0",
+    "e3_d12", "e3_charges", "e3_target", "e3_shape", "e3_filter", "e3_guard", "e3_scope"
+  ],
+  "skills": [
+    1, 1, 1, 1, 0, 4, 0, 0, 1, 1, 0, 2, 0, 2, 6, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  ],
+
+  "caste_fields": [
+    "id", "tier", "ai", "health", "health_regen", "armor", "armor_vs_1", "armor_vs_2", "armor_vs_3",
+    "armor_vs_4", "armor_vs_5", "armor_vs_6", "armor_vs_7", "armor_vs_8", "armor_vs_9",
+    "weapon_class", "weapon_damage", "weapon_damage_type", "weapon_ticks", "weapon_range", "energy",
+    "energy_regen", "skill_1", "skill_2", "skill_3", "skill_4", "rank", "flee", "loot_table",
+    "boss"
+  ],
+  "castes": [
+    1, 1, 0, 100, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 6, 1, 2, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+    2, 1, 0, 100, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 5, 2, 3, 4, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+    3, 2, 0, 150, 10, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 9, 3, 3, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0
   ]
 }

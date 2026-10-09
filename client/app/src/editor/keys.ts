@@ -15,7 +15,8 @@ import type { KeyLike } from "../input/keys";
  * - One action per press: auto-repeat is ignored but for the arrows, which pan.
  */
 
-export type EditorTool = "paint" | "erase" | "fill" | "pick" | "outline" | "select" | "place";
+export type EditorTool =
+  "paint" | "erase" | "fill" | "pick" | "outline" | "select" | "place" | "footprint";
 
 export type EditorCommand =
   | { readonly kind: "tool"; readonly tool: EditorTool }
@@ -40,6 +41,7 @@ export type EditorCommand =
   | { readonly kind: "paste" }
   | { readonly kind: "mirror" }
   | { readonly kind: "turn" }
+  | { readonly kind: "footprint" }
   | { readonly kind: "validate" }
   | { readonly kind: "walk" };
 
@@ -93,6 +95,12 @@ export const EDITOR_BINDINGS: readonly EditorBinding[] = [
   tool("KeyU", "select", "U", "Select; drag a selected object to move it"),
   tool("KeyO", "place", "O", "Place the palette's object"),
   tool("KeyT", "outline", "T", "Outline (zones)"),
+  // Not a tool letter: every letter at the same place on both layouts is a tool's or the game's.
+  {
+    keys: "F",
+    label: "Footprint: paint or remove the selected pack building's hexes (its door stays)",
+    matches: [{ code: "KeyF", command: { kind: "footprint" } }],
+  },
   {
     keys: "← → ↑ ↓",
     label: "Pan",

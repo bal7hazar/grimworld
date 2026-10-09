@@ -25,12 +25,21 @@
 //!    the stored bitmaps of the quotas the generation counts, a dungeon floor's from its stored
 //!    outline, A7, A8), **the area moves to the 3 × 3 around the adventurer's chunk, and the
 //!    goblins of its new chunks are read (the content they need with them) and merged by entity
-//!    id**; a goblin unchanged, home and outside the area leaves the batch's world. So a batch
-//!    holds what its actions sent as single batches hold (t-0109, major 1, minor 4);
-//! 5. the words written back: the member's four, each goblin whose words changed (its spawn chunk's
-//!    `touched` bit), each chunk whose objects changed, the roster, the header (sequence, clock,
-//!    counts); then `GoblinKilled`, `ChunkRevealed`, `BatchPlayed` and, on a defeat, `Defeated` and
-//!    the closing report.
+//!    id**; a goblin home with its spawn chunk outside the area, and not killed by the batch,
+//!    leaves the batch's world, written back first if it changed (ENG-07b: re-read from its record,
+//!    or derived under its pack's `alert`, if the area comes back). So a batch holds what its
+//!    actions sent as single batches hold (t-0109, major 1, minor 4);
+//! 5. the words written back: the member's four, each goblin whose words changed (`record`), each
+//!    chunk whose objects or packs changed, the roster, the header (sequence, clock, counts); then
+//!    `GoblinKilled`, `ChunkRevealed`, `BatchPlayed` and, on a defeat, `Defeated` and the closing
+//!    report.
+//!
+//! **A goblin written back** (`record`; ENG-01 §3.2, design/18: a pack shares its aggro): an
+//! untouched goblin (no record yet) whose only change is its engagement sets its pack's `alert`
+//! bits to Engaged, which its pack's untouched goblins take when derived again; any other change
+//! is a record, its spawn chunk's `touched` bit set. `SegmentLibrary` counts the records against
+//! E-16's cap and weighs the first ones (E-1) by the same rule (`types::play`), the invocation's
+//! tally carried from segment to segment in `Area`.
 //!
 //! **The roster** (D-238, the project manager, 2026-10-09): the living goblins away from their
 //! spawn chunk, at most 60; a goblin killed or back home frees its entry. With 60 listed, a goblin
@@ -39,8 +48,7 @@
 //!
 //! **Readings this lot fixed** (the report lists them): a `GoblinKilled`'s `by` is 0, the member
 //! (the MVP's goblins are killed by the member's carriers or its traps); a reveal's weight (2 a
-//! chunk) is taken from the weight left after the Move that caused it, floored at 0; E-16's cap and
-//! E-1's first-record weight are not built (the report's escalation).
+//! chunk) is taken from the weight left after the Move that caused it, floored at 0.
 
 use grimworld_logic::types::InstanceId;
 
@@ -103,7 +111,7 @@ use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementT
 use grimworld_logic::types::reveal::{ProgressTrait, SightTrait};
 use grimworld_logic::types::tick::{
     CasteSheet, CasteSheetTrait, Content, PotionSheet, PotionSheetTrait, SkillSheet,
-    SkillSheetTrait,
+    SkillSheetTrait, ai,
 };
 use grimworld_logic::types::world::Words;
 use grimworld_logic::types::{MAX_WEIGHT, Refusal, Stop, goblin_entity};
@@ -500,13 +508,18 @@ pub impl PlayImpl of PlayTrait {
         let mut played: u8 = 0;
         let mut stop = Stop::None;
         let mut revealed: Array<u8> = array![];
+        let mut changed: Span<u16> = array![].span();
         loop {
-            // One call a segment: the words go in and come back, never loaded here (D-236)
+            // One call a segment: the words go in and come back, never loaded here (D-236), with
+            // the invocation's tally of goblin records (E-16, E-1)
+            area.changed = changed;
+            area.ran = played > 0;
             let content = Content {
                 skills: book.skills.span(),
                 potions: book.potions.span(),
                 castes: book.castes.span(),
             };
+            let (again, back) = (words.clone(), ground.clone());
             let (out, next, done) = segment
                 .segment(
                     words,
@@ -519,8 +532,28 @@ pub impl PlayImpl of PlayTrait {
                     owed,
                     weight,
                 );
+            let (out, next) = if done.undo {
+                // E-16's cap or E-1's weight stopped the batch on an action the segment ran: the
+                // segment again from the same inputs, with the actions before that one only
+                let (out, next, _) = segment
+                    .segment(
+                        again,
+                        content,
+                        area,
+                        classes,
+                        location.level_min,
+                        back,
+                        actions.slice(start, done.played.into()),
+                        owed,
+                        weight,
+                    );
+                (out, next)
+            } else {
+                (out, next)
+            };
             words = out;
             ground = next;
+            changed = done.changed;
             played += done.played;
             start += done.played.into();
             weight = done.weight;
@@ -631,15 +664,17 @@ pub impl PlayImpl of PlayTrait {
             };
             let mut kept: Array<GoblinWords> = array![];
             for goblin in words.goblins.span() {
-                // A goblin leaves the batch's world only as a batch sent from here would not load
-                // it: unchanged, home, its spawn chunk outside the area (the world stays under
-                // `MAX_GOBLINS`)
+                // A goblin leaves the batch's world as a batch sent from here would not load it:
+                // home, its spawn chunk outside the area (the world stays under `MAX_GOBLINS`), not
+                // killed by the batch (its event reads it); written back first if it changed
+                // (t-0111's note: a batch sent from here would read its record)
                 let spawn = Self::spawn_chunk(*goblin.entity);
-                let changed = Self::changed(loaded.span(), goblin);
-                if changed
-                    || Self::away(*goblin.state, spawn)
-                    || Self::within(around.span(), spawn) {
+                if Self::away(*goblin.state, spawn)
+                    || Self::within(around.span(), spawn)
+                    || Self::listed(words.killed.span(), *goblin.entity) {
                     kept.append(*goblin);
+                } else {
+                    Self::record(ref self, slot, ref ground, loaded.span(), goblin);
                 }
             }
             for goblin in new.span() {
@@ -661,11 +696,7 @@ pub impl PlayImpl of PlayTrait {
             m += 1;
         }
         for after in out.goblins.span() {
-            if Self::changed(loaded.span(), after) {
-                self.set_goblin_words(slot, *after.entity, *after.state, *after.timers);
-                let spawn = Self::spawn_chunk(*after.entity);
-                Self::touch(ref self, slot, ref ground, spawn, Self::k_of(*after.entity));
-            }
+            Self::record(ref self, slot, ref ground, loaded.span(), after);
         }
         for (chunk, features) in ground.span() {
             let mut changed = true;
@@ -722,29 +753,68 @@ pub impl PlayImpl of PlayTrait {
         }
     }
 
-    /// Whether `goblin`'s words differ from those it was loaded with.
-    fn changed(loaded: Span<GoblinWords>, goblin: @GoblinWords) -> bool {
-        match Self::find(loaded, *goblin.entity) {
-            Some(before) => before.state != *goblin.state || before.timers != *goblin.timers,
-            None => true,
-        }
-    }
-
-    fn find(goblins: Span<GoblinWords>, entity: u16) -> Option<GoblinWords> {
-        for goblin in goblins {
-            if *goblin.entity == entity {
-                return Some(*goblin);
+    /// `goblin` written back if its words differ from those it was last loaded with (`find`): an
+    /// untouched goblin engaged and nothing else sets its pack's `alert` bits in `ground`, any
+    /// other change is a record (the module's *A goblin written back*).
+    fn record(
+        ref self: InstancesState,
+        slot: u32,
+        ref ground: Array<(u8, Features)>,
+        loaded: Span<GoblinWords>,
+        goblin: @GoblinWords,
+    ) {
+        let entity = *goblin.entity;
+        let spawn = Self::spawn_chunk(entity);
+        let k = Self::k_of(entity);
+        if let Some(before) = Self::find(loaded, entity) {
+            if before.state == *goblin.state && before.timers == *goblin.timers {
+                return;
+            }
+            let now = Self::ai_of(*goblin.state);
+            let engaged = now == ai::ENGAGED && before.timers == *goblin.timers && before.state
+                + (now.into() - Self::ai_of(before.state).into()) * P24 == *goblin.state;
+            if engaged && Self::untouched(ground.span(), spawn, k) {
+                Self::touch(ref self, slot, ref ground, spawn, k, true);
+                return;
             }
         }
-        None
+        self.set_goblin_words(slot, entity, *goblin.state, *goblin.timers);
+        Self::touch(ref self, slot, ref ground, spawn, k, false);
+    }
+
+    /// Whether goblin `k` of `chunk` has no record: `chunk` in `ground`, its `touched` bit clear.
+    fn untouched(ground: Span<(u8, Features)>, chunk: u8, k: u8) -> bool {
+        for (c, features) in ground {
+            if *c == chunk {
+                return !Bits::has((*features.touched).into(), k);
+            }
+        }
+        false
+    }
+
+    /// A goblin's AI state from its `GoblinState` (24–31).
+    #[inline(never)]
+    fn ai_of(state: felt252) -> u8 {
+        let wide: u256 = state.into();
+        ((wide.low / 0x1000000) % 0x100).try_into().unwrap()
+    }
+
+    /// The last goblin of `entity` in `goblins` (`loaded` holds a goblin again when it is read
+    /// again).
+    fn find(goblins: Span<GoblinWords>, entity: u16) -> Option<GoblinWords> {
+        let mut found = None;
+        for goblin in goblins {
+            if *goblin.entity == entity {
+                found = Some(*goblin);
+            }
+        }
+        found
     }
 
     /// Alive (its AI state below dead, `GoblinState` 24–31) and away from its spawn chunk.
     fn away(state: felt252, spawn: u8) -> bool {
-        let wide: u256 = state.into();
-        let ai = (wide.low / 0x1000000) % 0x100;
         let (x, y) = Self::place_goblin(state);
-        ai < 6 && (y / 15) * 15 + x / 15 != spawn
+        Self::ai_of(state) < 6 && (y / 15) * 15 + x / 15 != spawn
     }
 
     fn within(chunks: Span<u8>, chunk: u8) -> bool {
@@ -966,6 +1036,8 @@ pub impl PlayImpl of PlayTrait {
             known,
             revealed,
             chunks: chunks.span(),
+            changed: array![].span(),
+            ran: false,
         }
     }
 
@@ -1038,9 +1110,16 @@ pub impl PlayImpl of PlayTrait {
         }
     }
 
-    /// Sets the `touched` bit `k` of `chunk` (in the ground, else in storage).
+    /// Sets the `touched` bit `k` of `chunk` (in the ground, else in storage), or, `engaged`, the
+    /// `alert` bits of goblin `k`'s pack to Engaged (in the ground, where an untouched goblin's
+    /// chunk is).
     fn touch(
-        ref self: InstancesState, slot: u32, ref ground: Array<(u8, Features)>, chunk: u8, k: u8,
+        ref self: InstancesState,
+        slot: u32,
+        ref ground: Array<(u8, Features)>,
+        chunk: u8,
+        k: u8,
+        engaged: bool,
     ) {
         let bit: u16 = Self::pow16(k);
         let mut next: Array<(u8, Features)> = array![];
@@ -1049,7 +1128,15 @@ pub impl PlayImpl of PlayTrait {
             let mut features = *features;
             if *c == chunk {
                 found = true;
-                if features.touched & bit == 0 {
+                if engaged {
+                    let [mut first, mut second] = features.packs;
+                    if k < 5 {
+                        first.alert = ai::ENGAGED;
+                    } else {
+                        second.alert = ai::ENGAGED;
+                    }
+                    features.packs = [first, second];
+                } else if features.touched & bit == 0 {
                     features.touched += bit;
                 }
             }

@@ -39,7 +39,7 @@ describe("parity with the Cairo code", () => {
       origin: 13,
       move: 48,
       ticks: 7,
-      flood: 10,
+      flood: 23,
       awake: 3,
     });
   });

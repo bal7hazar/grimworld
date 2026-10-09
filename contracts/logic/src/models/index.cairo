@@ -456,9 +456,9 @@ pub struct PackPlacement {
     /// bits 36-60: each goblin's tile as one of the 19 tiles within 2 of the pack's, 5 bits each
     /// (`chunk::OFFSETS`' index)
     pub offsets: u32,
-    /// bits 61-63: the pack's shared state while none of its goblins has a record: 0 asleep,
-    /// 1 on watch, 2 alerted (design/05: a pack shares aggro). Alerting a pack writes this word,
-    /// not one record per goblin (ENG-01 fix loop 1, F-2)
+    /// bits 61-63: the pack's shared state, its goblins without a record derived with it: 0
+    /// asleep, 1 on watch, 2 alerted, 3 engaged (ENG-07b; design/05: a pack shares aggro).
+    /// Alerting a pack writes this word, not one record per goblin (ENG-01 fix loop 1, F-2)
     pub alert: u8,
 }
 
