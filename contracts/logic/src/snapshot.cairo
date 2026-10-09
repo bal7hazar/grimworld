@@ -906,8 +906,11 @@ impl FlattenImpl of FlattenTrait {
     /// §3.4), slot `i` at bit `i`. A slot of attribute 0 (none) counts for no pair.
     fn mappings(loadout: @Loadout, pairs: [u8; 2]) -> (u16, u8) {
         let [g0, g1] = pairs;
-        let weapon = *loadout.weapon_attribute;
         let mut attacks = *loadout.bar_attacks;
+        if g0 == 0 && g1 == 0 && attacks == 0 {
+            return (0, 0);
+        }
+        let weapon = *loadout.weapon_attribute;
         let mut slots: u32 = 0;
         let mut required: u32 = 0;
         let mut bit: u32 = 1;
@@ -1640,18 +1643,22 @@ mod tests {
 
         // The attribute mappings (CBT-05f): a slot counts for a pair whose passive names its
         // attribute (not 0); an attack skill of another attribute than the weapon's needs it.
+        let mut named: Array<u8> = array![];
+        for h in held {
+            if *h.passive.id == id::QUICK_CAST_EVERY_N {
+                named.append(*h.passive.param);
+            }
+        }
         let mut quick_cast_slots: u16 = 0;
         let mut weapon_required: u8 = 0;
         let mut slot: u32 = 0;
         for attribute in loadout.bar_attributes.span() {
             let mut p: u32 = 0;
-            for h in held {
-                if *h.passive.id == id::QUICK_CAST_EVERY_N {
-                    if *attribute != 0 && *attribute == *h.passive.param {
-                        quick_cast_slots += Oracle::bit(2 * slot + p).try_into().unwrap();
-                    }
-                    p += 1;
+            for param in named.span() {
+                if *attribute != 0 && *attribute == *param {
+                    quick_cast_slots += Oracle::bit(2 * slot + p).try_into().unwrap();
                 }
+                p += 1;
             }
             let attacks: u32 = (*loadout.bar_attacks).into();
             let attack = attacks / Oracle::bit(slot) % 2 == 1;
@@ -1865,7 +1872,8 @@ mod tests {
     // may hold a statistic at its per-source maximum (and, where no floor refuses it, its
     // minimum) flattens without overflow, to exactly the envelope.
     #[test]
-    #[available_gas(l2_gas: 12473132)] // ceil(1.05 × 11879173 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 13722359)] // ceil(1.05 × 13068913 measured)
     fn test_envelope_builds() {
         // Held slots at 30, insignias at their pieces' 15 / 10 / 5 / 5 / 5 (DS-23), runes and
         // set bonuses at 50.
@@ -1916,7 +1924,8 @@ mod tests {
     // held slots, insignias 15, 10, 5, 5, 5, five +50 health runes of distinct ids, two +50 set
     // bonuses. The final maximum is `max_health`; `health_bonus` is freed (DS-3).
     #[test]
-    #[available_gas(l2_gas: 4259817)] // ceil(1.05 × 4056968 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 4498807)] // ceil(1.05 × 4284578 measured)
     fn test_extremal_max_health() {
         let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
         let insignias = [15_i16, 10, 5, 5, 5];
@@ -1939,7 +1948,8 @@ mod tests {
     // ranks 15, DS-8) in light armor, five held slots and two set bonuses at +5: 30 + 45 + 20 +
     // 35.
     #[test]
-    #[available_gas(l2_gas: 2486425)] // ceil(1.05 × 2368023 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 2701349)] // ceil(1.05 × 2572713 measured)
     fn test_extremal_max_energy_and_rank() {
         let mut all = everywhere(passive(id::MAX_ENERGY, 0, 5), held_slots());
         all.append(held(passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300));
@@ -1958,7 +1968,8 @@ mod tests {
 
     // The ranks of all eight bar slots at 15 fill `MemberStats.ranks`' 32 bits (4 bits a slot).
     #[test]
-    #[available_gas(l2_gas: 1222792)] // ceil(1.05 × 1164563 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 1413608)] // ceil(1.05 × 1346293 measured)
     fn test_ranks_of_every_bar_slot() {
         let all = array![held(passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300)];
         let build = Loadout { bar_attributes: [PRIMARY; 8], ..loadout(3, 20) };
@@ -1970,7 +1981,8 @@ mod tests {
     // strength is 5 × the weapon attribute's rank capped by level (DS-9): 50, and 40 under a cap
     // of 40.
     #[test]
-    #[available_gas(l2_gas: 1638227)] // ceil(1.05 × 1560216 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 2013392)] // ceil(1.05 × 1917516 measured)
     fn test_extremal_weapon() {
         let maul = Loadout {
             weapon: weapon::MAUL,
@@ -1990,7 +2002,8 @@ mod tests {
     // §6 test 2, "each other field ≤ its envelope": every source at its widest on every other
     // row.
     #[test]
-    #[available_gas(l2_gas: 5600887)] // ceil(1.05 × 5334178 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 5898678)] // ceil(1.05 × 5617788 measured)
     fn test_other_fields_within_envelopes() {
         let mut all = array![];
         let mut i: u8 = 0;
@@ -2025,7 +2038,8 @@ mod tests {
     // attack skills (lane 1), the other −18 always on spells (lane 2), the inscriptions +18 and
     // −18 always on all hits (0–2), the set bonuses +18 above half on spells (lane 5).
     #[test]
-    #[available_gas(l2_gas: 3685951)] // ceil(1.05 × 3510429 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 3941993)] // ceil(1.05 × 3754279 measured)
     fn test_lanes_against_the_oracle() {
         let all = array![
             held(
@@ -2157,7 +2171,8 @@ mod tests {
     // against a type 149 → 63 (a Warden's +30 elemental and 17 sources at 7). Condition duration
     // 65,534 → 50: `test_same_condition_capped`, below.
     #[test]
-    #[available_gas(l2_gas: 11255331)] // ceil(1.05 × 10719362 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 12143421)] // ceil(1.05 × 11565162 measured)
     fn test_saturation() {
         let all = everywhere(passive(id::ENCHANT_DURATION, 0, 20), sources());
         let snapshot = flatten(@loadout(2, 20), all.span());
@@ -2185,7 +2200,8 @@ mod tests {
     // §6 test 5 (FX-43, D-157 D): two health runes of one modifier id count once; of two ids,
     // both.
     #[test]
-    #[available_gas(l2_gas: 2281856)] // ceil(1.05 × 2173196 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 2669117)] // ceil(1.05 × 2542016 measured)
     fn test_rune_identity() {
         let rune = passive(id::MAX_HEALTH, 0, 50);
         let same = array![held(rune, Source::Rune, 10, 7), held(rune, Source::Rune, 11, 7)];
@@ -2199,7 +2215,8 @@ mod tests {
     // AUD-182-2: three runes of one modifier id (+50 health, −75 health): the benefit counts
     // once, every cost counts (FX-43): 480 + 50 − 225.
     #[test]
-    #[available_gas(l2_gas: 1803652)] // ceil(1.05 × 1717763 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 2009378)] // ceil(1.05 × 1913693 measured)
     fn test_repeated_rune_id() {
         let benefit = passive(id::MAX_HEALTH, 0, 50);
         let price = passive(id::MAX_HEALTH, 0, -75);
@@ -2217,7 +2234,8 @@ mod tests {
     // AUD-182-3: a rune's contribution to an attribute is its passives' sum: +1 and +2 on one
     // rune give 3, so 12 points reach 15.
     #[test]
-    #[available_gas(l2_gas: 1372438)] // ceil(1.05 × 1307083 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 1569722)] // ceil(1.05 × 1494973 measured)
     fn test_rune_attribute_contribution() {
         let all = array![
             held(passive(id::ATTRIBUTE, PRIMARY, 1), Source::Rune, 10, 7),
@@ -2231,7 +2249,8 @@ mod tests {
     // The counts of design/20 §1.2 at their bounds, the 17 sources: accepted; one more of a
     // source: refused.
     #[test]
-    #[available_gas(l2_gas: 4282056)] // ceil(1.05 × 4078148 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 4528186)] // ceil(1.05 × 4312558 measured)
     fn test_counts_at_bounds() {
         let all = everywhere(passive(id::ARMOR, 0, 1), sources());
         let snapshot = flatten(@loadout(1, 20), all.span());
@@ -2302,7 +2321,8 @@ mod tests {
     // A quick-cast pair names an attribute of the build (D-157 A): its index; one the build does
     // not hold is refused.
     #[test]
-    #[available_gas(l2_gas: 1114169)] // ceil(1.05 × 1061113 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 1438178)] // ceil(1.05 × 1369693 measured)
     fn test_quick_cast_pairs() {
         let all = array![
             held(passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1),
@@ -2318,6 +2338,7 @@ mod tests {
     // bit `2 i + p`; an empty slot, attribute 0, for none); an attack skill of another attribute
     // than the weapon's (the sword's, OTHER) needs its weapon. Without pairs, no slot counts.
     #[test]
+    #[available_gas(l2_gas: 2699284)] // ceil(1.05 × 2570746 measured)
     fn test_attribute_mappings() {
         let all = array![
             held(passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1),
@@ -2348,7 +2369,8 @@ mod tests {
 
     // The passives that are not summed: the lowest N, the damage type, halving.
     #[test]
-    #[available_gas(l2_gas: 1375399)] // ceil(1.05 × 1309903 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 1576757)] // ceil(1.05 × 1501673 measured)
     fn test_passives_not_summed() {
         let all = array![
             held(passive(id::DAMAGE_TYPE, damage::FIRE, 0), Source::Prefix, 0, 1),
@@ -2364,7 +2386,8 @@ mod tests {
 
     // DS-29: `pack_stats` accepts a health regeneration of 20 and refuses 21.
     #[test]
-    #[available_gas(l2_gas: 105021)] // ceil(1.05 × 100020 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 117632)] // ceil(1.05 × 112030 measured)
     fn test_stats_health_regen_20_packs() {
         pack_stats(MemberStats { health_regen: 20, ..Default::default() });
     }
@@ -2377,7 +2400,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 573384)] // ceil(1.05 × 546080 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 866870)] // ceil(1.05 × 825590 measured)
     fn test_stats_layout() {
         let stats = MemberStats {
             max_health: 0xFFFF,
@@ -2732,7 +2756,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 259413)] // ceil(1.05 × 247060 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 373506)] // ceil(1.05 × 355720 measured)
     fn test_cost_oracle_empty() {
         let snapshot = oracle(@loadout(3, 20), array![].span());
         assert(snapshot.stats.max_health == 480, 'no passive');

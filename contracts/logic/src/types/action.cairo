@@ -633,7 +633,7 @@ mod tests {
     // and Interact are ENG-07's.
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-    #[available_gas(l2_gas: 10360140)] // ceil(1.05 × 9866800 measured)
+    #[available_gas(l2_gas: 10359930)] // ceil(1.05 × 9866600 measured)
     fn test_clock_absent_kind() {
         let sheets = bench().sheets();
         let mut world = Fixture::world(
@@ -977,6 +977,7 @@ mod tests {
     // spent: the next Fire spell makes `casts` 1 and keeps its activation 3. A spell whose slot
     // counts for no pair leaves the counter alone.
     #[test]
+    #[available_gas(l2_gas: 13620659)] // ceil(1.05 × 12972056 measured)
     fn test_example_fifth_cast_through_act() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![FIRE, FIRE].span());
@@ -1007,6 +1008,7 @@ mod tests {
     // design/19 §3.4) is refused and writes nothing; the same skill on a slot without the bit
     // lands for the weapon's `k`.
     #[test]
+    #[available_gas(l2_gas: 13089415)] // ceil(1.05 × 12466109 measured)
     fn test_attack_skill_without_its_weapon() {
         let sheets = bench().sheets();
         let mut member = adventurer(@sheets, array![RAGE, RAGE].span());
