@@ -17,6 +17,7 @@ export {
   facing,
   front,
   inside,
+  neighbor,
   range,
   reach,
   shape,
@@ -24,6 +25,21 @@ export {
   sight,
   tiles,
 } from "./window";
+export {
+  CRIPPLED_MOVE_TICKS,
+  MAX_AWAKE,
+  ORIGIN,
+  awake,
+  board,
+  errors as movementErrors,
+  flood,
+  flood_distance,
+  move_ticks,
+  next_step,
+  origin,
+  position,
+} from "./movement";
+export type { Board, Flood, Origin, Sleeper } from "./movement";
 export {
   AXE,
   HitClass,

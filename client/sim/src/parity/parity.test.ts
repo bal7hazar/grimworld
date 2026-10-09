@@ -33,6 +33,17 @@ describe("parity with the Cairo code", () => {
     expect(Object.fromEntries(counts)).toEqual({ purpose: 9, domain: 128, derive: 90 });
   });
 
+  it("covers every fn of movement.jsonl with its count", () => {
+    const counts = replay(table("movement.jsonl"), readTable("movement.jsonl"));
+    expect(Object.fromEntries(counts)).toEqual({
+      origin: 13,
+      move: 48,
+      ticks: 7,
+      flood: 10,
+      awake: 3,
+    });
+  });
+
   it("covers every fn of packing.jsonl with its count", () => {
     const counts = replay(table("packing.jsonl"), readTable("packing.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({

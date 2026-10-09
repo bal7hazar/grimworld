@@ -3,7 +3,7 @@
 // adapting the felts of a case to the mirror's arguments and its result to Cairo's `Serde`.
 // A new table of the game is one entry here.
 
-import { CairoPanic, fromFelt, u32, u8 } from "../felt";
+import { CairoPanic, boolFromFelt, fromFelt, u16, u32, u8 } from "../felt";
 import { PURPOSES, derive, domain } from "../fate";
 import { hitFromFelts, outcomeToFelts, resolve } from "../hit";
 import {
@@ -27,7 +27,8 @@ import {
   unpack_lanes16,
   unpack_lanes32,
 } from "../packing";
-import { arc, distance, facing, front, reach, shape, sight } from "../window";
+import { awake, board, flood, flood_distance, move_ticks, next_step, position } from "../movement";
+import { arc, distance, facing, front, neighbor, reach, shape, sight } from "../window";
 import type { Entry, Mirror } from "./replay";
 
 /** The felts of a case, exactly `count` of them. */
@@ -154,9 +155,46 @@ const packing: Record<string, Mirror> = {
   unpack_bitmap: (c) => [unpack_bitmap(args(c, 1)[0]!).bits],
 };
 
+/** `None` as the movement table writes it. */
+const NONE = 255n;
+const orNone = (value: number | undefined): bigint => (value === undefined ? NONE : BigInt(value));
+
+const movement: Record<string, Mirror> = {
+  origin: (c) => {
+    const [x, y] = args(c, 2).map(small);
+    const at = board(x!, y!);
+    return [BigInt(at.x), BigInt(at.y), BigInt(position(at, x!, y!))];
+  },
+  move: (c) => {
+    const [from, direction] = args(c, 2).map(small);
+    return [orNone(neighbor(from!, direction!))];
+  },
+  ticks: (c) => {
+    const [crippled, t0, movement] = args(c, 3);
+    const deadline = Number(fromFelt(u32, crippled!));
+    return [BigInt(move_ticks(deadline, Number(fromFelt(u32, t0!)), boolFromFelt(movement!)))];
+  },
+  // The table's flood: from its source, no obstacle, capped at 15 layers; the walker not blocked
+  flood: (c) => {
+    const [grid, source, walker] = args(c, 3);
+    const layers = flood(grid!, small(source!), 0n, 15);
+    return [
+      orNone(next_step(layers, small(walker!), 0n)),
+      orNone(flood_distance(layers, small(walker!))),
+    ];
+  },
+  // The table's goblins: entity `8 + k`, alive, the fourth (k = 3) asleep
+  awake: (c) => {
+    const distances = c.map((d) => Number(fromFelt(u16, d)));
+    const goblins = distances.map((_, k) => ({ entity: 8 + k, alive: true, asleep: k === 3 }));
+    return awake(goblins, distances).map((index) => BigInt(8 + index));
+  },
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
   { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
+  { file: "movement.jsonl", floor: 81, fns: movement },
 ];
