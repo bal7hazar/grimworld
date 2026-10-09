@@ -419,3 +419,5 @@ the owner, and **due before the phase that consumes it**.
 | R-22 | A contract exceeds the class size limit as features are added | Medium | Medium | Boundaries planned at ENG-01; class size printed in CI | Phase 1–4 |
 | R-23 | A third track (ARC) shares a budget of 3 agents with the game and the map library; the career loop waits for `quest` | Medium | Medium | `quest` only before Phase 3; analysis first; the owner may raise the budget | Phase 2–3 |
 | R-8 | Solo-only launch closes the co-op door by accident | Medium | High | M-1…M-6 checked by the design lens on every task | Every phase |
+
+R-2 (2026-10-09): the worst fight batch measured at about 485M (8 goblins attacking every tick for 10 ticks, at an unreal health) and a worst tick of 51,894,364. A cap of 4 attackers: 366M, but a real-health fight costs more (253M against 189M). With the owner, recommendation: no cap. MAX_ATTACKERS = 8 in code.
