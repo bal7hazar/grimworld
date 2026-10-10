@@ -74,7 +74,7 @@ mod tests {
     use super::{Candidates, CandidatesAssert, CandidatesRecord, CandidatesTrait};
 
     #[test]
-    #[available_gas(l2_gas: 28413)] // ceil(1.05 × 27060 measured)
+    #[available_gas(l2_gas: 28308)] // ceil(1.05 × 26960 measured)
     fn test_candidates_round_trip() {
         let record = Candidates { sets: [3, 0, 0x1000000000000000000000000000000000000000000000000000000000] };
         let parts = record.pack();

@@ -428,7 +428,7 @@ mod tests {
 
     // A chunk of the set without its record (the content pipeline writes every chunk) is all wall.
     #[test]
-    #[available_gas(l2_gas: 503204)] // ceil(1.05 × 479241 measured)
+    #[available_gas(l2_gas: 503099)] // ceil(1.05 × 479141 measured)
     fn test_authored_reveal_missing_record() {
         let site = site();
         let mut progress = ProgressTrait::new(@site, 5);

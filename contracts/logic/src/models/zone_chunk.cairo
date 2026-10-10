@@ -319,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 334656)] // ceil(1.05 × 318720 measured)
+    #[available_gas(l2_gas: 334551)] // ceil(1.05 × 318620 measured)
     fn test_zone_chunk_bits_and_round_trip() {
         let record = sample();
         let parts = record.pack();

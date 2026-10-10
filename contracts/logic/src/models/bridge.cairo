@@ -112,7 +112,7 @@ mod tests {
     use super::{Bridge, BridgeAssert, BridgeRecord, BridgeTrait};
 
     #[test]
-    #[available_gas(l2_gas: 77014)] // ceil(1.05 × 73346 measured)
+    #[available_gas(l2_gas: 76909)] // ceil(1.05 × 73246 measured)
     fn test_bridge_bits_and_round_trip() {
         let bridge = Bridge { deck: BoardTrait::pow(223) + BoardTrait::pow(3), ends: (2, 0xe0) };
         let parts = bridge.pack();
