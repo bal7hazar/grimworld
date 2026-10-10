@@ -1,384 +1,456 @@
 {
-  "$comment": "The one table of an authored zone's checks (ENG-08 deliverable 2): the Registry's (ZONE_CHUNK and the other records' writes, src/checks.cairo, built by ENG-09), the content pipeline's (the converter only: no record holds them alone) and the export's own. Ids R-n and E-n follow CLI-09 §5 where it has them. Each registry case runs through both sides: tests/test_checks.cairo's test_refuse_<case> (snforge, should_panic with the code) and map-format/tests/test_convert.py (the converter refuses with the same code); test_convert.py also checks that each Cairo test exists with that code.",
-  "registry": [
-    {
-      "case": "set_outside",
-      "id": "R-11",
-      "code": "zone: set outside rectangle",
-      "checked_at": "OUTLINE (chunk set)",
-      "reads": "LOCATION",
-      "rule": "The chunk set lies within the width × height rectangle (ENG-R1c bound 1, reused)",
-      "mutation": "the chunk set gains chunk 3, beyond the 3-chunk width"
-    },
-    {
-      "case": "count_above_members",
-      "id": "R-12",
-      "code": "zone: count above members",
-      "checked_at": "QUOTAS",
-      "reads": "OUTLINE (chunk set)",
-      "rule": "A quota's count is at most the zone's members (ENG-R1c bound 2, reused)",
-      "mutation": "quota 0's count 6, above the 5 chunks"
-    },
-    {
-      "case": "count_above_candidates",
-      "id": "R-13",
-      "code": "zone: count above candidates",
-      "checked_at": "QUOTAS",
-      "reads": "CANDIDATES",
-      "rule": "For an authored zone, a quota's count is at most its candidates (bound 2, authored form; ruling 3)",
-      "mutation": "quota 0's count 3, above its 2 candidates"
-    },
-    {
-      "case": "spawn_on_wall",
-      "id": "R-14",
-      "code": "zone chunk: tile not floor",
-      "checked_at": "ZONE_CHUNK",
-      "reads": "—",
-      "rule": "Spawn points, objects and candidate tiles on walkable tiles",
-      "mutation": "chunk 1's first spawn point on its first wall tile"
-    },
-    {
-      "case": "object_kind",
-      "id": "R-14",
-      "code": "zone chunk: object",
-      "checked_at": "ZONE_CHUNK",
-      "reads": "—",
-      "rule": "An object of a kind an authored chunk holds (chest, node, terrain trap, landmark, lever), untouched",
-      "mutation": "chunk 0's landmark made a vein (a quota's kind)"
-    },
-    {
-      "case": "empty_with_value",
-      "id": "R-14",
-      "code": "zone chunk: empty with a value",
-      "checked_at": "ZONE_CHUNK",
-      "reads": "CANDIDATES",
-      "rule": "An empty entry is all zeros; a candidate tile 0 where CANDIDATES does not name the chunk",
-      "mutation": "chunk 0 given a tile for quota 1, of which it is no candidate"
-    },
-    {
-      "case": "tile_taken",
-      "id": "R-14",
-      "code": "zone chunk: tile taken",
-      "checked_at": "ZONE_CHUNK",
-      "reads": "CANDIDATES",
-      "rule": "No two placements (spawn points, objects, candidate tiles) on one tile",
-      "mutation": "chunk 2's chest moved onto its spawn point's tile"
-    },
-    {
-      "case": "over_caps",
-      "id": "R-15",
-      "code": "zone chunk: over its caps",
-      "checked_at": "ZONE_CHUNK",
-      "reads": "CANDIDATES, QUOTAS",
-      "rule": "Within E-3 with every candidate counted: an object quota's against 3 objects, a Heart's against 2 packs",
-      "mutation": "chunk 2 given two more chests on its first two free floor tiles (4 objects with the vein's candidate)"
-    },
-    {
-      "case": "gate_anchor_not_floor",
-      "id": "R-18",
-      "code": "zone: gate anchor not floor",
-      "checked_at": "GATE",
-      "reads": "ZONE_CHUNK (its anchor chunk)",
-      "rule": "Every gate anchor on a walkable tile",
-      "mutation": "gate 3's anchor moved to chunk 16's first wall tile"
-    },
-    {
-      "case": "mask_disagrees",
-      "id": "R-20",
-      "code": "zone: mask disagrees",
-      "checked_at": "ZONE_CHUNK, OUTLINE (mask)",
-      "reads": "the other",
-      "rule": "Every tile outside a border chunk's mask is a wall (ruling 6)",
-      "mutation": "chunk 2's tile 14 (column 14, outside its mask) made floor"
-    },
-    {
-      "case": "chunk_not_in_set",
-      "id": "R-24",
-      "code": "zone: chunk not in the set",
-      "checked_at": "ZONE_CHUNK",
-      "reads": "OUTLINE (chunk set)",
-      "rule": "A ZONE_CHUNK's chunk is in the zone's chunk set",
-      "mutation": "chunk 0 taken out of the chunk set"
-    },
-    {
-      "case": "gate_not_indexed",
-      "id": "R-25",
-      "code": "zone: gate not indexed",
-      "checked_at": "GATE",
-      "reads": "ZONE_CHUNK (its anchor chunk)",
-      "rule": "The anchor chunk names the gate among the two it anchors (the registry's gate index, #348's deferred item)",
-      "mutation": "chunk 16's gates cleared"
-    },
-    {
-      "case": "entry_not_floor",
-      "id": "R-26",
-      "code": "zone: entry not floor",
-      "checked_at": "LOCATION (marker)",
-      "reads": "ZONE_CHUNK (the entry chunk)",
-      "rule": "The entry tile walkable",
-      "mutation": "the entry tile moved to chunk 0's first wall tile"
-    },
-    {
-      "case": "candidates_rewrite_count",
-      "id": "R-13",
-      "code": "zone: count above candidates",
-      "checked_at": "CANDIDATES (reverse check)",
-      "reads": "QUOTAS",
-      "rule": "A CANDIDATES write re-runs R-13 (and R-12, R-27, R-29, R-30) against the zone's QUOTAS (review t-0084, minor 1)",
-      "mutation": "quota 0's count 2 written over its two candidates, then its candidates rewritten to chunk 16 alone"
-    },
-    {
-      "case": "candidates_rewrite_tile",
-      "id": "R-14",
-      "code": "zone chunk: empty with a value",
-      "checked_at": "CANDIDATES (reverse check)",
-      "reads": "the ZONE_CHUNKs whose candidacy changed",
-      "rule": "A CANDIDATES write re-runs R-14 and R-15 against each chunk whose candidacy changed",
-      "mutation": "quota 0's candidates rewritten without chunk 1, whose record keeps its candidate tile"
-    },
-    {
-      "case": "pack_rewrite_heart",
-      "id": "R-27",
-      "code": "zone: heart template",
-      "checked_at": "PACK (reverse check)",
-      "reads": "a count of the Heart quotas naming the template (ENG-09, as caste_skills)",
-      "rule": "A PACK write that a Heart quota names re-runs R-27",
-      "mutation": "the raiders rewritten with every minimum 0 while quota 2, a Heart, names them"
-    },
-    {
-      "case": "heart_template",
-      "id": "R-27",
-      "code": "zone: heart template",
-      "checked_at": "QUOTAS",
-      "reads": "PACK",
-      "rule": "A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended)",
-      "mutation": "quota 2's template has every minimum 0"
-    },
-    {
-      "case": "floor_rectangle",
-      "id": "R-28",
-      "code": "location: floor rectangle",
-      "checked_at": "LOCATION (a dungeon floor)",
-      "reads": "—",
-      "rule": "A dungeon floor's width × height above N (ENG-R1c bound 4; dungeons only)",
-      "mutation": "the location made a dungeon floor of N 6 in its 3 × 2 rectangle"
-    },
-    {
-      "case": "quota_kind",
-      "id": "R-29",
-      "code": "zone: quota kind",
-      "checked_at": "QUOTAS",
-      "reads": "LOCATION (marker)",
-      "rule": "An authored zone's quotas place no exit and no set piece",
-      "mutation": "quota 1 made an exit"
-    },
-    {
-      "case": "quota_draws",
-      "id": "R-30",
-      "code": "zone: quota draws",
-      "checked_at": "QUOTAS",
-      "reads": "OUTLINE (chunk set), CANDIDATES",
-      "rule": "The location's quotas draw at most 640 times together at entry, min(count, members − count) a quota (D-220: with the eight task quotas the worst plan measures 95,799,175 L2 gas, under 100,000,000)",
-      "mutation": "a 15 × 15 zone whose six quotas (three object quotas, two Hearts, a landmark) take 112 of 225 candidates each: 672 draws"
-    },
-    {
-      "case": "candidates_outside",
-      "id": "R-31",
-      "code": "candidates: outside the set",
-      "checked_at": "CANDIDATES",
-      "reads": "OUTLINE (chunk set)",
-      "rule": "Every candidate chunk in the zone",
-      "mutation": "quota 0's candidates gain chunk 3"
-    },
-    {
-      "case": "bridge_deck",
-      "id": "R-33",
-      "code": "bridge: deck empty",
-      "checked_at": "BRIDGE",
-      "reads": "—",
-      "rule": "A bridge has a deck (a one-tile deck is valid, D-217)",
-      "mutation": "the bridge's deck emptied"
-    },
-    {
-      "case": "bridge_end",
-      "id": "R-33",
-      "code": "bridge: end",
-      "checked_at": "BRIDGE",
-      "reads": "—",
-      "rule": "Two distinct ends, below 225, off the deck",
-      "mutation": "the bridge's second end equal to its first"
-    },
-    {
-      "case": "bridge_floor",
-      "id": "R-34",
-      "code": "bridge: end not floor",
-      "checked_at": "BRIDGE",
-      "reads": "ZONE_CHUNK",
-      "rule": "Each end walkable",
-      "mutation": "the bridge's first end on chunk 15's first wall tile"
-    },
-    {
-      "case": "bridge_apart",
-      "id": "R-34",
-      "code": "bridge: end not by the deck",
-      "checked_at": "BRIDGE",
-      "reads": "ZONE_CHUNK",
-      "rule": "Each end next to a deck tile",
-      "mutation": "the bridge's first end on chunk 15's first floor tile"
-    },
-    {
-      "case": "bridge_index",
-      "id": "R-35",
-      "code": "bridge: index",
-      "checked_at": "BRIDGE",
-      "reads": "ZONE_CHUNK",
-      "rule": "A BRIDGE's index below its chunk's bridge count",
-      "mutation": "the bridge checked as index 1 of a chunk holding 1"
-    }
-  ],
-  "pipeline": [
-    {
-      "case": "unreachable",
-      "id": "P-1",
-      "code": "pipeline: unreachable tile",
-      "rule": "Every walkable tile of the zone reachable from its entry (gate anchors, candidates and spawn points with them)",
-      "mutation": "a floor tile walled in by its six neighbours"
-    },
-    {
-      "case": "seam",
-      "id": "P-2",
-      "code": "pipeline: seam",
-      "rule": "The records, re-assembled across their seams with the rows' parity, give the painted walkable plane back",
-      "mutation": "a wall bit of chunk 1's records flipped on its seam with chunk 0"
-    },
-    {
-      "case": "deck_disconnected",
-      "id": "P-3",
-      "code": "pipeline: deck not connected",
-      "rule": "A bridge's deck is one connected piece",
-      "mutation": "a deck of two tiles that do not touch"
-    }
-  ],
-  "export": [
-    {
-      "case": "origin_odd",
-      "id": "E-30",
-      "code": "export: origin row odd",
-      "rule": "The origin's row is even (D-216)"
-    },
-    {
-      "case": "door_off_border",
-      "id": "E-20",
-      "code": "export: door not on the border",
-      "rule": "A building's door is a hex of its footprint's border (CLI-09e §4)"
-    },
-    {
-      "case": "unknown_kind",
-      "id": "E-23",
-      "code": "export: unknown kind",
-      "rule": "A prop, building, NPC or bridge kind of kinds.json"
-    },
-    {
-      "case": "two_candidates",
-      "id": "R-21",
-      "code": "export: two candidates in a chunk",
-      "rule": "At most one candidate of a quota in a chunk (the layout holds one tile a quota)"
-    },
-    {
-      "case": "three_gates",
-      "id": "R-22",
-      "code": "export: three gates in a chunk",
-      "rule": "At most two gates anchored in a chunk (the layout holds two ids)"
-    },
-    {
-      "case": "bridge_across",
-      "id": "R-36",
-      "code": "export: bridge across chunks",
-      "rule": "Format 1: a bridge (deck and ends) lies in one chunk"
-    },
-    {
-      "case": "schema",
-      "id": "E-31",
-      "code": "export: schema",
-      "rule": "The file matches schema.json (fields, types, ranges, anchored patterns)"
-    },
-    {
-      "case": "hex_outside_size",
-      "id": "E-32",
-      "code": "export: hex outside the size",
-      "rule": "Every painted hex, moved by the origin, lies within [0, 15 width) × [0, 15 height) (D-216)"
-    },
-    {
-      "case": "row_lengths",
-      "id": "E-33",
-      "code": "export: row lengths differ",
-      "rule": "A row's ground and outline, when given, are as long as its terrain"
-    },
-    {
-      "case": "field_missing",
-      "id": "E-34",
-      "code": "export: field missing",
-      "rule": "A zone gives location, region, biome, level_min, level_max and entry; a town or an outpost its location and region"
-    },
-    {
-      "case": "unknown_name",
-      "id": "E-35",
-      "code": "export: unknown name",
-      "rule": "Every name (location, region, gate, pack, collector, landmark, skill, spawn table, set piece) is in the content manifest (R-17's existence, OPS-01)"
-    },
-    {
-      "case": "candidate_of_no_quota",
-      "id": "E-36",
-      "code": "export: candidate of no quota",
-      "rule": "A candidate names a quota of the map's list"
-    },
-    {
-      "case": "object_outside_set",
-      "id": "R-24",
-      "code": "zone: chunk not in the set",
-      "rule": "A spawn point, feature, candidate, gate or bridge lies in a chunk of the zone"
-    },
-    {
-      "case": "set_piece_size",
-      "id": "E-37",
-      "code": "export: set piece size",
-      "rule": "A set piece is one chunk (1 × 1)"
-    },
-    {
-      "case": "set_piece_corner",
-      "id": "R-16",
-      "code": "set piece: corner not wall",
-      "rule": "A set piece keeps D-134's corners (SetPieceAssert; ruling 5 lifts them for authored zone chunks only)"
-    },
-    {
-      "case": "set_piece_tile",
-      "id": "E-38",
-      "code": "set piece: tile not floor",
-      "rule": "A set piece's packs and objects on its interior floor (SetPieceAssert)"
-    },
-    {
-      "case": "set_piece_caps",
-      "id": "E-39",
-      "code": "set piece: over its caps",
-      "rule": "A set piece holds at most 2 packs and 3 objects (its layout, E-3)"
-    },
-    {
-      "case": "malformed",
-      "id": "E-40",
-      "code": "export: malformed",
-      "rule": "Anything else the converter cannot read: a refusal line, never a traceback"
-    },
-    {
-      "case": "format",
-      "id": "E-41",
-      "code": "export: format",
-      "rule": "`format` is `grimworld-export`"
-    },
-    {
-      "case": "version",
-      "id": "E-42",
-      "code": "export: version",
-      "rule": "`version` is one this converter reads (1); a newer one is refused (the versioning rule of schema.json)"
-    }
-  ]
+ "$comment": "The one table of an authored zone's checks (ENG-08 deliverable 2): the Registry's (ZONE_CHUNK and the other records' writes, ZoneAssert in contracts/persistent/src/systems/registry.cairo, ENG-09), the content pipeline's (the converter only: no record holds them alone) and the export's own. Ids R-n and E-n follow CLI-09 §5 where it has them. Each registry case runs through both sides: contracts/persistent/tests/test_zone.cairo's test_refuse_<case> (snforge, should_panic with the code) and tools/map-format/tests/test_convert.py (the converter refuses with the same code); test_convert.py also checks that each Cairo test exists with that code. R-38 is dropped (ADR-0008 rule 5, D-227): the registry ids go from R-37 to R-39.",
+ "registry": [
+  {
+   "case": "set_outside",
+   "id": "R-11",
+   "code": "zone: set outside rectangle",
+   "checked_at": "OUTLINE (chunk set)",
+   "reads": "LOCATION",
+   "rule": "The chunk set lies within the width × height rectangle (ENG-R1c bound 1, reused)",
+   "mutation": "the chunk set gains chunk 3, beyond the 3-chunk width"
+  },
+  {
+   "case": "count_above_members",
+   "id": "R-12",
+   "code": "zone: count above members",
+   "checked_at": "QUOTAS",
+   "reads": "OUTLINE (chunk set)",
+   "rule": "A quota's count is at most the zone's members (ENG-R1c bound 2, reused)",
+   "mutation": "quota 0's count 6, above the 5 chunks"
+  },
+  {
+   "case": "count_above_candidates",
+   "id": "R-13",
+   "code": "zone: count above candidates",
+   "checked_at": "QUOTAS",
+   "reads": "CANDIDATES",
+   "rule": "For an authored zone, a quota's count is at most its candidates (bound 2, authored form; ruling 3)",
+   "mutation": "quota 0's count 3, above its 2 candidates"
+  },
+  {
+   "case": "spawn_on_wall",
+   "id": "R-14",
+   "code": "zone chunk: tile not floor",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "—",
+   "rule": "Spawn points, objects and candidate tiles on walkable tiles",
+   "mutation": "chunk 1's first spawn point on its first wall tile"
+  },
+  {
+   "case": "spawn_on_ring",
+   "id": "R-14",
+   "code": "zone chunk: tile not floor",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "—",
+   "rule": "Spawn points, objects and candidate tiles in the interior (rows and columns 1 to 13): a pack's goblins stand within 2 of its tile (Placement::near's precondition, ENG-09)",
+   "mutation": "chunk 1's spawn point on a floor tile of its ring"
+  },
+  {
+   "case": "object_kind",
+   "id": "R-14",
+   "code": "zone chunk: object",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "—",
+   "rule": "An object of a kind an authored chunk holds (chest, node, terrain trap, landmark, lever), untouched",
+   "mutation": "chunk 0's landmark made a vein (a quota's kind)"
+  },
+  {
+   "case": "empty_with_value",
+   "id": "R-14",
+   "code": "zone chunk: empty with a value",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "CANDIDATES",
+   "rule": "An empty entry is all zeros; a candidate tile 0 where CANDIDATES does not name the chunk",
+   "mutation": "chunk 0 given a tile for quota 1, of which it is no candidate"
+  },
+  {
+   "case": "tile_taken",
+   "id": "R-14",
+   "code": "zone chunk: tile taken",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "CANDIDATES",
+   "rule": "No two placements (spawn points, objects, candidate tiles) on one tile",
+   "mutation": "chunk 2's chest moved onto its spawn point's tile"
+  },
+  {
+   "case": "over_caps",
+   "id": "R-15",
+   "code": "zone chunk: over its caps",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "CANDIDATES, QUOTAS",
+   "rule": "Within E-3 with every candidate counted: an object quota's against 3 objects, a Heart's against 2 packs",
+   "mutation": "chunk 2 given two more chests on its first two free floor tiles (4 objects with the vein's candidate)"
+  },
+  {
+   "case": "gate_anchor_not_floor",
+   "id": "R-18",
+   "code": "zone: gate anchor not floor",
+   "checked_at": "GATE",
+   "reads": "ZONE_CHUNK (its anchor chunk)",
+   "rule": "Every gate anchor on a walkable tile",
+   "mutation": "gate 3's anchor moved to chunk 16's first wall tile"
+  },
+  {
+   "case": "mask_disagrees",
+   "id": "R-20",
+   "code": "zone: mask disagrees",
+   "checked_at": "ZONE_CHUNK, OUTLINE (mask)",
+   "reads": "the other",
+   "rule": "Every tile outside a border chunk's mask is a wall (ruling 6)",
+   "mutation": "chunk 2's tile 14 (column 14, outside its mask) made floor"
+  },
+  {
+   "case": "chunk_not_in_set",
+   "id": "R-24",
+   "code": "zone: chunk not in the set",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "OUTLINE (chunk set)",
+   "rule": "A ZONE_CHUNK's chunk is in the zone's chunk set",
+   "mutation": "chunk 0 taken out of the chunk set"
+  },
+  {
+   "case": "gate_not_indexed",
+   "id": "R-25",
+   "code": "zone: gate not indexed",
+   "checked_at": "GATE",
+   "reads": "ZONE_CHUNK (its anchor chunk)",
+   "rule": "The anchor chunk names the gate among the two it anchors (the registry's gate index, #348's deferred item)",
+   "mutation": "chunk 16's gates cleared"
+  },
+  {
+   "case": "entry_not_floor",
+   "id": "R-26",
+   "code": "zone: entry not floor",
+   "checked_at": "LOCATION (marker)",
+   "reads": "ZONE_CHUNK (the entry chunk)",
+   "rule": "The entry tile walkable",
+   "mutation": "the entry tile moved to chunk 0's first wall tile"
+  },
+  {
+   "case": "level_band",
+   "id": "R-39",
+   "code": "zone: level band",
+   "checked_at": "LOCATION (the marker)",
+   "reads": "—",
+   "rule": "An authored zone's level band at most 255 levels: a chunk's level is drawn with a byte's bound (audit t-0131)",
+   "mutation": "the band 0 to 255"
+  },
+  {
+   "case": "candidates_rewrite_count",
+   "id": "R-13",
+   "code": "zone: count above candidates",
+   "checked_at": "CANDIDATES (reverse check)",
+   "reads": "QUOTAS",
+   "rule": "A CANDIDATES write re-runs R-13 (and R-12, R-27, R-29, R-30) against the zone's QUOTAS (review t-0084, minor 1)",
+   "mutation": "quota 0's count 2 written over its two candidates, then its candidates rewritten to chunk 16 alone"
+  },
+  {
+   "case": "candidates_rewrite_tile",
+   "id": "R-14",
+   "code": "zone chunk: empty with a value",
+   "checked_at": "CANDIDATES (reverse check)",
+   "reads": "the ZONE_CHUNKs whose candidacy changed",
+   "rule": "A CANDIDATES write re-runs R-14 and R-15 against each chunk whose candidacy changed",
+   "mutation": "quota 0's candidates rewritten without chunk 1, whose record keeps its candidate tile"
+  },
+  {
+   "case": "pack_rewrite_heart",
+   "id": "R-27",
+   "code": "zone: heart template",
+   "checked_at": "PACK (reverse check)",
+   "reads": "a count of the Heart quotas naming the template (ENG-09, as caste_skills)",
+   "rule": "A PACK write that a Heart quota names re-runs R-27",
+   "mutation": "the raiders rewritten with every minimum 0 while quota 2, a Heart, names them"
+  },
+  {
+   "case": "heart_template",
+   "id": "R-27",
+   "code": "zone: heart template",
+   "checked_at": "QUOTAS",
+   "reads": "PACK",
+   "rule": "A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended)",
+   "mutation": "quota 2's template has every minimum 0"
+  },
+  {
+   "case": "floor_rectangle",
+   "id": "R-28",
+   "code": "location: floor rectangle",
+   "checked_at": "LOCATION (a dungeon floor)",
+   "reads": "—",
+   "rule": "A dungeon floor's width × height above N (ENG-R1c bound 4; dungeons only)",
+   "mutation": "the location made a dungeon floor of N 6 in its 3 × 2 rectangle"
+  },
+  {
+   "case": "quota_kind",
+   "id": "R-29",
+   "code": "zone: quota kind",
+   "checked_at": "QUOTAS",
+   "reads": "LOCATION (marker)",
+   "rule": "An authored zone's quotas place no exit and no set piece",
+   "mutation": "quota 1 made an exit"
+  },
+  {
+   "case": "quota_draws",
+   "id": "R-30",
+   "code": "zone: quota draws",
+   "checked_at": "QUOTAS",
+   "reads": "OUTLINE (chunk set), CANDIDATES",
+   "rule": "The location's quotas draw at most 640 times together at entry, min(count, members − count) a quota (D-220: with the eight task quotas the worst plan measures 95,799,175 L2 gas, under 100,000,000)",
+   "mutation": "a 15 × 15 zone whose six quotas (three object quotas, two Hearts, a landmark) take 112 of 225 candidates each: 672 draws"
+  },
+  {
+   "case": "candidates_outside",
+   "id": "R-31",
+   "code": "candidates: outside the set",
+   "checked_at": "CANDIDATES",
+   "reads": "OUTLINE (chunk set)",
+   "rule": "Every candidate chunk in the zone",
+   "mutation": "quota 0's candidates gain chunk 3"
+  },
+  {
+   "case": "bridge_deck",
+   "id": "R-33",
+   "code": "bridge: deck empty",
+   "checked_at": "BRIDGE",
+   "reads": "—",
+   "rule": "A bridge has a deck (a one-tile deck is valid, D-217)",
+   "mutation": "the bridge's deck emptied"
+  },
+  {
+   "case": "bridge_end",
+   "id": "R-33",
+   "code": "bridge: end",
+   "checked_at": "BRIDGE",
+   "reads": "—",
+   "rule": "Two distinct ends, below 225, off the deck",
+   "mutation": "the bridge's second end equal to its first"
+  },
+  {
+   "case": "bridge_floor",
+   "id": "R-34",
+   "code": "bridge: end not floor",
+   "checked_at": "BRIDGE",
+   "reads": "ZONE_CHUNK",
+   "rule": "Each end walkable",
+   "mutation": "the bridge's first end on chunk 15's first wall tile"
+  },
+  {
+   "case": "bridge_apart",
+   "id": "R-34",
+   "code": "bridge: end not by the deck",
+   "checked_at": "BRIDGE",
+   "reads": "ZONE_CHUNK",
+   "rule": "Each end next to a deck tile",
+   "mutation": "the bridge's first end on chunk 15's first floor tile"
+  },
+  {
+   "case": "bridge_deck_floor",
+   "id": "R-34",
+   "code": "bridge: deck not floor",
+   "checked_at": "BRIDGE, ZONE_CHUNK (reverse check)",
+   "reads": "ZONE_CHUNK, BRIDGE",
+   "rule": "Every deck tile walkable in its chunk's plane (R-34 extended, ADR-0008 rule 1: a deck is floor)",
+   "mutation": "chunk 15's plane given its bridge's deck as wall"
+  },
+  {
+   "case": "bridge_tile_taken",
+   "id": "R-37",
+   "code": "bridge: tile taken",
+   "checked_at": "BRIDGE, ZONE_CHUNK, GATE, LOCATION (each against the other)",
+   "reads": "ZONE_CHUNK, BRIDGE, GATE, LOCATION",
+   "rule": "No spawn point, object, candidate tile, gate anchor or entry on a bridge's deck or ends (ADR-0008 rule 5)",
+   "mutation": "a chest on chunk 15's bridge's first end"
+  },
+  {
+   "case": "bridge_index",
+   "id": "R-35",
+   "code": "bridge: index",
+   "checked_at": "BRIDGE",
+   "reads": "ZONE_CHUNK",
+   "rule": "A BRIDGE's index below its chunk's bridge count",
+   "mutation": "the bridge checked as index 1 of a chunk holding 1"
+  }
+ ],
+ "pipeline": [
+  {
+   "case": "unreachable",
+   "id": "P-1",
+   "code": "pipeline: unreachable tile",
+   "rule": "Every walkable tile of the zone reachable from its entry (gate anchors, candidates and spawn points with them)",
+   "mutation": "a floor tile walled in by its six neighbours"
+  },
+  {
+   "case": "seam",
+   "id": "P-2",
+   "code": "pipeline: seam",
+   "rule": "The records, re-assembled across their seams with the rows' parity, give the painted walkable plane back",
+   "mutation": "a wall bit of chunk 1's records flipped on its seam with chunk 0"
+  },
+  {
+   "case": "deck_disconnected",
+   "id": "P-3",
+   "code": "pipeline: deck not connected",
+   "rule": "A bridge's deck is one connected piece",
+   "mutation": "a deck of two tiles that do not touch"
+  }
+ ],
+ "export": [
+  {
+   "case": "origin_odd",
+   "id": "E-30",
+   "code": "export: origin row odd",
+   "rule": "The origin's row is even (D-216)"
+  },
+  {
+   "case": "door_off_border",
+   "id": "E-20",
+   "code": "export: door not on the border",
+   "rule": "A building's door is a hex of its footprint's border (CLI-09e §4)"
+  },
+  {
+   "case": "unknown_kind",
+   "id": "E-23",
+   "code": "export: unknown kind",
+   "rule": "A prop, building, NPC or bridge kind of kinds.json"
+  },
+  {
+   "case": "two_candidates",
+   "id": "R-21",
+   "code": "export: two candidates in a chunk",
+   "rule": "At most one candidate of a quota in a chunk (the layout holds one tile a quota)"
+  },
+  {
+   "case": "three_gates",
+   "id": "R-22",
+   "code": "export: three gates in a chunk",
+   "rule": "At most two gates anchored in a chunk (the layout holds two ids)"
+  },
+  {
+   "case": "bridge_across",
+   "id": "R-36",
+   "code": "export: bridge across chunks",
+   "rule": "Format 1: a bridge (deck and ends) lies in one chunk"
+  },
+  {
+   "case": "deck_outside",
+   "id": "E-46",
+   "code": "export: deck outside the zone",
+   "rule": "A deck tile inside the zone (ADR-0008 rule 1)"
+  },
+  {
+   "case": "deck_blocked",
+   "id": "E-47",
+   "code": "export: deck blocked",
+   "rule": "A deck tile on no building's footprint and no blocking prop (ADR-0008 rule 1)"
+  },
+  {
+   "case": "footprint_outside",
+   "id": "E-43",
+   "code": "export: footprint outside the set",
+   "rule": "A building's footprint, authored per building, lies in the zone"
+  },
+  {
+   "case": "footprint_disconnected",
+   "id": "E-44",
+   "code": "export: footprint not connected",
+   "rule": "A building's footprint is one connected piece"
+  },
+  {
+   "case": "door_not_walkable",
+   "id": "E-45",
+   "code": "export: door not walkable",
+   "rule": "A building's door stands on painted walkable ground"
+  },
+  {
+   "case": "gate_inside",
+   "id": "E-5",
+   "code": "export: gate not on the outline",
+   "rule": "A gate to another location anchors on the outline (a zone hex with a neighbour outside the zone); a dungeon's entrance (its destination LOCATION a dungeon, the manifest's location_kinds) may stand inside the chunk set"
+  },
+  {
+   "case": "schema",
+   "id": "E-31",
+   "code": "export: schema",
+   "rule": "The file matches schema.json (fields, types, ranges, anchored patterns)"
+  },
+  {
+   "case": "hex_outside_size",
+   "id": "E-32",
+   "code": "export: hex outside the size",
+   "rule": "Every painted hex, moved by the origin, lies within [0, 15 width) × [0, 15 height) (D-216)"
+  },
+  {
+   "case": "row_lengths",
+   "id": "E-33",
+   "code": "export: row lengths differ",
+   "rule": "A row's ground and outline, when given, are as long as its terrain"
+  },
+  {
+   "case": "field_missing",
+   "id": "E-34",
+   "code": "export: field missing",
+   "rule": "A zone gives location, region, biome, level_min, level_max and entry; a town or an outpost its location and region"
+  },
+  {
+   "case": "unknown_name",
+   "id": "E-35",
+   "code": "export: unknown name",
+   "rule": "Every name (location, region, gate, pack, collector, landmark, skill, spawn table, set piece) is in the content manifest (R-17's existence, OPS-01)"
+  },
+  {
+   "case": "candidate_of_no_quota",
+   "id": "E-36",
+   "code": "export: candidate of no quota",
+   "rule": "A candidate names a quota of the map's list"
+  },
+  {
+   "case": "object_outside_set",
+   "id": "R-24",
+   "code": "zone: chunk not in the set",
+   "rule": "A spawn point, feature, candidate, gate or bridge lies in a chunk of the zone"
+  },
+  {
+   "case": "set_piece_size",
+   "id": "E-37",
+   "code": "export: set piece size",
+   "rule": "A set piece is one chunk (1 × 1)"
+  },
+  {
+   "case": "set_piece_corner",
+   "id": "R-16",
+   "code": "set piece: corner not wall",
+   "rule": "A set piece keeps D-134's corners (SetPieceAssert; ruling 5 lifts them for authored zone chunks only)"
+  },
+  {
+   "case": "set_piece_tile",
+   "id": "E-38",
+   "code": "set piece: tile not floor",
+   "rule": "A set piece's packs and objects on its interior floor (SetPieceAssert)"
+  },
+  {
+   "case": "set_piece_caps",
+   "id": "E-39",
+   "code": "set piece: over its caps",
+   "rule": "A set piece holds at most 2 packs and 3 objects (its layout, E-3)"
+  },
+  {
+   "case": "malformed",
+   "id": "E-40",
+   "code": "export: malformed",
+   "rule": "Anything else the converter cannot read: a refusal line, never a traceback"
+  },
+  {
+   "case": "format",
+   "id": "E-41",
+   "code": "export: format",
+   "rule": "`format` is `grimworld-export`"
+  },
+  {
+   "case": "version",
+   "id": "E-42",
+   "code": "export: version",
+   "rule": "`version` is one this converter reads (1); a newer one is refused (the versioning rule of schema.json)"
+  }
+ ]
 }

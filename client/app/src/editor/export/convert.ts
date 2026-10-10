@@ -3,7 +3,7 @@ import { KIND_TABLE, validate } from "./schema";
 
 /**
  * ENG-08's converter (CLI-09c): an editor's export (`grimworld-export` v1) to the on-chain records
- * of its map, in the order of their writes. A port of `map-format/convert.py` (track game's), with
+ * of its map, in the order of their writes. A port of `tools/map-format/convert.py` (track game's), with
  * the same refusals in the same order: the Registry's (`records.ts`), the content pipeline's (every
  * walkable tile reachable from the entry, the records re-assembled across their seams equal to the
  * painted map, each bridge's deck connected) and the export's own. The editor runs it as its
@@ -19,6 +19,8 @@ export const RECORDS_FORMAT = "grimworld-records";
 export interface Manifest {
   readonly [table: string]: unknown;
   readonly pack_bounds?: Readonly<Record<string, readonly [number, number]>>;
+  /** Each location's kind (`zone`, `town`, `dungeon`…): a gate to a dungeon may stand inside. */
+  readonly location_kinds?: Readonly<Record<string, string>>;
 }
 
 export type Hex = readonly [number, number];
@@ -197,6 +199,7 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
   const table = KIND_TABLE;
   const plane = new Plane(e);
   const blocked = new Set<string>();
+  const footprints: [kind: string, foot: Set<string>, door: G][] = [];
   // What the client-only objects make unwalkable: a building's footprint but its door, a blocking
   // prop's hex (track game, 2026-10-05; CLI-09e §4).
   for (const b of e.buildings ?? []) {
@@ -208,6 +211,7 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     if (!foot.has(gkey(door)) || R.neighbours(...door).every((n) => foot.has(gkey(n)))) {
       throw new R.Refused("export: door not on the border", `building ${JSON.stringify(b.kind)}`);
     }
+    footprints.push([b.kind, foot, door]);
     for (const k of foot) if (k !== gkey(door)) blocked.add(k);
   }
   for (const p of e.props ?? []) {
@@ -221,12 +225,38 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     }
   }
   const zone = new Set<string>();
-  const walk = new Set<string>();
-  for (const [k, c] of plane.cells) {
-    if (!c.inside) continue;
-    zone.add(k);
-    if (c.walk && !blocked.has(k)) walk.add(k);
+  for (const [k, c] of plane.cells) if (c.inside) zone.add(k);
+  // Each building's footprint, authored per building (the kind table's is the editor's default):
+  // in the zone and in one piece, its door walkable (track CV, 2026-10-07)
+  for (const [kind, foot, door] of footprints) {
+    const name = `building ${JSON.stringify(kind)}`;
+    if ([...foot].some((k) => !zone.has(k))) {
+      throw new R.Refused("export: footprint outside the set", name);
+    }
+    if (connected(foot, door).size !== foot.size) {
+      throw new R.Refused("export: footprint not connected", name);
+    }
+    if (!plane.cells.get(gkey(door))!.walk) throw new R.Refused("export: door not walkable", name);
   }
+  // The bridges' decks: walkable ground over water (D-227, ADR-0008 rule 1), refused outside the
+  // zone or on a blocked hex, then written walkable before the walls
+  const decks = new Set<string>();
+  for (const b of e.bridges ?? []) {
+    if (!Object.hasOwn(table.bridges, b.kind)) {
+      throw new R.Refused("export: unknown kind", `bridge ${JSON.stringify(b.kind)}`);
+    }
+    for (const [x, y] of b.deck) decks.add(gkey(plane.glob(x, y)));
+  }
+  const outside = [...decks].filter((k) => !zone.has(k));
+  if (outside.length > 0) {
+    throw new R.Refused("export: deck outside the zone", outside.slice(0, 3).join(" "));
+  }
+  const onBlocked = [...decks].filter((k) => blocked.has(k));
+  if (onBlocked.length > 0) {
+    throw new R.Refused("export: deck blocked", onBlocked.slice(0, 3).join(" "));
+  }
+  const walk = new Set<string>(decks);
+  for (const k of zone) if (plane.cells.get(k)!.walk && !blocked.has(k)) walk.add(k);
   // The chunk set and the border chunks' masks
   let chunkSet = 0n;
   const masks = new Map<number, bigint>();
@@ -308,6 +338,16 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
   for (const gt of e.gates ?? []) {
     const [c, t] = chunkOf(gt.x, gt.y, "gate");
     const gid = resolve(manifest, "gates", gt.gate, "gate");
+    // E-5: a gate to another location anchors on the outline (a zone hex with a neighbour outside
+    // the zone); a dungeon's entrance (its destination a dungeon) may stand inside
+    const kinds = manifest.location_kinds ?? {};
+    const destination = Object.hasOwn(kinds, gt.to) ? kinds[gt.to] : undefined;
+    if (
+      destination !== "dungeon" &&
+      R.neighbours(...plane.glob(gt.x, gt.y)).every((n) => zone.has(gkey(n)))
+    ) {
+      throw new R.Refused("export: gate not on the outline", `gate ${JSON.stringify(gt.gate)}`);
+    }
     const slot = chunks.get(c)!.gates;
     const free = slot.indexOf(0);
     if (free < 0) throw new R.Refused("export: three gates in a chunk", `chunk ${c}`);
@@ -326,9 +366,6 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
   }
   const bridges = new Map<number, R.BridgeFields[]>();
   for (const b of e.bridges ?? []) {
-    if (!Object.hasOwn(table.bridges, b.kind)) {
-      throw new R.Refused("export: unknown kind", `bridge ${JSON.stringify(b.kind)}`);
-    }
     const deck = b.deck.map(([x, y]) => Plane.chunkTile(plane.glob(x, y)));
     const ends = b.ends.map(([x, y]) => Plane.chunkTile(plane.glob(x, y)));
     const c = deck[0]![0];
@@ -342,9 +379,9 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     list.push({ deck: deckBits, ends: [ends[0]![1], ends[1]![1]] });
     bridges.set(c, list);
     chunks.get(c)!.bridges += 1;
-    const decks = new Set(b.deck.map(([x, y]) => gkey(plane.glob(x, y))));
+    const own = new Set(b.deck.map(([x, y]) => gkey(plane.glob(x, y))));
     const first = plane.glob(...b.deck[0]!);
-    if (connected(decks, first).size !== decks.size) {
+    if (connected(own, first).size !== own.size) {
       throw new R.Refused("pipeline: deck not connected");
     }
   }
