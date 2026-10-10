@@ -103,12 +103,11 @@ const fmod = (a: number, b: number) => ((a % b) + b) % b;
 const GATE_QUEST_BITS = 32;
 
 /**
- * The width of a manifest table's ids: the record field each is packed into (a region, a location,
- * a gate, a pack template, a param: 16 bits). A set piece's id is only a record's id.
+ * The width of the field each manifest table's ids are packed into: 16 bits for all (a region, a
+ * location, a gate, a pack template, a param; a set piece's id is a u16 for the game too:
+ * `Location.set_pieces` is `Lanes16`). Only a gate's quest is wider: `GATE_QUEST_BITS`.
  */
-export function idBits(table: string): number {
-  return table === "set_pieces" ? 32 : 16;
-}
+export const ID_BITS = 16;
 
 export function resolve(manifest: Manifest, table: string, name: unknown, what: string): number {
   const ids = (manifest[table] ?? {}) as Readonly<Record<string, number>>;
@@ -120,7 +119,7 @@ export function resolve(manifest: Manifest, table: string, name: unknown, what: 
   }
   // Before any packing: an id its field cannot hold is no registry id (E-48 to E-50). The
   // converter packs what it is given; a manifest `readManifest` read never holds one.
-  return R.assertId(`${what} ${JSON.stringify(name)}`, ids[name], idBits(table));
+  return R.assertId(`${what} ${JSON.stringify(name)}`, ids[name], ID_BITS);
 }
 
 type G = readonly [number, number];
