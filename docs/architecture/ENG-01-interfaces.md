@@ -192,7 +192,7 @@ is the executor's strike, entries and conditions).
 | `HostsLibrary` | 30,342 (37.04 %) | 40,394 (49.31 %) | 50 % | the authored site, the hosts among candidates, each chunk composed (`AuthoredTrait::compose`) |
 | `RevealLibrary` | 37,519 (45.80 %) | 40,945 (49.98 %) | 50 % | its second entrypoint `authored`, the packs laid (`AuthoredTrait::lay`); 15 felts left |
 | `Registry` | 31,213 (38.10 %) | 33,082 (40.38 %) | 50 % | the zone checks' call, `heart_packs`, `zone_checks`, the parents of the new kinds |
-| `ZoneChecks` (new) | — | 23,629 (28.84 %) | 50 % | an authored zone's checks, `Registry`'s library class |
+| `ZoneChecks` (new) | — | 23,659 (28.88 %) | 50 % | an authored zone's checks (R-39 included), `Registry`'s library class |
 
 Built into `Registry`, the checks measured 51,562 (62.94 %); the authored reveal whole in
 `HostsLibrary`, 48,938 (59.74 %); its laying as `RevealLibrary`'s entrypoint taking the records,
