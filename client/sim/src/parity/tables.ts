@@ -318,9 +318,7 @@ function action(read: Reader): Action {
  * A `segment` row's case: the adventurer (alone, no goblin, flags 0, no effect, as the unit-test
  * fixture), `Area`, `owed`, `weight`, the actions.
  */
-function segmentFromFelts(
-  c: readonly bigint[],
-): [World, Area, readonly Action[], number, number] {
+function segmentFromFelts(c: readonly bigint[]): [World, Area, readonly Action[], number, number] {
   const read = new Reader(c);
   const clock = read.u32();
   const [x, y, facing, status] = [read.small(), read.small(), read.small(), read.small()];

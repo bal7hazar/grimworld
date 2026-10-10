@@ -131,3 +131,22 @@ export type {
   Site,
   Terrain,
 } from "./reveal";
+export {
+  Illegal,
+  LAST_TICK,
+  NotMirrored,
+  board as segmentBoard,
+  flag,
+  run as runSegment,
+  status,
+  unported,
+} from "./segment";
+export type {
+  Action,
+  Adventurer,
+  Area,
+  Done,
+  Place,
+  Board as SegmentBoard,
+  World,
+} from "./segment";
