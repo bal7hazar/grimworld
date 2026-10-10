@@ -163,9 +163,10 @@ words without `LIVE`); `Counter` from 0 to `u64::MAX`; `Bitmap` around bit 250 a
 
 ## `reveal.jsonl`: the chunk reveal (ENG-05)
 
-Printed by `types::reveal::tests::test_vectors` (ids 0–170), `test_vectors_1` (171–185) and
-`test_vectors_2` (186–196), split for snforge's step limit, each part with its digest
-(`PART_1`, `PART_2` are the first ids of the later parts).
+Printed by `types::reveal::tests::test_vectors` (ids 0–170), `test_vectors_1` (171–185),
+`test_vectors_2` (186–196), `test_vectors_3` (197–207) and `test_vectors_4` (208–213), split for
+snforge's step limit, each part with its digest (`PART_1` to `PART_4` are the first ids of the later
+parts).
 
 One line: `{"id", "fn", "case", "ok"}`, every felt in hex. A struct, an `Option`, a tuple or a
 `Span` is its Cairo `Serde` (a span: its length, then its elements; an `Option`: `0` then the
@@ -187,11 +188,12 @@ openings (a dungeon side's from its seam's stream, D-224), the lines to the spin
 from `mix(word, k)`: 2 quotas, 3 placement, 4 the ring), and the progress (revealed set, count, open
 edges, quotas left; the entropy unchanged).
 
-The cases (197):
+The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `reveal` 40.
 - `word` (18): 3 entropies (0, a short string, `P − 1`) × 2 instance ids × 3 chunks (0, 112, 224);
   `feed` (15): the 3 entropies × 5 facts `('fact:test', 17, s)`; `base` (12): 3 words × the 4 biomes;
-  `sight` (12): corners, sides, centres and edges of chunks in a 15 × 15 location; `member` (114):
-  the 19 offsets from tiles 112, 97 and 16, both parities.
+  `sight` (12 in part 0, 2 in part 3): corners, sides, centres and edges of chunks in a 15 × 15
+  location; `member` (114 in part 0, 1 in part 3): the 19 offsets from tiles 112, 97 and 16, both
+  parities.
 - `reveal`, part 1 (15): each biome on a 3 × 3 zone, chunk 16 (an odd chunk row) with nothing known,
   then chunk 1 (an even one) knowing it; chunk 16 of a forest after its South, East, West and North
   neighbours one at a time (1 to 4 sides known); the edge of a 2 × 2 zone whose chunk (1, 1) is
@@ -201,5 +203,16 @@ The cases (197):
   `create` (ENG-10b: `Site`'s `chunk_set`, `west` and `north`, every chunk's mask with its hosts
   above the board), revealed whole by index, with an exit and a vein quota; a 2 × 2 meadow with a
   collector, two landmarks, a Heart and a task's landmark, revealed whole (every quota placed); a
-  set piece laid by quota, then its neighbour.
+  set piece laid by quota, then its neighbour. ENG-05c: case 196 (the neighbour) is now revealed
+  with the set piece's host drawn (bit 225 of its mask), so that its piece is laid.
+- Part 3 (11, ENG-05c, track CV's surviving mutants of CLI-02b): `sight` from (12, 9) and (0, 9)
+  (197, 198); `member` (13, 11, even) (199); `reveal` of a chunk asked twice in one call (200), an
+  anchor on a corner (201), an interior anchor off the spine (tile 48) in a cave with a spawn of
+  density 255 (202) and in a ruin whose mask keeps columns 0–5, its centre cut, the flood from the
+  anchor and a pocket outside its component dropped (203: ENG-05's `pow(tile) + anchor_line(tile)`
+  carried and gave another terrain), a set piece on an odd chunk row
+  (204), pack templates of minimum 0 and maximum above 5 (205), a Heart of offset 0 hosted below the
+  band's top (206), a spawn roll equal to the density (207).
+- Part 4 (6, ENG-05c): a cave dungeon floor of `N` 6 (entropy 15) whose outline holds two
+  neighbouring chunks with their seam closed, revealed whole by decreasing index (208–213).
 

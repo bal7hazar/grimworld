@@ -415,6 +415,22 @@ mod tests {
         assert(BoardTrait::anchor_line(at(11, 5)) == Bits::pow(at(7, 5)) * 0x1f, 'anchor east');
     }
 
+    // Every interior anchor's line holds the anchor itself, so `generate` joins it with one or
+    // (ENG-05c: ENG-05's `pow(tile) + anchor_line(tile)` carried).
+    #[test]
+    #[available_gas(l2_gas: 13181035)] // ceil(1.05 × 12553366 measured)
+    fn test_anchor_line_holds_the_anchor() {
+        let mut tile: u8 = 0;
+        while tile != 225 {
+            if BoardTrait::has(INTERIOR, tile) {
+                let line = BoardTrait::anchor_line(tile);
+                assert(BoardTrait::has(line, tile), 'the anchor in its line');
+                assert(BoardTrait::and(line, INTERIOR) == line, 'interior only');
+            }
+            tile += 1;
+        }
+    }
+
     // A neighbour's facing tiles land on the same index of this chunk's side.
     #[test]
     #[available_gas(l2_gas: 42099)] // ceil(1.05 × 40094 measured)
