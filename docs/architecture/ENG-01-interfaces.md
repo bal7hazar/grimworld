@@ -144,7 +144,7 @@ their own ceiling:
   `TrapLibrary` (a trap entered):
   - **`AiLibrary`** (`contracts/logic/src/systems/ai.cairo`), the goblins' acts, all of step 2 in
     it: **at most 80 %** (65,536 felts; D-233); the size probe measured 64,683 (78.96 %), 62,808
-    (76.67 %) at ENG-07's head. **Room (CBT-05d, 2026-10-10): 52,367 of 65,536 used, 79.92 % of its 80 % (66 felts left); the next lot touching `AiLibrary` makes room first** (the orchestrator's rule).
+    (76.67 %) at ENG-07's head. **Room (CBT-05d, 2026-10-10): 65,470 of 65,536 used, 79.92 % of its 80 % (66 felts left); the next lot touching `AiLibrary` makes room first** (the orchestrator's rule).
   - **`ActionLibrary`** (`systems/action.cairo`), CBT-05b's action phase, called only for an Attack,
     a Skill or an Item: **at most 57,476 felts** (70.16 %), its measure 54,739 + 5 % (D-234).
   - **`SegmentLibrary`** (`systems/segment.cairo`), the batch's segments (the actions in order, the
