@@ -1,10 +1,12 @@
 //! `ZoneChecks`: the content checks of an authored zone's records (ENG-01 §3.5's R-table; ENG-08's
-//! format, built by ENG-09) as a library class of `Registry` (the 50 % rule of ENG-01 §1.3: the
+//! format, built by ENG-09), and the content bounds they share with generated zones, dungeon floors
+//! and gates (ENG-R1c-1), as a library class of `Registry` (the 50 % rule of ENG-01 §1.3: the
 //! checks would have taken `Registry` to 63 % of the CASM limit). `Registry.set_record` calls it by
 //! `library_call`, its class hash the administrator's configuration (`set_zone_checks`), so it runs
-//! in `Registry`'s context: it reads `Registry`'s `records` and writes its `heart_packs`, declared
-//! here under the same names, hence at the same addresses. It has no entrypoint of its own that a
-//! deployed contract would serve: it is never deployed, only declared.
+//! in `Registry`'s context: it reads `Registry`'s `records` and writes its `heart_packs`,
+//! `gate_entries` and `gate_entry_counts`, declared here under the same names, hence at the same
+//! addresses. It has no entrypoint of its own that a deployed contract would serve: it is never
+//! deployed, only declared.
 
 #[starknet::interface]
 pub trait IZoneChecks<T> {
@@ -12,9 +14,10 @@ pub trait IZoneChecks<T> {
     /// the id and `LIVE`): every rule of an authored zone it takes part in, against the records it
     /// is checked with when they exist. Panics with the rule's code.
     fn check(self: @T, kind: u8, id: u32, record: Span<felt252>);
-    /// A `QUOTAS` or a `LOCATION` written (after every check): `heart_packs` follows the Heart
-    /// quotas of authored zones (R-27's reverse check).
-    fn name_hearts(ref self: T, kind: u8, id: u32, record: Span<felt252>);
+    /// A `QUOTAS` or a `GATE` written (after every check, before the write): `heart_packs` follows
+    /// every location's Heart quotas (R-27's reverse check), `gate_entries` and
+    /// `gate_entry_counts` the gates' entries (R-41's).
+    fn index(ref self: T, kind: u8, id: u32, record: Span<felt252>);
 }
 
 #[starknet::contract]
@@ -26,9 +29,10 @@ pub mod ZoneChecks {
         Bridge, BridgeAssert, BridgeRecord, errors as bridge_errors,
     };
     use grimworld_logic::models::candidates::{CandidatesAssert, CandidatesRecord};
-    use grimworld_logic::models::gate::GateRecord;
+    use grimworld_logic::models::gate::{GateAssert, GateRecord};
     use grimworld_logic::models::location::{
-        INDEX_BOUND, Location, LocationAssert, LocationRecord, LocationTrait, map,
+        INDEX_BOUND, Location, LocationAssert, LocationRecord, LocationTrait, kind as location_kind,
+        map,
     };
     use grimworld_logic::models::outline::{CHUNK_SET, OutlineAssert, OutlineRecord, OutlineTrait};
     use grimworld_logic::models::pack::{Pack, PackRecord};
@@ -48,6 +52,8 @@ pub mod ZoneChecks {
     pub struct Storage {
         pub records: Map<(u8, u32, u8), felt252>,
         pub heart_packs: Map<u32, u32>,
+        pub gate_entries: Map<u32, felt252>,
+        pub gate_entry_counts: Map<(u32, u8), u32>,
     }
 
     #[abi(embed_v0)]
@@ -70,67 +76,96 @@ pub mod ZoneChecks {
             }
         }
 
-        fn name_hearts(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
-            self.move_hearts(kind, id, record);
+        fn index(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
+            if kind == QUOTAS {
+                self.move_hearts(id, record);
+            } else if kind == GATE {
+                self.move_entry(id, record);
+            }
         }
     }
 
+    /// The indexes the reverse checks read (`IZoneChecks::index`). A count is lowered only while it
+    /// is above 0: a record written before `set_zone_checks` was never counted (`set_zone_checks`
+    /// comes before any record, as a constructor's configuration would: `lifecycle_probe.py`), and
+    /// its rewrite is never blocked by it.
     #[generate_trait]
-    impl HeartsImpl of HeartsTrait {
-        /// A `QUOTAS` of an authored zone, or a `LOCATION` that gains or loses the marker, written
-        /// (after every check; `Registry.set_record`): the counts of `heart_packs` move from the
-        /// Heart templates the stored quotas named (when the zone was authored) to those the new
-        /// ones name (when it is), as `name_skills` does for DS-18 (R-27's reverse check, ENG-09).
-        fn move_hearts(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
-            let (old, new) = if kind == QUOTAS {
-                if !self.frame(id).authored {
-                    return;
-                }
-                (self.quotas(id), Some(QuotaSetRecord::unpack(record)))
-            } else if kind == LOCATION {
-                let was = self.frame(id).authored;
-                let new = LocationRecord::unpack(record);
-                let now = new.target == 0 && new.authored();
-                if was == now {
-                    return;
-                }
-                let quotas = self.quotas(id);
-                if was {
-                    (quotas, None)
-                } else {
-                    (None, quotas)
-                }
-            } else {
-                return;
-            };
-            if let Some(quotas) = old {
+    impl IndexImpl of IndexTrait {
+        /// A `QUOTAS` written: the counts of `heart_packs` move from the Heart templates the stored
+        /// quotas named to those the new ones name, whatever the location (R-27 binds generated
+        /// zones and dungeon floors too, ENG-R1c-1), as `name_skills` does for DS-18.
+        fn move_hearts(ref self: ContractState, id: u32, record: Span<felt252>) {
+            if let Some(quotas) = self.quotas(id) {
                 for entry in quotas.quotas.span() {
                     if *entry.kind == quota_kind::HEART {
                         let count = self.heart_packs.read((*entry.param).into());
-                        self.heart_packs.write((*entry.param).into(), count - 1);
+                        if count != 0 {
+                            self.heart_packs.write((*entry.param).into(), count - 1);
+                        }
                     }
                 }
             }
-            if let Some(quotas) = new {
-                for entry in quotas.quotas.span() {
-                    if *entry.kind == quota_kind::HEART {
-                        let count = self.heart_packs.read((*entry.param).into());
-                        self.heart_packs.write((*entry.param).into(), count + 1);
+            for entry in QuotaSetRecord::unpack(record).quotas.span() {
+                if *entry.kind == quota_kind::HEART {
+                    let count = self.heart_packs.read((*entry.param).into());
+                    self.heart_packs.write((*entry.param).into(), count + 1);
+                }
+            }
+        }
+
+        /// A `GATE` written: its entry leaves the stored gate's destination and joins the new
+        /// one's. `gate_entry_counts[(location, chunk)]` counts the gates entering `location` at
+        /// `chunk`; `gate_entries[location]` holds those chunks, one bit each (R-41's reverse
+        /// check, one read at a `LOCATION` write).
+        fn move_entry(ref self: ContractState, id: u32, record: Span<felt252>) {
+            let new = GateRecord::unpack(record);
+            let old = self.part0(GATE, id);
+            if old != 0 {
+                let old = GateRecord::unpack(array![old].span());
+                if old.destination == new.destination && old.entry_chunk == new.entry_chunk {
+                    return;
+                }
+                let key = (old.destination.into(), old.entry_chunk);
+                let count = self.gate_entry_counts.read(key);
+                if count != 0 {
+                    self.gate_entry_counts.write(key, count - 1);
+                    if count == 1 {
+                        let entries = self.gate_entries.read(old.destination.into());
+                        self
+                            .gate_entries
+                            .write(
+                                old.destination.into(),
+                                BoardTrait::minus(entries, BoardTrait::pow(old.entry_chunk)),
+                            );
                     }
                 }
+            }
+            let key = (new.destination.into(), new.entry_chunk);
+            let count = self.gate_entry_counts.read(key);
+            self.gate_entry_counts.write(key, count + 1);
+            if count == 0 {
+                let entries = self.gate_entries.read(new.destination.into());
+                self
+                    .gate_entries
+                    .write(
+                        new.destination.into(),
+                        BoardTrait::or(entries, BoardTrait::pow(new.entry_chunk)),
+                    );
             }
         }
     }
 
     /// What a zone's checks read of a `LOCATION`, from its part 0 alone (ENG-01 §3.5's bits):
-    /// whether it exists, whether it is an authored zone (no `N`, the marker set), its rectangle
-    /// and its entry.
+    /// whether it exists, whether it has a map (not a town nor an outpost), whether it is an
+    /// authored zone (no `N`, the marker set), its rectangle, its `N` and its entry.
     #[derive(Copy, Drop)]
     pub struct Frame {
         pub exists: bool,
+        pub map: bool,
         pub authored: bool,
         pub width: u8,
         pub height: u8,
+        pub target: u8,
         pub entry_chunk: u8,
         pub entry_tile: u8,
     }
@@ -179,7 +214,8 @@ pub mod ZoneChecks {
             let part = self.part0(LOCATION, id);
             let (low, high) = split(part);
             let s8: NonZero<u128> = 0x100;
-            // width 56–63, height 64–71, `N` 72–79
+            // kind 0–7, width 56–63, height 64–71, `N` 72–79
+            let (_, kind) = DivRem::div_rem(low, s8);
             let (rest, width) = DivRem::div_rem(low / 0x100000000000000, s8);
             let (rest, height) = DivRem::div_rem(rest, s8);
             let (_, target) = DivRem::div_rem(rest, s8);
@@ -188,9 +224,13 @@ pub mod ZoneChecks {
             let (_, marker) = DivRem::div_rem(rest, s8);
             Frame {
                 exists: part != 0,
+                map: part != 0
+                    && kind != location_kind::TOWN.into()
+                    && kind != location_kind::OUTPOST.into(),
                 authored: part != 0 && target == 0 && marker == map::AUTHORED.into(),
                 width: width.try_into().unwrap(),
                 height: height.try_into().unwrap(),
+                target: target.try_into().unwrap(),
                 entry_chunk: entry_chunk.try_into().unwrap(),
                 entry_tile: entry_tile.try_into().unwrap(),
             }
@@ -205,6 +245,20 @@ pub mod ZoneChecks {
             } else {
                 part - LIVE
             }
+        }
+
+        /// How many chunks a location's quotas are placed among, but an authored zone's (its
+        /// candidates): a dungeon floor's `N` (its outline, drawn at `create`), a generated zone's
+        /// chunk set (`chunk_set`, `set` when given: the one being written).
+        fn members(self: @ContractState, location: u32, frame: @Frame, set: Option<felt252>) -> u8 {
+            if *frame.target != 0 {
+                return *frame.target;
+            }
+            let set = match set {
+                Some(bits) => bits,
+                None => self.chunk_set(location, frame),
+            };
+            BoardTrait::count(set)
         }
 
         /// The six quotas' candidate sets (0 where no `CANDIDATES` part holds them).
@@ -285,10 +339,12 @@ pub mod ZoneChecks {
             Some((source.try_into().unwrap(), chunk.try_into().unwrap(), tile.try_into().unwrap()))
         }
 
-        /// R-12, R-13, R-27, R-29 and R-30 (`QuotaBoundsAssert::assert_bounds`) of an authored
-        /// zone's quotas, against its chunk set's members, its candidates and the Heart templates.
+        /// R-12, R-13, R-27, R-29 and R-30 (`QuotaBoundsAssert::assert_bounds`) of a location's
+        /// quotas, against how many `members` it has (`members`), an authored zone's `candidates`
+        /// (`None` for any other location: R-12, R-27 and R-30 alone, ENG-R1c-1) and the Heart
+        /// templates.
         fn assert_bounds(
-            self: @ContractState, quotas: @QuotaSet, members: felt252, candidates: Span<felt252>,
+            self: @ContractState, quotas: @QuotaSet, members: u8, candidates: Option<Span<felt252>>,
         ) {
             let mut hearts: Array<Option<Pack>> = array![];
             for entry in quotas.quotas.span() {
@@ -301,7 +357,7 @@ pub mod ZoneChecks {
                 }
                 hearts.append(pack);
             }
-            quotas.assert_bounds(BoardTrait::count(members), Some(candidates), hearts.span());
+            quotas.assert_bounds(members, candidates, hearts.span());
         }
 
         /// R-37 at chunk `chunk`: none of `tiles` on any of its `count` bridges.
@@ -335,38 +391,53 @@ pub mod ZoneChecks {
             tiles
         }
 
-        /// A `LOCATION` write that leaves or makes it an authored zone: R-11 against its stored
-        /// chunk set (the rectangle may shrink); R-26 and R-37 against its entry chunk's record
-        /// and bridges; R-12, R-13, R-27, R-29 and R-30 against its stored `QUOTAS`.
+        /// A `LOCATION` write, against the records it shares a rule with: R-11, its stored chunk
+        /// set within the rectangle (which may shrink); R-41, the entries of the gates that lead
+        /// to it (`gate_entries`) within it, when it has a map; R-12, R-27 and R-30 against its
+        /// stored `QUOTAS` (its members: `members`). An authored zone's, besides: R-39; R-26 and
+        /// R-37 against its entry chunk's record and bridges; R-13 and R-29 with the quotas'.
+        /// R-28 and R-40, on itself alone, are `Registry`'s (`LocationAssert::assert_floor`).
         fn assert_location(self: @ContractState, id: u32, location: @Location) {
-            if *location.target != 0 || !location.authored() {
-                return;
-            }
-            location.assert_band();
+            let authored = *location.target == 0 && location.authored();
+            let (width, height) = (*location.width, *location.height);
             let set = self.part0(OUTLINE, id * 256 + CHUNK_SET.into());
             if set != 0 {
-                OutlineAssert::assert_within(set - LIVE, *location.width, *location.height);
+                OutlineAssert::assert_within(set - LIVE, width, height);
             }
-            let chunk = *location.entry_chunk;
-            let tile = *location.entry_tile;
-            if let Some(brief) = self.brief(id, chunk) {
-                assert(tile < 225 && !BoardTrait::has(brief.walls, tile), chunk_errors::ENTRY);
-                self.assert_clear(id, chunk, brief.bridges, BoardTrait::pow(tile));
+            if location.has_map() {
+                GateAssert::assert_entries(self.gate_entries.read(id), width, height);
+            }
+            if authored {
+                location.assert_band();
+                let chunk = *location.entry_chunk;
+                let tile = *location.entry_tile;
+                if let Some(brief) = self.brief(id, chunk) {
+                    assert(tile < 225 && !BoardTrait::has(brief.walls, tile), chunk_errors::ENTRY);
+                    self.assert_clear(id, chunk, brief.bridges, BoardTrait::pow(tile));
+                }
             }
             if let Some(quotas) = self.quotas(id) {
-                let members = if set == 0 {
-                    OutlineTrait::rectangle(*location.width, *location.height)
+                let members = if *location.target != 0 {
+                    *location.target
+                } else if set == 0 {
+                    width * height
                 } else {
-                    set - LIVE
+                    BoardTrait::count(set - LIVE)
                 };
-                self.assert_bounds(@quotas, members, self.candidates(id));
+                let candidates = if authored {
+                    Some(self.candidates(id))
+                } else {
+                    None
+                };
+                self.assert_bounds(@quotas, members, candidates);
             }
         }
 
-        /// An `OUTLINE` write. The chunk set: whatever the marker, R-31 against both `CANDIDATES`
-        /// and R-24 against every chunk it drops (none may hold a `ZONE_CHUNK`); an authored
-        /// zone's, R-11 within the rectangle, R-12 and R-30 against `QUOTAS` (its members). A
-        /// border chunk's mask: R-20 against that chunk's `ZONE_CHUNK`.
+        /// An `OUTLINE` write. The chunk set: R-31 against both `CANDIDATES` and R-24 against
+        /// every chunk it drops (none may hold a `ZONE_CHUNK`); R-11 within the rectangle; an
+        /// authored zone's R-12, R-13 and R-30 against `QUOTAS` (its members), a generated zone's
+        /// R-12 and R-30 (a dungeon floor's members are its `N`, not its chunk set). A border
+        /// chunk's mask: R-20 against that chunk's `ZONE_CHUNK`.
         fn assert_outline(self: @ContractState, id: u32, bits: felt252) {
             let (location, chunk) = DivRem::div_rem(id, 256);
             if chunk != CHUNK_SET.into() {
@@ -381,10 +452,15 @@ pub mod ZoneChecks {
             let candidates = self.candidates(location);
             CandidatesAssert::assert_within(candidates, bits);
             let frame = self.frame(location);
-            if frame.authored {
-                OutlineAssert::assert_within(bits, frame.width, frame.height);
+            OutlineAssert::assert_within(bits, frame.width, frame.height);
+            if frame.target == 0 {
                 if let Some(quotas) = self.quotas(location) {
-                    self.assert_bounds(@quotas, bits, candidates);
+                    let candidates = if frame.authored {
+                        Some(candidates)
+                    } else {
+                        None
+                    };
+                    self.assert_bounds(@quotas, BoardTrait::count(bits), candidates);
                 }
             }
             let mut dropped = BoardTrait::minus(self.chunk_set(location, @frame), bits);
@@ -396,16 +472,19 @@ pub mod ZoneChecks {
             }
         }
 
-        /// A `QUOTAS` write of an authored zone: R-12, R-13, R-27, R-29 and R-30 against its chunk
-        /// set, `CANDIDATES` and Heart templates; R-15 again on the candidate chunks of every quota
-        /// whose kind changed (an object quota counts against 3 objects, a Heart against 2 packs).
+        /// A `QUOTAS` write: R-12, R-27 and R-30 against the location's members (`members`) and
+        /// the Heart templates, whatever the location (ENG-R1c-1); an authored zone's, besides,
+        /// R-13 and R-29 against `CANDIDATES`, and R-15 again on the candidate chunks of every
+        /// quota whose kind changed (an object quota counts against 3 objects, a Heart against 2
+        /// packs).
         fn assert_quotas(self: @ContractState, id: u32, quotas: @QuotaSet) {
             let frame = self.frame(id);
             if !frame.authored {
+                self.assert_bounds(quotas, self.members(id, @frame, None), None);
                 return;
             }
             let candidates = self.candidates(id);
-            self.assert_bounds(quotas, self.chunk_set(id, @frame), candidates);
+            self.assert_bounds(quotas, self.members(id, @frame, None), Some(candidates));
             let before = self.part0(QUOTAS, id);
             let before = QuotaSetRecord::unpack(array![before].span());
             let mut changed: felt252 = 0;
@@ -470,7 +549,7 @@ pub mod ZoneChecks {
             let part = self.part0(QUOTAS, location);
             let quotas = QuotaSetRecord::unpack(array![part].span());
             if part != 0 && frame.authored {
-                self.assert_bounds(@quotas, members, candidates);
+                self.assert_bounds(@quotas, BoardTrait::count(members), Some(candidates));
             }
             self.assert_chunks(location, changed, candidates, @quotas);
         }
@@ -559,10 +638,16 @@ pub mod ZoneChecks {
             bridge.assert_clear(self.anchors(location, chunk, (g0, g1)));
         }
 
-        /// A `GATE` write anchored in a chunk that holds a `ZONE_CHUNK`: R-18 (the anchor
+        /// A `GATE` write: R-41, its entry within its destination's rectangle when the
+        /// destination exists and has a map (a later `LOCATION` write checks it the other way,
+        /// `gate_entries`); anchored in a chunk that holds a `ZONE_CHUNK`, R-18 (the anchor
         /// walkable), R-25 (the chunk names the gate) and R-37 (not on a bridge).
         fn assert_gate(self: @ContractState, id: u32, record: Span<felt252>) {
             let gate = GateRecord::unpack(record);
+            let destination = self.frame(gate.destination.into());
+            if destination.map {
+                gate.assert_entry(destination.width, destination.height);
+            }
             let location: u32 = gate.source.into();
             let Some(brief) = self.brief(location, gate.anchor_chunk) else {
                 return;

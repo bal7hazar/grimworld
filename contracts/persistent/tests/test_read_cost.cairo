@@ -94,7 +94,8 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-#[available_gas(l2_gas: 9270944)] // ceil(1.05 × 8829470 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 9815684)] // ceil(1.05 × 9348270 measured)
 fn test_read_cost_baseline() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -103,7 +104,8 @@ fn test_read_cost_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9421713)] // ceil(1.05 × 8973060 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 9966453)] // ceil(1.05 × 9491860 measured)
 fn test_read_cost_one_call_one_read() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -112,7 +114,8 @@ fn test_read_cost_one_call_one_read() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9498857)] // ceil(1.05 × 9046530 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 10043597)] // ceil(1.05 × 9565330 measured)
 fn test_read_cost_bundle_1() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -121,7 +124,8 @@ fn test_read_cost_bundle_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9561878)] // ceil(1.05 × 9106550 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 10106618)] // ceil(1.05 × 9625350 measured)
 fn test_read_cost_bundle_2() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -130,7 +134,8 @@ fn test_read_cost_bundle_2() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9940004)] // ceil(1.05 × 9466670 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 10484744)] // ceil(1.05 × 9985470 measured)
 fn test_read_cost_bundle_8() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -139,7 +144,8 @@ fn test_read_cost_bundle_8() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9627366)] // ceil(1.05 × 9168920 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 10172106)] // ceil(1.05 × 9687720 measured)
 fn test_read_cost_two_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -148,7 +154,8 @@ fn test_read_cost_two_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 10631271)] // ceil(1.05 × 10125020 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 11176011)] // ceil(1.05 × 10643820 measured)
 fn test_read_cost_eight_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -157,7 +164,8 @@ fn test_read_cost_eight_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9318089)] // ceil(1.05 × 8874370 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 9862829)] // ceil(1.05 × 9393170 measured)
 fn test_read_cost_local_1() {
     let (probe, _) = setup();
     let gas = get_available_gas();
@@ -166,7 +174,8 @@ fn test_read_cost_local_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9558885)] // ceil(1.05 × 9103700 measured)
+// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
+#[available_gas(l2_gas: 10103625)] // ceil(1.05 × 9622500 measured)
 fn test_read_cost_local_8() {
     let (probe, _) = setup();
     let gas = get_available_gas();

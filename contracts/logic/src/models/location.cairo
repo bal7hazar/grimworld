@@ -38,6 +38,9 @@ pub mod map {
 pub const INDEX_BOUND: u8 = 225;
 /// A width or height in chunks is below this: 4 bits, at most 15 (ENG-01 §3.2).
 const SIDE_BOUND: u8 = 16;
+/// The fewest chunks of a dungeon floor, its `N` (CM-9: 6 to 12; R-40). The most is
+/// `types::reveal::outline::MAX_CHUNKS`, `Registry`'s own check.
+pub const MIN_FLOOR: u8 = 6;
 
 pub mod errors {
     pub const WIDTH: felt252 = 'location: width';
@@ -48,6 +51,8 @@ pub mod errors {
     pub const MAP: felt252 = 'location: map';
     /// A dungeon floor whose rectangle is not larger than its `N` (R-28, ENG-R1c's bound 4).
     pub const FLOOR_RECTANGLE: felt252 = 'location: floor rectangle';
+    /// A dungeon floor of fewer than `MIN_FLOOR` chunks (R-40, ENG-R1c's bound 5).
+    pub const FLOOR_FEW: felt252 = 'location: floor under 6 chunks';
     /// An authored zone's band of more than 255 levels (R-39, audit t-0131).
     pub const LEVEL_BAND: felt252 = 'zone: level band';
 }
@@ -143,18 +148,22 @@ pub impl LocationAssert of LocationAssertTrait {
     /// R-39 (audit t-0131), at an authored zone's `LOCATION` write: its level band at most 255
     /// levels, so that a chunk's level, drawn uniformly in it with a byte's bound, never overflows
     /// (D-140). A generated zone's levels are not drawn so (`PlacementTrait::level`).
-    /// R-28 (ENG-R1c's bound 4, built by ENG-09): a dungeon floor's `width × height` above its
-    /// `N`, else its last chunks can be walled in (ADR-0006 *Outlines*). `Registry`'s check of a
-    /// `LOCATION` write.
     fn assert_band(self: @Location) {
         assert(*self.level_min != 0 || *self.level_max != 255, errors::LEVEL_BAND);
     }
 
-    /// R-28 (see above).
-    fn assert_floor_rectangle(self: @Location) {
-        if *self.kind == kind::DUNGEON {
+    /// `Registry`'s check of a `LOCATION` write, for a dungeon floor (`N` > 0, the engine's
+    /// `SiteTrait::emerging`, whatever the kind): R-40 (ENG-R1c's bound 5, review t-0099 note 5),
+    /// at least `MIN_FLOOR` chunks, else its exit and its Heart may find no layer beyond the
+    /// entry and stay owed; R-28 (ENG-R1c's bound 4, built by ENG-09; re-audits t-0075 and
+    /// t-0077, minor 3), its `width × height` above its `N`, else its last chunks can be walled
+    /// in (ADR-0006 *Outlines*). A location without `N` is not a floor: nothing to check.
+    fn assert_floor(self: @Location) {
+        let target = *self.target;
+        if target != 0 {
+            assert(target >= MIN_FLOOR, errors::FLOOR_FEW);
             let area: u16 = (*self.width).into() * (*self.height).into();
-            assert(area > (*self.target).into(), errors::FLOOR_RECTANGLE);
+            assert(area > target.into(), errors::FLOOR_RECTANGLE);
         }
     }
 }

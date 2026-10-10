@@ -13,6 +13,16 @@
   "meadow_edge": "zone",
   "floor_1": "dungeon"
  },
+ "location_sizes": {
+  "meadow_edge": [
+   3,
+   2
+  ],
+  "floor_1": [
+   15,
+   15
+  ]
+ },
  "gates": {
   "to_town": 2,
   "to_floor": 3

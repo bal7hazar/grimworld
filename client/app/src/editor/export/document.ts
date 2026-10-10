@@ -422,7 +422,8 @@ export function isExportText(raw: unknown): boolean {
  * The manifest of a file's text, or why it is not one: tables of names to registry ids, each id a
  * whole number its records' fields hold (`ID_BITS`, review t-0147: a negative or over-wide id is
  * refused here, never packed); `pack_bounds`, each pack's `[min, max]`; `location_kinds`, each
- * location's kind (ENG-09: a gate into a dungeon may stand inside the zone).
+ * location's kind (ENG-09: a gate into a dungeon may stand inside the zone); `location_sizes`, each
+ * location's `[width, height]` in chunks, whole numbers (R-41, ENG-R1c-1).
  */
 export function readManifest(text: string): Manifest | string {
   let raw: unknown;
@@ -443,12 +444,16 @@ export function readManifest(text: string): Manifest | string {
       entries.every((v) =>
         table === "pack_bounds"
           ? Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n))
-          : table === "location_kinds"
-            ? typeof v === "string" && Object.hasOwn(LOCATION_KINDS, v)
-            : Number.isInteger(v),
+          : table === "location_sizes"
+            ? Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n))
+            : table === "location_kinds"
+              ? typeof v === "string" && Object.hasOwn(LOCATION_KINDS, v)
+              : Number.isInteger(v),
       );
     if (!ok) return `The manifest's ${table} is not a table of names.`;
-    if (table === "pack_bounds" || table === "location_kinds") continue;
+    if (table === "pack_bounds" || table === "location_kinds" || table === "location_sizes") {
+      continue;
+    }
     const wide = entries.find((v) => (v as number) < 0 || (v as number) >= 2 ** ID_BITS);
     if (wide !== undefined) {
       return `The manifest's ${table} holds the id ${String(wide)}: an id is 0 to ${2 ** ID_BITS - 1}.`;

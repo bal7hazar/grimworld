@@ -96,7 +96,7 @@ pub mod Registry {
     };
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
     use grimworld_logic::models::location::{
-        INDEX_BOUND, LocationRecord, errors as location_errors, map,
+        INDEX_BOUND, LocationAssert, LocationRecord, errors as location_errors, map,
     };
     use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
     use grimworld_logic::models::outline::CHUNK_SET;
@@ -132,10 +132,17 @@ pub mod Registry {
         /// while it is not 0, the skill is refused above 63 strikes (DS-18 across records, in
         /// either order of writes; CBT-02c fix loop 2).
         pub caste_skills: Map<u32, u32>,
-        /// How many Heart quotas of authored zones name each `PACK` template: while it is not 0,
-        /// the template is refused empty at its fewest or at its most (R-27 across records, in
-        /// either order of writes; ENG-09). Written by `ZoneChecks` in this contract's context.
+        /// How many Heart quotas name each `PACK` template, every location's (ENG-R1c-1; an
+        /// authored zone's alone before): while it is not 0, the template is refused empty at its
+        /// fewest or at its most (R-27 across records, in either order of writes; ENG-09).
+        /// Written by `ZoneChecks` in this contract's context.
         pub heart_packs: Map<u32, u32>,
+        /// The entry chunks of the gates that lead to each location, one bit each (R-41 across
+        /// records: a `LOCATION` write's rectangle holds them; ENG-R1c-1), and how many gates
+        /// enter each `(location, chunk)`, so that a bit is cleared when its last gate leaves.
+        /// Written by `ZoneChecks` in this contract's context.
+        pub gate_entries: Map<u32, felt252>,
+        pub gate_entry_counts: Map<(u32, u8), u32>,
         /// The class of an authored zone's checks (`ZoneChecks`, ENG-09), called by
         /// `library_call` in this contract's context; 0 until the administrator sets it, and while
         /// it is 0 no authored zone's record can be written.
@@ -200,7 +207,7 @@ pub mod Registry {
                     // A new id: none of its keys was ever written (ids are never reused, records
                     // never zeroed), so there is nothing to read or compare.
                     self.name_skills(kind, id, record);
-                    self.name_hearts(kind, id, record);
+                    self.index(kind, id, record);
                     self.set_new_record(kind, id, record);
                     self.set_last_id(kind, id_wide);
                     self.raise_versions(false);
@@ -211,7 +218,7 @@ pub mod Registry {
                 self.assert_parent(kind, id);
             }
             self.name_skills(kind, id, record);
-            self.name_hearts(kind, id, record);
+            self.index(kind, id, record);
             if self.update_record(kind, id, record) {
                 self.raise_versions(Inputs::includes(kind));
             }
@@ -283,14 +290,19 @@ pub mod Registry {
         ///   its interior's floor). That the ids they name exist is the content pipeline's
         ///   (OPS-01).
         /// - `LOCATION`: a dungeon floor's `N` at most 12 (`MAX_CHUNKS`, CM-9; ENG-10b: the outline
-        ///   drawn at `create` and its bit-parallel walks assume it); a map format it knows.
-        /// - an authored zone's records (ENG-01 §3.5's R-table, ENG-09): every rule between two
-        ///   records at the write of either, against the other when it exists (`ZoneAssert`).
+        ///   drawn at `create` and its bit-parallel walks assume it), at least 6 (R-40) and below
+        ///   its rectangle's area (R-28; `LocationAssert::assert_floor`, ENG-R1c-1); a map format
+        ///   it knows.
+        /// - an authored zone's records (ENG-01 §3.5's R-table, ENG-09), and the rules a generated
+        ///   zone, a dungeon floor or a gate shares with other records (R-11, R-12, R-27, R-30,
+        ///   R-41; ENG-R1c-1): every rule between two records at the write of either, against the
+        ///   other when it exists (`ZoneAssert`), once the zone checks' class is set.
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == LOCATION {
                 let location = LocationRecord::unpack(record);
                 assert(location.target <= MAX_CHUNKS, errors::FLOOR_SIZE);
+                location.assert_floor();
                 assert(location.map <= map::AUTHORED, location_errors::MAP);
                 self.assert_zone(kind, id, record, location.map == map::AUTHORED);
             } else if kind == OUTLINE || kind == GATE || kind == QUOTAS {
@@ -438,15 +450,16 @@ pub mod Registry {
             }
         }
 
-        /// A `QUOTAS` or a `LOCATION` written (after every check): `ZoneChecks` moves the counts of
-        /// `heart_packs` (R-27's reverse check, ENG-09) when the class is set.
-        fn name_hearts(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
-            if kind != QUOTAS && kind != LOCATION {
+        /// A `QUOTAS` or a `GATE` written (after every check): `ZoneChecks` moves the counts of
+        /// `heart_packs` (R-27's reverse check, ENG-09) and the gates' entries (`gate_entries`,
+        /// R-41's, ENG-R1c-1) when the class is set.
+        fn index(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
+            if kind != QUOTAS && kind != GATE {
                 return;
             }
             let checks = self.get_zone_class();
             if checks.is_non_zero() {
-                IZoneChecksLibraryDispatcher { class_hash: checks }.name_hearts(kind, id, record);
+                IZoneChecksLibraryDispatcher { class_hash: checks }.index(kind, id, record);
             }
         }
 
