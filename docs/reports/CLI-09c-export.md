@@ -160,3 +160,63 @@ refuse the paintable cases before the converter does:
   timed.
 - JSON numbers such as `1.0`: Python reads a float that the schema refuses, while JavaScript reads the
   integer 1. The editor never writes one.
+
+## CLI-09c2: the editor follows the promoted converter (ENG-09)
+
+ENG-09 (#406) promoted the converter to `tools/map-format/` (track game's, read only). The editor's
+port (`export/convert.ts`, `export/records.ts`), its checks (`validate.ts`) and their tests now follow
+it; nothing of the editor reads `spikes/` any more.
+
+- **Repointed**: `convert.test.ts`, `document.test.ts`, `bridges.test.ts` and `verify-editor.mjs` read
+  `tools/map-format/` (its samples, its manifest, its `checks.json`). The editor's copies of
+  `schema.json`, `kinds.json` and `checks.json` are held equal to game's by one test.
+- **The port**, line for line with `convert.py` and `records.py`:
+  - R-14: a placement (spawn point, object, candidate tile) on a walkable tile of the chunk's interior,
+    rows and columns 1 to 13 (`spawn_on_ring`).
+  - R-34 extended to the deck (`bridge: deck not floor`); R-37 (`bridge: tile taken`): no content, gate
+    anchor or entry on a deck or an end.
+  - R-39 (D-247): the level band 0 to 255 refused (`zone: level band`).
+  - E-5: a gate to another location on the outline; a gate whose destination is a dungeon in the
+    manifest's `location_kinds` may stand inside. This replaces the `to_floor…` name rule.
+  - E-43, E-44, E-45: each building's footprint in the zone, connected, its door walkable.
+  - E-46, E-47: a deck outside the zone, or on a blocked hex, refused; then every deck hex is written
+    walkable, and P-1 and P-2 read that plane.
+- **The editor's checks**, with `checks.json`'s ids and codes:
+  - R-14's interior: every placement on its chunk's ring is named.
+  - R-39 on the zone's levels.
+  - E-5 by `location_kinds`.
+  - E-43 (in the zone), E-44 (one piece) and E-45 (the door walkable) replace those halves of E-16 and
+    E-20. E-16 keeps land and overlap; E-20 keeps the door on the border.
+  - E-46 and E-47 replace E-24 and E-25. E-25 stays the editor's own (a deck over water, D-227).
+  - R-34's deck half holds by construction: the converter writes every deck walkable, and the editor's
+    reach (E-6, E-7) reads the deck so.
+  - When the editor's own check and the converter's refusal share an id, the finding is given once.
+- **The manifest**: `readManifest` reads `location_kinds` (a known location kind per name). It refuses an
+  id that its record field cannot hold: negative, or 16 bits and more (32 for a set piece). The
+  converter's port refuses the same before packing (`resolve`).
+- **The export**: only the hexes inside the fitted rectangle are written. The dialog names the painted
+  hexes it drops, with their count (`data-export-dropped`).
+- **The import** is bounded by the file's own rectangle: at most `15 × height` rows, no span wider than
+  `15 × width`, and no hex outside it (the converter's E-32). The bounds are checked on the lengths,
+  before a span is split.
+- **A footprint stroke** that splits the footprint says so live (`footprintSplit`). The warning goes
+  when the stroke joins it again.
+- **The bridge fixture's records** are `tools/map-format/convert.py`'s output again, now with the decks
+  walkable. The river crossed by its bridge alone is accepted (it was refused before ENG-09).
+
+### Parity
+
+- ENG-09's samples (zone, town, set piece) convert in the port to the committed records files, text for
+  text, and the zone to its golden file, felt for felt.
+- The sample zone opens in the editor and validates with no error, the converter's checks included. Its
+  export is the sample, and it converts to the same records.
+- Each of the 59 cases of `tools/map-format/checks.json` is refused by the port with its code, by the
+  mutation or edit of `test_convert.py`. That is the 30 registry cases, 3 pipeline cases and 26 export
+  cases. The sample passes. A dungeon's entrance inside the zone is accepted.
+
+### Not checked
+
+- `verify-editor.mjs` ran for the export phase only (`VERIFY_EXPORT_ONLY=1`). Its pack and bridge
+  phases take the new ids but were not run in the browser.
+- The import refuses a file with more rows than its rectangle's height, even when two spans share a
+  row. The converter would read such a file, but the editor never writes one.

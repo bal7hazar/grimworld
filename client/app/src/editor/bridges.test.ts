@@ -379,7 +379,8 @@ describe("the deck is walkable (ADR-0008 rule 1)", () => {
     // The deck's two hexes, painted water walls, are floor in the chunk's record.
     const chunk = verdict.zone!.chunks.get(0)!;
     const [deck] = bridgesOf(riverZone());
-    for (const t of deck!.deck) expect(R.has(chunk.walls, t.y * CHUNK + t.x), `(${t.x}, ${t.y})`).toBe(false);
+    for (const t of deck!.deck)
+      expect(R.has(chunk.walls, t.y * CHUNK + t.x), `(${t.x}, ${t.y})`).toBe(false);
     expect(validate(riverZone(), MANIFEST).filter((f) => f.severity === "error")).toEqual([]);
   });
 });
