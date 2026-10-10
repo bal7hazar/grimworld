@@ -2094,6 +2094,26 @@ another terrain, other placements and another cost at each run of the probe (up 
 | `leave` back into the zone | 11,382,672 | 12,348,672 | **D-231**; before, 11,320,640 · 11,640,640 |
 | `enter` into a dungeon floor (`--floor on`, new with ENG-05b) | 10,355,520 | 10,145,520 | **D-231** (the case added by the orchestrator, 2026-10-07) |
 
+**The D-144 ceilings of an authored zone ("authored", D-247)** (the project manager, 2026-10-10, under
+D-144: ENG-09's six runs each, `lifecycle_probe.py --authored on`, without and with `--quotas on`, at
+`e674cc8`, the maximum + 5 %). The zone is `tools/map-format`'s sample, the test region's zone
+authored; its quotas, when written, a collector, a landmark and a Heart drawn among candidates. The
+generated zone's ceilings above (D-231) are unchanged, and both sets stand: a zone is held to the set
+of its map's format. A later measure above a ceiling here is a rise for the project manager to rule.
+
+| Entrypoint (on the node, `lifecycle_probe.py --authored on`) | Without quotas | With quotas | Decided |
+|---|---:|---:|---|
+| `enter`, the adventurer's first | 13,327,020 | 15,391,320 | **D-247** (maxima 12,692,400 · 14,658,400) |
+| `enter`, a later entry | 6,575,520 | 7,373,520 | **D-247** (maxima 6,262,400 · 7,022,400) |
+| `leave` back into the zone (gate 4) | 11,802,672 | 13,566,672 | **D-247** (maxima 11,240,640 · 12,920,640) |
+| `leave` to a dungeon floor (gate 6) | 12,014,772 | 12,308,772 | **D-247** (maxima 11,442,640 · 11,722,640) |
+
+The `leave` back into the zone with quotas spread 10,560,640 to 12,920,640 over the six runs (22 %),
+from the draws (the entry draw follows the transaction hash): the six-run maximum is the ceiling.
+These ceilings are documents, as D-231's: no probe or check reads them. `docs/BUDGETS.md` and each
+`GAS.md` are generated from snforge's tests (`scripts/gas_budgets.py`, checked by `--check`) and hold
+no node ceiling.
+
 **ENG-05b's reset of these ceilings** (the project manager, 2026-10-07: from at least six runs, the
 maximum plus 5 %, rounded up; `lifecycle_probe.py --floor on`, six runs without a quota and six
 with `--quotas on`, on the VPS at `7066ad2`). Every proposed ceiling was accepted by the project manager
