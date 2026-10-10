@@ -312,7 +312,7 @@ mod tests {
         (progress, out)
     }
 
-    fn of(out: @Array<Revealed>, chunk: u8) -> Revealed {
+    fn chunk_of(out: @Array<Revealed>, chunk: u8) -> Revealed {
         let mut found: Option<Revealed> = None;
         for entry in out.span() {
             if *entry.chunk == chunk {
@@ -331,7 +331,7 @@ mod tests {
             let (first, a) = reveal(entropy, array![0, 1].span());
             let (second, b) = reveal(entropy, array![1, 0].span());
             assert(first == second, 'progress');
-            assert(of(@a, 0) == of(@b, 0) && of(@a, 1) == of(@b, 1), 'words');
+            assert(chunk_of(@a, 0) == chunk_of(@b, 0) && chunk_of(@a, 1) == chunk_of(@b, 1), 'words');
             entropy = entropy * 31 + 17;
         }
     }
@@ -357,11 +357,11 @@ mod tests {
                 }
             }
             assert(veins == 1, 'one vein');
-            let [heart, _] = of(@out, 1).features.packs;
+            let [heart, _] = chunk_of(@out, 1).features.packs;
             assert(heart.tile == 112 && heart.level == 6 && heart.count >= 2, 'heart');
-            let [spawn, _] = of(@out, 0).features.packs;
+            let [spawn, _] = chunk_of(@out, 0).features.packs;
             assert(spawn.tile == 32 && spawn.level >= 2 && spawn.level <= 6, 'spawn');
-            let [chest, _, _] = of(@out, 0).features.objects;
+            let [chest, _, _] = chunk_of(@out, 0).features.objects;
             assert(chest.kind == object::CHEST && chest.tile == 40, 'chest kept');
             entropy = entropy * 31 + 17;
         }

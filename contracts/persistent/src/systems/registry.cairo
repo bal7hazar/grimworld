@@ -83,11 +83,9 @@ pub mod Registry {
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
     use grimworld_logic::models::bridge::{
-        Bridge, BridgeAssert, BridgeRecord, BridgeTrait, errors as bridge_errors,
+        Bridge, BridgeAssert, BridgeRecord, errors as bridge_errors,
     };
-    use grimworld_logic::models::candidates::{
-        CandidatesAssert, CandidatesRecord, CandidatesTrait,
-    };
+    use grimworld_logic::models::candidates::{CandidatesAssert, CandidatesRecord};
     use grimworld_logic::models::caste::{
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
