@@ -382,7 +382,9 @@ describe("the converter's port (ENG-08's samples)", () => {
     const z = buildZone(e, MANIFEST);
     const g = e.gates![1]!;
     expect(MANIFEST.location_kinds![g.to]).toBe("dungeon");
-    const inner = R.neighbours(...z.plane.glob(g.x, g.y)).every(([x, y]) => z.zone.has(`${x},${y}`));
+    const inner = R.neighbours(...z.plane.glob(g.x, g.y)).every(([x, y]) =>
+      z.zone.has(`${x},${y}`),
+    );
     expect(inner, "inside").toBe(true);
   });
 });

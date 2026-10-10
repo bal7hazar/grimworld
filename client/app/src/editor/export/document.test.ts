@@ -30,8 +30,28 @@ function exported(doc = opened().doc) {
 }
 
 describe("ENG-08's sample zone in the editor", () => {
-  it("reads the sample's manifest", () => {
+  it("reads the sample's manifest, its location_kinds included", () => {
     expect(typeof MANIFEST).toBe("object");
+    expect(MANIFEST.location_kinds).toEqual({
+      test_town: "town",
+      meadow_edge: "zone",
+      floor_1: "dungeon",
+    });
+  });
+
+  it("refuses a manifest id its field cannot hold, before any packing (review t-0147)", () => {
+    const text = (packs: unknown) => JSON.stringify({ ...MANIFEST, packs });
+    expect(readManifest(text({ raiders: -1 }))).toMatch(
+      /packs holds the id -1: an id is 0 to 65535/,
+    );
+    expect(readManifest(text({ raiders: 65536 }))).toMatch(/packs holds the id 65536/);
+    expect(readManifest(JSON.stringify({ ...MANIFEST, location_kinds: { x: "lake" } }))).toMatch(
+      /location_kinds is not a table of names/,
+    );
+    // A manifest built in code is held at the converter's port: refused, not packed.
+    const wide = { ...MANIFEST, packs: { raiders: 70000, cubs: 2 } } as Manifest;
+    const out = convert(SAMPLE, wide);
+    expect(out instanceof Refused && out.message).toMatch(/70000 does not fit 16 bits/);
   });
 
   it("opens with no note: the editor fits it where the file says", () => {
@@ -93,7 +113,10 @@ describe("D-215 Q9 on the sample (track game, 2026-10-07)", () => {
     }
     expect(errors(doc, "E-5")).toEqual([]);
     // The manifest saying floor_1 is a zone: the inner gates are refused, both.
-    const zoneKinds = { ...MANIFEST, location_kinds: { ...MANIFEST.location_kinds, floor_1: "zone" } };
+    const zoneKinds = {
+      ...MANIFEST,
+      location_kinds: { ...MANIFEST.location_kinds, floor_1: "zone" },
+    };
     const found = validate(doc, zoneKinds).filter((f) => f.check === "E-5");
     expect(found.length).toBeGreaterThanOrEqual(2);
   });
@@ -164,8 +187,37 @@ describe("what the import refuses, the open map untouched", () => {
     expect(problem(SAMPLE, { ...MANIFEST, packs: { raiders: 1 } })).toMatch(/packs "cubs"/);
   });
 
+  it("a file larger than its own size (review t-0147): rows, a span's length, a hex outside", () => {
+    type Rows = { y: number; x: number; terrain: string; ground?: string; outline?: string }[];
+    const rows = SAMPLE.rows as Rows;
+    const many = [...rows, ...Array.from({ length: 31 - rows.length }, (_, i) => rows[i % 2]!)];
+    expect(problem({ ...SAMPLE, rows: many })).toMatch(/31 rows, more than its 30/);
+    const wide = rows.map((r, i) => (i === 0 ? { ...r, terrain: ".".repeat(46) } : r));
+    expect(problem({ ...SAMPLE, rows: wide })).toMatch(/longer than its 45 hexes/);
+    const far = rows.map((r, i) => (i === 0 ? { ...r, x: r.x + 10 } : r));
+    expect(problem({ ...SAMPLE, rows: far })).toMatch(/lies outside its size/);
+  });
+
   it("a town, which is not exported for the chain", () => {
     expect(problem(JSON.parse(read("town.json")))).toMatch(/a town is not exported/);
+  });
+});
+
+describe("only the hexes inside the fitted rectangle (ENG-09)", () => {
+  it("the sample drops none", () => {
+    const out = toExport(opened().doc, MANIFEST);
+    if ("problem" in out) throw new Error(out.problem);
+    expect(out.dropped).toBe(0);
+  });
+
+  it("painted hexes past the rectangle are dropped, counted, and the export is the same", () => {
+    const { doc } = opened();
+    // Two hexes of the outside painted far East of the 3 × 2 chunks from (-20, -14).
+    for (const x of [60, 61]) doc.hexes.set(keyOf({ x, y: 0 }), cellOf(WALL, 0, true));
+    const out = toExport(doc, MANIFEST, "spike");
+    if ("problem" in out) throw new Error(out.problem);
+    expect(out.dropped).toBe(2);
+    expect(out.file).toEqual(SAMPLE);
   });
 });
 

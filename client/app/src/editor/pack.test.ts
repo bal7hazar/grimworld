@@ -21,6 +21,7 @@ import {
   doorOf,
   doorOffset,
   footprintOffsets,
+  footprintSplit,
   paintedFootprint,
   propSprite,
   recordFor,
@@ -703,6 +704,20 @@ describe("a building's footprint, painted hex by hex (CLI-09h)", () => {
     const o = doc.objects.get(id) as PackObject & { kind: "building" };
     doc.objects.set(id, { ...o, door: "40,40" });
     fails(doc, "E-20");
+  });
+
+  it("a stroke that splits the footprint says so live, and the warning goes when it is joined", () => {
+    const { doc, id, s } = armed();
+    expect(s.said).toBe("");
+    // A hex apart from the building: the stroke warns at once, before any validation.
+    click(s, { x: 20, y: 15 });
+    expect(s.said).toMatch(/^The footprint is split: 1 hexes apart from the door's piece/);
+    // Removing it again: one piece, no warning.
+    click(s, { x: 20, y: 15 });
+    expect(footprintOf(doc, id).some((t) => t.x === 20 && t.y === 15)).toBe(false);
+    expect(s.said).toBe("");
+    const o = doc.objects.get(id) as Extract<PackObject, { kind: "building" }>;
+    expect(footprintSplit(o)).toBe("");
   });
 
   it("a footprint outside the painted map fails E-16", () => {
