@@ -150,8 +150,8 @@ impl ZoneFixture of Fixture {
     /// first gate (1, so that the sample's are 2 and 3), then the sample: its `LOCATION` (2) and
     /// every record in the converter's order; then the dungeon floor its gate reaches (3).
     fn deploy() -> Registry {
-        let class = declare("Registry").unwrap().contract_class();
-        let (address, _) = class.deploy(@array![ADMIN]).unwrap();
+        let contract = declare("Registry").unwrap().contract_class();
+        let (address, _) = contract.deploy(@array![ADMIN]).unwrap();
         start_cheat_caller_address(address, ADMIN.try_into().unwrap());
         let r = Registry {
             address,
@@ -212,6 +212,7 @@ impl ZoneFixture of Fixture {
     }
 
     /// The write, which must be refused: the test panics with the refusal's code.
+    #[feature("safe_dispatcher")]
     fn refuse(self: Registry, kind: u8, id: u32, record: Span<felt252>) {
         match self.safe.set_record(kind, id, record) {
             Ok(()) => core::panic_with_felt252('not refused'),
@@ -275,6 +276,7 @@ fn test_sample_registered() {
 // that drops the marker frees them, one that sets it again binds them (`heart_packs`).
 #[test]
 #[available_gas(l2_gas: 4000000000)]
+#[feature("safe_dispatcher")]
 fn test_heart_index_follows_the_marker() {
     let r = ZoneFixture::deploy();
     let empty = Pack {
@@ -374,8 +376,8 @@ fn test_authored_reveal_through_hosts_library() {
 #[available_gas(l2_gas: 4000000000)]
 #[should_panic(expected: 'registry: no zone checks')]
 fn test_refuse_without_zone_checks() {
-    let class = declare("Registry").unwrap().contract_class();
-    let (address, _) = class.deploy(@array![ADMIN]).unwrap();
+    let contract = declare("Registry").unwrap().contract_class();
+    let (address, _) = contract.deploy(@array![ADMIN]).unwrap();
     start_cheat_caller_address(address, ADMIN.try_into().unwrap());
     let r = Registry {
         address,
@@ -391,6 +393,7 @@ fn test_refuse_without_zone_checks() {
 #[test]
 #[available_gas(l2_gas: 4000000000)]
 #[should_panic(expected: 'registry: zone checks zero')]
+#[feature("safe_dispatcher")]
 fn test_refuse_zone_checks_zero() {
     let r = ZoneFixture::deploy();
     match r.safe.set_zone_checks(0.try_into().unwrap()) {

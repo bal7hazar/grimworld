@@ -5,8 +5,9 @@
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
 use grimworld_logic::content::{
-    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE, PACK, QUEST, QUOTAS,
-    REGION, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, is_sequential, parts,
+    ARMOR_SET, BOOK, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE,
+    PACK, QUEST, QUOTAS, REGION, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, ZONE_CHUNK,
+    is_sequential, parts,
 };
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
@@ -278,10 +279,10 @@ fn test_set_record_unknown_kind_refused() {
     let r = Fixture::deploy();
     let refused = r.safe.set_record(0, 1, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'kind 0');
-    let refused = r.safe.set_record(26, 1, Felts::one(1));
-    assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'kind 26');
-    let refused = r.safe_read.record(26, 1);
-    assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'read kind 26');
+    let refused = r.safe.set_record(LAST_KIND + 1, 1, Felts::one(1));
+    assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'kind 29');
+    let refused = r.safe_read.record(LAST_KIND + 1, 1);
+    assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'read kind 29');
     let refused = r.safe.last_id(0);
     assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'last id kind 0');
 }
@@ -683,7 +684,10 @@ fn test_inputs_version_every_other_kind() {
     let r = Fixture::deploy();
     let mut others: u32 = 0;
     for kind in 1..LAST_KIND + 1 {
-        if kind == SKILL || kind == ITEM || kind == MODIFIER {
+        // The authored zone's own kinds (ENG-09) need an authored zone and its checks: their
+        // writes are `test_zone`'s
+        if kind == SKILL || kind == ITEM || kind == MODIFIER || kind == ZONE_CHUNK
+            || kind == BRIDGE || kind == CANDIDATES {
             continue;
         }
         let id = next_id(r, kind);
