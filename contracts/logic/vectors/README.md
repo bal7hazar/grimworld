@@ -16,8 +16,9 @@ values it prints and run it again: it must say "as computed".
 
 ## `window.jsonl`: the geometry of the window (ENG-02)
 
-Printed by `types::window::tests::test_vectors` (ids 0–1213) and `test_vectors_1` (ids
-1214–2064), split for snforge's step limit, each part with its digest.
+Printed by `types::window::tests::test_vectors_0` to `test_vectors_3` (ids 0–1213, four slices of
+the pair and triple cases) and `test_vectors_4` (ids 1214–2064), split for snforge's step limit and
+memory (FND-23), each part with its digest.
 
 One line: `{"id", "fn", "case", "ok"}`. A position is the window's index `15 y + x` (0–239; 240 and
 up is outside the window), a facing `0..=5` (East, North-East, North-West, West, South-West,
@@ -60,7 +61,7 @@ The `flood` rows after the corridor's ten: a walker at distance 15 steps and one
 
 ## `hit.jsonl`: one hit (CBT-03a)
 
-Printed by `types::hit::tests::test_vectors`, with its digest. One line: `{"id", "case", "ok"}`.
+Printed by `types::hit::tests::test_vectors_0` to `test_vectors_4` (ids 0–40, 41–81, 82–122, 123–163, 164–202; FND-23), each part with its digest. One line: `{"id", "case", "ok"}`.
 The case is the `Serde` of `(Hit, HitTarget)`, 28 felts, and `ok` the `Serde` of `HitOutcome`
 (1 felt for a stopped hit, 4 for a landed one); the order and meaning of every felt are in the
 module's header, `contracts/logic/src/types/hit.cairo`. A negative integer is `P − |v|`.

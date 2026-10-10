@@ -5,7 +5,8 @@
 # height), already transparent, at the pack's own size. An animation names its `file`, in the
 # sprite's `root` folder of the pack.
 #
-# Frame rates stay in 12..15 (ADR-0003). Sprites face right; left is a mirror (design/10 Facing).
+# Frame rates stay at 15 at most (ADR-0003); the foam keeps the pack's 10 (CLI-03o).
+# Sprites face right; left is a mirror (design/10 Facing).
 
 [settings]
 cell_margin = 4        # transparent margin kept around the union of a sprite's frames

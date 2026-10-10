@@ -146,8 +146,8 @@ def under(path, folder):
 
 
 def classify(path, packages, closures, pins):
-    """The set of tags a changed path carries: ALL, 'classes', 'client', 'indexer', 'tooling' and
-    'pkg:<dir>'. An empty set is a path that runs nothing; None is unclassified (runs everything)."""
+    """The set of tags a changed path carries: ALL, 'classes', 'client', 'indexer', 'art', 'tooling'
+    and 'pkg:<dir>'. An empty set is a path that runs nothing; None is unclassified (runs everything)."""
     if path.startswith(".github/"):
         return {ALL}
     tags = set()

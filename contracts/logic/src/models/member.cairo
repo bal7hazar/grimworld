@@ -52,6 +52,18 @@ const P92: u128 = 0x100000000000000000000000;
 const BAR_LANES: [u128; 8] = [1, P16, P32, 0x1000000000000, P64, P80, P96, P112];
 /// `MemberStats`' bar ranks, 4 bits a slot from its high limb's bit 0.
 const RANK_LANES: [u128; 8] = [1, 0x10, 0x100, 0x1000, 0x10000, 0x100000, 0x1000000, 0x10000000];
+/// `MemberStats`' quick-cast slots in its high limb, 2 bits a slot: slots 0–3 from bit 40
+/// (168 − 128), slots 4–7 from bit 114 (242 − 128; CBT-05f).
+const QUICK_LANES: [u128; 8] = [
+    0x10000000000, 0x40000000000, 0x100000000000, 0x400000000000, 0x40000000000000000000000000000,
+    0x100000000000000000000000000000, 0x400000000000000000000000000000,
+    0x1000000000000000000000000000000,
+];
+/// `MemberStats`' weapon-required slots in its low limb, a bit a slot from bit 40 (CBT-05f).
+const WEAPON_LANES: [u128; 8] = [
+    0x10000000000, 0x20000000000, 0x40000000000, 0x80000000000, 0x100000000000, 0x200000000000,
+    0x400000000000, 0x800000000000,
+];
 /// `MemberBar`'s `DAMAGE_PERCENT` sums by class, from its high limb's bit 8 (136 − 128).
 const PASSIVE_LANES: [u128; 3] = [P8, P16, P24];
 /// `MemberStats`' `ARMOR_VS` of types 3–9, from its high limb's bit 72 (200 − 128).
@@ -587,6 +599,22 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
         ]
     }
 
+    /// The quick-cast pairs bar slot 0–7's skill counts for (`MemberStats` 168 + 2 slot for slots
+    /// 0–3, 242 + 2 (slot − 4) for 4–7; CBT-05f, D-157 A): pair `p` at bit `p`, the `matches`
+    /// of `QuickCastTrait::count`.
+    fn quick_cast_matches(self: @Member, slot: u8) -> u8 {
+        let (_, high) = limbs(*self.words.stats);
+        field(high, *QUICK_LANES.span()[slot.into()], 4).try_into().unwrap()
+    }
+
+    /// Whether bar slot 0–7's attack skill names an attribute other than the weapon's
+    /// (`MemberStats` 40 + slot; CBT-05f, design/19 §3.4's skill kinds): used without its weapon,
+    /// it is refused.
+    fn weapon_required(self: @Member, slot: u8) -> bool {
+        let (low, _) = limbs(*self.words.stats);
+        field(low, *WEAPON_LANES.span()[slot.into()], 2) != 0
+    }
+
     /// Its weapon (`MemberStats`): class 88–95, damage 96–103, range 112–119, strength
     /// 120–127 (the snapshot's `5 × rank` capped, `HitTrait::weapon_strength`), damage type
     /// 160–167, requirement met 176–183.
@@ -1020,8 +1048,8 @@ mod tests {
     use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, Sheets, flag, status};
     use crate::types::world::fixtures::{Fixture, LIVE, opaque, two};
     use super::{
-        Member, MemberAssert, MemberConditionTrait, MemberLifecycleTrait, MemberTickTrait,
-        MemberTrait, MemberWordsTrait,
+        Member, MemberAssert, MemberConditionTrait, MemberLifecycleTrait, MemberSnapshotTrait,
+        MemberTickTrait, MemberTrait, MemberWords, MemberWordsTrait,
     };
 
     /// A member whose kit holds "Rending" (`CONDITION_DURATION` Bleeding +33 %) and
@@ -1585,5 +1613,47 @@ mod tests {
     #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_member_assert_pips() {
         MemberAssert::assert_pips(128);
+    }
+
+    // CBT-05f, every lane read back (review t-0125 note 2): a stats word holding one slot's
+    // quick-cast pairs and weapon-required bit at the ENG-01 §3.2 positions (168 + 2 s for slots
+    // 0–3, 242 + 2 (s − 4) for 4–7; 40 + s) is read at that slot only; then every slot at
+    // once, each with its own value.
+    #[test]
+    #[available_gas(l2_gas: 12457505)] // ceil(1.05 × 11864290 measured)
+    fn test_member_attribute_mapping_lanes() {
+        let member = Fixture::member(Fixture::spec());
+        let quick_bit = array![168_u32, 170, 172, 174, 242, 244, 246, 248].span();
+        for slot in 0..8_u8 {
+            let at: u32 = slot.into();
+            let stats = LIVE + 3 * two(*quick_bit[at]) + two(40 + at);
+            let words = MemberWords { stats, ..member.words };
+            let one = Member { words, ..member };
+            for other in 0..8_u8 {
+                let held = other == slot;
+                let pairs = if held {
+                    3
+                } else {
+                    0
+                };
+                assert(one.quick_cast_matches(other) == pairs, 'quick-cast lane');
+                assert(one.weapon_required(other) == held, 'weapon lane');
+            }
+        }
+        let pairs = array![1_u8, 2, 3, 1, 2, 3, 1, 2].span();
+        let mut stats = LIVE;
+        for slot in 0..8_u32 {
+            stats += (*pairs[slot]).into() * two(*quick_bit[slot]);
+            if slot % 2 == 0 {
+                stats += two(40 + slot);
+            }
+        }
+        let words = MemberWords { stats, ..member.words };
+        let all = Member { words, ..member };
+        for slot in 0..8_u8 {
+            let at: u32 = slot.into();
+            assert(all.quick_cast_matches(slot) == *pairs[at], 'quick-cast lanes together');
+            assert(all.weapon_required(slot) == (at % 2 == 0), 'weapon lanes together');
+        }
     }
 }
