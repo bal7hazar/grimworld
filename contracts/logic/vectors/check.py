@@ -54,6 +54,13 @@ TABLES = {
     "segment.jsonl": [
         "grimworld_logic::types::play::tests::test_segment_vectors",
     ],
+    "segment2.jsonl": [
+        "grimworld_logic::types::play::tests::test_segment2_vectors_0",
+        "grimworld_logic::types::play::tests::test_segment2_vectors_1",
+        "grimworld_logic::types::play::tests::test_segment2_vectors_2",
+        "grimworld_logic::types::play::tests::test_segment2_vectors_3",
+        "grimworld_logic::types::play::tests::test_segment2_vectors_4",
+    ],
     "reveal.jsonl": [
         "grimworld_logic::types::reveal::tests::test_vectors",
         "grimworld_logic::types::reveal::tests::test_vectors_1",
