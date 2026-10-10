@@ -14,6 +14,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `helpers::tick::tests::test_refreshed_zero_refused` | 7810 | 8201 | 5.01 % | 0 | 0 | 2026-10-02 | f55176c |
 | `models::bridge::tests::test_bridge_bits_and_round_trip` | 73246 | 76909 | 5.00 % | 0 | 0 | 2026-10-10 | c6633cb |
 | `models::bridge::tests::test_bridge_end_on_the_deck_refused` | 26753 | 28091 | 5.00 % | 0 | 0 | 2026-10-10 | c6633cb |
+| `models::candidates::tests::test_candidates_above_224_refused` | 15220 | 15981 | 5.00 % | 0 | 0 | 2026-10-10 | fe9ef76 |
 | `models::candidates::tests::test_candidates_outside_refused` | 28392 | 29812 | 5.00 % | 0 | 0 | 2026-10-10 | c6633cb |
 | `models::candidates::tests::test_candidates_round_trip` | 26960 | 28308 | 5.00 % | 0 | 0 | 2026-10-10 | c6633cb |
 | `models::chunk::tests::test_member_offsets` | 2544468 | 2671692 | 5.00 % | 0 | 0 | 2026-10-03 | ffef058 |

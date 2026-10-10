@@ -9,7 +9,7 @@ use crate::types::reveal::board::BoardTrait;
 pub use super::index::Candidates;
 
 /// 2^225: a chunk set is below it.
-const P225: u256 = 0x2000000000000000000000000000000000000000000000000000000000;
+const P225: u256 = 0x200000000000000000000000000000000000000000000000000000000;
 
 pub mod errors {
     pub const ABOVE_224: felt252 = 'candidates: above bit 224';
@@ -77,13 +77,22 @@ mod tests {
     #[available_gas(l2_gas: 28308)] // ceil(1.05 × 26960 measured)
     fn test_candidates_round_trip() {
         let record = Candidates {
-            sets: [3, 0, 0x1000000000000000000000000000000000000000000000000000000000],
+            sets: [3, 0, 0x100000000000000000000000000000000000000000000000000000000],
         };
         let parts = record.pack();
         assert(*parts[1] == LIVE, 'empty part live');
         assert(CandidatesRecord::unpack(parts) == record, 'round trip');
         assert(CandidatesRecord::unpack(array![0, 0, 0].span()).sets == [0, 0, 0], 'never written');
         assert(CandidatesTrait::id(7, 1) == 15, 'id');
+    }
+
+    // Bit 225, one past a chunk set (review t-0133, minor 1)
+    #[test]
+    #[available_gas(l2_gas: 15981)] // ceil(1.05 × 15220 measured)
+    #[should_panic(expected: 'candidates: above bit 224')]
+    fn test_candidates_above_224_refused() {
+        Candidates { sets: [0, 0x200000000000000000000000000000000000000000000000000000000, 0] }
+            .pack();
     }
 
     #[test]

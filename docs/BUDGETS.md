@@ -118,6 +118,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `helpers::tick::tests::test_refreshed_zero_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `models::bridge::tests::test_bridge_bits_and_round_trip` | 73246 | 76909 | 2026-10-10 | c6633cb |
 | grimworld_logic | `models::bridge::tests::test_bridge_end_on_the_deck_refused` | 26753 | 28091 | 2026-10-10 | c6633cb |
+| grimworld_logic | `models::candidates::tests::test_candidates_above_224_refused` | 15220 | 15981 | 2026-10-10 | fe9ef76 |
 | grimworld_logic | `models::candidates::tests::test_candidates_outside_refused` | 28392 | 29812 | 2026-10-10 | c6633cb |
 | grimworld_logic | `models::candidates::tests::test_candidates_round_trip` | 26960 | 28308 | 2026-10-10 | c6633cb |
 | grimworld_logic | `models::chunk::tests::test_member_offsets` | 2544468 | 2671692 | 2026-10-03 | ffef058 |
