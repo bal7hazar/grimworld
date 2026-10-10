@@ -59,6 +59,28 @@ North-West, West, South-West, South-East), 255 none.
 
 The `flood` rows after the corridor's ten: a walker at distance 15 steps and one at 16 holds (255, 16: the cap is 15 layers); a walker touching only the last layer (two tiles of it) holds; a walker with two candidate steps in its least layer takes the lowest tile index; an open tile on the window's ring is never in a layer (the pocket reached only through the ring is not reached, 255, 255).
 
+## `batch.jsonl`: where a played batch stops (CBT-05d)
+
+Printed by `types::play::tests::test_batch_vectors`, with its digest. One line: `{"id", "fn", "case", "ok"}`,
+every value an integer, a boolean 0 or 1. The rules are `SegmentTrait::admit` (E-16's cap of 16 goblin
+records an invocation and E-1's weight of a first record, D-141) and `SegmentTrait::revealed` (a reveal's
+weight, 2 a chunk), which `SegmentLibrary` and `PlayLibrary` call.
+
+| `fn` | `case` | `ok` |
+|---|---|---|
+| `records` | the records counted before the action, its new records, how many of them are first records, its ticks, whether an action ran before it in the invocation, the weight left | stopped (the batch stops before the action, nothing of it kept), the records counted after, the weight left (floored at 0) |
+| `owed` | the records counted before, the owed ticks' new records and first records, the next action's new records, first records and ticks, the weight left, whether a next action exists | the next action stopped, the records written, the weight left |
+| `reveal` | the weight before the revealing Move, its ticks, its first records, the chunks revealed | the weight after the Move, after the reveal |
+
+The cases:
+- `records`: the 16th record passes and the 17th stops (from 10, and at the boundary 15 + 1, 16 + 0, 16 + 1); first records weigh 1 more each, the weight cut at exactly 0 and one past; a Move of 2 ticks with 1 left; the invocation's first action binds neither (E-21), its weight floored at 0.
+- `owed`: a Move that ends a segment (a reveal, a chunk crossed) has its ticks run first in the next segment, counted with that segment's first action. Its 7 records after 10 stop a next action that adds none (`test_play_records_owed_ticks`), the owed records still written (17); 6 do not. With no next action nothing is counted: the records written are E-16's bound, 16 plus the owed ticks' (16 + 40, the goblins of the window; 16 + 2 × 40 = 96, ENG-01 E-16).
+- The `owed` rows restate the rule: only `admit` is the contract's code in them; the test builds the rest (the owed
+  records added, the `written` count when no action follows). `SegmentTrait::run`'s counting of owed ticks is checked by
+  `test_play_records_owed_ticks` (`contracts/ephemeral/tests/test_play_limits.cairo`: 17 records written, the next Move
+  stopped), not by this table.
+- `reveal`: the Move's ticks and first records are taken first, then 2 a chunk, floored at 0: a Move that reveals more chunks than the weight left still plays.
+
 ## `hit.jsonl`: one hit (CBT-03a)
 
 Printed by `types::hit::tests::test_vectors_0` to `test_vectors_4` (ids 0–40, 41–81, 82–122, 123–163, 164–202; FND-23), each part with its digest. One line: `{"id", "case", "ok"}`.

@@ -49,6 +49,7 @@ pub mod TickLibrary {
                 level,
                 frozen: 0,
                 listed: 0,
+                memo: None,
             };
             TickTrait::run(ref world, @sheets, ticks, ref rules);
             (world.store(), rules.ground)

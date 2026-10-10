@@ -106,7 +106,7 @@ use grimworld_logic::models::member::{MemberTrait, MemberWordsTrait};
 use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackRecord, PackTrait};
 use grimworld_logic::packing::{Bitmap, LIVE, Lanes16};
-use grimworld_logic::types::play::{Area, Classes};
+use grimworld_logic::types::play::{Area, Classes, SegmentTrait};
 use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
 use grimworld_logic::types::tick::{
@@ -584,12 +584,7 @@ pub impl PlayImpl of PlayTrait {
                 }
             }
             if chunks.len() > 0 {
-                let cost: u8 = 2 * chunks.len().try_into().unwrap();
-                weight = if weight > cost {
-                    weight - cost
-                } else {
-                    0
-                };
+                weight = SegmentTrait::revealed(weight, chunks.len());
                 self
                     .reveal(
                         slot,

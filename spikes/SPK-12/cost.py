@@ -187,6 +187,31 @@ def eng07() -> None:
         print(f"| {name} (E: the mix) | {total:,.0f} | {usd(total)} | {total / S1_BATCHES:.2f}x |")
 
 
+# --- CBT-05d: the cheaper goblin carrier ----------------------------------------------------------
+# The fight batches re-measured at CBT-05d's head (snforge, `test_tick::test_cost_segment_fight*` and
+# `test_cost_lever_batch_whole` less their fixtures, the segment's call added as above); the other
+# inputs ENG-07's (the node's exploration, reveal, `enter` and `leave`).
+FIGHT_BATCH_REAL_05D = 170_485_856 + 1_409_090  # 8 attackers, the member at 480 (M)
+FIGHT_BATCH_WHOLE_05D = 434_641_704 + 1_409_090  # the member standing 10 ticks (M)
+FIGHT_BATCH_CAP4_05D = 341_901_360 + 1_409_090  # lever 1, at most 4 attacking (M)
+
+
+def cbt05d() -> None:
+    print("\n## S1 at CBT-05d (the cheaper goblin carrier): 30 batches, k of them a fight\n")
+    print("| batches | L2 gas | S1 | against 663 M |")
+    print("|---|--:|--:|--:|")
+    for k, name, fight in (
+        (0, "30 exploration batches, 4 reveals", 0),
+        (3, "27 exploration + 3 fights at real health (4 ticks each)", FIGHT_BATCH_REAL_05D),
+        (3, "27 exploration + 3 whole fights (10 ticks of 8 attackers)", FIGHT_BATCH_WHOLE_05D),
+        (3, "27 exploration + 3 whole fights, lever 1 (at most 4 attackers)", FIGHT_BATCH_CAP4_05D),
+    ):
+        total = (30 - k) * EXPLORATION_BATCH + k * fight + 4 * REVEAL_IN_PLAY + ENTER_ENG05 \
+            + LEAVE_ENG05
+        print(f"| {name} (E: the mix) | {total:,.0f} | {usd(total)} | {total / S1_BATCHES:.2f}x |")
+
+
 if __name__ == "__main__":
     main()
     eng07()
+    cbt05d()
