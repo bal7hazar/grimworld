@@ -2,7 +2,8 @@
 # "Merge on green CI" means the code works: every Cairo package is formatted, built and tested on
 # the toolchain of its own .tool-versions; the pnpm workspace (client and indexer) is installed,
 # linted, typechecked, tested, built and formatted; a change to indexer/ also runs the indexer on a
-# local starknet-devnet; a change under tools/art/ runs the art pipeline's Python tests.
+# local starknet-devnet; a change under tools/art/ runs the art pipeline's Python tests, one under
+# tools/map-format/ the authored zones' converter's.
 # No secret, no pull_request_target, read-only token, every third-party action pinned by SHA.
 name: ci
 
@@ -40,6 +41,7 @@ jobs:
       client: ${{ steps.changes.outputs.client }}
       indexer: ${{ steps.changes.outputs.indexer }}
       art: ${{ steps.changes.outputs.art }}
+      map_format: ${{ steps.changes.outputs.map_format }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -487,12 +489,34 @@ jobs:
           test ! -e assets/.git
           "$RUNNER_TEMP/art-venv/bin/python" -m unittest discover -v -s tools/art/tests
 
+  # The authored zones' converter (ENG-09, D-215 ruling 9): `tools/map-format/`'s tests, which run each
+  # case of its checks table through the converter and hold that every registry refusal has its Cairo
+  # twin in contracts/persistent/tests/test_zone.cairo (snforge runs those in the `cairo` job). Only
+  # when a path under tools/map-format/ or that test file changed (`map_format` of
+  # .github/ci/changes.py). The standard library only: the runner's python3, nothing installed.
+  map-format:
+    needs: discover
+    if: needs.discover.outputs.map_format == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # -v lists every test with its result.
+      - name: test
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m unittest discover -v -s tools/map-format/tests -p 'test_*.py'
+
   # FND-18: the one check that always runs, so that `gh pr checks` has a result whichever test jobs the
   # change concerned. It fails when a needed job failed or was cancelled, and passes when every one
   # succeeded or was skipped (a job its paths did not concern).
   result:
     name: ci result
-    needs: [discover, cairo, class-artefacts, client, indexer-node, art]
+    needs: [discover, cairo, class-artefacts, client, indexer-node, art, map-format]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2

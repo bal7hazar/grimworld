@@ -5,7 +5,8 @@ Run by the first job of .github/workflows/ci.yml (`discover`) and by the first s
 job of .github/workflows/tooling.yml. It lists the files that differ from the base and sets the
 outputs that each test job's `if:` reads:
 
-  ci:      cairo (JSON list of the discovered packages to run, [] when none), classes, client, indexer, art
+  ci:      cairo (JSON list of the discovered packages to run, [] when none), classes, client, indexer, art,
+           map_format
   tooling: tooling
 
 Every changed path is classified, never guessed: the paths a job depends on are the tables below; a
@@ -55,6 +56,12 @@ CLIENT_FILES = ("tools/art/manifest.toml",)
 # its pinned requirements, all under tools/art/; the rest of tools/ stays ignored. The manifest also
 # feeds `client` (above).
 ART_PREFIXES = ("tools/art/",)
+
+# The map-format job (ENG-09): the authored zones' converter's Python tests (tools/map-format/tests).
+# They read the converter, its schema, checks table and samples, and the Registry's Cairo twins of each
+# refusal (`test_cairo_twins` reads the one test file below).
+MAP_FORMAT_PREFIXES = ("tools/map-format/",)
+MAP_FORMAT_FILES = ("contracts/persistent/tests/test_zone.cairo",)
 
 # The `contracts` package also reads these (gas budgets, GAS.md, class sizes, exp2 table, vectors).
 # contracts/tools/exp2_table.py checks the client's mirror of the table too (TS_PATH).
@@ -166,6 +173,8 @@ def classify(path, packages, closures, pins):
         tags.add("client")
     if path.startswith(ART_PREFIXES):
         tags.add("art")
+    if path.startswith(MAP_FORMAT_PREFIXES) or path in MAP_FORMAT_FILES:
+        tags.add("map_format")
     if not is_markdown:
         if path.startswith(CLIENT_PREFIXES) or path in CLIENT_FILES or matches(path, CLIENT_ROOT_FILES):
             tags.add("client")
@@ -207,6 +216,7 @@ def decide(files, packages, closures, pins, workflow, event, base_known):
         "client": str(event == "push" or everything or "client" in tags).lower(),
         "indexer": str(everything or "indexer" in tags).lower(),
         "art": str(event == "push" or everything or "art" in tags).lower(),
+        "map_format": str(event == "push" or everything or "map_format" in tags).lower(),
     }
     return outputs, notes
 
@@ -347,6 +357,22 @@ def self_test():
         assert not art([path]), path
     assert not art([]) and art([], base_known=False) and art(["PLAN.md"], event="push")
     assert art([".github/workflows/ci.yml"]) and art(["newfolder/x.rs"])
+
+    # the map format's tests (ENG-09): any file under tools/map-format/ and the Registry's twins of its
+    # refusals, which run nothing else of the tools; a Cairo test file also runs its package
+    def map_format(files, event="pull_request"):
+        outputs, _ = decide(files, packages, closures, pins, "ci", event, True)
+        return outputs["map_format"] == "true"
+
+    for path in ("tools/map-format/convert.py", "tools/map-format/checks.json",
+                 "tools/map-format/samples/zone.json", "tools/map-format/tests/test_convert.py",
+                 "tools/map-format/README.md", "contracts/persistent/tests/test_zone.cairo"):
+        assert map_format([path]), path
+    assert run(["tools/map-format/convert.py"]) == nothing
+    assert run(["contracts/persistent/tests/test_zone.cairo"]) == (["contracts", "indexer/emitter"], True, False, True)
+    for path in ("tools/art/build.py", "docs/a.md", "contracts/persistent/tests/test_registry.cairo", "PLAN.md"):
+        assert not map_format([path]), path
+    assert map_format(["PLAN.md"], event="push") and map_format([".github/ci/changes.py"])
     # the contracts
     assert run(["contracts/ephemeral/src/lib.cairo"]) == (["contracts"], True, False, False)
     assert run(["contracts/logic/src/hit.cairo"]) == (["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-15"], True, False, True)
