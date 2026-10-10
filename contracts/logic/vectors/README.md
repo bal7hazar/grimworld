@@ -75,6 +75,10 @@ weight, 2 a chunk), which `SegmentLibrary` and `PlayLibrary` call.
 The cases:
 - `records`: the 16th record passes and the 17th stops (from 10, and at the boundary 15 + 1, 16 + 0, 16 + 1); first records weigh 1 more each, the weight cut at exactly 0 and one past; a Move of 2 ticks with 1 left; the invocation's first action binds neither (E-21), its weight floored at 0.
 - `owed`: a Move that ends a segment (a reveal, a chunk crossed) has its ticks run first in the next segment, counted with that segment's first action. Its 7 records after 10 stop a next action that adds none (`test_play_records_owed_ticks`), the owed records still written (17); 6 do not. With no next action nothing is counted: the records written are E-16's bound, 16 plus the owed ticks' (16 + 40, the goblins of the window; 16 + 2 × 40 = 96, ENG-01 E-16).
+- The `owed` rows restate the rule: only `admit` is the contract's code in them; the test builds the rest (the owed
+  records added, the `written` count when no action follows). `SegmentTrait::run`'s counting of owed ticks is checked by
+  `test_play_records_owed_ticks` (`contracts/ephemeral/tests/test_play_limits.cairo`: 17 records written, the next Move
+  stopped), not by this table.
 - `reveal`: the Move's ticks and first records are taken first, then 2 a chunk, floored at 0: a Move that reveals more chunks than the weight left still plays.
 
 ## `hit.jsonl`: one hit (CBT-03a)

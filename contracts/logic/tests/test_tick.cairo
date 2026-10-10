@@ -20,10 +20,12 @@ use grimworld_logic::interface::{
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::goblin::{Goblin, GoblinTickTrait, GoblinTrait, GoblinWords};
 use grimworld_logic::models::index::{Caste, Skill};
-use grimworld_logic::models::member::{Member, MemberTickTrait, MemberTrait, MemberWords};
+use grimworld_logic::models::member::{
+    Member, MemberLifecycleTrait, MemberTickTrait, MemberTrait, MemberWords,
+};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::MAX_CLOCK;
-use grimworld_logic::types::action::ActionTrait;
+use grimworld_logic::types::action::{ActionTrait, Carry};
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::executor::{Board, BoardTrait, ExecutorTrait};
@@ -4774,4 +4776,100 @@ fn test_fight_roster_count() {
     }
     println!("fight: goblins away from their spawn chunk {}", away);
     assert(away < 60, 'never 60');
+}
+
+// ---- CBT-05d: the memo of the last carrier's records (`Delegate.memo`) -------------------------
+// Two goblin weapon hits on the member through `DelegateCarry::carry`, scenario 0's goblins (goblin
+// 1 of caste `RUNT`, the others `HOB`). The second hit runs with the memo the first left and, in a
+// twin, with none: the words are equal. Run once more with the memo's records replaced by the
+// whole content under the same key, the whole content is still there after the second hit when the
+// memo was taken, and the hit's own records when it missed.
+
+/// The words after the second hit, and how many skill records the memo holds then. `effect`: the
+/// member holds skill 2's effect before the second hit (what a carrier's hold writes); `keep`: the
+/// memo of the first hit stays; `swap`: its records are replaced by the whole content.
+fn memo_hits(
+    first: u32, second: u32, effect: bool, keep: bool, swap: bool,
+) -> (Words, u32, Span<felt252>, Span<felt252>) {
+    let content = rep_content();
+    let words = ai_words_of(ai::ENGAGED, false, true);
+    let mut goblins = array![];
+    let mut k: u32 = 0;
+    for goblin in words.goblins.span() {
+        let mut goblin = *goblin;
+        if k == 1 {
+            goblin.state = goblin.state + (RUNT.into() - HOB.into()) * two(64);
+        }
+        goblins.append(goblin);
+        k += 1;
+    }
+    let words = Words { goblins, ..words };
+    let (mut world, sheets, index) = words.indexed(@content);
+    let mut rules = grimworld_logic::types::executor::Delegate {
+        board: board(),
+        cache: Default::default(),
+        executor: executor(),
+        content,
+        index,
+        placed: array![],
+        ground: array![],
+        ai: ai_class(),
+        trap: trap(),
+        level: 10,
+        frozen: 0,
+        listed: 0,
+        memo: None,
+    };
+    let t = world.clock;
+    let weapon = grimworld_logic::types::executor::Carrier::Weapon;
+    let _ = rules.carry(ref world, @sheets, Actor::Goblin(first), 0, weapon, 0, t);
+    let (key, _) = rules.memo.unwrap().unbox();
+    if effect {
+        let mut member = world.member(0);
+        let at = rules.index.skill(2);
+        let held = grimworld_logic::types::tick::Held {
+            carrier: 2, potion: false, charges: 0, deadline: 100, rank: 1,
+        };
+        let _ = member.hold(held, at, false, t, @sheets);
+        world.set_member(0, member);
+    }
+    if !keep {
+        rules.memo = None;
+    } else if swap {
+        rules.memo = Some(BoxTrait::new((key, content)));
+    }
+    let _ = rules.carry(ref world, @sheets, Actor::Goblin(second), 0, weapon, 0, t);
+    let (after, records) = rules.memo.unwrap().unbox();
+    (world.store(), records.skills.len(), key, after)
+}
+
+// The same key (two `HOB` goblins, the member unchanged): the second hit takes the memo.
+#[test]
+#[available_gas(l2_gas: 83091876)] // ceil(1.05 × 79135120 measured)
+fn test_memo_taken_on_the_same_key() {
+    let (kept, _, key, after) = memo_hits(0, 2, false, true, false);
+    let (fresh, _, _, _) = memo_hits(0, 2, false, false, false);
+    assert(kept == fresh, 'memo = no memo');
+    assert(key == after, 'the same key');
+    let (_, records, _, _) = memo_hits(0, 2, false, true, true);
+    assert(records == rep_content().skills.len(), 'the memo taken');
+}
+
+// A changed key misses the memo: the member holds an effect after the first hit, or the second
+// goblin is of another caste. Each second hit equals the same hit with no memo.
+#[test]
+#[available_gas(l2_gas: 167540184)] // ceil(1.05 × 159562080 measured)
+fn test_memo_missed_on_a_changed_key() {
+    let (kept, _, key, after) = memo_hits(0, 2, true, true, false);
+    let (fresh, _, _, _) = memo_hits(0, 2, true, false, false);
+    assert(kept == fresh, 'effect: memo = no memo');
+    assert(key != after, 'effect: the key changed');
+    let (_, records, _, _) = memo_hits(0, 2, true, true, true);
+    assert(records < rep_content().skills.len(), 'effect: the memo missed');
+    let (kept, _, key, after) = memo_hits(0, 1, false, true, false);
+    let (fresh, _, _, _) = memo_hits(0, 1, false, false, false);
+    assert(kept == fresh, 'caste: memo = no memo');
+    assert(key != after, 'caste: the key changed');
+    let (_, records, _, _) = memo_hits(0, 1, false, true, true);
+    assert(records < rep_content().skills.len(), 'caste: the memo missed');
 }
