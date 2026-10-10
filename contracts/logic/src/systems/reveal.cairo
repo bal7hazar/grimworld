@@ -42,7 +42,7 @@ pub mod RevealLibrary {
             site: Site,
             progress: Progress,
             instance_id: felt252,
-            pieces: Span<(u8, SetPiece, u32)>,
+            pieces: Span<(u8, SetPiece, u64, felt252)>,
         ) -> (Progress, Span<(u8, felt252, felt252)>) {
             let mut progress = progress;
             let revealed = AuthoredTrait::lay(@site, ref progress, instance_id, pieces);

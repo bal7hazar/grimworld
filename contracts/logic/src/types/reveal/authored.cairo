@@ -84,11 +84,13 @@ pub impl AuthoredImpl of AuthoredTrait {
     /// (a quota with something `left` whose host bitmap holds the chunk), each on a walkable tile
     /// of the interior not yet taken (D-140: else not laid, the quota kept owed); its packs to lay,
     /// each hosted Heart then the spawn points, at most 2 (R-15). With `marks`: bits 0–5 the
-    /// object quotas laid; bits `16 + 4 j`, pack `j`'s Heart quota plus one (0: a spawn point).
+    /// object quotas laid (bit `i`, quota `i`); bits `16 (j + 1)` to `16 (j + 1) + 15`, pack `j`'s
+    /// Heart quota's bit (0: a spawn point). And the tiles left to the packs: the interior's floor
+    /// its objects do not take.
     #[inline(never)]
     fn compose(
         site: @Site, left: Span<u8>, chunk: u8, record: @ZoneChunk, hosts: Span<felt252>,
-    ) -> (SetPiece, u32) {
+    ) -> (SetPiece, u64, felt252) {
         let walls = *record.walls;
         let mut free = BoardTrait::minus(INTERIOR, walls);
         let mut objects: Array<Object> = array![];
@@ -99,7 +101,7 @@ pub impl AuthoredImpl of AuthoredTrait {
             }
         }
         let mut packs: Array<SetPack> = array![];
-        let mut marks: u32 = 0;
+        let mut marks: u64 = 0;
         let mut i: u8 = 0;
         while i != QUOTAS {
             let index: u32 = i.into();
@@ -108,12 +110,13 @@ pub impl AuthoredImpl of AuthoredTrait {
                 let tile = record.tile(i);
                 if entry.kind == quota::HEART {
                     if packs.len() < 2 {
-                        let shift: u32 = if packs.len() == 0 {
+                        let shift: u64 = if packs.len() == 0 {
                             0x10000
                         } else {
-                            0x100000
+                            0x100000000
                         };
-                        marks += (index + 1) * shift;
+                        let bit: u64 = PlacementTrait::bit(i).into();
+                        marks += bit * shift;
                         packs.append(SetPack { tile, template: entry.param });
                     }
                 } else if objects.len() < 3 && tile < 225 && BoardTrait::has(free, tile) {
@@ -147,39 +150,36 @@ pub impl AuthoredImpl of AuthoredTrait {
             packs: [*packs[0], *packs[1]],
             objects: [*objects[0], *objects[1], *objects[2]],
         };
-        (piece, marks)
+        (piece, marks, free)
     }
 
-    /// Reveals the chunks of `pieces` in order (`(chunk, piece, marks)`, `pieces`), each that is
-    /// revealable now (`RevealTrait::revealable`: inside the zone's chunk set, not yet revealed),
+    /// Reveals the chunks of `pieces` in order (`(chunk, piece, marks, free)`, `pieces`), each that
+    /// is revealable now (`RevealTrait::revealable`: inside the zone's chunk set, not yet revealed),
     /// and records it in `progress`: the terrain copied (no edge: a zone), the objects as composed,
-    /// then the packs, the chunk's level drawn first from its own word, each Heart at the band's
-    /// top (D-208), each spawn point at that level (`RevealLibrary`).
+    /// then the packs on the tiles left `free`, the chunk's level drawn first from its own word,
+    /// each Heart at the band's top (D-208), each spawn point at that level (`RevealLibrary`).
     #[inline(never)]
     fn lay(
-        site: @Site, ref progress: Progress, instance_id: felt252, pieces: Span<(u8, SetPiece, u32)>,
+        site: @Site,
+        ref progress: Progress,
+        instance_id: felt252,
+        pieces: Span<(u8, SetPiece, u64, felt252)>,
     ) -> Array<Revealed> {
         let mut out: Array<Revealed> = array![];
         for entry in pieces {
-            let (chunk, piece, marks) = *entry;
+            let (chunk, piece, marks, free) = *entry;
             if !RevealTrait::revealable(site, @progress, array![].span(), chunk) {
                 continue;
             }
+            let (hearts, placed) = DivRem::div_rem(marks, 0x10000);
             let mut placement = Placement {
                 packs: array![],
                 objects: array![],
-                allowed: BoardTrait::minus(INTERIOR, piece.walls),
-                placed: (marks % 0x10000).try_into().unwrap(),
+                allowed: free,
+                placed: placed.try_into().unwrap(),
                 odd: (chunk / 15) % 2 == 1,
                 level: 0,
             };
-            for item in piece.objects.span() {
-                if *item.kind != 0 {
-                    placement.objects.append(*item);
-                    placement
-                        .allowed = BoardTrait::minus(placement.allowed, BoardTrait::pow(*item.tile));
-                }
-            }
             let mut rng: Rng = RngTrait::new(
                 EntropyTrait::spawns(progress.entropy, instance_id, chunk),
             );
@@ -190,22 +190,22 @@ pub impl AuthoredImpl of AuthoredTrait {
             } else {
                 low
             };
-            let mut heart = marks / 0x10000;
+            let mut hearts = hearts;
             for pack in piece.packs.span() {
-                let (rest, q) = DivRem::div_rem(heart, 0x10);
-                heart = rest;
+                let (rest, bit) = DivRem::div_rem(hearts, 0x10000);
+                hearts = rest;
                 if *pack.template != 0 {
-                    placement.level = if q != 0 {
+                    placement.level = if bit != 0 {
                         high
                     } else {
                         level
                     };
-                    if placement.pack(ref rng, site, *pack.template, Some(*pack.tile)) && q != 0 {
-                        placement.placed += PlacementTrait::bit((q - 1).try_into().unwrap());
+                    if placement.pack(ref rng, site, *pack.template, Some(*pack.tile)) {
+                        placement.placed += bit.try_into().unwrap();
                     }
                 }
             }
-            let features = RevealTrait::features(placement.packs.span(), placement.objects.span());
+            let features = RevealTrait::features(placement.packs.span(), piece.objects.span());
             progress.left = PlacementTrait::spend(progress.left, placement.placed);
             progress.revealed += BoardTrait::pow(chunk);
             progress.count += 1;
@@ -229,8 +229,8 @@ pub impl AuthoredImpl of AuthoredTrait {
         Self::lay(site, ref progress, instance_id, pieces)
     }
 
-    /// One piece a chunk of `chunks`, in order: its record composed (`compose`), or all wall for a
-    /// chunk without one (the content pipeline writes every chunk, ENG-01 §3.5).
+    /// One piece a chunk of `chunks`, in order: its record composed (`compose`), or all wall, no tile
+    /// free, for a chunk without one (the content pipeline writes every chunk, ENG-01 §3.5).
     #[inline(never)]
     fn pieces(
         site: @Site,
@@ -238,22 +238,24 @@ pub impl AuthoredImpl of AuthoredTrait {
         records: Span<(u8, ZoneChunk)>,
         hosts: Span<felt252>,
         chunks: Span<u8>,
-    ) -> Span<(u8, SetPiece, u32)> {
-        let mut out: Array<(u8, SetPiece, u32)> = array![];
+    ) -> Span<(u8, SetPiece, u64, felt252)> {
+        let mut out: Array<(u8, SetPiece, u64, felt252)> = array![];
         for chunk in chunks {
             let mut piece = SetPiece {
                 walls: BOARD, packs: [Default::default(); 2], objects: [Default::default(); 3],
             };
-            let mut marks: u32 = 0;
+            let mut marks: u64 = 0;
+            let mut free: felt252 = 0;
             for entry in records {
                 let (at, record) = *entry;
                 if at == *chunk {
-                    let (composed, laid) = Self::compose(site, left, at, @record, hosts);
+                    let (composed, laid, left_free) = Self::compose(site, left, at, @record, hosts);
                     piece = composed;
                     marks = laid;
+                    free = left_free;
                 }
             }
-            out.append((*chunk, piece, marks));
+            out.append((*chunk, piece, marks, free));
         }
         out.span()
     }

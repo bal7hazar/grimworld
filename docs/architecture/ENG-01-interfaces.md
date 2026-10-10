@@ -64,7 +64,7 @@ address in `Hub` and `Instances` (`set_contracts`), not the game's code.
 | `Market` → `Hub` | `seller`, `escrow`, `release`, `transfer_gold`, `exchange` | caller = the registered `market` |
 | player → `Market` | lots and trades | through `Hub.seller(adventurer, caller)`: the caller owns the adventurer's account; Tin rank to sell (design/16) |
 | anyone → `Market.return_lot` | an expired lot | nothing beyond expiry (design/16: "the seller, or anyone") |
-| administrator → every contract | `set_contracts`, `set_admin`, `upgrade`, `Registry.set_record` | caller = `admin` (who holds it: Q-08) |
+| administrator → every contract | `set_contracts`, `set_admin`, `upgrade`, `Registry.set_record`, `Registry.set_zone_checks` (ENG-09) | caller = `admin` (who holds it: Q-08) |
 | anyone → `TxHashFate.fate` | | none needed (no state); refuses chain id `SN_MAIN` at deployment and at every call (tested) |
 | anyone → views | | none |
 
@@ -1001,7 +1001,14 @@ location has (`QUOTAS`' bounds, the chunk set's R-11 and R-12, the entry's R-26,
 R-25 where its anchor chunk holds a `ZONE_CHUNK`) bind a zone with the marker, and the `LOCATION` write
 that sets it re-runs R-11, R-26, R-37 and the quotas' bounds: the converter writes the marker first.
 `Registry` keeps `heart_packs` (how many Heart quotas of authored zones name each `PACK` template, as
-`caste_skills`) for R-27's reverse check. A chunk of the set with no `ZONE_CHUNK` is the content
+`caste_skills`) for R-27's reverse check. **The checks run in `ZoneChecks`**
+(`contracts/persistent/src/systems/zone.cairo`), `Registry`'s library class, by `library_call` in
+`Registry`'s context (it reads `records` and writes `heart_packs` under the same names): built into
+`Registry` they took it to 62.94 % of the CASM limit, over §1.3's 50 %. Its class hash is the
+administrator's configuration, **`IRegistryAdmin.set_zone_checks(class_hash)`** (a new entrypoint of a
+frozen interface, ENG-09; administrator only, never 0; storage `zone_checks`, one slot): until it is
+set, an authored zone's own records and a `LOCATION` with the marker are refused (`registry: no zone
+checks`), and the other kinds' shared rules are skipped, no authored zone existing yet. A chunk of the set with no `ZONE_CHUNK` is the content
 pipeline's (every chunk written), and the reveal reveals it as wall.
 
 **The writer's checks of authored map records** (deliverable 2; `RegistryAssert::assert_content`,
