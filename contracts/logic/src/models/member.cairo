@@ -1470,6 +1470,7 @@ mod tests {
     // CBT-05d: `reload` is `load` on the words a carrier returns: the hot fields changed (a hit
     // taken, an activation), and the effects word changed (a held effect, `load` again).
     #[test]
+    #[available_gas(l2_gas: 7349318)] // ceil(1.05 × 6999350 measured)
     fn test_member_reload_is_load() {
         let content = Fixture::hold_content();
         let (sheets, mut index) = content.index();
