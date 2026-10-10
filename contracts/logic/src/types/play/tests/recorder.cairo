@@ -49,8 +49,7 @@ pub fn read(key: felt252) -> felt252 {
 }
 
 pub fn write(key: felt252, value: felt252) {
-    storage_write_syscall(0, address(key), value)
-        .unwrap_syscall();
+    storage_write_syscall(0, address(key), value).unwrap_syscall();
 }
 
 pub fn real(key: felt252) -> ClassHash {
@@ -109,7 +108,9 @@ pub fn calls() -> Array<felt252> {
 
 #[starknet::contract]
 pub mod TickRecorder {
-    use crate::interface::{ITickLibrary, ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher};
+    use crate::interface::{
+        ITickLibrary, ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher,
+    };
     use crate::models::chunk::Features;
     use crate::types::executor::Board;
     use crate::types::play::Classes;
@@ -199,7 +200,9 @@ pub mod ActionRecorder {
 
 #[starknet::contract]
 pub mod TrapRecorder {
-    use crate::interface::{ITrapLibrary, ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
+    use crate::interface::{
+        ITrapLibrary, ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher,
+    };
     use crate::models::chunk::Features;
     use crate::types::executor::Board;
     use crate::types::tick::Content;
