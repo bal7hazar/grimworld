@@ -295,8 +295,8 @@ fn test_heart_index_follows_the_marker() {
 
 // --- The authored reveal on the real path: `HostsLibrary` reading `Registry` ---------------------
 
-fn hosts_library() -> ClassHash {
-    *declare("HostsLibrary").unwrap().contract_class().class_hash
+fn class(name: ByteArray) -> ClassHash {
+    *declare(name).unwrap().contract_class().class_hash
 }
 
 /// The words of `chunk` among `words`.
@@ -319,15 +319,15 @@ fn words_of(words: Span<(u8, felt252, felt252)>, chunk: u8) -> (felt252, felt252
 #[available_gas(l2_gas: 4000000000)]
 fn test_authored_reveal_through_hosts_library() {
     let r = ZoneFixture::deploy();
-    let class = hosts_library();
-    let library = IHostsLibraryLibraryDispatcher { class_hash: class };
+    let reveal = class("RevealLibrary");
+    let library = IHostsLibraryLibraryDispatcher { class_hash: class("HostsLibrary") };
     let location = r.location();
     let mut entropy: felt252 = 0x5eed;
     for _ in 0..3_u8 {
         let (progress, entered, hosts, outline) = library
             .enter(
                 r.address,
-                class,
+                reveal,
                 ZONE.try_into().unwrap(),
                 location,
                 location.entry_chunk,
@@ -344,12 +344,12 @@ fn test_authored_reveal_through_hosts_library() {
         let back = array![16, 15, 2, 1].span();
         let (a, wa) = library
             .reveal(
-                r.address, class, ZONE.try_into().unwrap(), location, location.entry_chunk,
+                r.address, reveal, ZONE.try_into().unwrap(), location, location.entry_chunk,
                 location.entry_tile, array![].span(), hosts, None, progress, 7, array![].span(), rest,
             );
         let (b, wb) = library
             .reveal(
-                r.address, class, ZONE.try_into().unwrap(), location, location.entry_chunk,
+                r.address, reveal, ZONE.try_into().unwrap(), location, location.entry_chunk,
                 location.entry_tile, array![].span(), hosts, None, progress, 7, array![].span(), back,
             );
         assert(a == b && a.count == 5 && a.revealed == r.chunk_set(), 'progress');

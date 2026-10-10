@@ -342,6 +342,19 @@ pub trait IRevealLibrary<T> {
         known: Span<(u8, Terrain)>,
         chunks: Span<u8>,
     ) -> (Progress, Span<(u8, felt252, felt252)>);
+    /// Reveals `chunks` of an authored zone (ENG-09, D-214, D-215; `types::reveal::authored`): each
+    /// revealable one copied from its record in `records` (`ZONE_CHUNK`s, a chunk without one all
+    /// wall), its quotas laid on `hosts` (one bitmap a quota, drawn at `create`), its spawn points'
+    /// level and count drawn from the chunk's own word. `HostsLibrary` reads the site and calls it.
+    fn authored(
+        self: @T,
+        site: Site,
+        progress: Progress,
+        instance_id: felt252,
+        records: Span<(u8, crate::models::zone_chunk::ZoneChunk)>,
+        hosts: Span<felt252>,
+        chunks: Span<u8>,
+    ) -> (Progress, Span<(u8, felt252, felt252)>);
 }
 
 /// The executor as its own library class (CBT-05a, route (c)): one call a carrier, the words of the

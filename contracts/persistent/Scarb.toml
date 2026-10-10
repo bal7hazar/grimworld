@@ -24,6 +24,7 @@ casm = true
 build-external-contracts = [
     "grimworld_logic::systems::flatten::FlattenLibrary",
     "grimworld_logic::systems::hosts::HostsLibrary",
+    "grimworld_logic::systems::reveal::RevealLibrary",
 ]
 
 [scripts]

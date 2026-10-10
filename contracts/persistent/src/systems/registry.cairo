@@ -108,7 +108,7 @@ pub mod Registry {
     use grimworld_logic::models::zone_chunk::{
         ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait, errors as chunk_errors,
     };
-    use grimworld_logic::packing::{Counter, LIVE_HIGH};
+    use grimworld_logic::packing::{Counter, LIVE, LIVE_HIGH, split};
     use grimworld_logic::types::reveal::board::BoardTrait;
     use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};
@@ -388,6 +388,28 @@ pub mod Registry {
     }
 
 
+    /// What a zone's checks read of a `LOCATION`, from its part 0 alone (ENG-01 §3.5's bits):
+    /// whether it exists, whether it is an authored zone (no `N`, the marker set), its rectangle
+    /// and its entry.
+    #[derive(Copy, Drop)]
+    pub struct Frame {
+        pub exists: bool,
+        pub authored: bool,
+        pub width: u8,
+        pub height: u8,
+        pub entry_chunk: u8,
+        pub entry_tile: u8,
+    }
+
+    /// What a zone's checks read of a `ZONE_CHUNK` but its placements: its plane, its bridges'
+    /// count and the gates it names.
+    #[derive(Copy, Drop)]
+    pub struct Brief {
+        pub walls: felt252,
+        pub bridges: u8,
+        pub gates: (u16, u16),
+    }
+
     /// The content's checks of an authored zone's records (ENG-01 §3.5's R-table; ENG-08's
     /// format, built by ENG-09; the same cases as `tools/map-format/checks.json`, which the
     /// converter and the editor refuse with the same codes). **Every rule between two records is
@@ -397,10 +419,11 @@ pub mod Registry {
     /// `ZONE_CHUNK` and its `BRIDGE`s, the `GATE`s) only makes each write find what it checks
     /// against. The records of an authored zone's own kinds (`ZONE_CHUNK`, `CANDIDATES`, `BRIDGE`)
     /// are checked whatever the marker; the rules on kinds every location has (`QUOTAS`' bounds,
-    /// the chunk set's R-11, the entry's R-26) bind a zone with the marker, and the `LOCATION`
-    /// write that sets it re-runs them (ENG-R1c applies the shared bounds to generated zones).
-    /// The administrator pays them once; no player's call makes them again. Each read goes
-    /// through the store; nothing is written.
+    /// the chunk set's R-11 and R-12, the entry's R-26) bind a zone with the marker, and the
+    /// `LOCATION` write that sets it re-runs them (ENG-R1c applies the shared bounds to generated
+    /// zones). The administrator pays them once; no player's call makes them again. Each read goes
+    /// through the store, only the parts a rule needs, decoded only as far as it needs (the class's
+    /// size, D-200); nothing is written.
     #[generate_trait]
     pub impl ZoneAssert of ZoneAssertTrait {
         /// A record's parts as stored (zeros for none).
@@ -410,50 +433,68 @@ pub mod Registry {
             out.span()
         }
 
-        /// The location `id`, when it is an authored zone (a zone with the marker).
-        fn authored(self: @ContractState, id: u32) -> Option<Location> {
-            let record = self.parts_of(LOCATION, id);
-            if *record[0] == 0 {
-                return None;
-            }
-            let location = LocationRecord::unpack(record);
-            if location.target == 0 && location.authored() {
-                Some(location)
-            } else {
-                None
+        /// A record's part 0 (0 for none).
+        fn part0(self: @ContractState, kind: u8, id: u32) -> felt252 {
+            let mut out = array![];
+            self.read_into(kind, id, 1, ref out);
+            *out[0]
+        }
+
+        /// The frame of location `id` (`Frame`).
+        fn frame(self: @ContractState, id: u32) -> Frame {
+            let part = self.part0(LOCATION, id);
+            let (low, high) = split(part);
+            let s8: NonZero<u128> = 0x100;
+            // width 56–63, height 64–71, `N` 72–79
+            let (rest, width) = DivRem::div_rem(low / 0x100000000000000, s8);
+            let (rest, height) = DivRem::div_rem(rest, s8);
+            let (_, target) = DivRem::div_rem(rest, s8);
+            let (rest, entry_chunk) = DivRem::div_rem(high, s8);
+            let (rest, entry_tile) = DivRem::div_rem(rest, s8);
+            let (_, marker) = DivRem::div_rem(rest, s8);
+            Frame {
+                exists: part != 0,
+                authored: part != 0 && target == 0 && marker == map::AUTHORED.into(),
+                width: width.try_into().unwrap(),
+                height: height.try_into().unwrap(),
+                entry_chunk: entry_chunk.try_into().unwrap(),
+                entry_tile: entry_tile.try_into().unwrap(),
             }
         }
 
         /// The zone's chunk set as the reveal reads it: its `OUTLINE`, or the whole rectangle
         /// without one.
-        fn chunk_set(self: @ContractState, location: u32, width: u8, height: u8) -> felt252 {
-            let record = self.parts_of(OUTLINE, location * 256 + CHUNK_SET.into());
-            if *record[0] == 0 {
-                OutlineTrait::rectangle(width, height)
+        fn chunk_set(self: @ContractState, location: u32, frame: @Frame) -> felt252 {
+            let part = self.part0(OUTLINE, location * 256 + CHUNK_SET.into());
+            if part == 0 {
+                OutlineTrait::rectangle(*frame.width, *frame.height)
             } else {
-                OutlineRecord::unpack(record).bits()
+                part - LIVE
             }
         }
 
         /// The six quotas' candidate sets (0 where no `CANDIDATES` part holds them).
         fn candidates(self: @ContractState, location: u32) -> Span<felt252> {
-            let [c0, c1, c2] = CandidatesRecord::unpack(
-                self.parts_of(CANDIDATES, location * 2),
-            )
-                .sets;
-            let [c3, c4, c5] = CandidatesRecord::unpack(
-                self.parts_of(CANDIDATES, location * 2 + 1),
-            )
-                .sets;
-            array![c0, c1, c2, c3, c4, c5].span()
+            let mut out = array![];
+            self.read_into(CANDIDATES, location * 2, 3, ref out);
+            self.read_into(CANDIDATES, location * 2 + 1, 3, ref out);
+            let mut sets: Array<felt252> = array![];
+            for part in out.span() {
+                sets.append(if *part == 0 {
+                    0
+                } else {
+                    *part - LIVE
+                });
+            }
+            sets.span()
         }
 
         fn quotas(self: @ContractState, location: u32) -> Option<QuotaSet> {
-            let record = self.parts_of(QUOTAS, location);
-            if *record[0] == 0 {
+            let part = self.part0(QUOTAS, location);
+            if part == 0 {
                 None
             } else {
-                Some(QuotaSetRecord::unpack(record))
+                Some(QuotaSetRecord::unpack(array![part].span()))
             }
         }
 
@@ -466,13 +507,48 @@ pub mod Registry {
             }
         }
 
-        fn bridge(self: @ContractState, location: u32, chunk: u8, k: u8) -> Option<Bridge> {
-            let record = self.parts_of(BRIDGE, location * 4096 + chunk.into() * 16 + k.into());
+        /// A `ZONE_CHUNK`'s `Brief` (part 1's high limb: the bridges' count at 208, the gates at
+        /// 212 and 228).
+        fn brief(self: @ContractState, location: u32, chunk: u8) -> Option<Brief> {
+            let record = self.parts_of(ZONE_CHUNK, location * 256 + chunk.into());
             if *record[0] == 0 {
+                return None;
+            }
+            let (_, high) = split(*record[1]);
+            let rest = high / 0x100000000000000000000;
+            let (rest, bridges) = DivRem::div_rem(rest, 0x10);
+            let (rest, g0) = DivRem::div_rem(rest, 0x10000);
+            let (_, g1) = DivRem::div_rem(rest, 0x10000);
+            Some(
+                Brief {
+                    walls: *record[0] - LIVE,
+                    bridges: bridges.try_into().unwrap(),
+                    gates: (g0.try_into().unwrap(), g1.try_into().unwrap()),
+                },
+            )
+        }
+
+        fn bridge(self: @ContractState, location: u32, chunk: u8, k: u8) -> Option<Bridge> {
+            let part = self.part0(BRIDGE, location * 4096 + chunk.into() * 16 + k.into());
+            if part == 0 {
                 None
             } else {
-                Some(BridgeRecord::unpack(record))
+                Some(BridgeRecord::unpack(array![part].span()))
             }
+        }
+
+        /// A `GATE`'s source and anchor (`(source, anchor chunk, anchor tile)`, part 0's low bits),
+        /// if it exists.
+        fn anchor(self: @ContractState, gate: u16) -> Option<(u32, u8, u8)> {
+            let part = self.part0(GATE, gate.into());
+            if part == 0 {
+                return None;
+            }
+            let (low, _) = split(part);
+            let (rest, source) = DivRem::div_rem(low, 0x10000);
+            let (rest, chunk) = DivRem::div_rem(rest / 0x10000, 0x100);
+            let (_, tile) = DivRem::div_rem(rest, 0x100);
+            Some((source.try_into().unwrap(), chunk.try_into().unwrap(), tile.try_into().unwrap()))
         }
 
         /// R-12, R-13, R-27, R-29 and R-30 (`QuotaBoundsAssert::assert_bounds`) of an authored
@@ -484,9 +560,9 @@ pub mod Registry {
             for entry in quotas.quotas.span() {
                 let mut pack = None;
                 if *entry.kind == quota_kind::HEART {
-                    let record = self.parts_of(PACK, (*entry.param).into());
-                    if *record[0] != 0 {
-                        pack = Some(PackRecord::unpack(record));
+                    let part = self.part0(PACK, (*entry.param).into());
+                    if part != 0 {
+                        pack = Some(PackRecord::unpack(array![part].span()));
                     }
                 }
                 hearts.append(pack);
@@ -494,40 +570,35 @@ pub mod Registry {
             quotas.assert_bounds(BoardTrait::count(members), Some(candidates), hearts.span());
         }
 
+        /// R-37 at chunk `chunk`: none of `tiles` on any of its `count` bridges.
+        fn assert_clear(self: @ContractState, location: u32, chunk: u8, count: u8, tiles: felt252) {
+            for k in 0..count {
+                if let Some(bridge) = self.bridge(location, chunk, k) {
+                    bridge.assert_clear(tiles);
+                }
+            }
+        }
+
         /// The tiles of chunk `chunk` that bear authored content besides its own placements: the
         /// anchors of the gates it names that anchor there, and the entry when it is the entry
-        /// chunk (R-37).
-        fn anchors(
-            self: @ContractState, location: u32, chunk: u8, record: @ZoneChunk, entry: Option<u8>,
-        ) -> felt252 {
-            let mut tiles: felt252 = match entry {
-                Some(tile) => BoardTrait::pow(tile),
-                None => 0,
-            };
-            for gate in record.gates.span() {
+        /// chunk of an authored zone (R-37).
+        fn anchors(self: @ContractState, location: u32, chunk: u8, gates: (u16, u16)) -> felt252 {
+            let frame = self.frame(location);
+            let mut tiles: felt252 = 0;
+            if frame.authored && frame.entry_chunk == chunk {
+                tiles = BoardTrait::pow(frame.entry_tile);
+            }
+            let (g0, g1) = gates;
+            for gate in array![g0, g1].span() {
                 if *gate != 0 {
-                    let parts = self.parts_of(GATE, (*gate).into());
-                    if *parts[0] != 0 {
-                        let value = GateRecord::unpack(parts);
-                        if value.source.into() == location && value.anchor_chunk == chunk {
-                            tiles = BoardTrait::or(tiles, BoardTrait::pow(value.anchor_tile));
+                    if let Some((source, at, tile)) = self.anchor(*gate) {
+                        if source == location && at == chunk {
+                            tiles = BoardTrait::or(tiles, BoardTrait::pow(tile));
                         }
                     }
                 }
             }
             tiles
-        }
-
-        /// The entry tile when `chunk` is an authored zone's entry chunk.
-        fn entry(self: @ContractState, location: u32, chunk: u8) -> Option<u8> {
-            match self.authored(location) {
-                Some(zone) => if zone.entry_chunk == chunk {
-                    Some(zone.entry_tile)
-                } else {
-                    None
-                },
-                None => None,
-            }
         }
 
         /// A `LOCATION` write that leaves or makes it an authored zone: R-11 against its stored
@@ -537,63 +608,56 @@ pub mod Registry {
             if *location.target != 0 || !location.authored() {
                 return;
             }
-            let set = self.parts_of(OUTLINE, id * 256 + CHUNK_SET.into());
-            if *set[0] != 0 {
-                OutlineAssert::assert_within(
-                    OutlineRecord::unpack(set).bits(), *location.width, *location.height,
-                );
+            let set = self.part0(OUTLINE, id * 256 + CHUNK_SET.into());
+            if set != 0 {
+                OutlineAssert::assert_within(set - LIVE, *location.width, *location.height);
             }
             let chunk = *location.entry_chunk;
-            if let Some(record) = self.zone_chunk(id, chunk) {
-                record.assert_entry(*location.entry_tile);
-                let tile = BoardTrait::pow(*location.entry_tile);
-                for k in 0..record.bridges {
-                    if let Some(bridge) = self.bridge(id, chunk, k) {
-                        bridge.assert_clear(tile);
-                    }
-                }
+            let tile = *location.entry_tile;
+            if let Some(brief) = self.brief(id, chunk) {
+                assert(tile < 225 && !BoardTrait::has(brief.walls, tile), chunk_errors::ENTRY);
+                self.assert_clear(id, chunk, brief.bridges, BoardTrait::pow(tile));
             }
             if let Some(quotas) = self.quotas(id) {
-                let members = self.chunk_set(id, *location.width, *location.height);
+                let members = if set == 0 {
+                    OutlineTrait::rectangle(*location.width, *location.height)
+                } else {
+                    set - LIVE
+                };
                 self.assert_bounds(@quotas, members, self.candidates(id));
             }
         }
 
-        /// An `OUTLINE` write. The chunk set (an authored zone's): R-11 within the rectangle, R-12
-        /// and R-30 against `QUOTAS` (its members); whatever the marker, R-31 against both
-        /// `CANDIDATES` and R-24 against every chunk it drops (none may hold a `ZONE_CHUNK`). A
+        /// An `OUTLINE` write. The chunk set: whatever the marker, R-31 against both `CANDIDATES`
+        /// and R-24 against every chunk it drops (none may hold a `ZONE_CHUNK`); an authored
+        /// zone's, R-11 within the rectangle, R-12 and R-30 against `QUOTAS` (its members). A
         /// border chunk's mask: R-20 against that chunk's `ZONE_CHUNK`.
         fn assert_outline(self: @ContractState, id: u32, bits: felt252) {
             let (location, chunk) = DivRem::div_rem(id, 256);
             if chunk != CHUNK_SET.into() {
                 if chunk < INDEX_BOUND.into() {
-                    let chunk: u8 = chunk.try_into().unwrap();
-                    if let Some(record) = self.zone_chunk(location, chunk) {
-                        ZoneChunkAssert::assert_mask(record.walls, bits);
+                    let walls = self.part0(ZONE_CHUNK, id);
+                    if walls != 0 {
+                        ZoneChunkAssert::assert_mask(walls - LIVE, bits);
                     }
                 }
                 return;
             }
             let candidates = self.candidates(location);
             CandidatesAssert::assert_within(candidates, bits);
-            if let Some(zone) = self.authored(location) {
-                OutlineAssert::assert_within(bits, zone.width, zone.height);
+            let frame = self.frame(location);
+            if frame.authored {
+                OutlineAssert::assert_within(bits, frame.width, frame.height);
                 if let Some(quotas) = self.quotas(location) {
                     self.assert_bounds(@quotas, bits, candidates);
                 }
             }
-            let old = self.parts_of(OUTLINE, id);
-            let before = if *old[0] == 0 {
-                let zone = LocationRecord::unpack(self.parts_of(LOCATION, location));
-                OutlineTrait::rectangle(zone.width, zone.height)
-            } else {
-                OutlineRecord::unpack(old).bits()
-            };
-            let mut dropped = BoardTrait::minus(before, bits);
+            let mut dropped = BoardTrait::minus(self.chunk_set(location, @frame), bits);
             while dropped != 0 {
                 let chunk = BoardTrait::nth(dropped, 0);
                 dropped -= BoardTrait::pow(chunk);
-                assert(self.zone_chunk(location, chunk).is_none(), chunk_errors::NOT_IN_SET);
+                let there = self.part0(ZONE_CHUNK, location * 256 + chunk.into());
+                assert(there == 0, chunk_errors::NOT_IN_SET);
             }
         }
 
@@ -601,16 +665,14 @@ pub mod Registry {
         /// set, `CANDIDATES` and Heart templates; R-15 again on the candidate chunks of every quota
         /// whose kind changed (an object quota counts against 3 objects, a Heart against 2 packs).
         fn assert_quotas(self: @ContractState, id: u32, quotas: @QuotaSet) {
-            let Some(zone) = self.authored(id) else {
+            let frame = self.frame(id);
+            if !frame.authored {
                 return;
-            };
+            }
             let candidates = self.candidates(id);
-            let members = self.chunk_set(id, zone.width, zone.height);
-            self.assert_bounds(quotas, members, candidates);
-            let before: QuotaSet = match self.quotas(id) {
-                Some(stored) => stored,
-                None => QuotaSet { quotas: [Default::default(); 6] },
-            };
+            self.assert_bounds(quotas, self.chunk_set(id, @frame), candidates);
+            let before = self.part0(QUOTAS, id);
+            let before = QuotaSetRecord::unpack(array![before].span());
             let mut changed: felt252 = 0;
             for i in 0..6_u32 {
                 if *before.quotas.span()[i].kind != *quotas.quotas.span()[i].kind {
@@ -643,17 +705,15 @@ pub mod Registry {
         /// again on each chunk whose candidacy changed.
         fn assert_candidates(self: @ContractState, id: u32, sets: [felt252; 3]) {
             let (location, k) = DivRem::div_rem(id, 2);
-            let zone = self.parts_of(LOCATION, location);
-            if *zone[0] == 0 {
+            let frame = self.frame(location);
+            if !frame.exists {
                 return;
             }
-            let zone = LocationRecord::unpack(zone);
             let [s0, s1, s2] = sets;
-            let stored = self.candidates(location);
             let mut candidates: Array<felt252> = array![];
             let mut changed: felt252 = 0;
             let mut i: u32 = 0;
-            for old in stored {
+            for old in self.candidates(location) {
                 let new = if i / 3 != k {
                     *old
                 } else if i % 3 == 0 {
@@ -663,23 +723,19 @@ pub mod Registry {
                 } else {
                     s2
                 };
-                let moved = BoardTrait::minus(BoardTrait::or(*old, new), BoardTrait::and(*old, new));
-                changed = BoardTrait::or(changed, moved);
+                let both = BoardTrait::and(*old, new);
+                changed = BoardTrait::or(changed, BoardTrait::minus(BoardTrait::or(*old, new), both));
                 candidates.append(new);
                 i += 1;
             }
             let candidates = candidates.span();
-            let members = self.chunk_set(location, zone.width, zone.height);
+            let members = self.chunk_set(location, @frame);
             CandidatesAssert::assert_within(array![s0, s1, s2].span(), members);
-            let quotas: QuotaSet = match self.quotas(location) {
-                Some(quotas) => {
-                    if self.authored(location).is_some() {
-                        self.assert_bounds(@quotas, members, candidates);
-                    }
-                    quotas
-                },
-                None => QuotaSet { quotas: [Default::default(); 6] },
-            };
+            let part = self.part0(QUOTAS, location);
+            let quotas = QuotaSetRecord::unpack(array![part].span());
+            if part != 0 && frame.authored {
+                self.assert_bounds(@quotas, members, candidates);
+            }
             self.assert_chunks(location, changed, candidates, @quotas);
         }
 
@@ -690,63 +746,55 @@ pub mod Registry {
         /// `BRIDGE`; R-34 and R-37 again for each of its bridges.
         fn assert_zone_chunk(self: @ContractState, id: u32, record: @ZoneChunk) {
             let (location, chunk) = DivRem::div_rem(id, 256);
-            let zone = self.parts_of(LOCATION, location);
-            if *zone[0] == 0 || chunk >= INDEX_BOUND.into() {
+            let frame = self.frame(location);
+            if !frame.exists || chunk >= INDEX_BOUND.into() {
                 return;
             }
-            let zone = LocationRecord::unpack(zone);
             let chunk: u8 = chunk.try_into().unwrap();
-            let mask = self.parts_of(OUTLINE, id);
-            let mask = if *mask[0] == 0 {
+            let mask = self.part0(OUTLINE, id);
+            let mask = if mask == 0 {
                 0
             } else {
-                OutlineRecord::unpack(mask).bits()
+                mask - LIVE
             };
-            record.assert_outline(chunk, self.chunk_set(location, zone.width, zone.height), mask);
-            let quotas: QuotaSet = match self.quotas(location) {
-                Some(quotas) => quotas,
-                None => QuotaSet { quotas: [Default::default(); 6] },
-            };
+            record.assert_outline(chunk, self.chunk_set(location, @frame), mask);
+            let quotas = QuotaSetRecord::unpack(array![self.part0(QUOTAS, location)].span());
             record.assert_legal(chunk, self.candidates(location), @quotas);
-            let entry = self.entry(location, chunk);
-            if let Some(tile) = entry {
-                record.assert_entry(tile);
+            if frame.authored && frame.entry_chunk == chunk {
+                record.assert_entry(frame.entry_tile);
             }
             // The gates: those it names anchored on its floor, none it drops anchored here
             for gate in record.gates.span() {
                 if *gate != 0 {
-                    let parts = self.parts_of(GATE, (*gate).into());
-                    if *parts[0] != 0 {
-                        let value = GateRecord::unpack(parts);
-                        if value.source.into() == location && value.anchor_chunk == chunk {
-                            record.assert_gate(*gate, value.anchor_tile);
+                    if let Some((source, at, tile)) = self.anchor(*gate) {
+                        if source == location && at == chunk {
+                            record.assert_gate(*gate, tile);
                         }
                     }
                 }
             }
-            let (dropped, count): ([u16; 2], u8) = match self.zone_chunk(location, chunk) {
-                Some(old) => (old.gates, old.bridges),
-                None => ([0, 0], 0),
+            let (count, g0, g1) = match self.brief(location, chunk) {
+                Some(old) => {
+                    let (g0, g1) = old.gates;
+                    (old.bridges, g0, g1)
+                },
+                None => (0, 0, 0),
             };
-            for gate in dropped.span() {
+            for gate in array![g0, g1].span() {
                 if *gate != 0 && !record.names(*gate) {
-                    let parts = self.parts_of(GATE, (*gate).into());
-                    if *parts[0] != 0 {
-                        let value = GateRecord::unpack(parts);
-                        assert(
-                            value.source.into() != location || value.anchor_chunk != chunk,
-                            chunk_errors::GATE_INDEX,
-                        );
+                    if let Some((source, at, _)) = self.anchor(*gate) {
+                        assert(source != location || at != chunk, chunk_errors::GATE_INDEX);
                     }
                 }
             }
             // The bridges: none past the new count, each below it still on floor and clear
             let mut k = *record.bridges;
             while k < count {
-                assert(self.bridge(location, chunk, k).is_none(), bridge_errors::INDEX);
+                assert(self.part0(BRIDGE, id * 16 + k.into()) == 0, bridge_errors::INDEX);
                 k += 1;
             }
-            let anchors = self.anchors(location, chunk, record, entry);
+            let [n0, n1] = *record.gates;
+            let anchors = self.anchors(location, chunk, (n0, n1));
             let odd = (chunk / 15) % 2 == 1;
             for k in 0..*record.bridges {
                 if let Some(bridge) = self.bridge(location, chunk, k) {
@@ -767,13 +815,12 @@ pub mod Registry {
                 return;
             }
             let chunk: u8 = chunk.try_into().unwrap();
-            let k: u8 = k.try_into().unwrap();
             let Some(record) = self.zone_chunk(location, chunk) else {
                 core::panic_with_felt252(bridge_errors::INDEX)
             };
-            bridge.assert_on(k, @record, (chunk / 15) % 2 == 1);
-            let entry = self.entry(location, chunk);
-            bridge.assert_clear(self.anchors(location, chunk, @record, entry));
+            bridge.assert_on(k.try_into().unwrap(), @record, (chunk / 15) % 2 == 1);
+            let [g0, g1] = record.gates;
+            bridge.assert_clear(self.anchors(location, chunk, (g0, g1)));
         }
 
         /// A `GATE` write anchored in a chunk that holds a `ZONE_CHUNK`: R-18 (the anchor
@@ -781,16 +828,15 @@ pub mod Registry {
         fn assert_gate(self: @ContractState, id: u32, record: Span<felt252>) {
             let gate = GateRecord::unpack(record);
             let location: u32 = gate.source.into();
-            let Some(chunk) = self.zone_chunk(location, gate.anchor_chunk) else {
+            let Some(brief) = self.brief(location, gate.anchor_chunk) else {
                 return;
             };
-            chunk.assert_gate(id.try_into().unwrap(), gate.anchor_tile);
-            let tile = BoardTrait::pow(gate.anchor_tile);
-            for k in 0..chunk.bridges {
-                if let Some(bridge) = self.bridge(location, gate.anchor_chunk, k) {
-                    bridge.assert_clear(tile);
-                }
-            }
+            let tile = gate.anchor_tile;
+            assert(tile < 225 && !BoardTrait::has(brief.walls, tile), chunk_errors::GATE_ANCHOR);
+            let (g0, g1) = brief.gates;
+            let id: u16 = id.try_into().unwrap();
+            assert(g0 == id || g1 == id, chunk_errors::GATE_INDEX);
+            self.assert_clear(location, gate.anchor_chunk, brief.bridges, BoardTrait::pow(tile));
         }
     }
 
@@ -836,12 +882,12 @@ pub mod Registry {
         /// `name_skills` does for DS-18 (R-27's reverse check, ENG-09).
         fn name_hearts(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
             let (old, new) = if kind == QUOTAS {
-                if !self.authored(id).is_some() {
+                if !self.frame(id).authored {
                     return;
                 }
                 (self.quotas(id), Some(QuotaSetRecord::unpack(record)))
             } else if kind == LOCATION {
-                let was = self.authored(id).is_some();
+                let was = self.frame(id).authored;
                 let new = LocationRecord::unpack(record);
                 let now = new.target == 0 && new.authored();
                 if was == now {

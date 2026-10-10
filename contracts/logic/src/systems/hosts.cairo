@@ -23,13 +23,14 @@
 //! D-215, ENG-09) is revealed here, not by `RevealLibrary`: its site (`authored_site`) reads the
 //! `ZONE_CHUNK` records of the chunks to reveal and, at `enter`, its `CANDIDATES`; its quotas'
 //! hosts are drawn once at `enter` among the candidates (`AuthoredTrait::hosts`, counter 226) and
-//! stored by `Instances` as a generated zone's are; each chunk's plane is copied and its draws
-//! keyed by the chunk (`AuthoredTrait::reveal`). The generated path, `RevealLibrary` and its
-//! vectors, is unchanged: the fallback of every zone without the marker (D-215 ruling 7).
+//! stored by `Instances` as a generated zone's are; then `RevealLibrary`'s second entrypoint,
+//! `authored`, copies each chunk's plane and draws what is keyed by the chunk
+//! (`AuthoredTrait::reveal`; the placement code is `RevealLibrary`'s already). The generated path,
+//! `RevealLibrary::reveal` and its vectors, is unchanged: the fallback of every zone without the
+//! marker (D-215 ruling 7).
 
 #[starknet::contract]
 pub mod HostsLibrary {
-    use starknet::storage_access::StorePacking;
     use starknet::{ClassHash, ContractAddress};
     use crate::content::{
         CANDIDATES, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, ZONE_CHUNK, exists,
@@ -40,7 +41,7 @@ pub mod HostsLibrary {
         IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher,
     };
     use crate::models::candidates::{CandidatesRecord, CandidatesTrait};
-    use crate::models::chunk::{Features, FeaturesStorePacking, Terrain, TerrainStorePacking};
+    use crate::models::chunk::Terrain;
     use crate::models::location::{Location, LocationTrait};
     use crate::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait as RecordOutlineTrait};
     use crate::models::pack::{Pack, PackRecord};
@@ -52,7 +53,7 @@ pub mod HostsLibrary {
     use crate::types::reveal::authored::AuthoredTrait;
     use crate::types::reveal::outline::{Outline, OutlineTrait};
     use crate::types::reveal::placement::PlacementTrait;
-    use crate::types::reveal::{Progress, ProgressTrait, Revealed, Site};
+    use crate::types::reveal::{Progress, ProgressTrait, Site};
     /// Tasks whose quotas a reveal places (ENG-01 §3.2: the location's 6, then 8).
     const TASK_QUOTAS: u32 = 8;
 
@@ -128,15 +129,14 @@ pub mod HostsLibrary {
                 let (site, records, candidates) = authored_site(
                     registry, destination, location, entry_chunk, chunks, true,
                 );
-                let mut progress = ProgressTrait::new(@site, entropy);
+                let progress = ProgressTrait::new(@site, entropy);
                 let hosts = AuthoredTrait::hosts(
                     @site.quotas, candidates, EntropyTrait::authored_hosts(entropy, instance_id),
                 )
                     .span();
-                let revealed = AuthoredTrait::reveal(
-                    @site, ref progress, instance_id, records, hosts, chunks,
-                );
-                return (progress, words(revealed), hosts, None);
+                let (progress, revealed) = IRevealLibraryLibraryDispatcher { class_hash: reveal }
+                    .authored(site, progress, instance_id, records, hosts, chunks);
+                return (progress, revealed, hosts, None);
             }
             let mut site = site(
                 registry, destination, location, entry_chunk, entry_tile, tasks, chunks,
@@ -204,11 +204,8 @@ pub mod HostsLibrary {
                 let (site, records, _) = authored_site(
                     registry, destination, location, entry_chunk, chunks, false,
                 );
-                let mut progress = progress;
-                let revealed = AuthoredTrait::reveal(
-                    @site, ref progress, instance_id, records, hosts, chunks,
-                );
-                return (progress, words(revealed));
+                return IRevealLibraryLibraryDispatcher { class_hash: reveal }
+                    .authored(site, progress, instance_id, records, hosts, chunks);
             }
             let mut site = site(
                 registry, destination, location, entry_chunk, entry_tile, tasks, chunks,
@@ -437,22 +434,6 @@ pub mod HostsLibrary {
             pieces: array![].span(),
         };
         (site, records.span(), candidates.span())
-    }
-
-    /// The revealed chunks' two words, packed as `Instances` stores them (`RevealLibrary`'s).
-    fn words(revealed: Array<Revealed>) -> Span<(u8, felt252, felt252)> {
-        let mut out: Array<(u8, felt252, felt252)> = array![];
-        for chunk in revealed {
-            out
-                .append(
-                    (
-                        chunk.chunk,
-                        StorePacking::<Terrain, felt252>::pack(chunk.terrain),
-                        StorePacking::<Features, felt252>::pack(chunk.features),
-                    ),
-                );
-        }
-        out.span()
     }
 
     /// An `OUTLINE` record's bitmap (0 for none).
