@@ -99,6 +99,9 @@ const HUB_FIELDS = ["location", "region"] as const;
 const fdiv = (a: number, b: number) => Math.floor(a / b);
 const fmod = (a: number, b: number) => ((a % b) + b) % b;
 
+/** `Gate.quest: u32`, authored in the export, not named in the manifest. */
+const GATE_QUEST_BITS = 32;
+
 /**
  * The width of a manifest table's ids: the record field each is packed into (a region, a location,
  * a gate, a pack template, a param: 16 bits). A set piece's id is only a record's id.
@@ -115,16 +118,9 @@ export function resolve(manifest: Manifest, table: string, name: unknown, what: 
       `${what} ${JSON.stringify(name)} not in the manifest's ${table}`,
     );
   }
-  // Before any packing (review t-0147): an id its field cannot hold is no registry id. The
+  // Before any packing: an id its field cannot hold is no registry id (E-48 to E-50). The
   // converter packs what it is given; a manifest `readManifest` read never holds one.
-  const id = ids[name]!;
-  if (!Number.isInteger(id) || id < 0 || id >= 2 ** idBits(table)) {
-    throw new R.Refused(
-      "export: unknown name",
-      `${what} ${JSON.stringify(name)}'s id ${id} does not fit ${idBits(table)} bits`,
-    );
-  }
-  return id;
+  return R.assertId(`${what} ${JSON.stringify(name)}`, ids[name], idBits(table));
 }
 
 type G = readonly [number, number];
@@ -378,7 +374,7 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
       entry_tile: gt.entry_tile,
       kind: R.GATE_KINDS[gt.kind],
       rank: gt.rank ?? 0,
-      quest: gt.quest ?? 0,
+      quest: R.assertId(`gate ${JSON.stringify(gt.gate)} quest`, gt.quest ?? 0, GATE_QUEST_BITS),
     });
   }
   const bridges = new Map<number, R.BridgeFields[]>();
