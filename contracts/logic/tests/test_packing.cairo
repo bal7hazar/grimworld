@@ -52,7 +52,7 @@ fn test_identifiers() {
     assert(instance_parts(id) == (7, 3), 'parts');
     assert(goblin_entity(0, 0) == 8, 'first goblin');
     assert(goblin_entity(224, 9) == 8 + 16 * 224 + 9, 'last goblin');
-    assert(parts(2) == 2 && parts(15) == 3 && parts(LAST_KIND) == 1, 'parts per kind');
+    assert(parts(2) == 2 && parts(15) == 3 && parts(25) == 1 && parts(LAST_KIND) == 3, 'parts per kind');
 }
 
 // Fix loop 1: a counter is never 0 in storage (F-4); a high limb that would reach LIVE, or a

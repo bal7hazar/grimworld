@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_bridge_bits_and_round_trip() {
-        let bridge = Bridge { deck: BoardTrait::pow(224) + BoardTrait::pow(3), ends: (2, 0xe0) };
+        let bridge = Bridge { deck: BoardTrait::pow(223) + BoardTrait::pow(3), ends: (2, 0xe0) };
         let parts = bridge.pack();
         let wide: u256 = (*parts[0] - LIVE).into();
         assert(wide.high / 0x2000000000000000000000000 == 2 + 0xe0 * 0x100, 'ends');
