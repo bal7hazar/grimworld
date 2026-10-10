@@ -803,8 +803,8 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "the 16th record cut (the cap exclusive)",
     file: "batch.ts",
-    from: "records > MAX_RECORDS",
-    to: "records >= MAX_RECORDS",
+    from: "BigInt(fresh))) > MAX_RECORDS",
+    to: "BigInt(fresh))) >= MAX_RECORDS",
   },
   {
     name: "a first record weighs nothing more (no +1)",
@@ -815,8 +815,8 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "the invocation's first action is bound too (E-21)",
     file: "batch.ts",
-    from: "if (ran && (records",
-    to: "if ((records",
+    from: "if (ran && (Number(",
+    to: "if ((Number(",
   },
   {
     name: "a Move's owed ticks are not counted with the next action",
@@ -829,6 +829,24 @@ const MUTANTS: readonly Mutant[] = [
     file: "parity/tables.ts",
     from: "revealed(after, Number(chunks!))",
     to: "revealed(small(weight!), Number(chunks!))",
+  },
+  {
+    name: "a reveal weighs 3 a chunk",
+    file: "batch.ts",
+    from: "export const CHUNK_WEIGHT = 2;",
+    to: "export const CHUNK_WEIGHT = 3;",
+  },
+  {
+    name: "a reveal's weight is not floored at 0",
+    file: "batch.ts",
+    from: "return weight > cost ? weight - cost : 0;",
+    to: "return weight - cost;",
+  },
+  {
+    name: "E-1's weight stop dropped from admit",
+    file: "batch.ts",
+    from: "|| total > weight)) {",
+    to: ")) {",
   },
 ];
 

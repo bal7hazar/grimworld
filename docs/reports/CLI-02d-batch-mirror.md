@@ -32,8 +32,8 @@ All 28 cases pass.
 
 ## Mutants
 
-Six mutants were added to `src/parity/mutants.test.ts`, one per rule. The table kills all six; none
-survives.
+Nine mutants were added to `src/parity/mutants.test.ts`, one per rule and three of the mirror's own
+(review of #408). The table kills all nine; none survives.
 
 | Mutant | Killed by |
 |---|---|
@@ -43,9 +43,21 @@ survives.
 | the invocation's first action is bound too (E-21) | id 11 (records) |
 | a Move's owed ticks not counted with the next action | id 14 (owed) |
 | a reveal's weight taken before the Move, not after | id 22 (reveal) |
+| a reveal weighs 3 a chunk | id 22 (reveal) |
+| a reveal's weight not floored at 0 | id 24 (reveal) |
+| E-1's weight stop dropped from `admit` | id 8 (records) |
 
 The last two are mutants of the adapters in `tables.ts`, since the composition they break is the
 Cairo test's, not a contract function.
+
+## Review fixes (t-0160)
+
+- `admit` computes the u32 sum of records only when `ran`, as Cairo's `&&` short-circuits;
+  `admit(0xffffffff, 1, 0, 1, false, 5)` returns 4 and does not panic (`src/batch.test.ts`).
+- `revealed` narrows `chunks` to `u8` first, then multiplies in `u8`: 128 to 255 chunks panic
+  `u8_mul Overflow`, 256 and more `Option::unwrap failed.` (tested).
+- The header of `batch.ts` says it mirrors `admit` and `revealed` only, and lists what a preview still
+  needs of `SegmentTrait::run` (a later lot).
 
 ## Questions for track game
 
