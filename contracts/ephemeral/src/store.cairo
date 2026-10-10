@@ -572,7 +572,7 @@ mod tests {
     // reads back through the store's slots, and one written through the store reads back as the
     // model.
     #[test]
-    #[available_gas(l2_gas: 11410571)] // ceil(1.05 × 10867210 measured)
+    #[available_gas(l2_gas: 11345303)] // ceil(1.05 × 10805050 measured)
     fn test_member_slots() {
         let mut state = Instances::contract_state_for_testing();
         let entering = MemberStateTrait::entering(9, 3, 4, 100, 10, [2, 0, 1, 0]);
@@ -630,7 +630,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'not controller')]
-    #[available_gas(l2_gas: 615510)] // ceil(1.05 × 586200 measured)
+    #[available_gas(l2_gas: 593754)] // ceil(1.05 × 565480 measured)
     fn test_controlled_state_refused() {
         let mut state = Instances::contract_state_for_testing();
         state.set_member_controller(5, 0, alice());
@@ -641,7 +641,7 @@ mod tests {
     // otherwise.
     #[test]
     // gas: raised, CBT-05b: D-222, TrapLibrary wired into Instances (one more class hash stored)
-    #[available_gas(l2_gas: 3554187)] // ceil(1.05 × 3384940 measured)
+    #[available_gas(l2_gas: 3537093)] // ceil(1.05 × 3368660 measured)
     fn test_words_as_stored() {
         let mut state = Instances::contract_state_for_testing();
         assert(state.get_stored_header(3).word == 0, 'no header');
@@ -799,7 +799,7 @@ mod note4_tests {
     // `instance_state`: the header (its word, decoded once), the revealed set, the quotas, one
     // task page, as stored.
     #[test]
-    #[available_gas(l2_gas: 200886)] // ceil(1.05 × 191320 measured)
+    #[available_gas(l2_gas: 183792)] // ceil(1.05 × 175040 measured)
     fn test_view_words_by_offsets() {
         let state = @Instances::contract_state_for_testing();
         let header_word = word(state.headers.entry(SLOT).as_ptr().__storage_pointer_address__, 0);
@@ -817,7 +817,7 @@ mod note4_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 200571)] // ceil(1.05 × 191020 measured)
+    #[available_gas(l2_gas: 183477)] // ceil(1.05 × 174740 measured)
     fn test_view_words_typed() {
         let state = Instances::contract_state_for_testing();
         let stored = state.get_stored_header(SLOT);

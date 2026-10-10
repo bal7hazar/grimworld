@@ -158,6 +158,30 @@ their own ceiling:
   - **`Instances`** stays under 50 % with no exception: `play` is one call (40,921, 49.95 %); the
     classes are set by `set_play_class(key, class)` (`play_class`: `PLAY` … `SEGMENT`).
 
+**CBT-05g: room in the walled classes (D-240, the project manager, 2026-10-09).** At least 10 % of
+each cap free in `Instances`, `PlayLibrary`, `SegmentLibrary` and `TickLibrary`, no cap raised, before
+ENG-09 and every lot that adds code to them. Measured at the lot's head against main 0418e03:
+
+| Class | Before (0418e03) | After | Cap | Cap free |
+|---|---:|---:|---:|---:|
+| `Instances` | 40,952 (49.99 %) | 30,883 (37.70 %) | 40,960 (50 %) | 24.6 % |
+| `PlayLibrary` | 65,529 (79.99 %) | 55,453 (67.69 %) | 65,536 (80 %) | 15.4 % |
+| `SegmentLibrary` | 56,091 (68.47 %) | 47,368 (57.82 %) | 56,167 | 15.7 % |
+| `TickLibrary` | 62,696 (76.53 %) | 62,696 (76.53 %) | 72,090 (88 %) | 13.0 % |
+| `HostsLibrary` | 13,809 (16.86 %) | 30,342 (37.04 %) | 50 % | — |
+
+How: **the reveals' site behind `HostsLibrary`** (`enter`: `create`'s site, its zone hosts or dungeon
+floor, then `RevealLibrary`'s call; `reveal`: a reveal in play, the stored hosts, outline and progress
+in), so that the `Site` never crosses back: neither `Instances` nor `PlayLibrary` decodes the
+location's records or carries a `Site` (returning it instead was measured and refused: its Serde
+costs what its decoding did); **the segment's fast path as a member-only tick** (`TickTrait::idle`, on
+a world `WorldTrait::calm` holds: no goblin awake, no member activating), the generic tick with
+`Idle` out of `SegmentLibrary`; **the header, placement and member state decoded with `peel`** (one
+division a field); **the defeat's closing path in `Instances`**, which holds `close` already
+(`PlayLibrary.play` returns the defeat). D-222's own aims are not reached by these levers:
+`TickLibrary` stays at 76.53 % (75 % aimed), `TrapLibrary` at 76.85 % (50 % aimed; most of its code
+is the executor's strike, entries and conditions).
+
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
 every other at 50 %.
 

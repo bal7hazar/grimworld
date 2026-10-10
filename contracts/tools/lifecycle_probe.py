@@ -81,7 +81,8 @@ terrain, is left out of the stream: it is written only when the draw places some
 key depends on the draw (#348's delta review: the stream must not change between two runs). A
 zone's quota hosts (D-208), `Instances`' `hosts` entries `(slot, quota)` written at the entry, are
 drawn too: their keys are computed by starknet.js (the client's dependency, through Node, which
-`scripts/with-node.sh` provides) and their values recorded as `"draw"`.
+`scripts/with-node.sh` provides) and their values recorded as `"draw"`. So are the three `outline`
+words of a dungeon floor entered (ENG-10b, FND-26: the gate-6 leave enters one).
 `RevealLibrary` and `HostsLibrary` (D-210) are declared before `Hub`'s deployment, and their class
 hashes given to `Instances`' constructor, so the transactions recorded are the same. `lifecycle-stream-before-r1b.json`,
 recorded on `main`'s code before
@@ -348,21 +349,32 @@ def entropy_of(instance_id):
     return view("instance_state", instance_id)[2]
 
 
-HOSTS_KEYS = {}
+MAP_KEYS = {}
 
 
-def hosts_keys(slot):
-    """ENG-05 (D-208): the storage keys of `Instances`' `hosts` entries of `slot`, quotas 0-13: the
-    Pedersen chain of the map's name and the key's parts, as a storage address."""
-    if slot not in HOSTS_KEYS:
-        script = ("const {hash}=require('starknet');const b=hash.starknetKeccak('hosts');"
-                  f"for(let i=0;i<14;i++)console.log(hash.computePedersenHash("
+def map_keys(name, slot, count):
+    """The storage keys of `Instances`' map `name` at `(slot, 0..count)`: the Pedersen chain of the
+    map's name and the key's parts, as a storage address."""
+    if (name, slot) not in MAP_KEYS:
+        script = (f"const {{hash}}=require('starknet');const b=hash.starknetKeccak('{name}');"
+                  f"for(let i=0;i<{count};i++)console.log(hash.computePedersenHash("
                   f"hash.computePedersenHash(b,{slot}),i));")
         node_path = os.path.join(os.path.dirname(CONTRACTS), "client", "app", "node_modules")
         out = subprocess.run(["node", "-e", script], env={**os.environ, "NODE_PATH": node_path},
                              capture_output=True, text=True, check=True).stdout
-        HOSTS_KEYS[slot] = [int(line, 16) % (2 ** 251 - 256) for line in out.split()]
-    return HOSTS_KEYS[slot]
+        MAP_KEYS[(name, slot)] = [int(line, 16) % (2 ** 251 - 256) for line in out.split()]
+    return MAP_KEYS[(name, slot)]
+
+
+def hosts_keys(slot):
+    """ENG-05 (D-208): the keys of `Instances`' `hosts` entries of `slot`, quotas 0-13."""
+    return map_keys("hosts", slot, 14)
+
+
+def outline_keys(slot):
+    """FND-26: the keys of `Instances`' `outline` words of `slot` (ENG-10b): a dungeon floor's
+    chunks and its two seam words, drawn at the entry."""
+    return map_keys("outline", slot, 3)
 
 
 def drawn_words(instance_id):
@@ -389,7 +401,7 @@ def streamed_r1b(label, function, receipt, diff):
             entered_id = int(event["keys"][1], 16)
             entropy = entropy_of(entered_id)
             terrains, quotas = drawn_words(entered_id)
-            for key in hosts_keys(entered_id >> 32):
+            for key in hosts_keys(entered_id >> 32) + outline_keys(entered_id >> 32):
                 DRAWN.add((int(instances, 16), key))
             for entry in diff:
                 if int(entry["address"], 16) == int(instances, 16):
