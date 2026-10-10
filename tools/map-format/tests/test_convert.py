@@ -538,9 +538,13 @@ class Export(unittest.TestCase):
                 convert.convert(load("zone.json"), self.with_id(table, name, top))
                 self.refused_id(load("zone.json"), self.with_id(table, name, over),
                                 f"{name!r}: id {over} does not fit 16 bits")
+        # A set piece's id is a u16 for the game (`Location.set_pieces` is `Lanes16`)
+        writes, _ = convert.convert(load("set_piece.json"),
+                                    self.with_id("set_pieces", "boss_arena", top))
+        self.assertEqual(writes[0][1], top)
+        self.refused_id(load("set_piece.json"), self.with_id("set_pieces", "boss_arena", over),
+                        f"'boss_arena': id {over} does not fit 16 bits")
         for table in self.ID_TABLES:
-            if table == "set_pieces":
-                continue
             with self.subTest(table=table, at="resolve"):
                 self.assertEqual(convert.resolve({table: {"n": top}}, table, "n", "x"), top)
                 with self.assertRaises(R.Refused) as caught:
@@ -549,13 +553,7 @@ class Export(unittest.TestCase):
 
     def test_id_above_32_bits(self):
         top, over = (1 << 32) - 1, 1 << 32
-        writes, _ = convert.convert(load("set_piece.json"),
-                                    self.with_id("set_pieces", "boss_arena", top))
-        self.assertEqual(writes[0][1], top)
-        self.refused_id(load("set_piece.json"), self.with_id("set_pieces", "boss_arena", over),
-                        f"'boss_arena': id {over} does not fit 32 bits")
-        # A set piece's id is not narrowed to 16 bits, and a gate's quest is the u32 of `Gate`
-        self.assertEqual(convert.resolve({"set_pieces": {"n": 1 << 16}}, "set_pieces", "n", "x"), 1 << 16)
+        # A gate's quest is the u32 of `Gate`: the only field of 32 bits
         export = load("zone.json")
         export["gates"][0]["quest"] = top
         z = convert.build_zone(export, MANIFEST)
