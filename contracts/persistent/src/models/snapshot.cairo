@@ -206,7 +206,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 119763)] // ceil(1.05 × 114060 measured)
+    // gas: raised, CBT-05f: pack_stats packs the attribute mappings into MemberStats
+    #[available_gas(l2_gas: 132374)] // ceil(1.05 × 126070 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_level_refused() {
         let stats = pack_stats(MemberStats { level: 3, ..Default::default() });

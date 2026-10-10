@@ -26,11 +26,18 @@ PACKAGE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # step limit is printed in parts).
 TABLES = {
     "window.jsonl": [
-        "grimworld_logic::types::window::tests::test_vectors",
+        "grimworld_logic::types::window::tests::test_vectors_0",
         "grimworld_logic::types::window::tests::test_vectors_1",
+        "grimworld_logic::types::window::tests::test_vectors_2",
+        "grimworld_logic::types::window::tests::test_vectors_3",
+        "grimworld_logic::types::window::tests::test_vectors_4",
     ],
     "hit.jsonl": [
-        "grimworld_logic::types::hit::tests::test_vectors",
+        "grimworld_logic::types::hit::tests::test_vectors_0",
+        "grimworld_logic::types::hit::tests::test_vectors_1",
+        "grimworld_logic::types::hit::tests::test_vectors_2",
+        "grimworld_logic::types::hit::tests::test_vectors_3",
+        "grimworld_logic::types::hit::tests::test_vectors_4",
     ],
     "fate.jsonl": [
         "grimworld_logic::fate::tests::test_vectors",

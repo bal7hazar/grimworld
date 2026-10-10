@@ -44,6 +44,18 @@ describe("parity with the Cairo code", () => {
     });
   });
 
+  it("covers every fn of reveal.jsonl with its count", () => {
+    const counts = replay(table("reveal.jsonl"), readTable("reveal.jsonl"));
+    expect(Object.fromEntries(counts)).toEqual({
+      word: 18,
+      feed: 15,
+      base: 12,
+      sight: 12,
+      member: 114,
+      reveal: 26,
+    });
+  });
+
   it("covers every fn of packing.jsonl with its count", () => {
     const counts = replay(table("packing.jsonl"), readTable("packing.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({
