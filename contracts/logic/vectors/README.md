@@ -113,7 +113,8 @@ No class is called (the class hashes are zero), so every row has no goblin and i
 records of a fight (`fits` counting new records and first records, the weight of E-1, the owed ticks' records) are
 `TickLibrary`'s; `fits` is reached here through the 17 records the area already holds (E-16: more than 16 stops an
 action when `ran`). The owed ticks' records are held by `test_play_records_owed_ticks`
-(`contracts/ephemeral/tests/test_play_limits.cairo`) and by `batch.jsonl`'s `owed`.
+(`contracts/ephemeral/tests/test_play_limits.cairo`) and by `batch.jsonl`'s `owed`. The branches that call a class,
+or meet a goblin, a trap, a companion, a change of health or a `MOVEMENT` effect, are `segment2.jsonl`'s.
 
 The cases (47):
 
