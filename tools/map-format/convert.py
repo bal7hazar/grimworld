@@ -44,11 +44,19 @@ def kinds():
     return load_json(os.path.join(HERE, "kinds.json"))
 
 
+# The width of the field each manifest table's ids are packed into, 16 bits but a set piece's key
+# (`records.py`: location region 16, spawn table 16, gate source, destination and id 16, spawn
+# template and quota param 16, object param 16; the set piece's id the 32 of its key).
+ID_BITS = {"set_pieces": 32}
+ID_BITS_DEFAULT = 16
+GATE_QUEST_BITS = 32  # `Gate.quest: u32`, authored in the export, not named in the manifest
+
+
 def resolve(manifest, table, name, what):
     ids = manifest.get(table, {})
     if name not in ids:
         raise R.Refused("export: unknown name", f"{what} {name!r} not in the manifest's {table}")
-    return ids[name]
+    return R.assert_id(f"{what} {name!r}", ids[name], ID_BITS.get(table, ID_BITS_DEFAULT))
 
 
 class Plane:
@@ -228,7 +236,9 @@ def build_zone(export, manifest):
                       "destination": resolve(manifest, "locations", gt["to"], "location"),
                       "anchor_chunk": c, "anchor_tile": t, "entry_chunk": gt["entry_chunk"],
                       "entry_tile": gt["entry_tile"], "kind": R.GATE_KINDS[gt["kind"]],
-                      "rank": gt.get("rank", 0), "quest": gt.get("quest", 0)}
+                      "rank": gt.get("rank", 0),
+                      "quest": R.assert_id(f"gate {gt['gate']!r} quest", gt.get("quest", 0),
+                                           GATE_QUEST_BITS)}
     bridges = {}
     for b in export.get("bridges", []):
         deck = [plane.chunk_tile(plane.glob(*h)) for h in b["deck"]]
