@@ -252,17 +252,24 @@ pkg() {
   shift
   (cd "$root/$dir" && "$@")
 }
-# lockrun <command...>: through the machine's heavy lock, waiting at most lock_wait seconds; directly
-# where there is no flock.
+# capped <command...>: under an address-space cap of 8 GiB (2026-10-10 rule, the floor; measured peaks: build
+# 2.35 GB, the contracts workspace 4.88 GB, vectors/check.py 4.80 GB, D-246), inherited by every child. Where
+# there is no prlimit (the Mac) it runs uncapped, as before: the Mac has no cap to apply.
+mem_cap=8589934592
+capped() {
+  if command -v prlimit > /dev/null 2>&1; then prlimit --as="$mem_cap" -- "$@"; else "$@"; fi
+}
+# lockrun <command...>: through the machine's heavy lock, waiting at most lock_wait seconds, the whole
+# under the cap; directly (and uncapped without prlimit) where there is no flock.
 lockrun() {
-  if [ "$have_flock" = 1 ]; then "$root/scripts/lock.sh" --heavy --wait "$lock_wait" "$@"; else "$@"; fi
+  if [ "$have_flock" = 1 ]; then capped "$root/scripts/lock.sh" --heavy --wait "$lock_wait" "$@"; else capped "$@"; fi
 }
 # gas_check: gas_budgets.py takes the lock through lock.sh, which reads GRIMWORLD_LOCK_WAIT.
 gas_check() {
   if [ "$have_flock" = 1 ]; then
-    GRIMWORLD_LOCK_WAIT=$lock_wait python3 scripts/gas_budgets.py --check
+    GRIMWORLD_LOCK_WAIT=$lock_wait capped python3 scripts/gas_budgets.py --check
   else
-    python3 scripts/gas_budgets.py --check --no-lock
+    capped python3 scripts/gas_budgets.py --check --no-lock
   fi
 }
 # pnpmrun <command...>: through the project lock where there is flock, waiting at most lock_wait seconds.
@@ -272,9 +279,9 @@ pnpmrun() {
 # vectors/check.py takes the lock through scripts/lock.sh wherever flock exists (FND-22); GRIMWORLD_LOCK_WAIT bounds the wait.
 vectors_check() {
   if [ "$have_flock" = 1 ]; then
-    GRIMWORLD_LOCK_WAIT=$lock_wait python3 contracts/logic/vectors/check.py
+    GRIMWORLD_LOCK_WAIT=$lock_wait capped python3 contracts/logic/vectors/check.py
   else
-    python3 contracts/logic/vectors/check.py
+    capped python3 contracts/logic/vectors/check.py
   fi
 }
 
