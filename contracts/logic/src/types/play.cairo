@@ -638,16 +638,23 @@ mod tests {
     use hexx::board::layout::LayoutTrait;
     use hexx::finders::bfs::Bfs;
     use hexx::finders::flood::FloodTrait;
+    use snforge_std::{DeclareResultTrait, declare};
+    use starknet::ClassHash;
     use crate::actions::Action;
     use crate::helpers::tick::TickMathTrait;
-    use crate::models::member::{MemberSnapshotTrait, MemberWordsTrait};
+    use crate::models::chunk::Features;
+    use crate::models::goblin::GoblinTrait;
+    use crate::models::index::GoblinWords;
+    use crate::models::member::{MemberSnapshotTrait, MemberWords, MemberWordsTrait};
     use crate::types::LAST_TICK;
     use crate::types::executor::{BoardTrait, Delegate};
-    use crate::types::tick::{ContentTrait, ai, status};
+    use crate::types::tick::{Content, ContentTrait, ai, status};
     use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
-    use crate::types::world::fixtures::{Fixture, HOB, two};
-    use crate::types::world::{TickTrait, WorldTrait};
+    use crate::types::world::fixtures::{Fixture, HOB, MemberSpec, two};
+    use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait, WorldTrait};
     use super::{Area, Classes, SegmentTrait};
+
+    mod recorder;
 
     /// The area of every chunk of a 15 × 15 location, revealed and walkable.
     fn open_area() -> Area {
@@ -1623,6 +1630,145 @@ mod tests {
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == SEGMENT_DIGEST, 'vectors moved: regenerate');
+    }
+
+    /// The classes of a `segment2` table: the real ones, and the recorders standing in for
+    /// `TickLibrary`, `ActionLibrary` and `TrapLibrary` (`recorder`).
+    #[derive(Copy, Drop)]
+    struct Declared {
+        executor: ClassHash,
+        ai: ClassHash,
+        tick: ClassHash,
+        action: ClassHash,
+        trap: ClassHash,
+        tick_recorder: ClassHash,
+        action_recorder: ClassHash,
+        trap_recorder: ClassHash,
+    }
+
+    fn class(name: ByteArray) -> ClassHash {
+        *declare(name).unwrap().contract_class().class_hash
+    }
+
+    fn declared() -> Declared {
+        Declared {
+            executor: class("ExecutorLibrary"),
+            ai: class("AiLibrary"),
+            tick: class("TickLibrary"),
+            action: class("ActionLibrary"),
+            trap: class("TrapLibrary"),
+            tick_recorder: class("TickRecorder"),
+            action_recorder: class("ActionRecorder"),
+            trap_recorder: class("TrapRecorder"),
+        }
+    }
+
+    /// One `segment2` row: `SegmentTrait::run` as `SegmentLibrary::segment` runs it (the words
+    /// loaded through the table's content), the real executor and AI, the recorders for the
+    /// classes the segment calls. The case: the words, `Area`, the level, the ground, `owed`,
+    /// `weight`, the actions, then the calls the segment made (`recorder::Call`, in order), all as
+    /// Cairo `Serde`; the outcome: the words, the ground and `Done`.
+    fn segment2_row(
+        ref digest: Array<felt252>,
+        ref id: u32,
+        name: ByteArray,
+        classes: @Declared,
+        content: @Content,
+        words: Words,
+        area: Area,
+        ground: Array<(u8, Features)>,
+        owed: u8,
+        weight: u8,
+        actions: Array<Action>,
+    ) {
+        recorder::reset(*classes.tick, *classes.action, *classes.trap);
+        let level: u8 = 1;
+        let mut case: Array<felt252> = array![];
+        Serde::serialize(@words, ref case);
+        Serde::serialize(@area, ref case);
+        case.append(level.into());
+        Serde::serialize(@ground, ref case);
+        case.append(owed.into());
+        case.append(weight.into());
+        Serde::serialize(@actions.span(), ref case);
+        let (mut world, sheets, index) = words.indexed(content);
+        let mut rules = Delegate {
+            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+            cache: Default::default(),
+            executor: *classes.executor,
+            content: *content,
+            index,
+            placed: array![],
+            ground,
+            ai: *classes.ai,
+            trap: *classes.trap_recorder,
+            level,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        let segment = Classes {
+            executor: *classes.executor,
+            ai: *classes.ai,
+            trap: *classes.trap_recorder,
+            action: *classes.action_recorder,
+            tick: *classes.tick_recorder,
+        };
+        let done = SegmentTrait::run(
+            ref world, @sheets, ref rules, @area, @segment, actions.span(), owed, weight,
+        );
+        case.append_span(recorder::calls().span());
+        let mut ok: Array<felt252> = array![];
+        Serde::serialize(@world.store(), ref ok);
+        Serde::serialize(@rules.ground, ref ok);
+        Serde::serialize(@done, ref ok);
+        emit(ref digest, ref id, name, case.span(), ok.span());
+    }
+
+    /// The words of the adventurer of `spec` on `(x, y)` facing `facing`.
+    fn adventurer(spec: MemberSpec, x: u8, y: u8, facing: u8) -> MemberWords {
+        let mut words = Fixture::member_words(spec);
+        words.state += x.into() * two(32) + y.into() * two(40) + facing.into() * two(48);
+        words
+    }
+
+    /// The words of a goblin of `caste` (the fixture's: Engaged, awake, health 100) on `(x, y)`.
+    fn goblin(entity: u16, caste: u16, x: u8, y: u8) -> GoblinWords {
+        let mut words = Fixture::goblin(entity, caste).store();
+        words.state += x.into() + y.into() * two(8);
+        words
+    }
+
+    fn words(clock: u32, members: Array<MemberWords>, goblins: Array<GoblinWords>) -> Words {
+        Words { clock, members, goblins, killed: array![], defeated: false }
+    }
+
+    // `vectors/segment2.jsonl` (RV-02, D-254): `SegmentTrait::run` where it calls a class, or meets
+    // a goblin, a trap, a companion, a regeneration or a `MOVEMENT` effect, for the client's
+    // mirror; each class's result is in the row (`recorder`), so the mirror replays `run` around
+    // it. One family a branch, listed in `vectors/README.md`.
+    #[test]
+    fn test_segment2_vectors() {
+        let classes = declared();
+        let content = Fixture::content();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = 0;
+        let spec = Fixture::spec();
+        segment2_row(
+            ref digest,
+            ref id,
+            "ticks",
+            @classes,
+            @content,
+            words(40, array![adventurer(spec, 22, 22, 0)], array![goblin(264, HOB, 24, 22)]),
+            region(everything(), array![], array![], false),
+            array![],
+            0,
+            10,
+            array![Action::Wait],
+        );
+        let digest = core::poseidon::poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
     }
 
     const DIGEST: felt252 =
