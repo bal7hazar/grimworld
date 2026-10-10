@@ -217,7 +217,7 @@ def build_zone(export, manifest):
             raise R.Refused("export: two candidates in a chunk", f"quota {i}, chunk {c}")
         candidates[i] |= 1 << c
         chunks[c]["tiles"][i] = t
-    gates = {}
+    gates, destinations = {}, {}
     for gt in export.get("gates", []):
         c, t = chunk_of(gt["x"], gt["y"], "gate")
         gid = resolve(manifest, "gates", gt["gate"], "gate")
@@ -238,6 +238,11 @@ def build_zone(export, manifest):
                       "rank": gt.get("rank", 0),
                       "quest": R.assert_id(f"gate {gt['gate']!r} quest", gt.get("quest", 0),
                                            GATE_QUEST_BITS)}
+        # R-41: the destination's rectangle, when the manifest gives it (`location_sizes`) and
+        # the destination has a map (a hub has none)
+        size = manifest.get("location_sizes", {}).get(gt["to"])
+        if size is not None and destination not in ("town", "outpost"):
+            destinations[gates[gid]["destination"]] = tuple(size)
     bridges = {}
     for b in export.get("bridges", []):
         deck = [plane.chunk_tile(plane.glob(*h)) for h in b["deck"]]
@@ -266,7 +271,7 @@ def build_zone(export, manifest):
     return {"id": resolve(manifest, "locations", export["location"], "location"),
             "location": location, "chunk_set": chunk_set, "masks": masks, "chunks": chunks,
             "quotas": quotas, "candidates": candidates, "hearts": hearts, "gates": gates,
-            "bridges": bridges, "walk": walk, "zone": zone, "plane": plane}
+            "destinations": destinations, "bridges": bridges, "walk": walk, "zone": zone, "plane": plane}
 
 
 def connected(tiles, start):

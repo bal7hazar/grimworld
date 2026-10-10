@@ -6,7 +6,7 @@
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
 use grimworld_logic::content::{
     ARMOR_SET, BOOK, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE,
-    PACK, QUEST, QUOTAS, REGION, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, ZONE_CHUNK,
+    PACK, QUEST, QUOTAS, REGION, Record, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, ZONE_CHUNK,
     is_sequential, parts,
 };
 use grimworld_logic::interface::{
@@ -19,6 +19,9 @@ use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait, error
 use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::item::{
     ItemRecord, ItemTrait, class as item_class, errors as item_errors,
+};
+use grimworld_logic::models::location::{
+    LocationRecord, LocationTrait, errors as location_errors, kind as location_kind,
 };
 use grimworld_logic::models::modifier::{
     ModifierRecord, ModifierTrait, errors as modifier_errors, slot as modifier_slot,
@@ -34,7 +37,7 @@ use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{
     Spawn, SpawnTableRecord, SpawnTableTrait, errors as spawn_errors,
 };
-use grimworld_logic::packing::LIVE;
+use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::effect::{
     Entry, EntryTrait, errors as entry_errors, filter, guard, kind, shape, target,
@@ -142,7 +145,7 @@ impl FeltsImpl of Felts {
 
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 5214195)] // ceil(1.05 × 4965900 measured)
+#[available_gas(l2_gas: 5159868)] // ceil(1.05 × 4914160 measured)
 fn test_set_record_new_sequential() {
     let r = Fixture::deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
@@ -172,7 +175,7 @@ fn test_set_record_existing_changes() {
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 8430188)] // ceil(1.05 × 8028750 measured)
+#[available_gas(l2_gas: 8375861)] // ceil(1.05 × 7977010 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
     let r = Fixture::deploy();
@@ -199,7 +202,7 @@ fn test_set_record_composite_needs_parent() {
 // location does not exist; `last_id` stays 0.
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 7425348)] // ceil(1.05 × 7071760 measured)
+#[available_gas(l2_gas: 7371021)] // ceil(1.05 × 7020020 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy();
@@ -220,7 +223,7 @@ fn test_set_record_quotas_keyed_by_location() {
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 5446487)] // ceil(1.05 × 5187130 measured)
+#[available_gas(l2_gas: 5419323)] // ceil(1.05 × 5161260 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
     let r = Fixture::deploy();
@@ -391,17 +394,95 @@ fn test_bundle_version_and_order() {
 }
 
 // ENG-10b (CM-9; D-223, ruling 5): a dungeon floor holds at most 12 chunks. A `LOCATION` whose
-// `N` (bits 72–79 of part 0) is 12 is accepted, 13 refused, the record kept.
+// `N` (bits 72–79 of part 0) is 12 is accepted, 13 refused, the record kept. Its rectangle, 15 ×
+// 15 (width at bit 56, height at 64), is larger than `N` (R-28, ENG-R1c-1).
 #[test]
 #[available_gas(l2_gas: 4419190)] // ceil(1.05 × 4208752 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_floor_size() {
     let r = Fixture::deploy();
     let n: felt252 = 0x1000000000000000000;
-    assert_accepted(try_write(r, LOCATION, Felts::two(12 * n, 0)));
-    assert_refused(r.safe.set_record(LOCATION, 1, Felts::two(13 * n, 0)), FLOOR_SIZE);
-    assert_refused(try_write(r, LOCATION, Felts::two(255 * n, 0)), FLOOR_SIZE);
-    assert(r.read.record(LOCATION, 1) == Felts::two(12 * n, 0), 'location kept');
+    let square: felt252 = 15 * 0x100000000000000 + 15 * 0x10000000000000000;
+    assert_accepted(try_write(r, LOCATION, Felts::two(square + 12 * n, 0)));
+    assert_refused(r.safe.set_record(LOCATION, 1, Felts::two(square + 13 * n, 0)), FLOOR_SIZE);
+    assert_refused(try_write(r, LOCATION, Felts::two(square + 255 * n, 0)), FLOOR_SIZE);
+    assert(r.read.record(LOCATION, 1) == Felts::two(square + 12 * n, 0), 'location kept');
+}
+
+/// A dungeon floor of `N` chunks in a `width × height` rectangle, entered at chunk 0.
+fn floor(width: u8, height: u8, target: u8) -> Span<felt252> {
+    LocationTrait::new(
+        location_kind::DUNGEON,
+        1,
+        1,
+        1,
+        3,
+        0,
+        width,
+        height,
+        target,
+        1,
+        0,
+        0,
+        false,
+        0,
+        112,
+        Lanes16 { lanes: [0; 15] },
+    )
+        .pack()
+}
+
+// R-40 and R-28 (ENG-R1c-1's bounds 5 and 4; review t-0099 note 5, re-audits t-0075 and t-0077,
+// minor 3), on the `LOCATION` write alone, with no zone checks: a dungeon floor's `N` at least 6,
+// its rectangle's area above `N`. The 4 × 3 sweep (area 12, where t-0077's floor closed at 11 of
+// 12): `N` 1 to 5 refused (5, the last below 6), 6 to 11 accepted (11, the last below the area),
+// 12 refused, the record kept as it was. `N` 0 is no floor: nothing is checked, even with no
+// rectangle.
+#[test]
+#[available_gas(l2_gas: 25059000)] // ceil(1.05 × 23865714 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_floor_bounds() {
+    let r = Fixture::deploy();
+    assert_accepted(try_write(r, LOCATION, floor(0, 0, 0)));
+    for n in 1..13_u8 {
+        let result = try_write(r, LOCATION, floor(4, 3, n));
+        if n < 6 {
+            assert_refused(result, location_errors::FLOOR_FEW);
+        } else if n < 12 {
+            assert_accepted(result);
+        } else {
+            assert_refused(result, location_errors::FLOOR_RECTANGLE);
+        }
+    }
+    assert(r.admin.last_id(LOCATION) == 7, 'six floors written');
+    // A rewrite that shrinks the rectangle to `N` is refused, the floor kept
+    assert_refused(
+        r.safe.set_record(LOCATION, 7, floor(4, 3, 12)), location_errors::FLOOR_RECTANGLE,
+    );
+    assert_refused(
+        r.safe.set_record(LOCATION, 7, floor(3, 3, 11)), location_errors::FLOOR_RECTANGLE,
+    );
+    assert(r.read.record(LOCATION, 7) == floor(4, 3, 11), 'floor kept');
+    // Whatever the kind: `N` makes a floor (`SiteTrait::emerging`)
+    let rift = LocationTrait::new(
+        location_kind::RIFT,
+        1,
+        1,
+        1,
+        3,
+        0,
+        2,
+        2,
+        6,
+        0,
+        0,
+        0,
+        false,
+        0,
+        0,
+        Lanes16 { lanes: [0; 15] },
+    );
+    assert_refused(try_write(r, LOCATION, rift.pack()), location_errors::FLOOR_RECTANGLE);
 }
 
 /// An ingredient worth `value`: an `ITEM` record, not a potion.

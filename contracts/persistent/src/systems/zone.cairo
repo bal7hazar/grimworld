@@ -115,8 +115,8 @@ pub mod ZoneChecks {
 
         /// A `GATE` written: its entry leaves the stored gate's destination and joins the new
         /// one's. `gate_entry_counts[(location, chunk)]` counts the gates entering `location` at
-        /// `chunk`; `gate_entries[location]` holds those chunks, one bit each (R-41's reverse check,
-        /// one read at a `LOCATION` write).
+        /// `chunk`; `gate_entries[location]` holds those chunks, one bit each (R-41's reverse
+        /// check, one read at a `LOCATION` write).
         fn move_entry(ref self: ContractState, id: u32, record: Span<felt252>) {
             let new = GateRecord::unpack(record);
             let old = self.part0(GATE, id);
@@ -340,13 +340,11 @@ pub mod ZoneChecks {
         }
 
         /// R-12, R-13, R-27, R-29 and R-30 (`QuotaBoundsAssert::assert_bounds`) of a location's
-        /// quotas, against its `members` (`members`), an authored zone's `candidates` (`None` for
-        /// any other location: R-12, R-27 and R-30 alone, ENG-R1c-1) and the Heart templates.
+        /// quotas, against how many `members` it has (`members`), an authored zone's `candidates`
+        /// (`None` for any other location: R-12, R-27 and R-30 alone, ENG-R1c-1) and the Heart
+        /// templates.
         fn assert_bounds(
-            self: @ContractState,
-            quotas: @QuotaSet,
-            members: u8,
-            candidates: Option<Span<felt252>>,
+            self: @ContractState, quotas: @QuotaSet, members: u8, candidates: Option<Span<felt252>>,
         ) {
             let mut hearts: Array<Option<Pack>> = array![];
             for entry in quotas.quotas.span() {

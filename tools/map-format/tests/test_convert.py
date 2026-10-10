@@ -144,6 +144,16 @@ def m_floor_rectangle(z):
     z["location"]["target"] = 6
 
 
+def m_floor_few(z):
+    z["location"]["kind"] = R.LOCATION_KINDS["dungeon"]
+    z["location"]["target"] = 5
+
+
+def m_gate_entry_outside(z):
+    assert gate(z, 3)["destination"] == 3 and gate(z, 3)["entry_chunk"] == 112
+    z["destinations"][3] = (7, 7)
+
+
 def m_quota_kind(z):
     kind, param, n = z["quotas"][1]
     z["quotas"][1] = (R.EXIT, param, n)
@@ -215,6 +225,8 @@ def m_pack_rewrite_heart(z):
 
 
 MUTATIONS = {name[2:]: f for name, f in globals().items() if name.startswith("m_")}
+# The registry cases with a converter twin; the others name why the converter cannot write them
+TWINNED = [c for c in TABLE["registry"] if "converter" not in c]
 
 
 class Registry(unittest.TestCase):
@@ -224,7 +236,7 @@ class Registry(unittest.TestCase):
         convert.pipeline(z)
 
     def test_each_case_refused_with_its_code(self):
-        for case in TABLE["registry"]:
+        for case in TWINNED:
             with self.subTest(case=case["case"]):
                 z = zone()
                 MUTATIONS[case["case"]](z)
@@ -233,7 +245,56 @@ class Registry(unittest.TestCase):
                 self.assertEqual(caught.exception.code, case["code"])
 
     def test_every_case_has_a_mutation(self):
-        self.assertEqual(sorted(MUTATIONS), sorted(c["case"] for c in TABLE["registry"]))
+        self.assertEqual(sorted(MUTATIONS), sorted(c["case"] for c in TWINNED))
+
+    def test_a_case_without_a_twin_gives_its_reason(self):
+        """ENG-R1c-1: the rules on records the converter never writes (a generated zone's, a
+        dungeon floor's quotas) are the Registry's alone, each with its reason."""
+        alone = [c for c in TABLE["registry"] if "converter" in c]
+        self.assertTrue(alone)
+        for case in alone:
+            self.assertIn("authored zones only", case["converter"], case["case"])
+
+    def test_floor_bounds(self):
+        """R-40 and R-28 at their boundaries, the 4 x 3 sweep of `test_set_record_floor_bounds`:
+        `N` 1 to 5 refused, 6 to 11 accepted, 12 refused; `N` 0 no floor, whatever the size."""
+        R.assert_floor({"target": 0, "width": 0, "height": 0})
+        for n in range(1, 13):
+            location = {"target": n, "width": 4, "height": 3}
+            with self.subTest(n=n):
+                if 6 <= n < 12:
+                    R.assert_floor(location)
+                    continue
+                with self.assertRaises(R.Refused) as caught:
+                    R.assert_floor(location)
+                code = "location: floor under 6 chunks" if n < 6 else "location: floor rectangle"
+                self.assertEqual(caught.exception.code, code)
+
+    def test_gate_entry_bounds(self):
+        """R-41 at its boundary, as `test_gate_entry_bounds`: into an 8 x 8 floor, chunk 112
+        (7, 7) accepted, 113 (8, 7) and 127 (7, 8) refused; no size known, nothing checked."""
+        for entry, refused in ((112, False), (113, True), (127, True)):
+            with self.subTest(entry=entry):
+                if not refused:
+                    R.assert_gate_entry(3, {"entry_chunk": entry}, (8, 8))
+                    continue
+                with self.assertRaises(R.Refused) as caught:
+                    R.assert_gate_entry(3, {"entry_chunk": entry}, (8, 8))
+                self.assertEqual(caught.exception.code, "gate: entry outside rectangle")
+        R.assert_gate_entry(3, {"entry_chunk": 224}, None)
+
+    def test_gate_destinations_from_the_manifest(self):
+        """The sample's floor (15 x 15 in the manifest) is a destination with a size; the town, a
+        hub, is none, even given one; a manifest without sizes checks nothing."""
+        self.assertEqual(zone()["destinations"], {3: (15, 15)})
+        manifest = copy.deepcopy(MANIFEST)
+        manifest["location_sizes"]["test_town"] = [1, 1]
+        self.assertEqual(convert.build_zone(load("zone.json"), manifest)["destinations"],
+                         {3: (15, 15)})
+        del manifest["location_sizes"]
+        z = convert.build_zone(load("zone.json"), manifest)
+        self.assertEqual(z["destinations"], {})
+        R.check_zone(z)
 
     def test_cairo_twins(self):
         """Each registry case is `test_refuse_<case>` in the Registry's tests, with its code."""

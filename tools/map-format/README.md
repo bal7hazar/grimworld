@@ -54,5 +54,15 @@ Exit 0 and the records written; exit 1 and one line `refused: <code>: <detail>`,
   manifest id is not negative (E-48), is below 2^16 for a region, location, gate, pack, collector, landmark,
   skill, spawn table or set piece (E-49), and a gate's `quest` below 2^32 (E-50).
 
-The manifest (`samples/manifest.json`) maps each name an export uses to its registry id, and each
-location to its kind (`location_kinds`); OPS-01 writes the real one.
+The manifest (`samples/manifest.json`) maps each name an export uses to its registry id, each
+location to its kind (`location_kinds`) and, where it knows it, each location with a map to its
+`[width, height]` in chunks (`location_sizes`); OPS-01 writes the real one. A gate whose destination's
+size it gives enters within that rectangle (R-41, `gate: entry outside rectangle`; ENG-R1c-1); a
+destination it gives no size for is checked by the Registry alone, at the gate's write or at the
+destination's.
+
+**Rules the converter cannot meet** (ENG-R1c-1): a registry case with a `converter` field names a rule
+on records a converted export never writes (a generated zone's or a dungeon floor's quotas, chunk set
+or Heart: the export is always an authored zone, `N` 0); the field gives the reason, and the case is
+the Registry's alone (its Cairo twin in `test_zone.cairo`). A floor's own bounds (R-28, R-40) keep a
+converter twin on the location, as the table's other rules do, though no export sets `N`.
