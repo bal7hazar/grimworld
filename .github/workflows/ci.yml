@@ -48,8 +48,8 @@ jobs:
 
       # Which jobs does the change concern (FND-18, docs/briefs/FND-18-ci-paths.md)? The test jobs
       # below run only when a path they depend on changed: the Cairo packages (and the packages
-      # they depend on by path), `class-artefacts`, `client`, and `indexer-node` (for indexer/ and
-      # what its emitter and node depend on: contracts/persistent, contracts/logic, contracts/Scarb.toml,
+      # they depend on by path), `class-artefacts`, `client`, `art` (for tools/art/), and
+      # `indexer-node` (for indexer/ and what its emitter and node depend on: contracts/persistent, contracts/logic, contracts/Scarb.toml,
       # the root .tool-versions, scripts/with-node.sh). A workflow or a CI helper runs everything, and so does a path that no
       # rule claims; a documents-only change runs no test. A pull request is compared with its base,
       # a push with the commit before it (a push to main still runs every job but `indexer-node`);
@@ -454,10 +454,11 @@ jobs:
 
   # The art pipeline's tests (`python -m unittest discover -s tools/art/tests`), only when a path under
   # tools/art/ changed (`art` of .github/ci/changes.py). The `assets` submodule is private and never
-  # checked out (D-73): the tests that read the pack skip, as they do on a machine without it. The
+  # checked out (D-73), and no test reads it: they build from synthetic images (D-73). The
   # interpreter is the runner's python3, which must be one of build.py's PYTHONS (3.12 or 3.13); the
   # dependencies are exactly tools/art/requirements.txt, installed with --require-hashes in a venv, so
-  # that NumPy and Pillow are present and the classes that need them run instead of skipping.
+  # that NumPy and Pillow are present and the classes that need them run instead of skipping (they
+  # skip only without those two).
   art:
     needs: discover
     if: needs.discover.outputs.art == 'true'

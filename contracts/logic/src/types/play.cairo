@@ -21,8 +21,9 @@
 //! of the location, a zone's set or a dungeon floor's outline) a constant, never read (D-134), the
 //! outer ring wall. The origin, down to −8, is held plus `ORIGIN`: `15 (cx + 1) + ox`.
 //!
-//! **The ticks** (D-235): a tick with no living goblin in the window and nothing owed by the
-//! adventurer (no activation) runs here, with no hook to call (`Idle`, the fast path); every other
+//! **The ticks** (D-235): a tick with no living goblin in the window, none awake and no member
+//! activating runs here, the members' part of the tick alone (`TickTrait::idle`, the fast path;
+//! CBT-05g: the generic tick with `Idle` stays out of this class); every other
 //! tick runs in `TickLibrary` (`ticks`), with the whole words and the chunk objects, perception,
 //! the executor and the goblins' acts behind it. On a tick the fast path takes, `TickLibrary`'s
 //! rules call nothing either (no carrier resolves, no goblin is awake): the two paths agree,
@@ -60,10 +61,10 @@ use crate::types::effect::kind;
 use crate::types::executor::{Board, BoardTrait, Delegate, Levered, Levers, ORIGIN};
 use crate::types::reveal::SightTrait;
 use crate::types::reveal::board::BoardTrait as Bitmap;
-use crate::types::tick::{ABSENT_LANE, NO_SLOT, Sheets, ai, flag};
+use crate::types::tick::{ABSENT_LANE, Sheets, ai, flag};
 use crate::types::trap::TrapTrait;
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowAssert, WindowTrait};
-use crate::types::world::{Idle, TickTrait, Words, World, WorldStoreTrait, WorldTrait};
+use crate::types::world::{TickTrait, Words, World, WorldStoreTrait, WorldTrait};
 use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE, LAST_TICK};
 
 /// The window's interior, its ring cleared (hexx's `LayoutTrait::interior(15, 16)`), as limbs.
@@ -248,8 +249,7 @@ pub impl SegmentImpl of SegmentTrait {
             return;
         }
         if Self::idle(@world, @rules.board) {
-            let mut idle = Idle {};
-            TickTrait::run(ref world, sheets, n, ref idle);
+            TickTrait::idle(ref world, n);
             return;
         }
         let current = world;
@@ -268,14 +268,14 @@ pub impl SegmentImpl of SegmentTrait {
         world = Self::reload(out, sheets, ref rules);
     }
 
-    /// Whether the ticks can take the fast path: the adventurer owes nothing (no activation), no
-    /// goblin is in the awake set (ENG-07b: one awake at the last tick, left outside the window
+    /// Whether the ticks can take the fast path: no member activating and no goblin in the awake
+    /// set (`WorldTrait::calm`; ENG-07b: one awake at the last tick, left outside the window
     /// since, would go on regenerating on the fast path, whose rules never form the set again;
     /// a tick in `TickLibrary` does, as a single batch's load does), and no living goblin stands in
     /// the window. The board does not move during an action's ticks, and a goblin outside the
     /// window is frozen (§5.2): it cannot enter it on these ticks.
     fn idle(world: @World, board: @Board) -> bool {
-        if world.member(0).act_slot != NO_SLOT || world.woken().len() > 0 {
+        if !world.calm() {
             return false;
         }
         for (_, state) in world.alive() {
@@ -902,7 +902,7 @@ mod tests {
     /// weight, moved the member before the stop. No goblin: every tick on the fast path, no class
     /// called.
     #[test]
-    #[available_gas(l2_gas: 111604550)] // ceil(1.05 × 106290047 measured)
+    #[available_gas(l2_gas: 111111543)] // ceil(1.05 × 105820517 measured)
     fn test_segment_slow_move_heavy() {
         let mut member = Fixture::member(Fixture::spec());
         member.words.state += 20 * two(32) + 22 * two(40);

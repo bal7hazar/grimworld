@@ -146,7 +146,7 @@ fn test_tick_constants() {
 // unpackers read them, and every other field of the four words is kept.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 1514741)] // ceil(1.05 × 1442610 measured)
+#[available_gas(l2_gas: 1492985)] // ceil(1.05 × 1421890 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
     let (sheets, mut index) = content().index();

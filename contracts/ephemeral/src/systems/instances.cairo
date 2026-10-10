@@ -237,28 +237,24 @@ pub trait IInstancesAdmin<T> {
 
 #[starknet::contract]
 pub mod Instances {
-    use grimworld_logic::content::{
-        GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, exists,
-    };
-    use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
+    use grimworld_logic::content::{GATE, LOCATION, OUTLINE, exists};
+    use grimworld_logic::fate::{ENTRY, derive, domain};
     use grimworld_logic::interface::{
         IFateDispatcher, IFateDispatcherTrait, IHostsLibraryDispatcherTrait,
         IHostsLibraryLibraryDispatcher, IInstanceEntry, IRegistryReadDispatcher,
-        IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait,
-        IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher, Results, facts,
+        IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait, Results, facts,
     };
     use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
-    use grimworld_logic::models::pack::{Pack, PackRecord};
-    use grimworld_logic::models::quotas::{QuotaSet, QuotaSetRecord, kind as quota_kind};
-    use grimworld_logic::models::set_piece::{SetPiece, SetPieceRecord};
-    use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
+    use grimworld_logic::models::pack::PackRecord;
+    use grimworld_logic::models::quotas::QuotaSetRecord;
+    use grimworld_logic::models::set_piece::SetPieceRecord;
+    use grimworld_logic::models::spawn_table::SpawnTableRecord;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
+    use grimworld_logic::types::reveal::SightTrait;
     use grimworld_logic::types::reveal::board::BoardTrait;
-    use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
-    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
     use grimworld_logic::types::{
         ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
     };
@@ -283,8 +279,6 @@ pub mod Instances {
         InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors, play_class,
     };
 
-    /// Tasks whose quotas a reveal places (ENG-01 §3.2: the location's 6, then 8).
-    const TASK_QUOTAS: u32 = 8;
 
     /// Task entries on a stored page (`TaskPage`).
     const TASKS_PER_PAGE: u32 = 4;
@@ -379,8 +373,20 @@ pub mod Instances {
         ) {
             // The body, the admission first, is `PlayLibrary`'s, in this contract's context
             // (D-234, D-236).
-            IPlayLibraryLibraryDispatcher { class_hash: self.get_play_class(play_class::PLAY) }
+            let defeated = IPlayLibraryLibraryDispatcher {
+                class_hash: self.get_play_class(play_class::PLAY),
+            }
                 .play(instance_id, adventurer_id, sequence, version, actions);
+            // The closing path on a defeat, here where `close` already is (CBT-05g, D-240): the
+            // batch has written the member's words and the header
+            if defeated {
+                let (slot, _) = instance_parts(instance_id);
+                let placement = self.get_placement(adventurer_id);
+                let state = self
+                    .get_controlled_state(placement.slot, placement.member, get_caller_address());
+                let header = self.get_header(slot);
+                self.close(instance_id, slot, header, placement, state, Outcome::Defeated, 0, 0);
+            }
         }
 
         fn loot(
@@ -823,69 +829,30 @@ pub mod Instances {
             let destination = *record.destination;
             let draw = domain(id.into(), 0, ENTRY);
             let word = IFateDispatcher { contract_address: self.get_fate() }.fate(draw);
-            // [Compute] The entry reveal
+            // [Compute] The entry reveal, behind `HostsLibrary` (CBT-05g, D-240): the site, a
+            // zone's quota hosts (D-208) or a dungeon floor's outline and hosts (ENG-10b), each
+            // drawn once, then the reveal's call; the floor's outline comes back to be stored once
             let (x, y) = record.entry();
             let chunks = SightTrait::chunks(x, y, *location.width, *location.height);
-            let site = self
-                .site(
+            let entropy = derive(word, draw, 0);
+            let (progress, revealed, hosts, drawn) = IHostsLibraryLibraryDispatcher {
+                class_hash: self.get_hosts_library(),
+            }
+                .enter(
+                    self.get_registry(),
+                    self.get_reveal(),
                     destination,
-                    location,
+                    *location,
                     *record.entry_chunk,
                     *record.entry_tile,
                     tasks,
                     chunks.span(),
+                    entropy,
+                    id.into(),
                 );
-            let entropy = derive(word, draw, 0);
-            // A zone's quota hosts, drawn once (D-208), carried above each chunk's mask; none to
-            // draw without a quota. A dungeon floor's outline and hosts, drawn once (ENG-10b),
-            // whether it has a quota or not
-            let progress = ProgressTrait::new(@site, entropy);
-            let mut site = site;
-            let mut hosts: Span<felt252> = array![].span();
-            let plan = QuotaPlacementTrait::plan(@site, progress.left.span());
-            if *location.target != 0 {
-                let (drawn, floor, masks) = IHostsLibraryLibraryDispatcher {
-                    class_hash: self.get_hosts_library(),
-                }
-                    .floor(
-                        site.entry_chunk,
-                        site.target,
-                        site.width,
-                        site.height,
-                        plan,
-                        site.pieces,
-                        chunks.span(),
-                        entropy,
-                        id.into(),
-                    );
-                hosts = floor;
-                site.chunk_set = drawn.chunks;
-                site.west = drawn.west;
-                site.north = drawn.north;
-                site.masks = masks;
-                // [Effect] The floor's outline, once (its hosts with the zone's, below)
+            if let Some(drawn) = drawn {
                 self.set_outline(slot, @drawn);
-            } else if plan != (0, 0) {
-                let seed = EntropyTrait::hosts(entropy, id.into());
-                let (drawn, masks) = IHostsLibraryLibraryDispatcher {
-                    class_hash: self.get_hosts_library(),
-                }
-                    .hosts(
-                        site.chunk_set,
-                        site.width,
-                        site.height,
-                        plan,
-                        site.pieces,
-                        site.masks,
-                        seed,
-                    );
-                hosts = drawn;
-                site.masks = masks;
             }
-            let (progress, revealed) = IRevealLibraryLibraryDispatcher {
-                class_hash: self.get_reveal(),
-            }
-                .reveal(site, progress, id.into(), array![].span(), chunks.span());
             // [Effect] The instance's words, each once
             let header = HeaderTrait::new(
                 generation,
@@ -923,121 +890,6 @@ pub mod Instances {
                     InstanceEntered { instance_id: id, adventurer_id, location: destination, gate },
                 );
             id
-        }
-
-        /// What a reveal reads of `location` (`destination`'s record, read by the caller), in the
-        /// fewest calls (ENG-05): one `bundle` of its `QUOTAS`, its `SPAWN_TABLE`, a zone's chunk
-        /// set and the tile masks of `chunks`, and its set pieces; then one `records` of the `PACK`
-        /// templates the spawn table, the Heart quotas and the set pieces name. The anchors are the
-        /// entry tile: a gate anchored in the location is found by no index of the registry yet
-        /// (the report's escalation). The first 8 `tasks` give the tasks' quotas.
-        fn site(
-            self: @ContractState,
-            destination: u16,
-            location: @Location,
-            entry_chunk: u8,
-            entry_tile: u8,
-            tasks: Span<TaskEntry>,
-            chunks: Span<u8>,
-        ) -> Site {
-            let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
-            let zone = *location.target == 0;
-            let table = *location.spawn_table;
-            let mut requests: Array<(u8, u32)> = array![(QUOTAS, destination.into())];
-            if table != 0 {
-                requests.append((SPAWN_TABLE, table.into()));
-            }
-            if zone {
-                requests.append((OUTLINE, OutlineTrait::id(destination, CHUNK_SET)));
-                for chunk in chunks {
-                    requests.append((OUTLINE, OutlineTrait::id(destination, *chunk)));
-                }
-            }
-            for piece in location.set_pieces.lanes.span() {
-                if *piece != 0 {
-                    requests.append((SET_PIECE, (*piece).into()));
-                }
-            }
-            let (_, _, parts) = registry.bundle(requests.span());
-            // [Compute] The records, in the order asked
-            let quotas: QuotaSet = QuotaSetRecord::unpack(parts.slice(0, 1));
-            let mut at: u32 = 1;
-            let spawn: SpawnTable = if table != 0 {
-                at += 1;
-                SpawnTableRecord::unpack(parts.slice(1, 1))
-            } else {
-                SpawnTable { spawns: [Default::default(); 7], density: 0 }
-            };
-            let mut chunk_set: felt252 = 0;
-            let mut masks: Array<(u8, felt252)> = array![];
-            if zone {
-                chunk_set = Self::bitmap(parts.slice(at, 1));
-                at += 1;
-                for chunk in chunks {
-                    masks.append((*chunk, Self::bitmap(parts.slice(at, 1))));
-                    at += 1;
-                }
-            }
-            let mut pieces: Array<(u16, SetPiece)> = array![];
-            let mut ids: Array<u32> = array![];
-            for piece in location.set_pieces.lanes.span() {
-                if *piece != 0 {
-                    let record = parts.slice(at, 2);
-                    at += 2;
-                    if exists(record) {
-                        let set: SetPiece = SetPieceRecord::unpack(record);
-                        for entry in set.packs.span() {
-                            Self::add(ref ids, *entry.template);
-                        }
-                        pieces.append((*piece, set));
-                    }
-                }
-            }
-            // [Compute] The pack templates named
-            for entry in spawn.spawns.span() {
-                Self::add(ref ids, *entry.template);
-            }
-            for entry in quotas.quotas.span() {
-                if *entry.kind == quota_kind::HEART {
-                    Self::add(ref ids, *entry.param);
-                }
-            }
-            let mut packs: Array<(u16, Pack)> = array![];
-            if ids.len() != 0 {
-                let records = registry.records(PACK, ids.span());
-                let mut i: u32 = 0;
-                for id in ids.span() {
-                    let record = records.slice(i, 1);
-                    if exists(record) {
-                        packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
-                    }
-                    i += 1;
-                }
-            }
-            let count = if tasks.len() < TASK_QUOTAS {
-                tasks.len()
-            } else {
-                TASK_QUOTAS
-            };
-            Site {
-                target: *location.target,
-                biome: *location.biome,
-                level_min: *location.level_min,
-                level_max: *location.level_max,
-                width: *location.width,
-                height: *location.height,
-                entry_chunk,
-                chunk_set,
-                west: 0,
-                north: 0,
-                masks: masks.span(),
-                anchors: array![(entry_chunk, entry_tile)].span(),
-                quotas,
-                tasks: tasks.slice(0, count),
-                spawn,
-                packs: packs.span(),
-                pieces: pieces.span(),
-            }
         }
 
         /// The kind of a chunk not revealed (`RevealTrait::kind`'s rule, which the tests hold it
@@ -1248,7 +1100,7 @@ mod close_tests {
 
     #[test]
     // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-    #[available_gas(l2_gas: 5273100)] // ceil(1.05 × 5022000 measured)
+    #[available_gas(l2_gas: 5229588)] // ceil(1.05 × 4980560 measured)
     fn test_close_on_defeat() {
         let class = declare("ReportSink").unwrap().contract_class();
         let (hub, _) = class.deploy(@array![]).unwrap();

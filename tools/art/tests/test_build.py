@@ -1026,6 +1026,32 @@ class Tiles(unittest.TestCase):
             "[[tileset]] c: animation 'loop': unknown keys speed",
             "[[tileset]] d: animations {} is not a table of animations"])
 
+    def test_animation_limits_and_coordinates(self):
+        base = {"role": "tile", "file": "f.png", "origin": "x", "cells": {"c": [0, 0]}}
+        manifest = {"tileset": [
+            dict(base, name="a", animations={"loop": {"cell": "c", "frames": 1000, "fps": 30}}),
+            dict(base, name="b", animations={"loop": {"cell": "c", "frames": 1001, "fps": 31}}),
+            dict(base, name="c", animations={"loop": {"cell": [0, 0], "frames": 2, "fps": 10}}),
+        ]}
+        self.assertEqual(build.tileset_problems(manifest), [
+            "[[tileset]] b: animation 'loop': frames 1001 is above 1000, what the client accepts",
+            "[[tileset]] b: animation 'loop': fps 31 is above 30, what the client accepts",
+            "[[tileset]] c: animation 'loop': cell [0, 0] is not one of the entry's cells"])
+
+    def test_sprite_animation_limits(self):
+        sprite = lambda name, *fps: {"name": name, "anim": [
+            {"name": f"a{i}", "file": "f.png", "fps": v, "loop": True} for i, v in enumerate(fps)]}
+        manifest = {"sprite": [sprite("ok", 1, 12, 30), sprite("bad", 0, 31, "12", True)]}
+        self.assertEqual(build.sprite_animation_problems(manifest), [
+            "[[sprite]] bad: animation 'a0': fps 0 is not a positive integer",
+            "[[sprite]] bad: animation 'a1': fps 31 is above 30, what the client accepts",
+            "[[sprite]] bad: animation 'a2': fps '12' is not a positive integer",
+            "[[sprite]] bad: animation 'a3': fps True is not a positive integer"])
+        self.assertIsNone(build.strip_problem("ok", "idle", 1000))
+        self.assertEqual(build.strip_problem("big", "idle", 1001),
+                         "[[sprite]] big: animation 'idle': frames 1001 is above 1000, "
+                         "what the client accepts")
+
     def test_a_cell_side_is_checked(self):
         manifest = {"tileset": [
             {"name": "foam", "role": "tile", "file": "f.png", "origin": "x", "cell": 0,

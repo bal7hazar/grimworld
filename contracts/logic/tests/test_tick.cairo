@@ -4310,7 +4310,7 @@ fn test_cost_segment_exploration_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 17839494)] // ceil(1.05 × 16989994 measured)
+#[available_gas(l2_gas: 17796192)] // ceil(1.05 × 16948754 measured)
 fn test_cost_segment_exploration() {
     let (words, actions) = exploration();
     let (out, done) = segment_of(words, actions);
@@ -4638,7 +4638,7 @@ fn test_cost_segment_call_exploration_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 19311489)] // ceil(1.05 × 18391894 measured)
+#[available_gas(l2_gas: 19286531)] // ceil(1.05 × 18368124 measured)
 fn test_cost_segment_call_exploration() {
     let (words, actions) = exploration();
     let (out, done) = segment_call(words, actions);
@@ -4664,7 +4664,7 @@ fn test_cost_segment_call_fight() {
 // t-0109, minor 2: a Turn refused for weight writes nothing. Ten Waits spend the weight, then a
 // Turn: the segment stops for weight, 10 played, the member's facing unchanged.
 #[test]
-#[available_gas(l2_gas: 10517582)] // ceil(1.05 × 10016744 measured)
+#[available_gas(l2_gas: 10366455)] // ceil(1.05 × 9872814 measured)
 fn test_segment_turn_heavy() {
     let (words, _) = exploration();
     let before: u256 = (*words.members[0]).state.into();

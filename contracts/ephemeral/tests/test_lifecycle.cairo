@@ -722,7 +722,7 @@ fn test_create_reuses_the_slot() {
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 45005735)] // ceil(1.05 × 42862604 measured)
+#[available_gas(l2_gas: 43547841)] // ceil(1.05 × 41474134 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -1207,7 +1207,7 @@ fn test_refused_absent() {
 // reachable"), before any draw.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 70621356)] // ceil(1.05 × 67258434 measured)
+#[available_gas(l2_gas: 70477685)] // ceil(1.05 × 67121604 measured)
 fn test_refused_gate() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1234,7 +1234,7 @@ fn test_refused_sealed() {
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-#[available_gas(l2_gas: 37620980)] // ceil(1.05 × 35829504 measured)
+#[available_gas(l2_gas: 37419903)] // ceil(1.05 × 35638002 measured)
 fn test_not_controller() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -2203,7 +2203,7 @@ fn prepare_walk(world: World) {
 // hold it, and the words would differ).
 #[test]
 // gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
-#[available_gas(l2_gas: 351581934)] // ceil(1.05 × 334839937 measured)
+#[available_gas(l2_gas: 350219444)] // ceil(1.05 × 333542327 measured)
 fn test_play_batch_equals_singles_ten_east() {
     let mut moves = array![];
     let mut k: u8 = 0;
@@ -2253,7 +2253,7 @@ fn test_play_unloadable_goblin_refused() {
 // chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
 #[test]
 // gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
-#[available_gas(l2_gas: 333150597)] // ceil(1.05 × 317286282 measured)
+#[available_gas(l2_gas: 331190614)] // ceil(1.05 × 315419632 measured)
 fn test_play_batch_equals_singles_round_trip() {
     let mut moves = array![grimworld_logic::actions::Action::Move(3)];
     let mut k: u8 = 0;

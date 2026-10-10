@@ -240,11 +240,56 @@ pub trait IFlattenLibrary<T> {
     ) -> (felt252, felt252, felt252);
 }
 
-/// A location's quota hosts as a library class (ENG-01 §1.3, ENG-05, D-210): `Instances` calls it
-/// through `IHostsLibraryLibraryDispatcher` once at `create`, in a zone with quotas (`hosts`) or in
-/// a dungeon floor (`floor`, ENG-10b), the class hash being its configuration.
+/// A location's quota hosts as a library class (ENG-01 §1.3, ENG-05, D-210), and since CBT-05g
+/// (D-240) the reveals' site: `Instances` calls it through `IHostsLibraryLibraryDispatcher` once at
+/// `create` (`enter`, which runs `hosts` in a zone with quotas or `floor` in a dungeon floor,
+/// ENG-10b), `PlayLibrary` once a reveal in play (`reveal`), the class hash being its
+/// configuration.
 #[starknet::interface]
 pub trait IHostsLibrary<T> {
+    /// A reveal of `chunks` in play (CBT-05g, D-240): `destination`'s site read here (the registry
+    /// at `registry`), its masks given `hosts` (one stored bitmap a quota, 0 for a quota with
+    /// nothing left) or, in a dungeon floor, its stored `outline` (chunks, west, north); then
+    /// `RevealLibrary`'s (`reveal`) `reveal` from `progress`, the stored one, whose result it
+    /// returns.
+    fn reveal(
+        self: @T,
+        registry: starknet::ContractAddress,
+        reveal: starknet::ClassHash,
+        destination: u16,
+        location: crate::models::location::Location,
+        entry_chunk: u8,
+        entry_tile: u8,
+        tasks: Span<crate::snapshot::TaskEntry>,
+        hosts: Span<felt252>,
+        outline: Option<(felt252, felt252, felt252)>,
+        progress: crate::types::reveal::Progress,
+        instance_id: felt252,
+        known: Span<(u8, crate::models::chunk::Terrain)>,
+        chunks: Span<u8>,
+    ) -> (crate::types::reveal::Progress, Span<(u8, felt252, felt252)>);
+    /// `create`'s entry reveal (CBT-05g, D-240): `destination`'s site read here, the progress of
+    /// `entropy`; a zone's quota hosts (`hosts`) or a dungeon floor's outline and hosts (`floor`),
+    /// drawn once; then `RevealLibrary`'s (`reveal`) `reveal` of `chunks`. Returns its progress and
+    /// chunks, one host bitmap a quota (none in a zone without quotas) and a floor's outline.
+    fn enter(
+        self: @T,
+        registry: starknet::ContractAddress,
+        reveal: starknet::ClassHash,
+        destination: u16,
+        location: crate::models::location::Location,
+        entry_chunk: u8,
+        entry_tile: u8,
+        tasks: Span<crate::snapshot::TaskEntry>,
+        chunks: Span<u8>,
+        entropy: felt252,
+        instance_id: felt252,
+    ) -> (
+        crate::types::reveal::Progress,
+        Span<(u8, felt252, felt252)>,
+        Span<felt252>,
+        Option<crate::types::reveal::outline::Outline>,
+    );
     /// The host chunks of each of the 14 quotas of `plan` (`PlacementTrait::plan`) in the zone
     /// `zone` (its chunk set, 0 for its whole `width × height` rectangle), the location's set
     /// pieces in `pieces`, drawn from `seed` (`PlacementTrait::hosts`): one bitmap a quota, bit
