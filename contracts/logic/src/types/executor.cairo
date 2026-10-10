@@ -1461,13 +1461,14 @@ pub impl DelegateCarry of Carry<Delegate> {
         let wide = ExecutorTrait::wide(@lever, sheets, carrier);
         let mut picked: Array<u32> = array![];
         let mut sub = actor;
-        if wide {
+        if wide || addressed.is_some() {
             for (i, state) in world.alive() {
                 let (x, y, _) = GoblinPlaceTrait::at(state);
                 let at = board.position(x, y);
                 let own = actor == Actor::Goblin(i);
-                let near = WindowTrait::distance(at, source_at) <= 1
-                    || WindowTrait::distance(at, address_at) <= 1;
+                let near = wide
+                    && (WindowTrait::distance(at, source_at) <= 1
+                        || WindowTrait::distance(at, address_at) <= 1);
                 if own || addressed == Some(i) || near {
                     if own {
                         sub = Actor::Goblin(picked.len());
@@ -1475,41 +1476,12 @@ pub impl DelegateCarry of Carry<Delegate> {
                     picked.append(i);
                 }
             }
-        } else {
-            // CBT-05d: a `SINGLE` carrier's goblins are its source and the addressed one, living,
-            // read without the pass over every goblin the loop above makes (the same picks)
-            let own = match actor {
-                Actor::Goblin(i) => if world.goblin(i).is_alive() {
-                    Some(i)
-                } else {
-                    None
-                },
-                Actor::Member(_) => None,
-            };
-            let other = match addressed {
-                Some(i) => if own != Some(i) && world.goblin(i).is_alive() {
-                    Some(i)
-                } else {
-                    None
-                },
-                None => None,
-            };
-            match (own, other) {
-                (Some(i), Some(j)) => if i < j {
-                    sub = Actor::Goblin(0);
-                    picked.append(i);
-                    picked.append(j);
-                } else {
-                    sub = Actor::Goblin(1);
-                    picked.append(j);
-                    picked.append(i);
-                },
-                (Some(i), None) => {
-                    sub = Actor::Goblin(0);
-                    picked.append(i);
-                },
-                (None, Some(j)) => picked.append(j),
-                (None, None) => {},
+        } else if let Actor::Goblin(i) = actor {
+            // CBT-05d: a `SINGLE` carrier addressing no goblin (a goblin's weapon hit on a member)
+            // carries its source alone, living, without the pass over every goblin
+            if world.goblin(i).is_alive() {
+                sub = Actor::Goblin(0);
+                picked.append(i);
             }
         }
         let mut members = array![];
