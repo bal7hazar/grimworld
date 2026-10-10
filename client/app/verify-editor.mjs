@@ -9,9 +9,11 @@
 // selected and moved, copied and pasted, mirrored; a failing map is fixed; each is walked in the
 // preview with the game's keys and taps. CLI-09e part 2: the pack's four menus are opened, a
 // building, a character, a prop and a bridge placed, the character turned (R), a building's door
-// failed and fixed (E-20), the map saved and opened again from its file. CLI-09c: ENG-08's sample
+// failed and fixed (E-45), the map saved and opened again from its file. CLI-09c: ENG-08's sample
 // zone is refused without its content manifest, opens with it, validates, is exported for the chain
-// to the converter's records file, and its grimworld-export JSON opens again and exports the same.
+// to the converter's records file, and its grimworld-export JSON opens again and exports the same;
+// CLI-09c2: the samples are tools/map-format's (ENG-09), and hexes painted past the fitted rectangle
+// are named in the export dialog, with their count, and not exported.
 // CLI-09f: the bridge fixture validates; a bridge placed from the menu on a pond's bank spans the
 // water (a deck of 3); a character on its deck is refused (R-37) and undone; the walker walks onto
 // the deck. CLI-09h: with a building selected, F arms the Footprint tool; a click and a drag
@@ -788,7 +790,7 @@ async function packPhase(page, look, shot) {
     "a prop placed, mirrored (H)",
   );
   ok(of("bridge")?.type === "stone_bridge", "a bridge placed");
-  ok((await listed(page, "E-20")) === 0, "the building's door is walkable: no E-20");
+  ok((await listed(page, "E-45")) === 0, "the building's door is walkable: no E-45");
   ok((await listed(page, "E-21")) === 0, "the character stands on floor: no E-21");
   await page.waitForTimeout(300);
   await shot("14-placed");
@@ -798,9 +800,9 @@ async function packPhase(page, look, shot) {
   await page.locator('[data-swatch="terrain-wall"]').click();
   await clickHex(page, anchor);
   await page.waitForTimeout(400);
-  ok((await listed(page, "E-20")) === 1, "a wall under the door: E-20 fails");
+  ok((await listed(page, "E-45")) === 1, "a wall under the door: E-45 fails");
   await page.keyboard.press("y");
-  await page.locator('[data-finding="E-20"]').waitFor();
+  await page.locator('[data-finding="E-45"]').waitFor();
   await shot("15-door-fails");
   await page.locator('.ed-validation button[aria-label="Close the panel"]').click();
   await page.keyboard.press("u");
@@ -808,7 +810,7 @@ async function packPhase(page, look, shot) {
   await page.keyboard.press("r");
   await page.waitForTimeout(400);
   const door = (await objectsOf(page)).find((o) => o.kind === "building")?.door;
-  ok((await listed(page, "E-20")) === 0, `the door turned to ${door}: E-20 passes`);
+  ok((await listed(page, "E-45")) === 0, `the door turned to ${door}: E-45 passes`);
   await shot("16-door-fixed");
 
   // CLI-09h: the building selected, F arms the Footprint tool; a click and a drag paint hexes
@@ -841,8 +843,12 @@ async function packPhase(page, look, shot) {
     `a drag adds two more in one stroke (${two.split(";").length} hexes)`,
   );
   ok((await stepsOf()) === stepsBefore + 2, "each stroke is one undo step");
-  ok((await listed(page, "E-16")) === 0, "the footprint is one piece in the chunk set: no E-16");
-  ok((await listed(page, "E-20")) === 0, "the door is on its border and walkable: no E-20");
+  ok((await listed(page, "E-44")) === 0, "the footprint is one piece: no E-44");
+  ok((await listed(page, "E-43")) === 0, "the footprint lies in the zone: no E-43");
+  ok(
+    (await listed(page, "E-20")) + (await listed(page, "E-45")) === 0,
+    "the door on its border, walkable",
+  );
   await shot("16b-footprint-painted");
   // The door hex stays on the footprint.
   const doorOffset = (await objectsOf(page)).find((o) => o.kind === "building").door;
@@ -898,7 +904,7 @@ async function bridgePhase(page, look, shot) {
   const deck = stone.deck.map(([x, y]) => ({ x, y }));
   const middle = deck[1];
   await openFixture(page, "bridge-zone.grimmap.json");
-  for (const check of ["R-37", "E-24", "E-25", "R-34", "E-7"]) {
+  for (const check of ["R-37", "E-46", "E-47", "E-25", "R-34", "E-7"]) {
     ok((await listed(page, check)) === 0, `the bridge fixture: no ${check}`);
   }
   await shot("18-bridges");
@@ -931,7 +937,7 @@ async function bridgePhase(page, look, shot) {
     placed?.type === "stone_bridge" && placed.deck === deck.length,
     `placed on the bank: it spans the pond, a deck of ${placed?.deck} hexes`,
   );
-  for (const check of ["R-37", "E-24", "E-25", "R-34"]) {
+  for (const check of ["R-37", "E-46", "E-47", "E-25", "R-34"]) {
     ok((await listed(page, check)) === 0, `placed: no ${check}`);
   }
   await shot("20-bridge-placed");
@@ -955,8 +961,8 @@ async function bridgePhase(page, look, shot) {
   await walkPhase(page, look, shot, "bridge", middle);
 }
 
-/** ENG-08's samples (track game's, read only). */
-const SAMPLES = join(here, "../../spikes/SPK-16-authored-zone/samples");
+/** ENG-09's samples (track game's `tools/map-format/`, read only). */
+const SAMPLES = join(here, "../../tools/map-format/samples");
 
 /** A download the click starts, saved and read. */
 async function downloaded(page, selector, path) {
@@ -999,6 +1005,7 @@ async function exportPhase(page, look, shot) {
   ok(/: 0 errors/.test(validation), `it validates: ${validation}`);
   const verdict = await page.locator("[data-export-verdict]").innerText();
   ok(/records/.test(verdict), `the converter accepts it: ${verdict}`);
+  ok((await page.locator("[data-export-dropped]").count()) === 0, "the sample drops no hex");
   await shot("19-export-dialog");
   const json = await downloaded(page, "[data-export-json]", join(shots, `export-${look}.json`));
   const records = await downloaded(
@@ -1030,6 +1037,37 @@ async function exportPhase(page, look, shot) {
     join(shots, `export-${look}-2.records.json`),
   );
   ok(again.text === records.text, "opened from its export, it exports the same records");
+
+  // CLI-09c2: hexes of the outside painted far East, past the fitted rectangle: the dialog names
+  // them with their count, and the records are the same.
+  await page.evaluate(() => {
+    const s = window.__editor.session;
+    const far = { x: 60, y: 0 };
+    // Painted first (the outline sorts painted hexes only), then left outside the outline.
+    s.armTool("paint");
+    s.strokeStart(far, { erase: false, alt: false, shift: false });
+    s.strokeEnd();
+    s.armTool("outline");
+    s.strokeStart(far, { erase: true, alt: false, shift: false });
+    s.strokeEnd();
+  });
+  await page.waitForTimeout(400);
+  await page.locator("[data-export]").click();
+  await page.locator('[data-dialog="export"]').waitFor();
+  const dropped = page.locator("[data-export-dropped]");
+  const count = Number((await dropped.getAttribute("data-export-dropped")) ?? 0);
+  const warning = count > 0 ? await dropped.innerText() : "";
+  ok(
+    count > 0 && warning.startsWith(`${count} painted hex`) && /not exported/.test(warning),
+    `hexes past the rectangle are named: ${warning}`,
+  );
+  await shot("19b-export-dropped");
+  const third = await downloaded(
+    page,
+    "[data-confirm]",
+    join(shots, `export-${look}-3.records.json`),
+  );
+  ok(third.text === records.text, "with them dropped, the records are the same");
 }
 
 /** In the page: the device pixels that differ between two PNG screenshots, and their box (CSS px). */
