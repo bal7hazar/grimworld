@@ -184,6 +184,8 @@ pub impl AuthoredImpl of AuthoredTrait {
             );
             let low = *site.level_min;
             let high = *site.level_max;
+            // At most 255 levels: `Registry` refuses an authored zone's band of 0 to 255 (R-39,
+            // audit t-0131), whose 256 levels a byte's bound cannot draw
             let level = if high > low {
                 low + rng.draw_byte((high - low + 1).try_into().unwrap())
             } else {
@@ -265,7 +267,7 @@ pub impl AuthoredImpl of AuthoredTrait {
 
 #[cfg(test)]
 mod tests {
-    use crate::fate::EntropyTrait;
+    use crate::fate::{EntropyTrait, REVEAL, derive, domain};
     use crate::models::chunk::{Features, Object, object};
     use crate::models::pack::{Pack, PackCaste};
     use crate::models::quotas::{Quota, QuotaSet, kind as quota};
@@ -381,8 +383,9 @@ mod tests {
         found.unwrap()
     }
 
-    // D-208: the chunks revealed in either order, or one by one, give the same words and the same
-    // progress, over 8 entropies.
+    // D-208: the chunks revealed in either order within one call give the same words and the same
+    // progress, over 8 entropies (one call a chunk, the progress threaded: `test_zone`'s
+    // `test_authored_reveal_threaded`).
     #[test]
     #[available_gas(l2_gas: 41091904)] // ceil(1.05 × 39135146 measured)
     fn test_authored_reveal_order_free() {
@@ -430,6 +433,30 @@ mod tests {
         }
     }
 
+    // The widest band an authored zone may have, 0 to 254 (R-39: 0 to 255, 256 levels, is refused
+    // by `Registry`, audit t-0131): every reveal lays its packs, the Heart at 254.
+    #[test]
+    #[available_gas(l2_gas: 9780031)] // ceil(1.05 × 9314315 measured)
+    fn test_authored_reveal_widest_band() {
+        let mut wide = site();
+        wide.level_min = 0;
+        wide.level_max = 254;
+        let mut entropy: felt252 = 0x99;
+        for _ in 0..4_u8 {
+            let mut progress = ProgressTrait::new(@wide, entropy);
+            let hosts = AuthoredTrait::hosts(
+                @wide.quotas, candidates(), EntropyTrait::authored_hosts(entropy, INSTANCE),
+            );
+            let out = AuthoredTrait::reveal(
+                @wide, ref progress, INSTANCE, records(), hosts.span(), array![0, 1].span(),
+            );
+            let [spawn, _] = chunk_of(@out, 0).features.packs;
+            let [heart, _] = chunk_of(@out, 1).features.packs;
+            assert(spawn.count != 0 && heart.count != 0 && heart.level == 254, 'packs laid');
+            entropy = entropy * 31 + 17;
+        }
+    }
+
     // A chunk of the set without its record (the content pipeline writes every chunk) is all wall.
     #[test]
     #[available_gas(l2_gas: 503099)] // ceil(1.05 × 479141 measured)
@@ -446,13 +473,17 @@ mod tests {
     // The draws' domains (ENG-08's Q6): the hosts at counter 226, a chunk's spawn points at 256 +
     // chunk: none is a chunk's word (0–224), the generated hosts' (225) nor the outline's (227).
     #[test]
-    #[available_gas(l2_gas: 8533168)] // ceil(1.05 × 8126826 measured)
+    #[available_gas(l2_gas: 8566671)] // ceil(1.05 × 8158734 measured)
     fn test_authored_domains_apart() {
         let e = 0xabc;
         let hosts = EntropyTrait::authored_hosts(e, INSTANCE);
         assert(hosts != EntropyTrait::hosts(e, INSTANCE), 'hosts');
         assert(hosts != EntropyTrait::outline(e, INSTANCE), 'outline');
         assert(hosts == EntropyTrait::word(e, INSTANCE, 226), 'counter 226');
+        assert(
+            EntropyTrait::spawns(e, INSTANCE, 7) == derive(e, domain(INSTANCE, 256 + 7, REVEAL), 0),
+            'counter 256 + chunk',
+        );
         for chunk in 0..225_u8 {
             let word = EntropyTrait::spawns(e, INSTANCE, chunk);
             assert(word != EntropyTrait::word(e, INSTANCE, chunk), 'a chunk word');

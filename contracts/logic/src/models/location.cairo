@@ -48,6 +48,8 @@ pub mod errors {
     pub const MAP: felt252 = 'location: map';
     /// A dungeon floor whose rectangle is not larger than its `N` (R-28, ENG-R1c's bound 4).
     pub const FLOOR_RECTANGLE: felt252 = 'location: floor rectangle';
+    /// An authored zone's band of more than 255 levels (R-39, audit t-0131).
+    pub const LEVEL_BAND: felt252 = 'zone: level band';
 }
 
 #[generate_trait]
@@ -138,9 +140,17 @@ pub impl LocationAssert of LocationAssertTrait {
         assert(*self.map <= map::AUTHORED, errors::MAP);
     }
 
+    /// R-39 (audit t-0131), at an authored zone's `LOCATION` write: its level band at most 255
+    /// levels, so that a chunk's level, drawn uniformly in it with a byte's bound, never overflows
+    /// (D-140). A generated zone's levels are not drawn so (`PlacementTrait::level`).
     /// R-28 (ENG-R1c's bound 4, built by ENG-09): a dungeon floor's `width × height` above its
     /// `N`, else its last chunks can be walled in (ADR-0006 *Outlines*). `Registry`'s check of a
     /// `LOCATION` write.
+    fn assert_band(self: @Location) {
+        assert(*self.level_min != 0 || *self.level_max != 255, errors::LEVEL_BAND);
+    }
+
+    /// R-28 (see above).
     fn assert_floor_rectangle(self: @Location) {
         if *self.kind == kind::DUNGEON {
             let area: u16 = (*self.width).into() * (*self.height).into();

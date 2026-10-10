@@ -1059,6 +1059,7 @@ same code; CI's `map-format` job holds that every registry case has its Cairo tw
 | R-34 | Each end walkable and next to a deck tile; **every deck tile walkable** (extended, ADR-0008 rule 1) | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against its `BRIDGE`s (ENG-09) | `bridge: end not floor`, `bridge: end not by the deck`, `bridge: deck not floor` |
 | R-35 | A bridge's index below its chunk's count | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that lowers its count below a written `BRIDGE` (ENG-09) | `bridge: index` |
 | R-37 | No spawn point, object, candidate tile, gate anchor or entry on a bridge's deck or ends (ADR-0008 rule 5) | `BRIDGE` (its `ZONE_CHUNK`, the `GATE`s it names, `LOCATION`'s entry) | a `ZONE_CHUNK` rewrite, a `GATE` write and a `LOCATION` write, each against the chunk's `BRIDGE`s | `bridge: tile taken` |
+| R-39 | An authored zone's level band at most 255 levels (0 to 255 refused): a chunk's level is drawn with a byte's bound (audit t-0131, minor 1; D-140) | `LOCATION` with the marker | — (one record) | `zone: level band` |
 
 **R-30, sized from the measure** (D-220): ENG-05's worst legal plan (six passes of 112, 98,153,254 in
 `test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,

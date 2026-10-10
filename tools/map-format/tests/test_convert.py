@@ -131,6 +131,10 @@ def m_entry_not_floor(z):
     z["location"]["entry_tile"] = first_wall(z["chunks"][0])
 
 
+def m_level_band(z):
+    z["location"]["level_min"], z["location"]["level_max"] = 0, 255
+
+
 def m_heart_template(z):
     z["hearts"][2] = (0, 2)
 

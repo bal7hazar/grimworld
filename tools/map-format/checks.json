@@ -128,6 +128,15 @@
    "mutation": "the entry tile moved to chunk 0's first wall tile"
   },
   {
+   "case": "level_band",
+   "id": "R-39",
+   "code": "zone: level band",
+   "checked_at": "LOCATION (the marker)",
+   "reads": "—",
+   "rule": "An authored zone's level band at most 255 levels: a chunk's level is drawn with a byte's bound (audit t-0131)",
+   "mutation": "the band 0 to 255"
+  },
+  {
    "case": "candidates_rewrite_count",
    "id": "R-13",
    "code": "zone: count above candidates",

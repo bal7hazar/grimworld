@@ -25,6 +25,7 @@ use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota_kind};
 use grimworld_logic::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
 use grimworld_logic::packing::{LIVE, Lanes16};
+use grimworld_logic::types::reveal::Progress;
 use grimworld_logic::types::reveal::board::BoardTrait;
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait, IRegistryAdminSafeDispatcher,
@@ -288,7 +289,7 @@ fn first_floor(record: @ZoneChunk) -> u8 {
 // --- The sample passes ---------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 59891939)] // ceil(1.05 × 57039941 measured)
+#[available_gas(l2_gas: 59892149)] // ceil(1.05 × 57040141 measured)
 fn test_sample_registered() {
     let r = ZoneFixture::deploy();
     let location = r.location();
@@ -302,7 +303,7 @@ fn test_sample_registered() {
 // R-27's index: the Heart quota of the authored sample names the raiders (1); a `LOCATION` write
 // that drops the marker frees them, one that sets it again binds them (`heart_packs`).
 #[test]
-#[available_gas(l2_gas: 56207983)] // ceil(1.05 × 53531412 measured)
+#[available_gas(l2_gas: 56208403)] // ceil(1.05 × 53531812 measured)
 #[feature("safe_dispatcher")]
 fn test_heart_index_follows_the_marker() {
     let r = ZoneFixture::deploy();
@@ -347,7 +348,7 @@ fn words_of(words: Span<(u8, felt252, felt252)>, chunk: u8) -> (felt252, felt252
 // the same words and the same progress (D-208, ENG-08's ruling 3 and 4); every quota placed; each
 // chunk's plane the record's; nothing generated (no outline drawn).
 #[test]
-#[available_gas(l2_gas: 109382251)] // ceil(1.05 × 104173572 measured)
+#[available_gas(l2_gas: 109382461)] // ceil(1.05 × 104173772 measured)
 fn test_authored_reveal_through_hosts_library() {
     let r = ZoneFixture::deploy();
     let reveal = class("RevealLibrary");
@@ -418,6 +419,65 @@ fn test_authored_reveal_through_hosts_library() {
     }
 }
 
+// Play reveals one segment a call (audit t-0131, minor 2): the four other chunks revealed one per
+// call, each call's progress passed to the next, in two orders, give the same words per chunk and
+// the same final progress.
+#[test]
+#[available_gas(l2_gas: 75420653)] // ceil(1.05 × 71829193 measured)
+fn test_authored_reveal_threaded() {
+    let r = ZoneFixture::deploy();
+    let reveal = class("RevealLibrary");
+    let library = IHostsLibraryLibraryDispatcher { class_hash: class("HostsLibrary") };
+    let location = r.location();
+    let zone: u16 = ZONE.try_into().unwrap();
+    let (entered, _, hosts, _) = library
+        .enter(
+            r.address,
+            reveal,
+            zone,
+            location,
+            location.entry_chunk,
+            location.entry_tile,
+            array![].span(),
+            array![0].span(),
+            0xfeed,
+            7,
+        );
+    let mut results: Array<(Progress, Array<(u8, felt252, felt252)>)> = array![];
+    for order in array![array![1_u8, 2, 15, 16].span(), array![16_u8, 15, 2, 1].span()].span() {
+        let mut progress = entered;
+        let mut words: Array<(u8, felt252, felt252)> = array![];
+        for chunk in *order {
+            let (next, out) = library
+                .reveal(
+                    r.address,
+                    reveal,
+                    zone,
+                    location,
+                    location.entry_chunk,
+                    location.entry_tile,
+                    array![].span(),
+                    hosts,
+                    None,
+                    progress,
+                    7,
+                    array![].span(),
+                    array![*chunk].span(),
+                );
+            assert(out.len() == 1, 'one chunk a call');
+            words.append(*out[0]);
+            progress = next;
+        }
+        results.append((progress, words));
+    }
+    let (a, wa) = results.pop_front().unwrap();
+    let (b, wb) = results.pop_front().unwrap();
+    assert(a == b && a.count == 5, 'final progress');
+    for chunk in array![1_u8, 2, 15, 16].span() {
+        assert(words_of(wa.span(), *chunk) == words_of(wb.span(), *chunk), 'words per chunk');
+    }
+}
+
 // --- The zone checks' class
 // ------------------------------------------------------------------------
 
@@ -441,7 +501,7 @@ fn test_refuse_without_zone_checks() {
 }
 
 #[test]
-#[available_gas(l2_gas: 49864890)] // ceil(1.05 × 47490371 measured)
+#[available_gas(l2_gas: 49865100)] // ceil(1.05 × 47490571 measured)
 #[should_panic(expected: 'registry: zone checks zero')]
 #[feature("safe_dispatcher")]
 fn test_refuse_zone_checks_zero() {
@@ -452,10 +512,43 @@ fn test_refuse_zone_checks_zero() {
     }
 }
 
+// `set_zone_checks` is the administrator's (D-245): another caller is refused and nothing changes
+// (an authored zone's record still refused); the administrator's call takes effect (the same record
+// accepted).
+#[test]
+#[available_gas(l2_gas: 7715915)] // ceil(1.05 × 7348490 measured)
+#[feature("safe_dispatcher")]
+fn test_set_zone_checks_admin_only() {
+    let contract = declare("Registry").unwrap().contract_class();
+    let (address, _) = contract.deploy(@array![ADMIN]).unwrap();
+    let r = Registry {
+        address,
+        admin: IRegistryAdminDispatcher { contract_address: address },
+        safe: IRegistryAdminSafeDispatcher { contract_address: address },
+        read: IRegistryReadDispatcher { contract_address: address },
+    };
+    let checks = class("ZoneChecks");
+    start_cheat_caller_address(address, 0xbad.try_into().unwrap());
+    match r.safe.set_zone_checks(checks) {
+        Ok(()) => core::panic_with_felt252('not refused'),
+        Err(data) => assert(*data.at(0) == 'not admin', 'not admin'),
+    }
+    start_cheat_caller_address(address, ADMIN.try_into().unwrap());
+    r.admin.set_record(LOCATION, 1, plain(location_kind::TOWN, 0, 0, 0).pack());
+    let zone = plain(location_kind::ZONE, 1, 1, 0).with_map(map::AUTHORED).pack();
+    match r.safe.set_record(LOCATION, 2, zone) {
+        Ok(()) => core::panic_with_felt252('accepted unchecked'),
+        Err(data) => assert(*data.at(0) == 'registry: no zone checks', 'still unset'),
+    }
+    r.admin.set_zone_checks(checks);
+    r.admin.set_record(LOCATION, 2, zone);
+    assert(r.read.record(LOCATION, 2) == zone, 'checked and written');
+}
+
 // --- Each case of `checks.json`'s registry table -------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 50918424)] // ceil(1.05 × 48493737 measured)
+#[available_gas(l2_gas: 50918634)] // ceil(1.05 × 48493937 measured)
 #[should_panic(expected: 'zone: set outside rectangle')]
 fn test_refuse_set_outside() {
     let r = ZoneFixture::deploy();
@@ -463,7 +556,7 @@ fn test_refuse_set_outside() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51485983)] // ceil(1.05 × 49034269 measured)
+#[available_gas(l2_gas: 51486193)] // ceil(1.05 × 49034469 measured)
 #[should_panic(expected: 'zone: count above members')]
 fn test_refuse_count_above_members() {
     let r = ZoneFixture::deploy();
@@ -471,7 +564,7 @@ fn test_refuse_count_above_members() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51519192)] // ceil(1.05 × 49065897 measured)
+#[available_gas(l2_gas: 51519402)] // ceil(1.05 × 49066097 measured)
 #[should_panic(expected: 'zone: count above candidates')]
 fn test_refuse_count_above_candidates() {
     let r = ZoneFixture::deploy();
@@ -479,7 +572,7 @@ fn test_refuse_count_above_candidates() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51659022)] // ceil(1.05 × 49199068 measured)
+#[available_gas(l2_gas: 51659232)] // ceil(1.05 × 49199268 measured)
 #[should_panic(expected: 'zone chunk: tile not floor')]
 fn test_refuse_spawn_on_wall() {
     let r = ZoneFixture::deploy();
@@ -490,7 +583,7 @@ fn test_refuse_spawn_on_wall() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51640936)] // ceil(1.05 × 49181843 measured)
+#[available_gas(l2_gas: 51641146)] // ceil(1.05 × 49182043 measured)
 #[should_panic(expected: 'zone chunk: tile not floor')]
 fn test_refuse_spawn_on_ring() {
     let r = ZoneFixture::deploy();
@@ -503,7 +596,7 @@ fn test_refuse_spawn_on_ring() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51625673)] // ceil(1.05 × 49167307 measured)
+#[available_gas(l2_gas: 51625883)] // ceil(1.05 × 49167507 measured)
 #[should_panic(expected: 'zone chunk: object')]
 fn test_refuse_object_kind() {
     let r = ZoneFixture::deploy();
@@ -515,7 +608,7 @@ fn test_refuse_object_kind() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51807506)] // ceil(1.05 × 49340481 measured)
+#[available_gas(l2_gas: 51807716)] // ceil(1.05 × 49340681 measured)
 #[should_panic(expected: 'zone chunk: empty with a value')]
 fn test_refuse_empty_with_value() {
     let r = ZoneFixture::deploy();
@@ -525,7 +618,7 @@ fn test_refuse_empty_with_value() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51745625)] // ceil(1.05 × 49281547 measured)
+#[available_gas(l2_gas: 51745835)] // ceil(1.05 × 49281747 measured)
 #[should_panic(expected: 'zone chunk: tile taken')]
 fn test_refuse_tile_taken() {
     let r = ZoneFixture::deploy();
@@ -538,7 +631,7 @@ fn test_refuse_tile_taken() {
 }
 
 #[test]
-#[available_gas(l2_gas: 52331136)] // ceil(1.05 × 49839177 measured)
+#[available_gas(l2_gas: 52331346)] // ceil(1.05 × 49839377 measured)
 #[should_panic(expected: 'zone chunk: over its caps')]
 fn test_refuse_over_caps() {
     let r = ZoneFixture::deploy();
@@ -567,7 +660,7 @@ fn test_refuse_over_caps() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51051306)] // ceil(1.05 × 48620291 measured)
+#[available_gas(l2_gas: 51051516)] // ceil(1.05 × 48620491 measured)
 #[should_panic(expected: 'zone: gate anchor not floor')]
 fn test_refuse_gate_anchor_not_floor() {
     let r = ZoneFixture::deploy();
@@ -576,7 +669,7 @@ fn test_refuse_gate_anchor_not_floor() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51320496)] // ceil(1.05 × 48876662 measured)
+#[available_gas(l2_gas: 51320706)] // ceil(1.05 × 48876862 measured)
 #[should_panic(expected: 'zone: mask disagrees')]
 fn test_refuse_mask_disagrees() {
     let r = ZoneFixture::deploy();
@@ -587,7 +680,7 @@ fn test_refuse_mask_disagrees() {
 
 // The reverse direction: the chunk set rewritten without chunk 0, which holds a `ZONE_CHUNK`.
 #[test]
-#[available_gas(l2_gas: 51352559)] // ceil(1.05 × 48907199 measured)
+#[available_gas(l2_gas: 51352769)] // ceil(1.05 × 48907399 measured)
 #[should_panic(expected: 'zone: chunk not in the set')]
 fn test_refuse_chunk_not_in_set() {
     let r = ZoneFixture::deploy();
@@ -596,7 +689,7 @@ fn test_refuse_chunk_not_in_set() {
 
 // R-24 forward: a `ZONE_CHUNK` for chunk 17, inside the rectangle, outside the set.
 #[test]
-#[available_gas(l2_gas: 51300920)] // ceil(1.05 × 48858019 measured)
+#[available_gas(l2_gas: 51301130)] // ceil(1.05 × 48858219 measured)
 #[should_panic(expected: 'zone: chunk not in the set')]
 fn test_refuse_chunk_outside_the_set() {
     let r = ZoneFixture::deploy();
@@ -605,7 +698,7 @@ fn test_refuse_chunk_outside_the_set() {
 
 // R-25's reverse check: chunk 16 drops gate 3, which anchors there.
 #[test]
-#[available_gas(l2_gas: 52182879)] // ceil(1.05 × 49697980 measured)
+#[available_gas(l2_gas: 52183089)] // ceil(1.05 × 49698180 measured)
 #[should_panic(expected: 'zone: gate not indexed')]
 fn test_refuse_gate_not_indexed() {
     let r = ZoneFixture::deploy();
@@ -614,7 +707,7 @@ fn test_refuse_gate_not_indexed() {
 
 // R-25 forward: a gate anchored in chunk 16, which does not name it.
 #[test]
-#[available_gas(l2_gas: 50713451)] // ceil(1.05 × 48298524 measured)
+#[available_gas(l2_gas: 50713661)] // ceil(1.05 × 48298724 measured)
 #[should_panic(expected: 'zone: gate not indexed')]
 fn test_refuse_gate_unnamed() {
     let r = ZoneFixture::deploy();
@@ -622,7 +715,7 @@ fn test_refuse_gate_unnamed() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51663243)] // ceil(1.05 × 49203088 measured)
+#[available_gas(l2_gas: 51663663)] // ceil(1.05 × 49203488 measured)
 #[should_panic(expected: 'zone: entry not floor')]
 fn test_refuse_entry_not_floor() {
     let r = ZoneFixture::deploy();
@@ -630,10 +723,21 @@ fn test_refuse_entry_not_floor() {
     r.refuse(LOCATION, ZONE, location.pack());
 }
 
+// R-39 (audit t-0131): an authored zone's band of 0 to 255, 256 levels, which a byte's bound cannot
+// draw.
+#[test]
+#[available_gas(l2_gas: 51334267)] // ceil(1.05 × 48889778 measured)
+#[should_panic(expected: 'zone: level band')]
+fn test_refuse_level_band() {
+    let r = ZoneFixture::deploy();
+    let location = Location { level_min: 0, level_max: 255, ..r.location() };
+    r.refuse(LOCATION, ZONE, location.pack());
+}
+
 // R-13's reverse check (review t-0084, minor 1): quota 0's count raised to its 2 candidates, then
 // its candidates cut to one.
 #[test]
-#[available_gas(l2_gas: 54121002)] // ceil(1.05 × 51543811 measured)
+#[available_gas(l2_gas: 54121212)] // ceil(1.05 × 51544011 measured)
 #[should_panic(expected: 'zone: count above candidates')]
 fn test_refuse_candidates_rewrite_count() {
     let r = ZoneFixture::deploy();
@@ -647,7 +751,7 @@ fn test_refuse_candidates_rewrite_count() {
 
 // R-14's reverse check: chunk 1 left out of quota 0's candidates keeps its candidate tile.
 #[test]
-#[available_gas(l2_gas: 52101260)] // ceil(1.05 × 49620247 measured)
+#[available_gas(l2_gas: 52101470)] // ceil(1.05 × 49620447 measured)
 #[should_panic(expected: 'zone chunk: empty with a value')]
 fn test_refuse_candidates_rewrite_tile() {
     let r = ZoneFixture::deploy();
@@ -658,7 +762,7 @@ fn test_refuse_candidates_rewrite_tile() {
 
 // R-27's reverse check: the raiders, which the Heart quota names, rewritten empty at their fewest.
 #[test]
-#[available_gas(l2_gas: 50402091)] // ceil(1.05 × 48001991 measured)
+#[available_gas(l2_gas: 50402301)] // ceil(1.05 × 48002191 measured)
 #[should_panic(expected: 'zone: heart template')]
 fn test_refuse_pack_rewrite_heart() {
     let r = ZoneFixture::deploy();
@@ -674,7 +778,7 @@ fn test_refuse_pack_rewrite_heart() {
 
 // R-27 forward: a Heart naming a template the registry does not hold.
 #[test]
-#[available_gas(l2_gas: 51730616)] // ceil(1.05 × 49267253 measured)
+#[available_gas(l2_gas: 51730826)] // ceil(1.05 × 49267453 measured)
 #[should_panic(expected: 'zone: heart template')]
 fn test_refuse_heart_template() {
     let r = ZoneFixture::deploy();
@@ -686,7 +790,7 @@ fn test_refuse_heart_template() {
 // R-28, a dungeon floor's bound (ENG-R1c's bound 4, built by ENG-09 and applied by ENG-R1c): the
 // shared check itself, on the sample made a 3 × 2 floor of `N` 6.
 #[test]
-#[available_gas(l2_gas: 50032596)] // ceil(1.05 × 47650091 measured)
+#[available_gas(l2_gas: 50032806)] // ceil(1.05 × 47650291 measured)
 #[should_panic(expected: 'location: floor rectangle')]
 fn test_refuse_floor_rectangle() {
     let r = ZoneFixture::deploy();
@@ -695,7 +799,7 @@ fn test_refuse_floor_rectangle() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51729812)] // ceil(1.05 × 49266487 measured)
+#[available_gas(l2_gas: 51730022)] // ceil(1.05 × 49266687 measured)
 #[should_panic(expected: 'zone: quota kind')]
 fn test_refuse_quota_kind() {
     let r = ZoneFixture::deploy();
@@ -706,7 +810,7 @@ fn test_refuse_quota_kind() {
 // R-30 (D-220): a 15 × 15 authored zone, every chunk a candidate of each of six quotas of 112:
 // 672 draws, above 640.
 #[test]
-#[available_gas(l2_gas: 169247045)] // ceil(1.05 × 161187661 measured)
+#[available_gas(l2_gas: 169247465)] // ceil(1.05 × 161188061 measured)
 #[should_panic(expected: 'zone: quota draws')]
 fn test_refuse_quota_draws() {
     let r = ZoneFixture::deploy();
@@ -728,7 +832,7 @@ fn test_refuse_quota_draws() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51317678)] // ceil(1.05 × 48873979 measured)
+#[available_gas(l2_gas: 51317888)] // ceil(1.05 × 48874179 measured)
 #[should_panic(expected: 'candidates: outside the set')]
 fn test_refuse_candidates_outside() {
     let r = ZoneFixture::deploy();
@@ -737,7 +841,7 @@ fn test_refuse_candidates_outside() {
 }
 
 #[test]
-#[available_gas(l2_gas: 50951346)] // ceil(1.05 × 48525091 measured)
+#[available_gas(l2_gas: 50951556)] // ceil(1.05 × 48525291 measured)
 #[should_panic(expected: 'bridge: deck empty')]
 fn test_refuse_bridge_deck() {
     let r = ZoneFixture::deploy();
@@ -745,7 +849,7 @@ fn test_refuse_bridge_deck() {
 }
 
 #[test]
-#[available_gas(l2_gas: 50951346)] // ceil(1.05 × 48525091 measured)
+#[available_gas(l2_gas: 50951556)] // ceil(1.05 × 48525291 measured)
 #[should_panic(expected: 'bridge: end')]
 fn test_refuse_bridge_end() {
     let r = ZoneFixture::deploy();
@@ -755,7 +859,7 @@ fn test_refuse_bridge_end() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51192715)] // ceil(1.05 × 48754966 measured)
+#[available_gas(l2_gas: 51192925)] // ceil(1.05 × 48755166 measured)
 #[should_panic(expected: 'bridge: end not floor')]
 fn test_refuse_bridge_floor() {
     let r = ZoneFixture::deploy();
@@ -765,7 +869,7 @@ fn test_refuse_bridge_floor() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51299743)] // ceil(1.05 × 48856898 measured)
+#[available_gas(l2_gas: 51299953)] // ceil(1.05 × 48857098 measured)
 #[should_panic(expected: 'bridge: end not by the deck')]
 fn test_refuse_bridge_apart() {
     let r = ZoneFixture::deploy();
@@ -777,7 +881,7 @@ fn test_refuse_bridge_apart() {
 // R-34 extended (ADR-0008 rule 1), its reverse check: chunk 15's plane rewritten with its
 // bridge's deck as wall.
 #[test]
-#[available_gas(l2_gas: 52532057)] // ceil(1.05 × 50030530 measured)
+#[available_gas(l2_gas: 52532267)] // ceil(1.05 × 50030730 measured)
 #[should_panic(expected: 'bridge: deck not floor')]
 fn test_refuse_bridge_deck_floor() {
     let r = ZoneFixture::deploy();
@@ -790,7 +894,7 @@ fn test_refuse_bridge_deck_floor() {
 
 // R-37 (ADR-0008 rule 5), its reverse check: a chest on the bridge's first end.
 #[test]
-#[available_gas(l2_gas: 52668915)] // ceil(1.05 × 50160871 measured)
+#[available_gas(l2_gas: 52669125)] // ceil(1.05 × 50161071 measured)
 #[should_panic(expected: 'bridge: tile taken')]
 fn test_refuse_bridge_tile_taken() {
     let r = ZoneFixture::deploy();
@@ -804,7 +908,7 @@ fn test_refuse_bridge_tile_taken() {
 
 // R-37 at a `GATE` write: gate 3 moved to chunk 15, named there, anchored on the bridge's end.
 #[test]
-#[available_gas(l2_gas: 53807993)] // ceil(1.05 × 51245707 measured)
+#[available_gas(l2_gas: 53808203)] // ceil(1.05 × 51245907 measured)
 #[should_panic(expected: 'bridge: tile taken')]
 fn test_refuse_gate_on_a_bridge() {
     let r = ZoneFixture::deploy();
@@ -817,7 +921,7 @@ fn test_refuse_gate_on_a_bridge() {
 
 // R-35's reverse check: chunk 15's count of bridges lowered below its written bridge.
 #[test]
-#[available_gas(l2_gas: 52056648)] // ceil(1.05 × 49577760 measured)
+#[available_gas(l2_gas: 52056858)] // ceil(1.05 × 49577960 measured)
 #[should_panic(expected: 'bridge: index')]
 fn test_refuse_bridge_index() {
     let r = ZoneFixture::deploy();
@@ -826,7 +930,7 @@ fn test_refuse_bridge_index() {
 
 // R-35 forward: a second bridge in chunk 15, which counts one.
 #[test]
-#[available_gas(l2_gas: 51039336)] // ceil(1.05 × 48608891 measured)
+#[available_gas(l2_gas: 51039546)] // ceil(1.05 × 48609091 measured)
 #[should_panic(expected: 'bridge: index')]
 fn test_refuse_bridge_past_the_count() {
     let r = ZoneFixture::deploy();
@@ -835,7 +939,7 @@ fn test_refuse_bridge_past_the_count() {
 
 // A `ZONE_CHUNK`'s parent: its location, and a chunk below 225.
 #[test]
-#[available_gas(l2_gas: 50682294)] // ceil(1.05 × 48268851 measured)
+#[available_gas(l2_gas: 50682504)] // ceil(1.05 × 48269051 measured)
 #[should_panic(expected: 'registry: no parent')]
 fn test_refuse_zone_chunk_without_location() {
     let r = ZoneFixture::deploy();
@@ -843,7 +947,7 @@ fn test_refuse_zone_chunk_without_location() {
 }
 
 #[test]
-#[available_gas(l2_gas: 51217973)] // ceil(1.05 × 48779021 measured)
+#[available_gas(l2_gas: 51218183)] // ceil(1.05 × 48779221 measured)
 #[should_panic(expected: 'zone chunk: reserved plane')]
 fn test_refuse_reserved_plane() {
     let r = ZoneFixture::deploy();
@@ -856,7 +960,7 @@ fn test_refuse_reserved_plane() {
 
 // The marker: a value this reader does not know is refused (format version 1).
 #[test]
-#[available_gas(l2_gas: 50966231)] // ceil(1.05 × 48539267 measured)
+#[available_gas(l2_gas: 50966441)] // ceil(1.05 × 48539467 measured)
 #[should_panic(expected: 'location: map')]
 fn test_refuse_unknown_map() {
     let r = ZoneFixture::deploy();
@@ -869,7 +973,7 @@ fn test_refuse_unknown_map() {
 // A generated zone (no marker) keeps every rule of before: a quota above its chunk set's members
 // is not refused there (ENG-R1c binds generated zones).
 #[test]
-#[available_gas(l2_gas: 53537024)] // ceil(1.05 × 50987641 measured)
+#[available_gas(l2_gas: 53537234)] // ceil(1.05 × 50987841 measured)
 fn test_generated_zone_unbound() {
     let r = ZoneFixture::deploy();
     r.admin.set_record(LOCATION, 4, plain(location_kind::ZONE, 1, 1, 0).pack());

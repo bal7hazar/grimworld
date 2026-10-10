@@ -302,6 +302,13 @@ def deploy(package, class_hash, *calldata):
 
 
 registry = deploy("persistent", declare("persistent", "Registry"), ADDRESS)
+# ENG-09 (D-245): the registry's zone checks (`ZoneChecks`, its library class) are part of its
+# deployment, set by the administrator before any record, as a constructor's configuration would be;
+# the transaction is not remembered, so that the recorded streams (every transaction after `Hub`'s
+# deployment, and the storage keys they and the deployments write) stay those recorded before ENG-09.
+zone_checks = declare("persistent", "ZoneChecks")
+sncast("persistent", "--account", names[0], "--wait", "invoke", "--url", URL, "--contract-address",
+       registry, "--function", "set_zone_checks", "--calldata", zone_checks)
 fate = deploy("persistent", declare("persistent", "TxHashFate"))
 # ENG-05: the reveal's library class, declared before `Hub`'s deployment so that the recorded
 # transactions are the ones they were; its class hash is `Instances`' constructor argument.
@@ -314,7 +321,7 @@ instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub,
                    reveal, hosts_library, trap_library)
 emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances,
       "flatten_class": flatten, "reveal_class": reveal, "hosts_class": hosts_library,
-      "trap_class": trap_library})
+      "trap_class": trap_library, "zone_checks_class": zone_checks})
 WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
 NAMES = {int(registry, 16): "registry", int(fate, 16): "fate", int(hub, 16): "hub",
          int(instances, 16): "instances", int(flatten, 16): "flatten_class",
@@ -565,11 +572,6 @@ if OPTIONS.get("--fight") == "on":
     records += [(8, row[0], caste_record(row)) for row in seed_rows("castes", 30)]
     records += [(7, row[0], pack_record(row)) for row in seed_rows("packs", 17)]
     records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 16)]
-# ENG-09: an authored zone's records need the registry's zone checks (`ZoneChecks`, its library
-# class); only with `--authored on`, so that the recorded streams do not move.
-if OPTIONS.get("--authored") == "on":
-    invoke("Registry.set_zone_checks", registry, "set_zone_checks",
-           declare("persistent", "ZoneChecks"), record=False)
 for kind, rid, parts in records:
     invoke(f"set_record {kind} {rid}", registry, "set_record", kind, rid, len(parts), *parts,
            record=False)

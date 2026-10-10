@@ -292,6 +292,12 @@ def assert_quotas(quotas, chunk_set, candidates, hearts):
         raise Refused("zone: quota draws", f"{total} draws")
 
 
+def assert_band(location):
+    """R-39 (audit t-0131): an authored zone's band at most 255 levels (0 to 255 refused)."""
+    if location["level_min"] == 0 and location["level_max"] == 255:
+        raise Refused("zone: level band")
+
+
 def assert_floor_rectangle(location):
     if location["kind"] == LOCATION_KINDS["dungeon"] and \
             location["width"] * location["height"] <= location["target"]:
@@ -342,6 +348,7 @@ def check_zone(z):
     for gate in z["gates"].values():
         anchors.setdefault(gate["anchor_chunk"], set()).add(gate["anchor_tile"])
     anchors.setdefault(loc["entry_chunk"], set()).add(loc["entry_tile"])
+    assert_band(loc)
     assert_floor_rectangle(loc)
     assert_set(z["chunk_set"], loc["width"], loc["height"])
     assert_candidates(z["candidates"], z["chunk_set"])

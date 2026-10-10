@@ -28,7 +28,7 @@ pub mod ZoneChecks {
     use grimworld_logic::models::candidates::{CandidatesAssert, CandidatesRecord};
     use grimworld_logic::models::gate::GateRecord;
     use grimworld_logic::models::location::{
-        INDEX_BOUND, Location, LocationRecord, LocationTrait, map,
+        INDEX_BOUND, Location, LocationAssert, LocationRecord, LocationTrait, map,
     };
     use grimworld_logic::models::outline::{CHUNK_SET, OutlineAssert, OutlineRecord, OutlineTrait};
     use grimworld_logic::models::pack::{Pack, PackRecord};
@@ -342,6 +342,7 @@ pub mod ZoneChecks {
             if *location.target != 0 || !location.authored() {
                 return;
             }
+            location.assert_band();
             let set = self.part0(OUTLINE, id * 256 + CHUNK_SET.into());
             if set != 0 {
                 OutlineAssert::assert_within(set - LIVE, *location.width, *location.height);
