@@ -24,6 +24,8 @@ pub mod errors {
     pub const NOT_NEXT: felt252 = 'registry: id not next';
     pub const NO_PARENT: felt252 = 'registry: no parent';
     pub const OUTLINE_CHUNK: felt252 = 'registry: outline chunk';
+    /// A `ZONE_CHUNK` or `BRIDGE` id whose chunk is not below 225 (ENG-09).
+    pub const CHUNK: felt252 = 'registry: chunk';
     /// A `LOCATION` whose dungeon floor holds more than 12 chunks (ENG-10b, CM-9).
     pub const FLOOR_SIZE: felt252 = 'registry: floor over 12 chunks';
     /// `records` and `bundle` past their bound (ENG-01 §4.5).
@@ -75,24 +77,41 @@ pub impl InputsImpl of Inputs {
 pub mod Registry {
     use core::num::traits::Zero;
     use grimworld_logic::content::{
-        ARMOR_SET, CASTE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE,
-        SHOP, SKILL, SPAWN_TABLE, is_sequential, parts,
+        ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE,
+        PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK, is_sequential, parts,
     };
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
+    use grimworld_logic::models::bridge::{
+        Bridge, BridgeAssert, BridgeRecord, BridgeTrait, errors as bridge_errors,
+    };
+    use grimworld_logic::models::candidates::{
+        CandidatesAssert, CandidatesRecord, CandidatesTrait,
+    };
     use grimworld_logic::models::caste::{
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
+    use grimworld_logic::models::gate::GateRecord;
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
-    use grimworld_logic::models::location::{INDEX_BOUND, LocationRecord};
+    use grimworld_logic::models::location::{
+        INDEX_BOUND, Location, LocationRecord, LocationTrait, errors as location_errors, map,
+    };
     use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
-    use grimworld_logic::models::outline::CHUNK_SET;
-    use grimworld_logic::models::pack::{PackAssert, PackRecord};
-    use grimworld_logic::models::quotas::{QuotaSetAssert, QuotaSetRecord};
+    use grimworld_logic::models::outline::{
+        CHUNK_SET, OutlineAssert, OutlineRecord, OutlineTrait,
+    };
+    use grimworld_logic::models::pack::{Pack, PackAssert, PackRecord};
+    use grimworld_logic::models::quotas::{
+        QuotaBoundsAssert, QuotaSet, QuotaSetAssert, QuotaSetRecord, kind as quota_kind,
+    };
     use grimworld_logic::models::set_piece::{SetPieceAssert, SetPieceRecord};
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
+    use grimworld_logic::models::zone_chunk::{
+        ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait, errors as chunk_errors,
+    };
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
+    use grimworld_logic::types::reveal::board::BoardTrait;
     use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address};
@@ -118,6 +137,10 @@ pub mod Registry {
         /// while it is not 0, the skill is refused above 63 strikes (DS-18 across records, in
         /// either order of writes; CBT-02c fix loop 2).
         pub caste_skills: Map<u32, u32>,
+        /// How many Heart quotas of authored zones name each `PACK` template: while it is not 0,
+        /// the template is refused empty at its fewest or at its most (R-27 across records, in
+        /// either order of writes; ENG-09).
+        pub heart_packs: Map<u32, u32>,
     }
 
     #[constructor]
@@ -178,6 +201,7 @@ pub mod Registry {
                     // A new id: none of its keys was ever written (ids are never reused, records
                     // never zeroed), so there is nothing to read or compare.
                     self.name_skills(kind, id, record);
+                    self.name_hearts(kind, id, record);
                     self.set_new_record(kind, id, record);
                     self.set_last_id(kind, id_wide);
                     self.raise_versions(false);
@@ -188,6 +212,7 @@ pub mod Registry {
                 self.assert_parent(kind, id);
             }
             self.name_skills(kind, id, record);
+            self.name_hearts(kind, id, record);
             if self.update_record(kind, id, record) {
                 self.raise_versions(Inputs::includes(kind));
             }
@@ -254,11 +279,26 @@ pub mod Registry {
         ///   its interior's floor). That the ids they name exist is the content pipeline's
         ///   (OPS-01).
         /// - `LOCATION`: a dungeon floor's `N` at most 12 (`MAX_CHUNKS`, CM-9; ENG-10b: the outline
-        ///   drawn at `create` and its bit-parallel walks assume it).
+        ///   drawn at `create` and its bit-parallel walks assume it); a map format it knows.
+        /// - an authored zone's records (ENG-01 §3.5's R-table, ENG-09): every rule between two
+        ///   records at the write of either, against the other when it exists (`ZoneAssert`).
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == LOCATION {
-                assert(LocationRecord::unpack(record).target <= MAX_CHUNKS, errors::FLOOR_SIZE);
+                let location = LocationRecord::unpack(record);
+                assert(location.target <= MAX_CHUNKS, errors::FLOOR_SIZE);
+                assert(location.map <= map::AUTHORED, location_errors::MAP);
+                self.assert_location(id, @location);
+            } else if kind == OUTLINE {
+                self.assert_outline(id, OutlineRecord::unpack(record).bits());
+            } else if kind == ZONE_CHUNK {
+                self.assert_zone_chunk(id, @ZoneChunkRecord::unpack(record));
+            } else if kind == CANDIDATES {
+                self.assert_candidates(id, CandidatesRecord::unpack(record).sets);
+            } else if kind == BRIDGE {
+                self.assert_bridge(id, @BridgeRecord::unpack(record));
+            } else if kind == GATE {
+                self.assert_gate(id, record);
             } else if kind == MODIFIER {
                 ModifierRecord::unpack(record).assert_legal();
             } else if kind == ARMOR_SET {
@@ -272,11 +312,17 @@ pub mod Registry {
             } else if kind == ITEM {
                 ItemRecord::unpack(record).assert_legal();
             } else if kind == QUOTAS {
-                QuotaSetRecord::unpack(record).assert_legal();
+                let quotas = QuotaSetRecord::unpack(record);
+                quotas.assert_legal();
+                self.assert_quotas(id, @quotas);
             } else if kind == SPAWN_TABLE {
                 SpawnTableRecord::unpack(record).assert_legal();
             } else if kind == PACK {
-                PackRecord::unpack(record).assert_legal();
+                let pack = PackRecord::unpack(record);
+                pack.assert_legal();
+                if self.heart_packs.read(id) != 0 {
+                    QuotaBoundsAssert::assert_heart(@pack);
+                }
             } else if kind == SET_PIECE {
                 SetPieceRecord::unpack(record).assert_legal();
             } else if kind == CASTE {
@@ -303,8 +349,9 @@ pub mod Registry {
         /// A composite id names an existing parent: `QUOTAS` its location (the same id, D-145),
         /// `OUTLINE` a location (and a chunk below 225, or 255), `SHOP` a location as its hub (its
         /// existence only: that it is a town or an outpost is the content pipeline's check).
-        /// `TASK` and `QUEST` take the administrator's quiver ids as they are (D-145): that a
-        /// quiver id exists is the content pipeline's check (OPS-01).
+        /// `ZONE_CHUNK` a location and a chunk below 225, `BRIDGE` a location and a chunk below 225,
+        /// `CANDIDATES` a location (ENG-09). `TASK` and `QUEST` take the administrator's quiver ids
+        /// as they are (D-145): that a quiver id exists is the content pipeline's check (OPS-01).
         #[inline(always)]
         fn assert_parent(self: @ContractState, kind: u8, id: u32) {
             if kind == QUOTAS {
@@ -317,6 +364,16 @@ pub mod Registry {
                 self.assert_exists(LOCATION, location);
             } else if kind == SHOP {
                 self.assert_exists(LOCATION, id / 16);
+            } else if kind == ZONE_CHUNK {
+                let (location, chunk) = DivRem::div_rem(id, 256);
+                assert(chunk < INDEX_BOUND.into(), errors::CHUNK);
+                self.assert_exists(LOCATION, location);
+            } else if kind == BRIDGE {
+                let (location, rest) = DivRem::div_rem(id, 4096);
+                assert(rest / 16 < INDEX_BOUND.into(), errors::CHUNK);
+                self.assert_exists(LOCATION, location);
+            } else if kind == CANDIDATES {
+                self.assert_exists(LOCATION, id / 2);
             }
         }
 
@@ -329,6 +386,413 @@ pub mod Registry {
         #[inline(always)]
         fn assert_bound(count: u32) {
             assert(count <= MAX_READ, errors::TOO_MANY);
+        }
+    }
+
+
+    /// The content's checks of an authored zone's records (ENG-01 §3.5's R-table; ENG-08's
+    /// format, built by ENG-09; the same cases as `tools/map-format/checks.json`, which the
+    /// converter and the editor refuse with the same codes). **Every rule between two records is
+    /// checked at the write of either, against the other when it exists** (CBT-02c's precedent,
+    /// DS-18), so that no order of writes and no rewrite lets a breach through; the converter's
+    /// order (`LOCATION` with the marker, the chunk set, `CANDIDATES`, `QUOTAS`, the masks, each
+    /// `ZONE_CHUNK` and its `BRIDGE`s, the `GATE`s) only makes each write find what it checks
+    /// against. The records of an authored zone's own kinds (`ZONE_CHUNK`, `CANDIDATES`, `BRIDGE`)
+    /// are checked whatever the marker; the rules on kinds every location has (`QUOTAS`' bounds,
+    /// the chunk set's R-11, the entry's R-26) bind a zone with the marker, and the `LOCATION`
+    /// write that sets it re-runs them (ENG-R1c applies the shared bounds to generated zones).
+    /// The administrator pays them once; no player's call makes them again. Each read goes
+    /// through the store; nothing is written.
+    #[generate_trait]
+    pub impl ZoneAssert of ZoneAssertTrait {
+        /// A record's parts as stored (zeros for none).
+        fn parts_of(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
+            let mut out = array![];
+            self.read_into(kind, id, parts(kind), ref out);
+            out.span()
+        }
+
+        /// The location `id`, when it is an authored zone (a zone with the marker).
+        fn authored(self: @ContractState, id: u32) -> Option<Location> {
+            let record = self.parts_of(LOCATION, id);
+            if *record[0] == 0 {
+                return None;
+            }
+            let location = LocationRecord::unpack(record);
+            if location.target == 0 && location.authored() {
+                Some(location)
+            } else {
+                None
+            }
+        }
+
+        /// The zone's chunk set as the reveal reads it: its `OUTLINE`, or the whole rectangle
+        /// without one.
+        fn chunk_set(self: @ContractState, location: u32, width: u8, height: u8) -> felt252 {
+            let record = self.parts_of(OUTLINE, location * 256 + CHUNK_SET.into());
+            if *record[0] == 0 {
+                OutlineTrait::rectangle(width, height)
+            } else {
+                OutlineRecord::unpack(record).bits()
+            }
+        }
+
+        /// The six quotas' candidate sets (0 where no `CANDIDATES` part holds them).
+        fn candidates(self: @ContractState, location: u32) -> Span<felt252> {
+            let [c0, c1, c2] = CandidatesRecord::unpack(
+                self.parts_of(CANDIDATES, location * 2),
+            )
+                .sets;
+            let [c3, c4, c5] = CandidatesRecord::unpack(
+                self.parts_of(CANDIDATES, location * 2 + 1),
+            )
+                .sets;
+            array![c0, c1, c2, c3, c4, c5].span()
+        }
+
+        fn quotas(self: @ContractState, location: u32) -> Option<QuotaSet> {
+            let record = self.parts_of(QUOTAS, location);
+            if *record[0] == 0 {
+                None
+            } else {
+                Some(QuotaSetRecord::unpack(record))
+            }
+        }
+
+        fn zone_chunk(self: @ContractState, location: u32, chunk: u8) -> Option<ZoneChunk> {
+            let record = self.parts_of(ZONE_CHUNK, location * 256 + chunk.into());
+            if *record[0] == 0 {
+                None
+            } else {
+                Some(ZoneChunkRecord::unpack(record))
+            }
+        }
+
+        fn bridge(self: @ContractState, location: u32, chunk: u8, k: u8) -> Option<Bridge> {
+            let record = self.parts_of(BRIDGE, location * 4096 + chunk.into() * 16 + k.into());
+            if *record[0] == 0 {
+                None
+            } else {
+                Some(BridgeRecord::unpack(record))
+            }
+        }
+
+        /// R-12, R-13, R-27, R-29 and R-30 (`QuotaBoundsAssert::assert_bounds`) of an authored
+        /// zone's quotas, against its chunk set's members, its candidates and the Heart templates.
+        fn assert_bounds(
+            self: @ContractState, quotas: @QuotaSet, members: felt252, candidates: Span<felt252>,
+        ) {
+            let mut hearts: Array<Option<Pack>> = array![];
+            for entry in quotas.quotas.span() {
+                let mut pack = None;
+                if *entry.kind == quota_kind::HEART {
+                    let record = self.parts_of(PACK, (*entry.param).into());
+                    if *record[0] != 0 {
+                        pack = Some(PackRecord::unpack(record));
+                    }
+                }
+                hearts.append(pack);
+            }
+            quotas.assert_bounds(BoardTrait::count(members), Some(candidates), hearts.span());
+        }
+
+        /// The tiles of chunk `chunk` that bear authored content besides its own placements: the
+        /// anchors of the gates it names that anchor there, and the entry when it is the entry
+        /// chunk (R-37).
+        fn anchors(
+            self: @ContractState, location: u32, chunk: u8, record: @ZoneChunk, entry: Option<u8>,
+        ) -> felt252 {
+            let mut tiles: felt252 = match entry {
+                Some(tile) => BoardTrait::pow(tile),
+                None => 0,
+            };
+            for gate in record.gates.span() {
+                if *gate != 0 {
+                    let parts = self.parts_of(GATE, (*gate).into());
+                    if *parts[0] != 0 {
+                        let value = GateRecord::unpack(parts);
+                        if value.source.into() == location && value.anchor_chunk == chunk {
+                            tiles = BoardTrait::or(tiles, BoardTrait::pow(value.anchor_tile));
+                        }
+                    }
+                }
+            }
+            tiles
+        }
+
+        /// The entry tile when `chunk` is an authored zone's entry chunk.
+        fn entry(self: @ContractState, location: u32, chunk: u8) -> Option<u8> {
+            match self.authored(location) {
+                Some(zone) => if zone.entry_chunk == chunk {
+                    Some(zone.entry_tile)
+                } else {
+                    None
+                },
+                None => None,
+            }
+        }
+
+        /// A `LOCATION` write that leaves or makes it an authored zone: R-11 against its stored
+        /// chunk set (the rectangle may shrink); R-26 and R-37 against its entry chunk's record
+        /// and bridges; R-12, R-13, R-27, R-29 and R-30 against its stored `QUOTAS`.
+        fn assert_location(self: @ContractState, id: u32, location: @Location) {
+            if *location.target != 0 || !location.authored() {
+                return;
+            }
+            let set = self.parts_of(OUTLINE, id * 256 + CHUNK_SET.into());
+            if *set[0] != 0 {
+                OutlineAssert::assert_within(
+                    OutlineRecord::unpack(set).bits(), *location.width, *location.height,
+                );
+            }
+            let chunk = *location.entry_chunk;
+            if let Some(record) = self.zone_chunk(id, chunk) {
+                record.assert_entry(*location.entry_tile);
+                let tile = BoardTrait::pow(*location.entry_tile);
+                for k in 0..record.bridges {
+                    if let Some(bridge) = self.bridge(id, chunk, k) {
+                        bridge.assert_clear(tile);
+                    }
+                }
+            }
+            if let Some(quotas) = self.quotas(id) {
+                let members = self.chunk_set(id, *location.width, *location.height);
+                self.assert_bounds(@quotas, members, self.candidates(id));
+            }
+        }
+
+        /// An `OUTLINE` write. The chunk set (an authored zone's): R-11 within the rectangle, R-12
+        /// and R-30 against `QUOTAS` (its members); whatever the marker, R-31 against both
+        /// `CANDIDATES` and R-24 against every chunk it drops (none may hold a `ZONE_CHUNK`). A
+        /// border chunk's mask: R-20 against that chunk's `ZONE_CHUNK`.
+        fn assert_outline(self: @ContractState, id: u32, bits: felt252) {
+            let (location, chunk) = DivRem::div_rem(id, 256);
+            if chunk != CHUNK_SET.into() {
+                if chunk < INDEX_BOUND.into() {
+                    let chunk: u8 = chunk.try_into().unwrap();
+                    if let Some(record) = self.zone_chunk(location, chunk) {
+                        ZoneChunkAssert::assert_mask(record.walls, bits);
+                    }
+                }
+                return;
+            }
+            let candidates = self.candidates(location);
+            CandidatesAssert::assert_within(candidates, bits);
+            if let Some(zone) = self.authored(location) {
+                OutlineAssert::assert_within(bits, zone.width, zone.height);
+                if let Some(quotas) = self.quotas(location) {
+                    self.assert_bounds(@quotas, bits, candidates);
+                }
+            }
+            let old = self.parts_of(OUTLINE, id);
+            let before = if *old[0] == 0 {
+                let zone = LocationRecord::unpack(self.parts_of(LOCATION, location));
+                OutlineTrait::rectangle(zone.width, zone.height)
+            } else {
+                OutlineRecord::unpack(old).bits()
+            };
+            let mut dropped = BoardTrait::minus(before, bits);
+            while dropped != 0 {
+                let chunk = BoardTrait::nth(dropped, 0);
+                dropped -= BoardTrait::pow(chunk);
+                assert(self.zone_chunk(location, chunk).is_none(), chunk_errors::NOT_IN_SET);
+            }
+        }
+
+        /// A `QUOTAS` write of an authored zone: R-12, R-13, R-27, R-29 and R-30 against its chunk
+        /// set, `CANDIDATES` and Heart templates; R-15 again on the candidate chunks of every quota
+        /// whose kind changed (an object quota counts against 3 objects, a Heart against 2 packs).
+        fn assert_quotas(self: @ContractState, id: u32, quotas: @QuotaSet) {
+            let Some(zone) = self.authored(id) else {
+                return;
+            };
+            let candidates = self.candidates(id);
+            let members = self.chunk_set(id, zone.width, zone.height);
+            self.assert_bounds(quotas, members, candidates);
+            let before: QuotaSet = match self.quotas(id) {
+                Some(stored) => stored,
+                None => QuotaSet { quotas: [Default::default(); 6] },
+            };
+            let mut changed: felt252 = 0;
+            for i in 0..6_u32 {
+                if *before.quotas.span()[i].kind != *quotas.quotas.span()[i].kind {
+                    changed = BoardTrait::or(changed, *candidates[i]);
+                }
+            }
+            self.assert_chunks(id, changed, candidates, quotas);
+        }
+
+        /// R-14 and R-15 on every chunk of `chunks` that holds a `ZONE_CHUNK`.
+        fn assert_chunks(
+            self: @ContractState,
+            location: u32,
+            chunks: felt252,
+            candidates: Span<felt252>,
+            quotas: @QuotaSet,
+        ) {
+            let mut left = chunks;
+            while left != 0 {
+                let chunk = BoardTrait::nth(left, 0);
+                left -= BoardTrait::pow(chunk);
+                if let Some(record) = self.zone_chunk(location, chunk) {
+                    record.assert_legal(chunk, candidates, quotas);
+                }
+            }
+        }
+
+        /// A `CANDIDATES` write (`sets`: quotas `3 k` to `3 k + 2`): R-31 against the chunk set;
+        /// R-12, R-13, R-27, R-29 and R-30 against an authored zone's `QUOTAS`; R-14 and R-15
+        /// again on each chunk whose candidacy changed.
+        fn assert_candidates(self: @ContractState, id: u32, sets: [felt252; 3]) {
+            let (location, k) = DivRem::div_rem(id, 2);
+            let zone = self.parts_of(LOCATION, location);
+            if *zone[0] == 0 {
+                return;
+            }
+            let zone = LocationRecord::unpack(zone);
+            let [s0, s1, s2] = sets;
+            let stored = self.candidates(location);
+            let mut candidates: Array<felt252> = array![];
+            let mut changed: felt252 = 0;
+            let mut i: u32 = 0;
+            for old in stored {
+                let new = if i / 3 != k {
+                    *old
+                } else if i % 3 == 0 {
+                    s0
+                } else if i % 3 == 1 {
+                    s1
+                } else {
+                    s2
+                };
+                let moved = BoardTrait::minus(BoardTrait::or(*old, new), BoardTrait::and(*old, new));
+                changed = BoardTrait::or(changed, moved);
+                candidates.append(new);
+                i += 1;
+            }
+            let candidates = candidates.span();
+            let members = self.chunk_set(location, zone.width, zone.height);
+            CandidatesAssert::assert_within(array![s0, s1, s2].span(), members);
+            let quotas: QuotaSet = match self.quotas(location) {
+                Some(quotas) => {
+                    if self.authored(location).is_some() {
+                        self.assert_bounds(@quotas, members, candidates);
+                    }
+                    quotas
+                },
+                None => QuotaSet { quotas: [Default::default(); 6] },
+            };
+            self.assert_chunks(location, changed, candidates, @quotas);
+        }
+
+        /// A `ZONE_CHUNK` write: R-24 (in the chunk set), R-20 (its mask), R-14 and R-15 (its
+        /// placements, against `CANDIDATES` and `QUOTAS`), R-26 (the entry chunk of an authored
+        /// zone); R-18 again for each gate it names that anchors here, and R-25: a gate it no
+        /// longer names may not anchor here; R-35: its count may not drop below a written
+        /// `BRIDGE`; R-34 and R-37 again for each of its bridges.
+        fn assert_zone_chunk(self: @ContractState, id: u32, record: @ZoneChunk) {
+            let (location, chunk) = DivRem::div_rem(id, 256);
+            let zone = self.parts_of(LOCATION, location);
+            if *zone[0] == 0 || chunk >= INDEX_BOUND.into() {
+                return;
+            }
+            let zone = LocationRecord::unpack(zone);
+            let chunk: u8 = chunk.try_into().unwrap();
+            let mask = self.parts_of(OUTLINE, id);
+            let mask = if *mask[0] == 0 {
+                0
+            } else {
+                OutlineRecord::unpack(mask).bits()
+            };
+            record.assert_outline(chunk, self.chunk_set(location, zone.width, zone.height), mask);
+            let quotas: QuotaSet = match self.quotas(location) {
+                Some(quotas) => quotas,
+                None => QuotaSet { quotas: [Default::default(); 6] },
+            };
+            record.assert_legal(chunk, self.candidates(location), @quotas);
+            let entry = self.entry(location, chunk);
+            if let Some(tile) = entry {
+                record.assert_entry(tile);
+            }
+            // The gates: those it names anchored on its floor, none it drops anchored here
+            for gate in record.gates.span() {
+                if *gate != 0 {
+                    let parts = self.parts_of(GATE, (*gate).into());
+                    if *parts[0] != 0 {
+                        let value = GateRecord::unpack(parts);
+                        if value.source.into() == location && value.anchor_chunk == chunk {
+                            record.assert_gate(*gate, value.anchor_tile);
+                        }
+                    }
+                }
+            }
+            let (dropped, count): ([u16; 2], u8) = match self.zone_chunk(location, chunk) {
+                Some(old) => (old.gates, old.bridges),
+                None => ([0, 0], 0),
+            };
+            for gate in dropped.span() {
+                if *gate != 0 && !record.names(*gate) {
+                    let parts = self.parts_of(GATE, (*gate).into());
+                    if *parts[0] != 0 {
+                        let value = GateRecord::unpack(parts);
+                        assert(
+                            value.source.into() != location || value.anchor_chunk != chunk,
+                            chunk_errors::GATE_INDEX,
+                        );
+                    }
+                }
+            }
+            // The bridges: none past the new count, each below it still on floor and clear
+            let mut k = *record.bridges;
+            while k < count {
+                assert(self.bridge(location, chunk, k).is_none(), bridge_errors::INDEX);
+                k += 1;
+            }
+            let anchors = self.anchors(location, chunk, record, entry);
+            let odd = (chunk / 15) % 2 == 1;
+            for k in 0..*record.bridges {
+                if let Some(bridge) = self.bridge(location, chunk, k) {
+                    bridge.assert_on(k, record, odd);
+                    bridge.assert_clear(anchors);
+                }
+            }
+        }
+
+        /// A `BRIDGE` write: R-33 (a deck, two distinct ends off it); against its chunk's
+        /// `ZONE_CHUNK` (none: no bridge, R-35), R-35, R-34 extended to the deck and R-37, the
+        /// gates anchored there and the entry included.
+        fn assert_bridge(self: @ContractState, id: u32, bridge: @Bridge) {
+            bridge.assert_legal();
+            let (location, rest) = DivRem::div_rem(id, 4096);
+            let (chunk, k) = DivRem::div_rem(rest, 16);
+            if chunk >= INDEX_BOUND.into() {
+                return;
+            }
+            let chunk: u8 = chunk.try_into().unwrap();
+            let k: u8 = k.try_into().unwrap();
+            let Some(record) = self.zone_chunk(location, chunk) else {
+                core::panic_with_felt252(bridge_errors::INDEX)
+            };
+            bridge.assert_on(k, @record, (chunk / 15) % 2 == 1);
+            let entry = self.entry(location, chunk);
+            bridge.assert_clear(self.anchors(location, chunk, @record, entry));
+        }
+
+        /// A `GATE` write anchored in a chunk that holds a `ZONE_CHUNK`: R-18 (the anchor
+        /// walkable), R-25 (the chunk names the gate) and R-37 (not on a bridge).
+        fn assert_gate(self: @ContractState, id: u32, record: Span<felt252>) {
+            let gate = GateRecord::unpack(record);
+            let location: u32 = gate.source.into();
+            let Some(chunk) = self.zone_chunk(location, gate.anchor_chunk) else {
+                return;
+            };
+            chunk.assert_gate(id.try_into().unwrap(), gate.anchor_tile);
+            let tile = BoardTrait::pow(gate.anchor_tile);
+            for k in 0..chunk.bridges {
+                if let Some(bridge) = self.bridge(location, gate.anchor_chunk, k) {
+                    bridge.assert_clear(tile);
+                }
+            }
         }
     }
 
@@ -363,6 +827,50 @@ pub mod Registry {
                     if before != now {
                         let count = self.get_caste_count(s.into());
                         self.set_caste_count(s.into(), count + now - before);
+                    }
+                }
+            }
+        }
+
+        /// A `QUOTAS` of an authored zone, or a `LOCATION` that gains or loses the marker, written
+        /// (after every check): the counts of `heart_packs` move from the Heart templates the stored
+        /// quotas named (when the zone was authored) to those the new ones name (when it is), as
+        /// `name_skills` does for DS-18 (R-27's reverse check, ENG-09).
+        fn name_hearts(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
+            let (old, new) = if kind == QUOTAS {
+                if !self.authored(id).is_some() {
+                    return;
+                }
+                (self.quotas(id), Some(QuotaSetRecord::unpack(record)))
+            } else if kind == LOCATION {
+                let was = self.authored(id).is_some();
+                let new = LocationRecord::unpack(record);
+                let now = new.target == 0 && new.authored();
+                if was == now {
+                    return;
+                }
+                let quotas = self.quotas(id);
+                if was {
+                    (quotas, None)
+                } else {
+                    (None, quotas)
+                }
+            } else {
+                return;
+            };
+            if let Some(quotas) = old {
+                for entry in quotas.quotas.span() {
+                    if *entry.kind == quota_kind::HEART {
+                        let count = self.get_heart_count((*entry.param).into());
+                        self.set_heart_count((*entry.param).into(), count - 1);
+                    }
+                }
+            }
+            if let Some(quotas) = new {
+                for entry in quotas.quotas.span() {
+                    if *entry.kind == quota_kind::HEART {
+                        let count = self.get_heart_count((*entry.param).into());
+                        self.set_heart_count((*entry.param).into(), count + 1);
                     }
                 }
             }
