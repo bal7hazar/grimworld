@@ -319,6 +319,7 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 334656)] // ceil(1.05 × 318720 measured)
     fn test_zone_chunk_bits_and_round_trip() {
         let record = sample();
         let parts = record.pack();
@@ -335,6 +336,7 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 279353)] // ceil(1.05 × 266050 measured)
     #[should_panic(expected: 'zone chunk: reserved plane')]
     fn test_zone_chunk_reserved_refused() {
         let parts = sample().pack();
@@ -342,12 +344,14 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 134547)] // ceil(1.05 × 128140 measured)
     #[should_panic(expected: 'zone chunk: walls above 224')]
     fn test_zone_chunk_walls_refused() {
         ZoneChunk { walls: BoardTrait::pow(225), ..sample() }.pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 681559)] // ceil(1.05 × 649103 measured)
     fn test_zone_chunk_legal_and_content() {
         let record = sample();
         let candidates = array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span();
@@ -362,6 +366,7 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 106925)] // ceil(1.05 × 101833 measured)
     #[should_panic(expected: 'zone chunk: tile not floor')]
     fn test_zone_chunk_ring_refused() {
         // Tile 14 is on the ring (column 14): floor, but not of the interior
@@ -374,6 +379,7 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 525802)] // ceil(1.05 × 500763 measured)
     #[should_panic(expected: 'zone chunk: over its caps')]
     fn test_zone_chunk_caps_refused() {
         let record = ZoneChunk {

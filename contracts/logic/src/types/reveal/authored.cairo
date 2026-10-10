@@ -382,6 +382,7 @@ mod tests {
     // D-208: the chunks revealed in either order, or one by one, give the same words and the same
     // progress, over 8 entropies.
     #[test]
+    #[available_gas(l2_gas: 41091904)] // ceil(1.05 × 39135146 measured)
     fn test_authored_reveal_order_free() {
         let mut entropy: felt252 = 0x1234;
         for _ in 0..8_u8 {
@@ -396,6 +397,7 @@ mod tests {
     // Each quota placed exactly its count, on its candidate tile; the Heart at the band's top
     // (D-208); the spawn point at a level in the band; chunk 2 (void) not revealed.
     #[test]
+    #[available_gas(l2_gas: 22485356)] // ceil(1.05 × 21414624 measured)
     fn test_authored_reveal_places_as_drawn() {
         let mut entropy: felt252 = 0x77;
         for _ in 0..8_u8 {
@@ -426,6 +428,7 @@ mod tests {
 
     // A chunk of the set without its record (the content pipeline writes every chunk) is all wall.
     #[test]
+    #[available_gas(l2_gas: 503204)] // ceil(1.05 × 479241 measured)
     fn test_authored_reveal_missing_record() {
         let site = site();
         let mut progress = ProgressTrait::new(@site, 5);
@@ -439,6 +442,7 @@ mod tests {
     // The draws' domains (ENG-08's Q6): the hosts at counter 226, a chunk's spawn points at 256 +
     // chunk: none is a chunk's word (0–224), the generated hosts' (225) nor the outline's (227).
     #[test]
+    #[available_gas(l2_gas: 8533168)] // ceil(1.05 × 8126826 measured)
     fn test_authored_domains_apart() {
         let e = 0xabc;
         let hosts = EntropyTrait::authored_hosts(e, INSTANCE);

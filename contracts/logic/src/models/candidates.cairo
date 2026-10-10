@@ -74,6 +74,7 @@ mod tests {
     use super::{Candidates, CandidatesAssert, CandidatesRecord, CandidatesTrait};
 
     #[test]
+    #[available_gas(l2_gas: 28413)] // ceil(1.05 × 27060 measured)
     fn test_candidates_round_trip() {
         let record = Candidates { sets: [3, 0, 0x1000000000000000000000000000000000000000000000000000000000] };
         let parts = record.pack();
@@ -84,6 +85,7 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 29812)] // ceil(1.05 × 28392 measured)
     #[should_panic(expected: 'candidates: outside the set')]
     fn test_candidates_outside_refused() {
         CandidatesAssert::assert_within(array![1, 6].span(), 3);

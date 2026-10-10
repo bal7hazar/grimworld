@@ -112,6 +112,7 @@ mod tests {
     use super::{Bridge, BridgeAssert, BridgeRecord, BridgeTrait};
 
     #[test]
+    #[available_gas(l2_gas: 77014)] // ceil(1.05 × 73346 measured)
     fn test_bridge_bits_and_round_trip() {
         let bridge = Bridge { deck: BoardTrait::pow(223) + BoardTrait::pow(3), ends: (2, 0xe0) };
         let parts = bridge.pack();
@@ -123,6 +124,7 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 28091)] // ceil(1.05 × 26753 measured)
     #[should_panic(expected: 'bridge: end')]
     fn test_bridge_end_on_the_deck_refused() {
         Bridge { deck: BoardTrait::pow(3), ends: (3, 4) }.assert_legal();

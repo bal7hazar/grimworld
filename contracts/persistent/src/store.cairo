@@ -1138,7 +1138,8 @@ mod registry_layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 64638)] // ceil(1.05 × 61560 measured)
+    // gas: raised, ENG-09: two more variables laid out (heart_packs, zone_checks)
+    #[available_gas(l2_gas: 79412)] // ceil(1.05 × 75630 measured)
     fn test_registry_storage_addresses() {
         let state = @Registry::contract_state_for_testing();
         assert(

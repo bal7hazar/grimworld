@@ -141,7 +141,8 @@ impl FeltsImpl of Felts {
 // --- set_record: what it writes -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 4848081)] // ceil(1.05 × 4617220 measured)
+// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
+#[available_gas(l2_gas: 5214195)] // ceil(1.05 × 4965900 measured)
 fn test_set_record_new_sequential() {
     let r = Fixture::deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
@@ -170,7 +171,8 @@ fn test_set_record_existing_changes() {
 
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 7891023)] // ceil(1.05 × 7515260 measured)
+// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
+#[available_gas(l2_gas: 8430188)] // ceil(1.05 × 8028750 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
     let r = Fixture::deploy();
@@ -196,8 +198,8 @@ fn test_set_record_composite_needs_parent() {
 // `QUOTAS` is keyed by its location's id (D-145): one record per location, refused while that
 // location does not exist; `last_id` stays 0.
 #[test]
-// gas: raised, ENG-05: QUOTAS is checked (the registry's content check of the new kinds)
-#[available_gas(l2_gas: 6864564)] // ceil(1.05 × 6537680 measured)
+// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
+#[available_gas(l2_gas: 7425348)] // ceil(1.05 × 7071760 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy();
@@ -217,7 +219,8 @@ fn test_set_record_quotas_keyed_by_location() {
 
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
 #[test]
-#[available_gas(l2_gas: 5021279)] // ceil(1.05 × 4782170 measured)
+// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
+#[available_gas(l2_gas: 5446487)] // ceil(1.05 × 5187130 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
     let r = Fixture::deploy();
@@ -288,7 +291,8 @@ fn test_set_record_unknown_kind_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4031255)] // ceil(1.05 × 3839290 measured)
+// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
+#[available_gas(l2_gas: 4242809)] // ceil(1.05 × 4040770 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
     let r = Fixture::deploy();
@@ -319,7 +323,8 @@ fn test_set_record_id_zero_refused() {
 
 // Sequential kinds are append-only: a new id is `last_id + 1`, never a gap.
 #[test]
-#[available_gas(l2_gas: 4092774)] // ceil(1.05 × 3897880 measured)
+// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
+#[available_gas(l2_gas: 4352009)] // ceil(1.05 × 4144770 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = Fixture::deploy();

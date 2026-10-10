@@ -490,7 +490,8 @@ mod inputs_tests {
     use super::Inputs;
 
     #[test]
-    #[available_gas(l2_gas: 104255)] // ceil(1.05 × 99290 measured)
+    // gas: raised, ENG-09: three more kinds to loop over (LAST_KIND 28)
+    #[available_gas(l2_gas: 115815)] // ceil(1.05 × 110300 measured)
     fn test_flattening_inputs() {
         for kind in 1..LAST_KIND + 1 {
             let expected = kind == SKILL || kind == ITEM || kind == MODIFIER;
