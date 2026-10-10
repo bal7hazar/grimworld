@@ -337,15 +337,12 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal.ts",
     from: "return !has(progress.revealed, chunk) && inside(site, chunk);",
     to: "return inside(site, chunk);",
-    survives:
-      "no case asks a chunk already revealed: `reveal` of chunks [16, 16], or of 16 once it is revealed, reveals it once",
   },
   {
     name: "an anchor on a corner opened (D-134)",
     file: "reveal.ts",
     from: "return tile === 0 || tile === 14 || tile === 210 || tile === 224;",
     to: "return false;",
-    survives: "no anchor lies on a corner: a zone anchor (0, 14) or (0, 210) stays wall",
   },
   {
     name: "a copied side takes the neighbour's same side, not its facing one",
@@ -370,24 +367,18 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal.ts",
     from: "if ((sideMask(at) & tiles) !== 0n && (!emerging || seam(site, chunk, at, next))) {",
     to: "if (!emerging || seam(site, chunk, at, next)) {",
-    survives:
-      "no mask cuts a whole side that faces a revealable neighbour: a 3 x 1 ruin whose chunk 1 has the columns 0-11 mask, chunk 1 revealed before chunk 2",
   },
   {
     name: "a dungeon side open whatever its seam",
     file: "reveal.ts",
     from: "(!emerging || seam(site, chunk, at, next))",
     to: "true",
-    survives:
-      "no dungeon chunk faces an outline chunk across a closed seam: a floor whose outline holds two adjacent chunks with no seam between them",
   },
   {
     name: "a South seam keyed on the West axis (D-224)",
     file: "reveal.ts",
     from: "        [chunk - 15, 1],",
     to: "        [chunk - 15, 0],",
-    survives:
-      "every dungeon South side is copied (the floor is revealed by index, its South neighbour first): a floor chunk revealed before its South neighbour",
   },
   {
     name: "a dungeon seam's openings from the chunk's stream (D-224)",
@@ -406,8 +397,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal.ts",
     from: "for (let tries = 0; tries < TRIES; tries++) {",
     to: "for (let tries = 0; tries < 1; tries++) {",
-    survives:
-      "every side drawn open is whole: a side drawn open under a mask that keeps part of it (the cut case with chunk 1 revealed first)",
   },
   {
     name: "an opening drawn on a corner (D-134)",
@@ -424,10 +413,8 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "an interior anchor not joined to the spine",
     file: "reveal.ts",
-    from: "inner = inner | felt(pow(tile) + anchor_line(tile));",
+    from: "inner = inner | anchor_line(tile);",
     to: "inner = inner | pow(tile);",
-    survives:
-      "the only interior anchor (112) lies on the spine: an interior anchor off row 7 and column 7, e.g. tile 48",
   },
   {
     name: "an anchor on the ring not opened",
@@ -440,16 +427,12 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal.ts",
     from: "return anchors.find((tile) => has(interior, tile));",
     to: "return undefined;",
-    survives:
-      "no chunk has its centre cut or walled: an interior anchor in a chunk whose mask cuts tile 112",
   },
   {
     name: "a set piece's walls ignored (the base generated)",
     file: "reveal.ts",
     from: "? floor(set[1].walls) & INTERIOR",
     to: "? smoothChunk(felt(base(chunkWord, site.biome) + ring), odd) & INTERIOR",
-    survives:
-      "case 196 never lays its set piece: the zone has no host above its masks (D-208), so the quota stays owed (`left[0]` 1 after both chunks); its chunk needs the quota's host bit 225",
   },
   {
     name: "the cut by the zone's tile mask skipped",
@@ -480,14 +463,12 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal.ts",
     from: "const left = column * 15 + 6 + Math.floor(y / 2);",
     to: "const left = column * 15 + 6 + Math.floor(nearY / 2);",
-    survives: "sight (12, 9) in 15 x 15: chunks 0, 1, 15, 16 (the mutant drops 16)",
   },
   {
     name: "sight's hexagon of radius 5 across rows",
     file: "reveal.ts",
     from: "if (dr > 12) return false;",
     to: "if (dr > 10) return false;",
-    survives: "sight (0, 9) in 15 x 15: chunks 0, 15 (the mutant drops 15)",
   },
   {
     name: "a goblin's tile ignores the row's parity",
@@ -500,7 +481,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal.ts",
     from: "if (x < 3 || x > 17 || y < 2 || y > 16) return undefined;",
     to: "if (x < 3 || x > 18 || y < 2 || y > 16) return undefined;",
-    survives: "no member from a tile of columns 12-14: member(13, 11, false) is None",
   },
   {
     name: "meadow at the cave's density",
@@ -561,8 +541,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal/board.ts",
     from: "? [felt(interior * ROW_UP), 16, root + 15, INV_15]",
     to: "? [interior, 15, root, 1n]",
-    survives:
-      "no odd chunk's interior is split in a way the row parity decides: an odd-row set piece whose floor is two parts touching only across a row",
   },
   {
     name: "placement allowed at 2 from an opening (one dilation)",
@@ -575,8 +553,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal/board.ts",
     from: "for (const tile of anchors) tiles = tiles | pow(tile);",
     to: "",
-    survives:
-      "nothing is drawn within 2 of the one interior anchor (112): an interior anchor in a chunk of spawn density 255",
   },
   {
     name: "the dilation ignores the chunk's global row parity",
@@ -614,7 +590,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (left[i] !== 0 && has(mask, host)) due += bit;",
     to: "if (has(mask, host)) due += bit;",
     survives:
-      "no mask hosts a quota with nothing left: a site whose chunk hosts quota i (bit 225 + i) with `left[i]` 0",
+      "no legal input: a host cannot be unrevealed while `left` is 0 (hosts are drawn at most `count`, and PlayLibrary zeroes the hosts it spent, CBT-05g)",
   },
   {
     name: "the quotas placed not spent",
@@ -639,8 +615,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal/placement.ts",
     from: "const far = site.target !== 0 ? site.target - 1 : site.width + site.height - 2;",
     to: "const far = site.width + site.height - 2;",
-    survives:
-      "no dungeon chunk 3 or more from the entry lays a chest or a pack of offset 0: a floor of N 6 with one there",
   },
   {
     name: "the band's distance not held at D",
@@ -648,7 +622,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "const held = Math.min(distance, far);",
     to: "const held = distance;",
     survives:
-      "no chunk is farther than D from the entry: a zone whose entry chunk lies outside its rectangle",
+      "no legal input: it needs an entry chunk outside the rectangle, which ENG-R1c's content rule makes illegal",
   },
   {
     name: "a pack's level not held in the location's band",
@@ -661,23 +635,18 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal/placement.ts",
     from: "    else if (kind === quota.HEART) {\n      const band = placement.level;\n      placement.level = site.level_max;",
     to: "    else if (kind === quota.HEART) {\n      const band = placement.level;",
-    survives:
-      "the Heart's template (offset +2) reaches the band's top anyway: a Heart in the entry chunk, or a Heart template of offset 0",
   },
   {
     name: "a pack drawn empty (no floor of one goblin)",
     file: "reveal/placement.ts",
     from: "const low = floor === 0 ? 1 : floor;",
     to: "const low = floor;",
-    survives:
-      "every template has a caste of minimum 1 or more: a template whose minimums are all 0",
   },
   {
     name: "a pack's size capped above 5",
     file: "reveal/placement.ts",
     from: "high = Math.min(high, MAX_PACK_SIZE);",
     to: "",
-    survives: "every template's maximums sum to 5 or less: a template of maximums 3 + 3",
   },
   {
     name: "a pack always at its largest size",
@@ -721,23 +690,19 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (placement.objects.length >= MAX_OBJECTS_PER_CHUNK) return false;",
     to: "if (placement.objects.length > MAX_OBJECTS_PER_CHUNK) return false;",
     survives:
-      "no chunk is offered a fourth object: a set piece of 3 objects in a ruin chunk that rolls a chest or a trap",
+      "no legal input: a fourth object cannot arise (features() keeps 3 objects, and the hosts' caps keep quota objects off a full set-piece chunk)",
   },
   {
     name: "a third pack in a chunk (E-3)",
     file: "reveal/placement.ts",
     from: "if (placement.packs.length >= MAX_PACKS_PER_CHUNK) return false;",
     to: "if (placement.packs.length > MAX_PACKS_PER_CHUNK) return false;",
-    survives:
-      "no chunk is offered a third pack: a Heart's chunk whose two spawn rolls pass (density 255)",
   },
   {
     name: "a spawn roll equal to the density places",
     file: "reveal/placement.ts",
     from: "if (total !== 0 && roll < site.spawn.density) {",
     to: "if (total !== 0 && roll <= site.spawn.density) {",
-    survives:
-      "no spawn roll equals the density: a zone of density 0 whose roll is 0 (1 slot in 256)",
   },
   {
     name: "the spawn's template not drawn by weight",
@@ -780,7 +745,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "reveal/placement.ts",
     from: "    placement.placed += bit(pieceSlot);\n",
     to: "",
-    survives: "case 196 never lays its set piece (no host bit 225 above the masks, D-208)",
   },
   {
     name: "a signed felt decoded as unsigned",

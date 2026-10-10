@@ -55,6 +55,8 @@ TABLES = {
         "grimworld_logic::types::reveal::tests::test_vectors",
         "grimworld_logic::types::reveal::tests::test_vectors_1",
         "grimworld_logic::types::reveal::tests::test_vectors_2",
+        "grimworld_logic::types::reveal::tests::test_vectors_3",
+        "grimworld_logic::types::reveal::tests::test_vectors_4",
     ],
 }
 

@@ -2124,7 +2124,13 @@ another terrain, other placements and another cost at each run of the probe (up 
 | `enter`, a later entry, the belt's worst case | 8,129,520 | 8,717,520 | **D-231**; before, 8,102,400 · 8,262,400 |
 | `leave` to a dungeon floor | 11,930,772 | 11,888,772 | **D-231** (replaces D-228's 11,890,000); before ENG-10b, 8,276,640 |
 | `leave` back into the zone | 11,382,672 | 12,348,672 | **D-231**; before, 11,320,640 · 11,640,640 |
-| `enter` into a dungeon floor (`--floor on`, new with ENG-05b) | 10,355,520 | 10,145,520 | **D-231** (the case added by the orchestrator, 2026-10-07) |
+| `enter` into a dungeon floor (`--floor on`, new with ENG-05b) | 10,355,520 | 10,817,520 | **D-231** (the case added by the orchestrator, 2026-10-07); with a zone quota **D-252** (the project manager, 2026-10-10: ENG-05c's six runs, the maximum 10,302,400 + 5 %); before, D-231's 10,145,520 |
+
+**ENG-05c's six runs** (2026-10-10, `lifecycle_probe.py --floor on --play on`, six runs without a quota
+and six with `--quotas on`, on the VPS at `348d7d3`, after the anchor's line became or-ed in
+`generate`): every figure is within D-231's ceilings except `enter` into a dungeon floor with a zone
+quota (one run of six at 10,302,400 against 10,145,520, the others 9,342,400 to 9,782,400), now under
+D-252. The later entry without a quota peaks at 7,182,400 (D-231: 7,289,520).
 
 **The D-144 ceilings of an authored zone ("authored", D-247)** (the project manager, 2026-10-10, under
 D-144: ENG-09's six runs each, `lifecycle_probe.py --authored on`, without and with `--quotas on`, at

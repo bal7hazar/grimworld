@@ -50,9 +50,9 @@ describe("parity with the Cairo code", () => {
       word: 18,
       feed: 15,
       base: 12,
-      sight: 12,
-      member: 114,
-      reveal: 26,
+      sight: 14,
+      member: 115,
+      reveal: 40,
     });
   });
 

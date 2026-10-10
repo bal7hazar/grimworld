@@ -530,97 +530,97 @@ fn zero_residue(n: u8, first: u32, skip: u32, piece: bool) {
 }
 
 #[test]
-#[available_gas(l2_gas: 331597295)] // ceil(1.05 × 315806947 measured)
+#[available_gas(l2_gas: 331507845)] // ceil(1.05 × 315721757 measured)
 fn test_zero_residue_n6_0() {
     zero_residue(6, 0, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 392236564)] // ceil(1.05 × 373558632 measured)
+#[available_gas(l2_gas: 392147115)] // ceil(1.05 × 373473442 measured)
 fn test_zero_residue_n6_1() {
     zero_residue(6, 1, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 357155438)] // ceil(1.05 × 340148036 measured)
+#[available_gas(l2_gas: 357065989)] // ceil(1.05 × 340062846 measured)
 fn test_zero_residue_n6_2() {
     zero_residue(6, 2, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 345976409)] // ceil(1.05 × 329501341 measured)
+#[available_gas(l2_gas: 345886959)] // ceil(1.05 × 329416151 measured)
 fn test_zero_residue_n6_3() {
     zero_residue(6, 3, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 364243977)] // ceil(1.05 × 346899025 measured)
+#[available_gas(l2_gas: 364154527)] // ceil(1.05 × 346813835 measured)
 fn test_zero_residue_n6_4() {
     zero_residue(6, 4, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 330401658)] // ceil(1.05 × 314668245 measured)
+#[available_gas(l2_gas: 330312208)] // ceil(1.05 × 314583055 measured)
 fn test_zero_residue_n6_5() {
     zero_residue(6, 5, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 348142779)] // ceil(1.05 × 331564551 measured)
+#[available_gas(l2_gas: 348053330)] // ceil(1.05 × 331479361 measured)
 fn test_zero_residue_n6_6() {
     zero_residue(6, 6, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 308469804)] // ceil(1.05 × 293780765 measured)
+#[available_gas(l2_gas: 308380354)] // ceil(1.05 × 293695575 measured)
 fn test_zero_residue_n6_7() {
     zero_residue(6, 7, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 605398094)] // ceil(1.05 × 576569613 measured)
+#[available_gas(l2_gas: 605282185)] // ceil(1.05 × 576459223 measured)
 fn test_zero_residue_n12_0() {
     zero_residue(12, 0, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 682687007)] // ceil(1.05 × 650178101 measured)
+#[available_gas(l2_gas: 682571097)] // ceil(1.05 × 650067711 measured)
 fn test_zero_residue_n12_1() {
     zero_residue(12, 1, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 686499381)] // ceil(1.05 × 653808934 measured)
+#[available_gas(l2_gas: 686383472)] // ceil(1.05 × 653698544 measured)
 fn test_zero_residue_n12_2() {
     zero_residue(12, 2, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 760993157)] // ceil(1.05 × 724755387 measured)
+#[available_gas(l2_gas: 760877247)] // ceil(1.05 × 724644997 measured)
 fn test_zero_residue_n12_3() {
     zero_residue(12, 3, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 755215558)] // ceil(1.05 × 719252912 measured)
+#[available_gas(l2_gas: 755099649)] // ceil(1.05 × 719142522 measured)
 fn test_zero_residue_n12_4() {
     zero_residue(12, 4, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 679186204)] // ceil(1.05 × 646844003 measured)
+#[available_gas(l2_gas: 679070294)] // ceil(1.05 × 646733613 measured)
 fn test_zero_residue_n12_5() {
     zero_residue(12, 5, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 836808392)] // ceil(1.05 × 796960373 measured)
+#[available_gas(l2_gas: 836692483)] // ceil(1.05 × 796849983 measured)
 fn test_zero_residue_n12_6() {
     zero_residue(12, 6, 0, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 754549238)] // ceil(1.05 × 718618321 measured)
+#[available_gas(l2_gas: 754433328)] // ceil(1.05 × 718507931 measured)
 fn test_zero_residue_n12_7() {
     zero_residue(12, 7, 0, false);
 }
@@ -629,37 +629,37 @@ fn test_zero_residue_n12_7() {
 // listed before the exit and the Heart; both placed, in every order: four floors of 6, two of 12.
 
 #[test]
-#[available_gas(l2_gas: 311392422)] // ceil(1.05 × 296564211 measured)
+#[available_gas(l2_gas: 311302973)] // ceil(1.05 × 296479021 measured)
 fn test_zero_residue_piece_n6_0() {
     zero_residue(6, 100, 0, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 380067527)] // ceil(1.05 × 361969073 measured)
+#[available_gas(l2_gas: 379978078)] // ceil(1.05 × 361883883 measured)
 fn test_zero_residue_piece_n6_1() {
     zero_residue(6, 100, 1, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 375456043)] // ceil(1.05 × 357577183 measured)
+#[available_gas(l2_gas: 375366593)] // ceil(1.05 × 357491993 measured)
 fn test_zero_residue_piece_n6_2() {
     zero_residue(6, 100, 2, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 383670666)] // ceil(1.05 × 365400634 measured)
+#[available_gas(l2_gas: 383581217)] // ceil(1.05 × 365315444 measured)
 fn test_zero_residue_piece_n6_3() {
     zero_residue(6, 100, 3, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 662938142)] // ceil(1.05 × 631369659 measured)
+#[available_gas(l2_gas: 662822233)] // ceil(1.05 × 631259269 measured)
 fn test_zero_residue_piece_n12_0() {
     zero_residue(12, 100, 0, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 696499604)] // ceil(1.05 × 663332956 measured)
+#[available_gas(l2_gas: 696383695)] // ceil(1.05 × 663222566 measured)
 fn test_zero_residue_piece_n12_1() {
     zero_residue(12, 100, 1, true);
 }

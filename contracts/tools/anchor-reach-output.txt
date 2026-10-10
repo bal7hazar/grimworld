@@ -1,0 +1,29 @@
+ENG-05c: the reach of the anchor's fix (`generate`'s `pow(tile) + anchor_line(tile)`, which carried,
+replaced by `anchor_line(tile)`, which holds the tile). Per biome (1 meadow, 2 forest, 3 cave,
+4 ruin), the chunks whose walls the fix changes, out of 250 generations each, 1,250 per biome: a 3 × 2
+zone entered at the seed's anchors (16, 110) (gate 4) and (0, 105) (gate 1), at a random interior
+tile, and dungeon floors of N 6 and 8 entered at (112, 112) (gates 3 and 5). Only the entry chunk
+holds an anchor, so only it can change. In every floor the entry chunk's interior is one component
+holding the centre and the anchor (asserted), the other chunks unchanged: every floor stays
+connected from entry to exit.
+
+From contracts/logic, VPS, under scripts/lock.sh --heavy:
+  snforge test reveal::tests::test_reach --include-ignored --max-n-steps 2000000000 --max-threads 2
+
+reach biome 3: zone (16, 110) 0/250, zone (0, 105) 0/250, zone at a random interior tile 184/250
+[PASS] grimworld_logic::types::reveal::tests::test_reach_cave_zones (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1026261389)
+reach biome 3: floor 6 (112, 112) 0/250, floor 8 (112, 112) 0/250
+[PASS] grimworld_logic::types::reveal::tests::test_reach_cave_floors (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2433821269)
+reach biome 1: floor 6 (112, 112) 0/250, floor 8 (112, 112) 0/250
+reach biome 1: zone (16, 110) 0/250, zone (0, 105) 0/250, zone at a random interior tile 113/250
+[PASS] grimworld_logic::types::reveal::tests::test_reach_meadow_floors (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2420317693)
+[PASS] grimworld_logic::types::reveal::tests::test_reach_meadow_zones (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~987667599)
+reach biome 4: zone (16, 110) 0/250, zone (0, 105) 0/250, zone at a random interior tile 193/250
+[PASS] grimworld_logic::types::reveal::tests::test_reach_ruin_zones (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1030368001)
+reach biome 2: zone (16, 110) 0/250, zone (0, 105) 0/250, zone at a random interior tile 169/250
+[PASS] grimworld_logic::types::reveal::tests::test_reach_forest_zones (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1015634781)
+reach biome 4: floor 6 (112, 112) 0/250, floor 8 (112, 112) 0/250
+[PASS] grimworld_logic::types::reveal::tests::test_reach_ruin_floors (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2432837121)
+reach biome 2: floor 6 (112, 112) 0/250, floor 8 (112, 112) 0/250
+[PASS] grimworld_logic::types::reveal::tests::test_reach_forest_floors (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2430609953)
+Tests: 8 passed, 0 failed, 0 ignored, 938 filtered out
