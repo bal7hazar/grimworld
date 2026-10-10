@@ -641,12 +641,12 @@ mod tests {
     use crate::actions::Action;
     use crate::helpers::tick::TickMathTrait;
     use crate::models::member::{MemberSnapshotTrait, MemberWordsTrait};
+    use crate::types::LAST_TICK;
     use crate::types::executor::{BoardTrait, Delegate};
     use crate::types::tick::{ContentTrait, ai, status};
     use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
     use crate::types::world::fixtures::{Fixture, HOB, two};
     use crate::types::world::{TickTrait, WorldTrait};
-    use crate::types::LAST_TICK;
     use super::{Area, Classes, SegmentTrait};
 
     /// The area of every chunk of a 15 × 15 location, revealed and walkable.
@@ -1089,12 +1089,19 @@ mod tests {
 
     fn start(x: u8, y: u8) -> Start {
         Start {
-            clock: 40, x, y, facing: 0, status: status::INSIDE, health: 400, crippled: 0, knocked: 0,
+            clock: 40,
+            x,
+            y,
+            facing: 0,
+            status: status::INSIDE,
+            health: 400,
+            crippled: 0,
+            knocked: 0,
         }
     }
 
-    /// A 3 × 3 location (chunks 0–2, 15–17, 30–32, all known) with the chunks of `revealed` walkable
-    /// but for the tiles of `walls`, `(chunk, bits)` in place of the full chunk.
+    /// A 3 × 3 location (chunks 0–2, 15–17, 30–32, all known) with the chunks of `revealed`
+    /// walkable but for the tiles of `walls`, `(chunk, bits)` in place of the full chunk.
     fn region(
         revealed: Array<u8>, walls: Array<(u8, felt252)>, changed: Array<u16>, ran: bool,
     ) -> Area {
@@ -1116,7 +1123,12 @@ mod tests {
             chunks.append((*chunk, bits));
         }
         Area {
-            width: 3, height: 3, known, revealed: seen, chunks: chunks.span(), changed: changed.span(),
+            width: 3,
+            height: 3,
+            known,
+            revealed: seen,
+            chunks: chunks.span(),
+            changed: changed.span(),
             ran,
         }
     }
@@ -1142,8 +1154,8 @@ mod tests {
     /// One `segment` row: `SegmentTrait::run` on the adventurer of `at`, the location `area`, the
     /// ticks `owed` and the `weight`, no goblin (every tick on the fast path, no class called).
     /// The case: the start (clock, x, y, facing, status, health, Crippled's deadline, the knock's
-    /// end), `Area`, `owed`, `weight`, the actions, all as Cairo `Serde`; the outcome: the clock, the
-    /// adventurer's x, y, facing and flags after, then `Done`.
+    /// end), `Area`, `owed`, `weight`, the actions, all as Cairo `Serde`; the outcome: the clock,
+    /// the adventurer's x, y, facing and flags after, then `Done`.
     fn segment_row(
         ref digest: Array<felt252>,
         ref id: u32,
@@ -1159,7 +1171,8 @@ mod tests {
         spec.health = at.health;
         spec.conditions = [0, 0, 0, at.knocked];
         let mut member = Fixture::member(spec);
-        member.words.state += at.x.into() * two(32) + at.y.into() * two(40)
+        member.words.state += at.x.into() * two(32)
+            + at.y.into() * two(40)
             + at.facing.into() * two(48);
         if at.crippled != 0 {
             member.set_crippled(at.crippled);
@@ -1208,9 +1221,9 @@ mod tests {
         emit(ref digest, ref id, name, case.span(), ok.span());
     }
 
-    // `vectors/segment.jsonl` (RV-01, D-248): `SegmentTrait::run` for the client's mirror, no goblin
-    // (the ticks of the fast path; the goblin records of a fight are `TickLibrary`'s, held by the
-    // ephemeral tests). One family a branch of `run`, listed in `vectors/README.md`.
+    // `vectors/segment.jsonl` (RV-01, D-248): `SegmentTrait::run` for the client's mirror, no
+    // goblin (the ticks of the fast path; the goblin records of a fight are `TickLibrary`'s, held
+    // by the ephemeral tests). One family a branch of `run`, listed in `vectors/README.md`.
     #[test]
     #[available_gas(l2_gas: 1026515158)] // ceil(1.05 × 977633484 measured)
     fn test_segment_vectors() {
@@ -1220,13 +1233,25 @@ mod tests {
         // `fold`: the last Move's owed ticks run first, whatever the actions
         for owed in array![0_u8, 3] {
             segment_row(
-                ref digest, ref id, "fold", start(22, 22),
-                region(everything(), array![], array![], false), owed, 10, array![wait],
+                ref digest,
+                ref id,
+                "fold",
+                start(22, 22),
+                region(everything(), array![], array![], false),
+                owed,
+                10,
+                array![wait],
             );
         }
         segment_row(
-            ref digest, ref id, "fold", start(22, 22),
-            region(everything(), array![], array![], false), 3, 10, array![],
+            ref digest,
+            ref id,
+            "fold",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            3,
+            10,
+            array![],
         );
         // the owed ticks before the Move: Crippled lasts to 42, a Move at tick 41 takes 2, one at
         // 43 takes 1
@@ -1234,51 +1259,94 @@ mod tests {
             let mut crippled = start(22, 22);
             crippled.crippled = 42;
             segment_row(
-                ref digest, ref id, "fold", crippled,
-                region(everything(), array![], array![], false), owed, 10, array![Action::Move(0)],
+                ref digest,
+                ref id,
+                "fold",
+                crippled,
+                region(everything(), array![], array![], false),
+                owed,
+                10,
+                array![Action::Move(0)],
             );
         }
         // the records of the invocation so far come through
         segment_row(
-            ref digest, ref id, "fold", start(22, 22),
-            region(everything(), array![], records(3), false), 3, 10, array![wait],
+            ref digest,
+            ref id,
+            "fold",
+            start(22, 22),
+            region(everything(), array![], records(3), false),
+            3,
+            10,
+            array![wait],
         );
         // `reveal`: a Move ends the segment when sight touches a chunk to reveal (East of chunk 16
-        // not revealed; from (24, 22) sight reaches x = 30). Direction 0 takes x − 1, 3 takes x + 1,
-        // 1 and 2 take y + 1, 4 and 5 take y − 1 ...
+        // not revealed; from (24, 22) sight reaches x = 30). Direction 0 takes x − 1, 3 takes x +
+        // 1, 1 and 2 take y + 1, 4 and 5 take y − 1 ...
         segment_row(
-            ref digest, ref id, "reveal", start(23, 22),
-            region(but_east(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "reveal",
+            start(23, 22),
+            region(but_east(), array![], array![], false),
+            0,
+            10,
             array![Action::Move(3), wait, wait],
         );
         // ... or when the adventurer changes chunk (every chunk revealed; x = 29 to 30) ...
         segment_row(
-            ref digest, ref id, "reveal", start(29, 22),
-            region(everything(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "reveal",
+            start(29, 22),
+            region(everything(), array![], array![], false),
+            0,
+            10,
             array![Action::Move(3), wait, wait],
         );
         // ... after actions that ran, the Move's owed ticks 2 while Crippled
         let mut slow = start(23, 22);
         slow.crippled = 100;
         segment_row(
-            ref digest, ref id, "reveal", slow, region(but_east(), array![], array![], false), 2, 10,
+            ref digest,
+            ref id,
+            "reveal",
+            slow,
+            region(but_east(), array![], array![], false),
+            2,
+            10,
             array![wait, Action::Turn(2), Action::Move(3), wait],
         );
         // a Move that reveals nothing: the window follows, the next Moves run
         segment_row(
-            ref digest, ref id, "reveal", start(22, 22),
-            region(everything(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "reveal",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            10,
             array![Action::Move(0), Action::Move(0), Action::Move(1), wait],
         );
         // the chunk changed West and North
         segment_row(
-            ref digest, ref id, "reveal", start(15, 22),
-            region(everything(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "reveal",
+            start(15, 22),
+            region(everything(), array![], array![], false),
+            0,
+            10,
             array![Action::Move(0), wait],
         );
         segment_row(
-            ref digest, ref id, "reveal", start(22, 15),
-            region(everything(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "reveal",
+            start(22, 15),
+            region(everything(), array![], array![], false),
+            0,
+            10,
             array![Action::Move(4), wait],
         );
         // `cost`: `max(1, ticks)` an action: a Turn (0 ticks, none run) is charged 1, a Wait 1, a
@@ -1286,97 +1354,202 @@ mod tests {
         let mut crippled = start(22, 22);
         crippled.crippled = 100;
         segment_row(
-            ref digest, ref id, "cost", start(22, 22),
-            region(everything(), array![], array![], false), 0, 5, array![Action::Turn(2)],
+            ref digest,
+            ref id,
+            "cost",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            5,
+            array![Action::Turn(2)],
         );
         segment_row(
-            ref digest, ref id, "cost", start(22, 22),
-            region(everything(), array![], array![], false), 0, 5, array![wait],
+            ref digest,
+            ref id,
+            "cost",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            5,
+            array![wait],
         );
         segment_row(
-            ref digest, ref id, "cost", start(22, 22),
-            region(everything(), array![], array![], false), 0, 5, array![Action::Move(0)],
+            ref digest,
+            ref id,
+            "cost",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            5,
+            array![Action::Move(0)],
         );
         segment_row(
-            ref digest, ref id, "cost", crippled, region(everything(), array![], array![], false),
-            0, 5, array![Action::Move(0)],
+            ref digest,
+            ref id,
+            "cost",
+            crippled,
+            region(everything(), array![], array![], false),
+            0,
+            5,
+            array![Action::Move(0)],
         );
         // the weight fits exactly, and is over by 1 (nothing written)
         for weight in array![1_u8, 0] {
             segment_row(
-                ref digest, ref id, "cost", start(22, 22),
-                region(everything(), array![], array![], false), 0, weight, array![wait],
+                ref digest,
+                ref id,
+                "cost",
+                start(22, 22),
+                region(everything(), array![], array![], false),
+                0,
+                weight,
+                array![wait],
             );
             segment_row(
-                ref digest, ref id, "cost", start(22, 22),
-                region(everything(), array![], array![], false), 0, weight,
+                ref digest,
+                ref id,
+                "cost",
+                start(22, 22),
+                region(everything(), array![], array![], false),
+                0,
+                weight,
                 array![Action::Turn(2)],
             );
         }
         for weight in array![2_u8, 1] {
             segment_row(
-                ref digest, ref id, "cost", crippled,
-                region(everything(), array![], array![], false), 0, weight, array![Action::Move(0)],
+                ref digest,
+                ref id,
+                "cost",
+                crippled,
+                region(everything(), array![], array![], false),
+                0,
+                weight,
+                array![Action::Move(0)],
             );
         }
         // the weight spent over several actions, the stop before the one that passes
         segment_row(
-            ref digest, ref id, "cost", start(22, 22),
-            region(everything(), array![], array![], false), 0, 2, array![wait, wait, wait, wait],
+            ref digest,
+            ref id,
+            "cost",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            2,
+            array![wait, wait, wait, wait],
         );
         segment_row(
-            ref digest, ref id, "cost", crippled, region(everything(), array![], array![], false),
-            0, 3, array![wait, Action::Move(0), wait],
+            ref digest,
+            ref id,
+            "cost",
+            crippled,
+            region(everything(), array![], array![], false),
+            0,
+            3,
+            array![wait, Action::Move(0), wait],
         );
         // `ran` and `fits`: `ran = area.ran || done.played > 0`; with 17 records already (the
         // goblins of the earlier segments) the first action of the invocation is not bound (E-21),
         // the others stop before it (`heavy`, `undo`) with its words kept
         // - neither: the first action runs;
         segment_row(
-            ref digest, ref id, "ran", start(22, 22),
-            region(everything(), array![], records(17), false), 0, 10, array![wait],
+            ref digest,
+            ref id,
+            "ran",
+            start(22, 22),
+            region(everything(), array![], records(17), false),
+            0,
+            10,
+            array![wait],
         );
         // - `area.ran` alone: the first action is refused;
         segment_row(
-            ref digest, ref id, "ran", start(22, 22),
-            region(everything(), array![], records(17), true), 0, 10, array![wait],
+            ref digest,
+            ref id,
+            "ran",
+            start(22, 22),
+            region(everything(), array![], records(17), true),
+            0,
+            10,
+            array![wait],
         );
         // - `done.played` alone: the second is;
         segment_row(
-            ref digest, ref id, "ran", start(22, 22),
-            region(everything(), array![], records(17), false), 0, 10, array![wait, wait],
+            ref digest,
+            ref id,
+            "ran",
+            start(22, 22),
+            region(everything(), array![], records(17), false),
+            0,
+            10,
+            array![wait, wait],
         );
         // - both, 16 records (not over the cap): both run;
         segment_row(
-            ref digest, ref id, "ran", start(22, 22),
-            region(everything(), array![], records(16), true), 0, 10, array![wait, wait],
+            ref digest,
+            ref id,
+            "ran",
+            start(22, 22),
+            region(everything(), array![], records(16), true),
+            0,
+            10,
+            array![wait, wait],
         );
         // `fits` through `run`: 16 records accepted, 17 refused, after a Move, a Turn, with a
         // reveal Move (the last two)
         segment_row(
-            ref digest, ref id, "fits", start(22, 22),
-            region(everything(), array![], records(16), true), 0, 10,
+            ref digest,
+            ref id,
+            "fits",
+            start(22, 22),
+            region(everything(), array![], records(16), true),
+            0,
+            10,
             array![Action::Move(0), Action::Turn(1)],
         );
         segment_row(
-            ref digest, ref id, "fits", start(22, 22),
-            region(everything(), array![], records(17), true), 0, 10,
+            ref digest,
+            ref id,
+            "fits",
+            start(22, 22),
+            region(everything(), array![], records(17), true),
+            0,
+            10,
             array![Action::Move(0), Action::Turn(1)],
         );
         segment_row(
-            ref digest, ref id, "fits", start(22, 22),
-            region(everything(), array![], records(17), true), 0, 10, array![Action::Turn(1), wait],
+            ref digest,
+            ref id,
+            "fits",
+            start(22, 22),
+            region(everything(), array![], records(17), true),
+            0,
+            10,
+            array![Action::Turn(1), wait],
         );
         segment_row(
-            ref digest, ref id, "fits", start(29, 22),
-            region(everything(), array![], records(16), true), 0, 10, array![Action::Move(3)],
+            ref digest,
+            ref id,
+            "fits",
+            start(29, 22),
+            region(everything(), array![], records(16), true),
+            0,
+            10,
+            array![Action::Move(3)],
         );
         segment_row(
-            ref digest, ref id, "fits", start(29, 22),
-            region(everything(), array![], records(17), true), 0, 10, array![Action::Move(3)],
+            ref digest,
+            ref id,
+            "fits",
+            start(29, 22),
+            region(everything(), array![], records(17), true),
+            0,
+            10,
+            array![Action::Move(3)],
         );
-        // `halt`: the illegal actions `step`, `turn` and `wait` return, and Interact; nothing of the
-        // action is written, the ones before it are kept
+        // `halt`: the illegal actions `step`, `turn` and `wait` return, and Interact; nothing of
+        // the action is written, the ones before it are kept
         let late = LAST_TICK + 1;
         let mut after = start(22, 22);
         after.clock = late;
@@ -1394,31 +1567,57 @@ mod tests {
         ]
             .span() {
             segment_row(
-                ref digest, ref id, "halt", *at, region(everything(), array![], array![], false), 0,
-                10, actions.clone(),
+                ref digest,
+                ref id,
+                "halt",
+                *at,
+                region(everything(), array![], array![], false),
+                0,
+                10,
+                actions.clone(),
             );
         }
-        // a Move onto a wall (the West tile of (22, 22), local (6, 7) of chunk 16), the second Turn,
-        // Interact, an illegal one after actions that ran
+        // a Move onto a wall (the West tile of (22, 22), local (6, 7) of chunk 16), the second
+        // Turn, Interact, an illegal one after actions that ran
         let wall = (16_u8, two(225) - 1 - two(15 * 7 + 6));
         segment_row(
-            ref digest, ref id, "halt", start(22, 22),
-            region(everything(), array![wall], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "halt",
+            start(22, 22),
+            region(everything(), array![wall], array![], false),
+            0,
+            10,
             array![wait, Action::Move(0), wait],
         );
         segment_row(
-            ref digest, ref id, "halt", start(22, 22),
-            region(everything(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "halt",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            10,
             array![Action::Turn(1), Action::Turn(2), wait],
         );
         segment_row(
-            ref digest, ref id, "halt", start(22, 22),
-            region(everything(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "halt",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            10,
             array![Action::Interact(7), wait],
         );
         segment_row(
-            ref digest, ref id, "halt", start(22, 22),
-            region(everything(), array![], array![], false), 0, 10,
+            ref digest,
+            ref id,
+            "halt",
+            start(22, 22),
+            region(everything(), array![], array![], false),
+            0,
+            10,
             array![wait, wait, Action::Interact(7)],
         );
         let digest = core::poseidon::poseidon_hash_span(digest.span());
