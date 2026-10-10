@@ -37,11 +37,11 @@ vector or logic change (the client mirror reads those tables).
 | `contracts/logic`, `persistent`, `ephemeral` (Scarb workspace) | `cd contracts && snforge test -p grimworld_logic --max-threads 2` (or `grimworld_persistent`, `grimworld_ephemeral`; a filter goes last). The heavy vector and shape tests (window, hit, ENG-02's window tests) are not split yet (FND-23): run those modules with `snforge test <filter>` | Whole workspace, 2 threads: 4.88 GB capped, so `prlimit --as=8589934592` (8 GiB); 8 threads: 8.29 GB, fails: Mac (`docs/reports/FND-20-tests-under-8gb.md`). One package alone: unknown, **measure first†** |
 | `contracts/` gas, generated files | `python3 scripts/gas_budgets.py --check`; `python3 contracts/tools/exp2_table.py --check`; `python3 contracts/logic/vectors/check.py` | 4.88 GB, cap `--as=8589934592` (8 GiB); none recorded; 4.03 GB, cap `--as=7516192768` (7 GiB) (same report) |
 | `indexer/emitter` (Cairo 2.19) | `cd indexer/emitter && snforge test --max-threads 2` | unknown, **measure first†** |
-| `client/sim` | `pnpm --filter @grimworld/sim test` | none recorded; under a minute (orchestrators) |
-| `client/app` | `pnpm --filter @grimworld/app test`, plus `lint` and `typecheck` | none recorded; under a minute (orchestrators) |
+| `client/sim` | `pnpm --filter @grimworld/sim test` | 500 MB (mutation check, under a 1024 MB heap; CV t-0157), heap cap `--max-old-space-size=768`; under a minute (orchestrators) |
+| `client/app` | `pnpm --filter @grimworld/app test`, plus `lint` and `typecheck` | none recorded; Node: heap cap at 1.5 × peak once measured; under a minute (orchestrators) |
 | `client/app` `verify-*.mjs` | by hand only, they need the built atlas: only the screens the lot touches (`pnpm --filter @grimworld/app verify:<name>`, or `node verify-<name>.mjs` from `client/app` for the editor ones; one browser at a time; on the VPS, the site's atlas, read-only) | none recorded |
-| `indexer` | `pnpm --filter @grimworld/indexer test` (`test:node` needs devnet: CI) | none recorded |
-| `services/funder` | `pnpm --filter @grimworld/funder test` | none recorded |
+| `indexer` | `pnpm --filter @grimworld/indexer test` (`test:node` needs devnet: CI) | none recorded; Node: heap cap at 1.5 × peak once measured |
+| `services/funder` | `pnpm --filter @grimworld/funder test` | none recorded; Node: heap cap at 1.5 × peak once measured |
 | `tools/art` | `tools/art/.venv/bin/python -m unittest discover -s tools/art/tests` (needs NumPy; no CI job runs it yet, only the pre-push hook where a venv with NumPy exists; a CI job is being added by track CV); atlas check `pnpm --dir tools/art/check check` | none recorded |
 | `scripts/`, `.github/ci` | `scripts/prepush.sh --self-test`; `python3 scripts/gas_budgets.py --self-test`; `python3 .github/ci/changes.py --self-test`; Mac: `scripts/mac/test.sh` | none recorded |
 | `spikes/*` (each its own Scarb or pnpm package) | from its folder: `snforge test` or `pnpm test`, only if you touched it | unknown, **measure first†** |
@@ -53,3 +53,8 @@ on the Mac, or on the VPS under `prlimit --as=8589934592 -- /usr/bin/time -v …
 measure on the Mac. Never measure an unknown peak on the VPS under a larger cap. A run whose measured peak RSS is
 under about 8 GB may run on the VPS under `prlimit --as` set to 1.5 × its peak, rounded up, at most 16 GiB. A run
 above about 8 GB runs on the Mac, never on the VPS. Never uncapped on the VPS.
+
+Node/V8 runs (pnpm, node): `prlimit --as` cannot cap them, because V8 reserves a large address space and Node aborts
+at about 265 MB resident under `--as=8 GiB`. Cap the heap instead: `NODE_OPTIONS=--max-old-space-size=<MB>` at 1.5 × the
+measured peak, with the peak from `/usr/bin/time -v`. Never use `prlimit --as` for a Node run. Cairo runs keep the
+address-space cap. On the Mac, measure with `/usr/bin/time -l`, with no cap.
