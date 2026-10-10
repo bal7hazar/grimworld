@@ -3,7 +3,7 @@
 // adapting the felts of a case to the mirror's arguments and its result to Cairo's `Serde`.
 // A new table of the game is one entry here.
 
-import { CairoPanic, boolFromFelt, fromFelt, u16, u32, u8 } from "../felt";
+import { CairoPanic, boolFromFelt, fromFelt, panic, u16, u32, u8 } from "../felt";
 import { PURPOSES, derive, domain } from "../fate";
 import { hitFromFelts, outcomeToFelts, resolve } from "../hit";
 import {
@@ -27,6 +27,7 @@ import {
   unpack_lanes16,
   unpack_lanes32,
 } from "../packing";
+import { admit, revealed } from "../batch";
 import { awake, board, flood, flood_distance, move_ticks, next_step, position } from "../movement";
 import { arc, distance, facing, front, neighbor, reach, shape, sight } from "../window";
 import {
@@ -231,6 +232,48 @@ const reveal: Record<string, Mirror> = {
   },
 };
 
+/**
+ * The batch table's rows. `records` is `admit` as the Cairo test prints it: stopped, the records
+ * counted after, the weight left (the weight kept when stopped). `owed` and `reveal` restate what
+ * the test builds around `admit` (the owed records added, the `written` count with no next
+ * action, `PlayLibrary`'s order of Move then reveal); only `admit` and `revealed` are the contract's.
+ */
+const batch: Record<string, Mirror> = {
+  records: (c) => {
+    const [changed, fresh, firsts, cost, ran, weight] = args(c, 6);
+    const left = admit(
+      Number(changed!),
+      Number(fresh!),
+      small(firsts!),
+      small(cost!),
+      boolFromFelt(ran!),
+      small(weight!),
+    );
+    return left === undefined ? [1n, changed!, weight!] : [0n, changed! + fresh!, BigInt(left)];
+  },
+  owed: (c) => {
+    const [changed, owed, owedFirsts, fresh, firsts, cost, weight, next] = args(c, 8);
+    if (!boolFromFelt(next!)) return [0n, changed! + owed!, weight!];
+    const left = admit(
+      Number(changed!),
+      Number(owed! + fresh!),
+      small(owedFirsts! + firsts!),
+      small(cost!),
+      true,
+      small(weight!),
+    );
+    return left === undefined
+      ? [1n, changed! + owed!, weight!]
+      : [0n, changed! + owed! + fresh!, BigInt(left)];
+  },
+  reveal: (c) => {
+    const [weight, ticks, firsts, chunks] = args(c, 4);
+    const after = admit(0, small(firsts!), small(firsts!), small(ticks!), true, small(weight!));
+    if (after === undefined) panic("Option::unwrap failed.");
+    return [BigInt(after), BigInt(revealed(after, Number(chunks!)))];
+  },
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
@@ -238,4 +281,5 @@ export const TABLES: readonly Entry[] = [
   { file: "packing.jsonl", floor: 520, fns: packing },
   { file: "movement.jsonl", floor: 81, fns: movement },
   { file: "reveal.jsonl", floor: 197, fns: reveal },
+  { file: "batch.jsonl", floor: 28, fns: batch },
 ];
