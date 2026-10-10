@@ -456,19 +456,19 @@
       "case": "id_negative",
       "id": "E-48",
       "code": "export: id does not fit",
-      "rule": "A manifest id (and a gate's quest) is not negative: the field it is packed into holds an unsigned integer. Refused before any record is packed"
+      "rule": "A manifest id is not negative: the field it is packed into holds an unsigned integer. Refused before any record is packed"
     },
     {
       "case": "id_above_16_bits",
       "id": "E-49",
       "code": "export: id does not fit",
-      "rule": "A manifest id packed into a 16-bit field (region, location, gate, pack, collector, landmark, skill, spawn table) is at most 65535; 65535 converts, 65536 is refused"
+      "rule": "A manifest id packed into a 16-bit field (region, location, gate, pack, collector, landmark, skill, spawn table, set piece) is at most 65535; 65535 converts, 65536 is refused"
     },
     {
       "case": "id_above_32_bits",
       "id": "E-50",
       "code": "export: id does not fit",
-      "rule": "A set piece's id and a gate's quest (Gate.quest: u32) are at most 4294967295; 4294967295 converts, 4294967296 is refused"
+      "rule": "A gate's quest (Gate.quest: u32) is at most 4294967295; 4294967295 converts, 4294967296 is refused"
     }
   ]
 }

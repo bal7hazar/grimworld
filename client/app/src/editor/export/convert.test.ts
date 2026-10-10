@@ -440,8 +440,25 @@ describe("every case of checks.json, refused with its code", () => {
   };
   const CODE = "export: id does not fit";
   const SAMPLE_IDS: [string, string][] = [
-    ["regions", Object.keys(MANIFEST.regions ?? {})[0]!],
+    ["regions", "test_region"],
+    ["locations", "meadow_edge"],
+    ["locations", "floor_1"],
+    ["gates", "to_town"],
     ["packs", "raiders"],
+    ["collectors", "camp"],
+    ["landmarks", "old_oak"],
+    ["spawn_tables", "meadow"],
+  ];
+  const ID_TABLES = [
+    "regions",
+    "locations",
+    "gates",
+    "packs",
+    "collectors",
+    "landmarks",
+    "skills",
+    "spawn_tables",
+    "set_pieces",
   ];
 
   it("has a test for each id case", () => {
@@ -466,18 +483,27 @@ describe("every case of checks.json, refused with its code", () => {
         /^export: id does not fit\|.*does not fit 16 bits/,
       );
     }
-    // A set piece's id is not narrowed to 16 bits
-    expect(resolve({ set_pieces: { n: 65536 } } as Manifest, "set_pieces", "n", "x")).toBe(65536);
-    expect(() => resolve({ packs: { n: 65536 } } as Manifest, "packs", "n", "x")).toThrow(
+    // A set piece's id is a u16 for the game too (`Location.set_pieces` is `Lanes16`)
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 65535))).toBeUndefined();
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 65536))).toMatch(
+      /^export: id does not fit\|.*boss_arena.*does not fit 16 bits/,
+    );
+    for (const table of ID_TABLES) {
+      expect(resolve({ [table]: { n: 65535 } } as Manifest, table, "n", "x"), table).toBe(65535);
+      expect(() => resolve({ [table]: { n: 65536 } } as Manifest, table, "n", "x"), table).toThrow(
+        expect.objectContaining({ code: CODE }),
+      );
+    }
+  });
+
+  it("an id that is not an integer (1.5) is refused", () => {
+    expect(() => resolve({ packs: { n: 1.5 } } as Manifest, "packs", "n", "x")).toThrow(
       expect.objectContaining({ code: CODE }),
     );
   });
 
   it("id_above_32_bits (E-50): 4294967295 converts, 4294967296 is refused", () => {
-    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 4294967295))).toBeUndefined();
-    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 4294967296))).toMatch(
-      /does not fit 32 bits/,
-    );
+    // A gate's quest is the u32 of `Gate`: the only field of 32 bits
     const z = load("zone.json");
     z.gates![0]!.quest = 4294967295;
     expect(buildZone(z, MANIFEST).gates.size).toBeGreaterThan(0);
