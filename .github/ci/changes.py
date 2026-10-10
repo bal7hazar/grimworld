@@ -48,8 +48,12 @@ CLIENT_ROOT_FILES = (
 )
 # Folders of the pnpm workspace (client/*, services/*, indexer) and the files outside it that its tests
 # read: the sim's parity tests read the vector tables and the seed region, a client test reads the art
-# manifest.
-CLIENT_PREFIXES = ("client/", "services/", "indexer/", "contracts/logic/vectors/", "contracts/seed/")
+# manifest, and the editor's export tests read the map format's schema, checks and kinds tables and its
+# samples (convert.test.ts, document.test.ts, bridges.test.ts). The whole folder of the format is listed,
+# not those files: the client mirrors its converter line for line, so a change to the converter or its
+# records is one the client job should see too (a README is a document and still runs nothing).
+CLIENT_PREFIXES = ("client/", "services/", "indexer/", "contracts/logic/vectors/", "contracts/seed/",
+                   "tools/map-format/")
 CLIENT_FILES = ("tools/art/manifest.toml",)
 
 # The art job: the art pipeline's Python tests (tools/art/tests). They read the pipeline, its manifest and
@@ -368,7 +372,7 @@ def self_test():
                  "tools/map-format/samples/zone.json", "tools/map-format/tests/test_convert.py",
                  "tools/map-format/README.md", "contracts/persistent/tests/test_zone.cairo"):
         assert map_format([path]), path
-    assert run(["tools/map-format/convert.py"]) == nothing
+    assert run(["tools/map-format/convert.py"]) == ([], False, True, False)
     assert run(["contracts/persistent/tests/test_zone.cairo"]) == (["contracts", "indexer/emitter"], True, False, True)
     for path in ("tools/art/build.py", "docs/a.md", "contracts/persistent/tests/test_registry.cairo", "PLAN.md"):
         assert not map_format([path]), path

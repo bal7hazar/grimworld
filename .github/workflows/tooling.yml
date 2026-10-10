@@ -37,7 +37,9 @@ jobs:
 
       - name: changed-paths self-test
         if: steps.changes.outputs.tooling == 'true'
-        run: python3 .github/ci/changes.py --self-test
+        run: |
+          python3 .github/ci/changes.py --self-test
+          python3 -m unittest discover -s .github/ci -p 'test_*.py'
 
       - name: shellcheck
         if: steps.changes.outputs.tooling == 'true'
