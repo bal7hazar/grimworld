@@ -343,9 +343,10 @@ pub trait IRevealLibrary<T> {
         chunks: Span<u8>,
     ) -> (Progress, Span<(u8, felt252, felt252)>);
     /// Reveals the chunks of an authored zone (ENG-09, D-214, D-215; `types::reveal::authored`'s
-    /// `lay`): each revealable one of `pieces` (`(chunk, piece, marks, free)`, composed by `HostsLibrary`
-    /// from its `ZONE_CHUNK` and the hosts drawn at `create`, all wall without one), its packs laid,
-    /// their level and count drawn from the chunk's own word.
+    /// `lay`): each revealable one of `pieces` (`(chunk, piece, marks, free)`, composed by
+    /// `HostsLibrary`
+    /// from its `ZONE_CHUNK` and the hosts drawn at `create`, all wall without one), its packs
+    /// laid, their level and count drawn from the chunk's own word.
     fn authored(
         self: @T,
         site: Site,

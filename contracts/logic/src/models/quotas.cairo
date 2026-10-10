@@ -6,8 +6,8 @@
 use crate::content::{QUOTAS, Record};
 use crate::packing::{P16, P24, P32, P64, P8, P96, join, peel, split};
 use crate::types::reveal::board::BoardTrait;
-use super::pack::{Pack, PackTrait};
 pub use super::index::{Quota, QuotaSet};
+use super::pack::{Pack, PackTrait};
 
 /// Quota kinds (ADR-0006 *Quotas*, design/17, design/18).
 pub mod kind {

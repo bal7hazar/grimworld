@@ -6,7 +6,8 @@
 //! kind and param), the location's set pieces, the masks of the chunks to reveal and the seed
 //! in; one bitmap a quota, and the masks with their chunks' hosts above the board, out. A
 //! generated zone's; an authored zone's quotas are drawn among the author's candidates instead
-//! (D-214, D-215 ruling 3; ENG-08's format, ENG-09: `enter` and `reveal` below). A dungeon floor's call (`floor`, ENG-10b;
+//! (D-214, D-215 ruling 3; ENG-08's format, ENG-09: `enter` and `reveal` below). A dungeon floor's
+//! call (`floor`, ENG-10b;
 //! ENG-10a, D-223): once at `create`, its outline (`OutlineTrait::draw`), its layers by distance
 //! from the entry, its quotas' hosts over the outline (the exit and the Heart first, among the
 //! farthest chunks) and the masks of the chunks the entry reveals, with their hosts.
@@ -26,9 +27,9 @@
 //! stored by `Instances` as a generated zone's are; each chunk is composed here from its record
 //! and the hosts (`AuthoredTrait::compose`: its plane, its objects, the packs to lay), then
 //! `RevealLibrary`'s second entrypoint, `authored`, lays the packs with what is drawn from the
-//! chunk's own word (`AuthoredTrait::lay`; the placement code is `RevealLibrary`'s already). The generated path,
-//! `RevealLibrary::reveal` and its vectors, is unchanged: the fallback of every zone without the
-//! marker (D-215 ruling 7).
+//! chunk's own word (`AuthoredTrait::lay`; the placement code is `RevealLibrary`'s already). The
+//! generated path, `RevealLibrary::reveal` and its vectors, is unchanged: the fallback of every
+//! zone without the marker (D-215 ruling 7).
 
 #[starknet::contract]
 pub mod HostsLibrary {
@@ -358,8 +359,7 @@ pub mod HostsLibrary {
     ) -> (Site, Span<(u8, ZoneChunk)>, Span<felt252>) {
         let registry = IRegistryReadDispatcher { contract_address: registry };
         let mut requests: Array<(u8, u32)> = array![
-            (QUOTAS, destination.into()),
-            (OUTLINE, RecordOutlineTrait::id(destination, CHUNK_SET)),
+            (QUOTAS, destination.into()), (OUTLINE, RecordOutlineTrait::id(destination, CHUNK_SET)),
         ];
         if hosts {
             requests.append((CANDIDATES, CandidatesTrait::id(destination, 0)));

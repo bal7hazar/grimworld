@@ -61,9 +61,10 @@ pub const PARTS: [u8; 29] = [
 /// Allocation (ENG-01 fix loop 1, F-8). **Sequential** kinds take ids 1, 2, 3 … in order: a new
 /// id must be `last_id(kind) + 1`, and `last_id` is the highest written. **Composite** kinds take
 /// ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE` and `ZONE_CHUNK`:
-/// `location × 256 + chunk`; `BRIDGE`: `location × 4096 + chunk × 16 + k`; `CANDIDATES`: `location
-/// × 2 + k`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by quiver (`TASK`,
-/// `QUEST`: the administrator's quiver ids, taken as they are, D-145). `last_id` stays 0 for them.
+/// `location × 256 + chunk`; `BRIDGE`: `location × 4096 + chunk × 16 + k`; `CANDIDATES`:
+/// `location × 2 + k`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by
+/// quiver (`TASK`, `QUEST`: the administrator's quiver ids, taken as they are, D-145). `last_id`
+/// stays 0 for them.
 /// For every kind a record **exists** when its part 0 is not 0: its writer sets `LIVE` (bit 250)
 /// in part 0, so that a record whose fields are all 0 still exists.
 pub fn is_sequential(kind: u8) -> bool {

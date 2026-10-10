@@ -609,7 +609,6 @@ pub impl RegistryStoreImpl of RegistryStoreTrait {
     // `heart_packs[template]`: how many Heart quotas of authored zones name the template (R-27),
     // written by `ZoneChecks` in `Registry`'s context
 
-
     #[inline(always)]
     fn get_heart_count(self: @RegistryState, template: u32) -> u32 {
         self.heart_packs.entry(template).read()

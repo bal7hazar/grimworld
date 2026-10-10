@@ -6,8 +6,8 @@
 use crate::content::{BRIDGE, Record};
 use crate::packing::{join, split};
 use crate::types::reveal::board::BoardTrait;
-use super::zone_chunk::{ZoneChunk, ZoneChunkTrait};
 pub use super::index::Bridge;
+use super::zone_chunk::{ZoneChunk, ZoneChunkTrait};
 
 /// 2^97: a 225-bit plane's part in the high limb is below it (bits 128–224).
 const P97: u128 = 0x2000000000000000000000000;

@@ -22,21 +22,25 @@ pub mod ZoneChecks {
     use grimworld_logic::content::{
         BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, ZONE_CHUNK, parts,
     };
-    use grimworld_logic::models::bridge::{Bridge, BridgeAssert, BridgeRecord, errors as bridge_errors};
+    use grimworld_logic::models::bridge::{
+        Bridge, BridgeAssert, BridgeRecord, errors as bridge_errors,
+    };
     use grimworld_logic::models::candidates::{CandidatesAssert, CandidatesRecord};
     use grimworld_logic::models::gate::GateRecord;
-    use grimworld_logic::models::location::{INDEX_BOUND, Location, LocationRecord, LocationTrait, map};
+    use grimworld_logic::models::location::{
+        INDEX_BOUND, Location, LocationRecord, LocationTrait, map,
+    };
     use grimworld_logic::models::outline::{CHUNK_SET, OutlineAssert, OutlineRecord, OutlineTrait};
     use grimworld_logic::models::pack::{Pack, PackRecord};
-    use grimworld_logic::models::quotas::{QuotaBoundsAssert, QuotaSet, QuotaSetRecord, kind as quota_kind};
+    use grimworld_logic::models::quotas::{
+        QuotaBoundsAssert, QuotaSet, QuotaSetRecord, kind as quota_kind,
+    };
     use grimworld_logic::models::zone_chunk::{
         ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait, errors as chunk_errors,
     };
     use grimworld_logic::packing::{LIVE, split};
     use grimworld_logic::types::reveal::board::BoardTrait;
-    use starknet::storage::{
-        Map, StorageMapReadAccess, StorageMapWriteAccess,
-    };
+    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
 
     /// `Registry`'s variables this class reads and writes, in `Registry`'s context: the same names,
     /// the same addresses (`Registry`'s storage layout, ENG-01 §3.5).
@@ -74,9 +78,9 @@ pub mod ZoneChecks {
     #[generate_trait]
     impl HeartsImpl of HeartsTrait {
         /// A `QUOTAS` of an authored zone, or a `LOCATION` that gains or loses the marker, written
-        /// (after every check; `Registry.set_record`): the counts of `heart_packs` move from the Heart templates the stored
-        /// quotas named (when the zone was authored) to those the new ones name (when it is), as
-        /// `name_skills` does for DS-18 (R-27's reverse check, ENG-09).
+        /// (after every check; `Registry.set_record`): the counts of `heart_packs` move from the
+        /// Heart templates the stored quotas named (when the zone was authored) to those the new
+        /// ones name (when it is), as `name_skills` does for DS-18 (R-27's reverse check, ENG-09).
         fn move_hearts(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
             let (old, new) = if kind == QUOTAS {
                 if !self.frame(id).authored {
@@ -116,7 +120,6 @@ pub mod ZoneChecks {
                 }
             }
         }
-
     }
 
     /// What a zone's checks read of a `LOCATION`, from its part 0 alone (ENG-01 §3.5's bits):
@@ -455,7 +458,8 @@ pub mod ZoneChecks {
                     s2
                 };
                 let both = BoardTrait::and(*old, new);
-                changed = BoardTrait::or(changed, BoardTrait::minus(BoardTrait::or(*old, new), both));
+                changed =
+                    BoardTrait::or(changed, BoardTrait::minus(BoardTrait::or(*old, new), both));
                 candidates.append(new);
                 i += 1;
             }

@@ -139,7 +139,22 @@ fn cubs() -> Pack {
 /// A location of `kind` with no map but its size (the town, the dungeon floor the gates reach).
 fn plain(kind: u8, width: u8, height: u8, target: u8) -> Location {
     LocationTrait::new(
-        kind, 1, 1, 1, 3, 0, width, height, target, 0, 0, 0, false, 0, 0, Lanes16 { lanes: [0; 15] },
+        kind,
+        1,
+        1,
+        1,
+        3,
+        0,
+        width,
+        height,
+        target,
+        0,
+        0,
+        0,
+        false,
+        0,
+        0,
+        Lanes16 { lanes: [0; 15] },
     )
 }
 
@@ -164,8 +179,15 @@ impl ZoneFixture of Fixture {
         r.admin.set_record(PACK, 1, raiders().pack());
         r.admin.set_record(PACK, 2, cubs().pack());
         let first = Gate {
-            source: 1, destination: 1, anchor_chunk: 0, anchor_tile: 0, entry_chunk: 0,
-            entry_tile: 0, kind: 1, rank: 0, quest: 0,
+            source: 1,
+            destination: 1,
+            anchor_chunk: 0,
+            anchor_tile: 0,
+            entry_chunk: 0,
+            entry_tile: 0,
+            kind: 1,
+            rank: 0,
+            quest: 0,
         };
         r.admin.set_record(GATE, 1, first.pack());
         let mut floor_written = false;
@@ -255,7 +277,12 @@ fn first_wall(record: @ZoneChunk) -> u8 {
 }
 
 fn first_floor(record: @ZoneChunk) -> u8 {
-    BoardTrait::nth(BoardTrait::minus(0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff, *record.walls), 0)
+    BoardTrait::nth(
+        BoardTrait::minus(
+            0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff, *record.walls,
+        ),
+        0,
+    )
 }
 
 // --- The sample passes ---------------------------------------------------------------------------
@@ -348,13 +375,35 @@ fn test_authored_reveal_through_hosts_library() {
         let back = array![16, 15, 2, 1].span();
         let (a, wa) = library
             .reveal(
-                r.address, reveal, ZONE.try_into().unwrap(), location, location.entry_chunk,
-                location.entry_tile, array![].span(), hosts, None, progress, 7, array![].span(), rest,
+                r.address,
+                reveal,
+                ZONE.try_into().unwrap(),
+                location,
+                location.entry_chunk,
+                location.entry_tile,
+                array![].span(),
+                hosts,
+                None,
+                progress,
+                7,
+                array![].span(),
+                rest,
             );
         let (b, wb) = library
             .reveal(
-                r.address, reveal, ZONE.try_into().unwrap(), location, location.entry_chunk,
-                location.entry_tile, array![].span(), hosts, None, progress, 7, array![].span(), back,
+                r.address,
+                reveal,
+                ZONE.try_into().unwrap(),
+                location,
+                location.entry_chunk,
+                location.entry_tile,
+                array![].span(),
+                hosts,
+                None,
+                progress,
+                7,
+                array![].span(),
+                back,
             );
         assert(a == b && a.count == 5 && a.revealed == r.chunk_set(), 'progress');
         for chunk in rest {
@@ -369,7 +418,8 @@ fn test_authored_reveal_through_hosts_library() {
     }
 }
 
-// --- The zone checks' class ------------------------------------------------------------------------
+// --- The zone checks' class
+// ------------------------------------------------------------------------
 
 // Before `set_zone_checks`, an authored zone's records are refused: none can exist unchecked.
 #[test]
@@ -500,7 +550,11 @@ fn test_refuse_over_caps() {
     let mut tile: u8 = 16;
     while free.len() != 2 {
         let (row, column) = DivRem::div_rem(tile, 15);
-        if row > 0 && row < 14 && column > 0 && column < 14 && !BoardTrait::has(record.walls, tile)
+        if row > 0
+            && row < 14
+            && column > 0
+            && column < 14
+            && !BoardTrait::has(record.walls, tile)
             && !BoardTrait::has(taken, tile) {
             free.append(tile);
         }
@@ -728,7 +782,10 @@ fn test_refuse_bridge_apart() {
 fn test_refuse_bridge_deck_floor() {
     let r = ZoneFixture::deploy();
     let record = r.chunk(15);
-    r.rewrite_chunk(15, ZoneChunk { walls: BoardTrait::or(record.walls, r.bridge().deck), ..record });
+    r
+        .rewrite_chunk(
+            15, ZoneChunk { walls: BoardTrait::or(record.walls, r.bridge().deck), ..record },
+        );
 }
 
 // R-37 (ADR-0008 rule 5), its reverse check: a chest on the bridge's first end.
@@ -791,7 +848,10 @@ fn test_refuse_zone_chunk_without_location() {
 fn test_refuse_reserved_plane() {
     let r = ZoneFixture::deploy();
     let parts = r.chunk(1).pack();
-    r.refuse(ZONE_CHUNK, ZONE * 256 + 1, array![*parts[0] + BoardTrait::pow(225), *parts[1]].span());
+    r
+        .refuse(
+            ZONE_CHUNK, ZONE * 256 + 1, array![*parts[0] + BoardTrait::pow(225), *parts[1]].span(),
+        );
 }
 
 // The marker: a value this reader does not know is refused (format version 1).

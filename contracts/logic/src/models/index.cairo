@@ -438,12 +438,13 @@ pub struct SetPiece {
 
 /// `ZONE_CHUNK`, 2 parts (D-214, D-215; ENG-08's format, ENG-01 §3.5): one chunk of an authored
 /// zone, id `location × 256 + chunk`.
-/// Part 0: **the walkable plane**, bit `15 row + column` (1 = wall), bits 0–224 · reserved planes'
+/// Part 0: **the walkable plane**, bit `15 row + column` (1 = wall), bits 0–224 · reserved
+/// planes'
 /// flags 225–249, 0 in format version 1 · `LIVE`.
-/// Part 1: spawn points `i` (24 bits: tile 0–7 · template 8–23) at `24 i` for `i` 0–1 · objects
-/// (32 bits, `Object`'s layout, state 0) at 48, 80 (low limb) and 128 · the candidate tile of
-/// quota `i` at `160 + 8 i` (`i` 0–5) · the bridges it holds 208–211 · the gates anchored here,
-/// two `GATE` ids at 212 and 228 · `LIVE`.
+/// Part 1: spawn points `i` (24 bits: tile 0–7 · template 8–23) at `24 i` for `i` 0–1 ·
+/// objects (32 bits, `Object`'s layout, state 0) at 48, 80 (low limb) and 128 · the candidate tile
+/// of quota `i` at `160 + 8 i` (`i` 0–5) · the bridges it holds 208–211 · the gates anchored
+/// here, two `GATE` ids at 212 and 228 · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct ZoneChunk {
     pub walls: felt252,

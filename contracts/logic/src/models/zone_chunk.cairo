@@ -10,9 +10,9 @@ use crate::content::{Record, ZONE_CHUNK};
 use crate::packing::{P16, P24, P48, P80, join, peel, split};
 use crate::types::reveal::board::{BOARD, BoardTrait, INTERIOR};
 use super::chunk::{ObjectTrait, object};
+pub use super::index::{Object, SetPack, ZoneChunk};
 use super::quotas::{QuotaSet, kind as quota};
 use super::set_piece::SetPackBitsTrait;
-pub use super::index::{Object, SetPack, ZoneChunk};
 
 /// The quotas a chunk holds a candidate tile for (`QUOTAS`' 6).
 pub const QUOTAS: u8 = 6;
@@ -292,7 +292,8 @@ mod tests {
 
     fn sample() -> ZoneChunk {
         ZoneChunk {
-            walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff - BoardTrait::pow(16)
+            walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+                - BoardTrait::pow(16)
                 - BoardTrait::pow(17)
                 - BoardTrait::pow(18)
                 - BoardTrait::pow(19)
@@ -328,7 +329,10 @@ mod tests {
         assert(wide.low % 0x1000000 == 16 + 0xabcd * 0x100, 'spawn 0');
         assert((wide.low / 0x1000000000000) % 0x100000000 == 17 + 0x100 + 3 * 0x10000, 'object 0');
         assert(wide.high % 0x100000000 == 18 + 0x700 + 0x1234 * 0x10000, 'object 2');
-        assert((wide.high / 0x100000000) % 0x1000000000000 == 112 * 0x10000000000 + 19 * 0x10000, 'tiles');
+        assert(
+            (wide.high / 0x100000000) % 0x1000000000000 == 112 * 0x10000000000 + 19 * 0x10000,
+            'tiles',
+        );
         assert((wide.high / 0x100000000000000000000) % 0x10 == 15, 'bridges');
         assert((wide.high / 0x1000000000000000000000) % 0x10000 == 0xffff, 'gate 0');
         assert((wide.high / 0x10000000000000000000000000) % 0x10000 == 7, 'gate 1');
@@ -373,9 +377,12 @@ mod tests {
         let record = ZoneChunk {
             walls: sample().walls - BoardTrait::pow(14),
             spawns: [SetPack { tile: 14, template: 1 }, Default::default()],
-            ..sample()
+            ..sample(),
         };
-        record.assert_legal(4, array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(), @quotas());
+        record
+            .assert_legal(
+                4, array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(), @quotas(),
+            );
     }
 
     #[test]
@@ -389,8 +396,11 @@ mod tests {
                 Object { tile: 18, kind: object::LEVER, state: 0, param: 0x1234 },
             ],
             spawns: [Default::default(), Default::default()],
-            ..sample()
+            ..sample(),
         };
-        record.assert_legal(4, array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(), @quotas());
+        record
+            .assert_legal(
+                4, array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(), @quotas(),
+            );
     }
 }

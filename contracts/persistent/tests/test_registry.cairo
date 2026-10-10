@@ -691,8 +691,12 @@ fn test_inputs_version_every_other_kind() {
     for kind in 1..LAST_KIND + 1 {
         // The authored zone's own kinds (ENG-09) need an authored zone and its checks: their
         // writes are `test_zone`'s
-        if kind == SKILL || kind == ITEM || kind == MODIFIER || kind == ZONE_CHUNK
-            || kind == BRIDGE || kind == CANDIDATES {
+        if kind == SKILL
+            || kind == ITEM
+            || kind == MODIFIER
+            || kind == ZONE_CHUNK
+            || kind == BRIDGE
+            || kind == CANDIDATES {
             continue;
         }
         let id = next_id(r, kind);

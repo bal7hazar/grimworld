@@ -76,7 +76,9 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 28308)] // ceil(1.05 × 26960 measured)
     fn test_candidates_round_trip() {
-        let record = Candidates { sets: [3, 0, 0x1000000000000000000000000000000000000000000000000000000000] };
+        let record = Candidates {
+            sets: [3, 0, 0x1000000000000000000000000000000000000000000000000000000000],
+        };
         let parts = record.pack();
         assert(*parts[1] == LIVE, 'empty part live');
         assert(CandidatesRecord::unpack(parts) == record, 'round trip');

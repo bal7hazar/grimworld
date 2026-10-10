@@ -89,10 +89,8 @@ pub mod Registry {
         ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE,
         PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK, is_sequential, parts,
     };
-    use crate::systems::zone::{IZoneChecksDispatcherTrait, IZoneChecksLibraryDispatcher};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
-
     use grimworld_logic::models::caste::{
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
@@ -113,6 +111,7 @@ pub mod Registry {
     use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::models::versions::{Versions, VersionsTrait};
     use crate::store::RegistryStoreTrait;
+    use crate::systems::zone::{IZoneChecksDispatcherTrait, IZoneChecksLibraryDispatcher};
     use super::{Inputs, NOT_IMPLEMENTED, VERSION, errors};
 
     /// ENG-01 §3.5's layout (`store::registry_layout_tests`), read and written only by the store
@@ -361,9 +360,10 @@ pub mod Registry {
         /// A composite id names an existing parent: `QUOTAS` its location (the same id, D-145),
         /// `OUTLINE` a location (and a chunk below 225, or 255), `SHOP` a location as its hub (its
         /// existence only: that it is a town or an outpost is the content pipeline's check).
-        /// `ZONE_CHUNK` a location and a chunk below 225, `BRIDGE` a location and a chunk below 225,
-        /// `CANDIDATES` a location (ENG-09). `TASK` and `QUEST` take the administrator's quiver ids
-        /// as they are (D-145): that a quiver id exists is the content pipeline's check (OPS-01).
+        /// `ZONE_CHUNK` a location and a chunk below 225, `BRIDGE` a location and a chunk below
+        /// 225, `CANDIDATES` a location (ENG-09). `TASK` and `QUEST` take the administrator's
+        /// quiver ids as they are (D-145): that a quiver id exists is the content pipeline's check
+        /// (OPS-01).
         #[inline(always)]
         fn assert_parent(self: @ContractState, kind: u8, id: u32) {
             if kind == QUOTAS {

@@ -146,18 +146,17 @@ pub impl AuthoredImpl of AuthoredTrait {
             objects.append(Default::default());
         }
         let piece = SetPiece {
-            walls,
-            packs: [*packs[0], *packs[1]],
-            objects: [*objects[0], *objects[1], *objects[2]],
+            walls, packs: [*packs[0], *packs[1]], objects: [*objects[0], *objects[1], *objects[2]],
         };
         (piece, marks, free)
     }
 
     /// Reveals the chunks of `pieces` in order (`(chunk, piece, marks, free)`, `pieces`), each that
-    /// is revealable now (`RevealTrait::revealable`: inside the zone's chunk set, not yet revealed),
-    /// and records it in `progress`: the terrain copied (no edge: a zone), the objects as composed,
-    /// then the packs on the tiles left `free`, the chunk's level drawn first from its own word,
-    /// each Heart at the band's top (D-208), each spawn point at that level (`RevealLibrary`).
+    /// is revealable now (`RevealTrait::revealable`: inside the zone's chunk set, not yet
+    /// revealed), and records it in `progress`: the terrain copied (no edge: a zone), the objects
+    /// as composed, then the packs on the tiles left `free`, the chunk's level drawn first from its
+    /// own word, each Heart at the band's top (D-208), each spawn point at that level
+    /// (`RevealLibrary`).
     #[inline(never)]
     fn lay(
         site: @Site,
@@ -209,7 +208,10 @@ pub impl AuthoredImpl of AuthoredTrait {
             progress.left = PlacementTrait::spend(progress.left, placement.placed);
             progress.revealed += BoardTrait::pow(chunk);
             progress.count += 1;
-            out.append(Revealed { chunk, terrain: Terrain { walls: piece.walls, edges: 0 }, features });
+            out
+                .append(
+                    Revealed { chunk, terrain: Terrain { walls: piece.walls, edges: 0 }, features },
+                );
         }
         out
     }
@@ -229,8 +231,8 @@ pub impl AuthoredImpl of AuthoredTrait {
         Self::lay(site, ref progress, instance_id, pieces)
     }
 
-    /// One piece a chunk of `chunks`, in order: its record composed (`compose`), or all wall, no tile
-    /// free, for a chunk without one (the content pipeline writes every chunk, ENG-01 §3.5).
+    /// One piece a chunk of `chunks`, in order: its record composed (`compose`), or all wall, no
+    /// tile free, for a chunk without one (the content pipeline writes every chunk, ENG-01 §3.5).
     #[inline(never)]
     fn pieces(
         site: @Site,
@@ -389,7 +391,9 @@ mod tests {
             let (first, a) = reveal(entropy, array![0, 1].span());
             let (second, b) = reveal(entropy, array![1, 0].span());
             assert(first == second, 'progress');
-            assert(chunk_of(@a, 0) == chunk_of(@b, 0) && chunk_of(@a, 1) == chunk_of(@b, 1), 'words');
+            assert(
+                chunk_of(@a, 0) == chunk_of(@b, 0) && chunk_of(@a, 1) == chunk_of(@b, 1), 'words',
+            );
             entropy = entropy * 31 + 17;
         }
     }
