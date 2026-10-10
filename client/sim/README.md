@@ -37,6 +37,9 @@ adapter in `src/parity/tables.ts` turns only that guard's own panic into `[1]`.
 - `world.defeated` → break (a world defeated, or a tick with the adventurer at 0 health);
 - the combat arm: Attack, Skill, Item through `ActionLibrary`, and its Heavy;
 - ticks through `TickLibrary` (a goblin in the window, or a world not calm);
+- a tick that regenerates (`MemberTrait::regenerate`): health regen, Bleeding, Poison or Burning
+  held, an effect's pips held, or health above its max; the fixture's ticks change no health;
+- a world of more than one member (a companion blocks a Move and regenerates);
 - an armed trap on the tile a Move enters;
 - Blocked by a tile a goblin occupies, or by a missing neighbour (a guard only: the adventurer
   stands at the window's column 7, every direction has a neighbour);
@@ -44,7 +47,7 @@ adapter in `src/parity/tables.ts` turns only that guard's own panic into `[1]`.
 - `fits`' goblin records (a refusal on weight with first records, the untouched-engaged skip):
   only the branches above change a goblin, so `fits` here is `admit` with no fresh record.
 
-The fast path's regeneration is not mirrored: the adventurer's health is returned as it came.
+Energy and adrenaline, which a tick also regenerates, are not part of the mirror's world.
 
 ## Where the vectors come from
 

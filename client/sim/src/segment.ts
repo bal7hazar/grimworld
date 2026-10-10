@@ -11,14 +11,15 @@
 // Only what the table covers is mirrored: no goblin, no class called, every tick on the fast path
 // (`TickTrait::idle`: the clock advances and the turned flag clears). Where `run` reaches a
 // branch the table has no case for, the mirror throws `NotMirrored`, never a guess: a defeat, the
-// combat arm (Attack, Skill, Item through `ActionLibrary`), ticks through `TickLibrary`, an armed
-// trap, a tile occupied by a goblin, a Move past the window's edge, a held `MOVEMENT` effect. The
-// goblin records of `fits` (new records, first records, the untouched-engaged skip) change only
-// through those branches, so `fits` here is `admit` with no fresh record. The fast path's
-// regeneration is not mirrored either: the adventurer's health is returned as it came.
+// combat arm (Attack, Skill, Item through `ActionLibrary`), ticks through `TickLibrary`, a tick
+// that would regenerate (`MemberTrait::regenerate` changing health), a companion, an armed trap,
+// a tile occupied by a goblin, a Move past the window's edge, a held `MOVEMENT` effect. The goblin
+// records of `fits` (new records, first records, the untouched-engaged skip) change only through
+// those branches, so `fits` here is `admit` with no fresh record. Energy and adrenaline, which a
+// tick also regenerates, are not part of the mirror's world.
 
 import { admit } from "./batch";
-import { add, u32, u8 } from "./felt";
+import { add, panic, u32, u8 } from "./felt";
 import { ORIGIN, board as origin_board, move_ticks, origin, position } from "./movement";
 import { chunks as sight } from "./reveal";
 import { FAR, HEIGHT, WIDTH, neighbor, shape, shapes } from "./window";
@@ -58,6 +59,8 @@ export const unported = {
   DEFEATED: "the adventurer defeated (world.defeated)",
   COMBAT: "the combat arm (Attack, Skill, Item through ActionLibrary)",
   TICK_LIBRARY: "ticks through TickLibrary (a goblin in the window, or not calm)",
+  REGENERATION: "a tick that regenerates (health regen, a condition, effect pips, health over max)",
+  COMPANIONS: "a world of more than one member (companions block and regenerate)",
   TRAP: "an armed trap on the tile entered",
   OCCUPIED: "Blocked by a tile a goblin occupies",
   EDGE: "Blocked by a missing neighbour (the window's edge)",
@@ -80,6 +83,15 @@ export type Adventurer = {
   facing: number;
   status: number;
   health: number;
+  max_health: number;
+  /** What a tick's regeneration reads (`MemberTrait::regenerate`): refused when it would act. */
+  health_regen: number;
+  /** The deadlines of Bleeding, Poison and Burning (0: none; held while `t ≤` it). */
+  bleeding: number;
+  poison: number;
+  burning: number;
+  /** The held effects' regeneration pips (`effect_regen`) and their deadlines. */
+  effects: readonly { pips: number; deadline: number }[];
   /** Crippled's deadline (0: none). */
   crippled: number;
   /** The end of a knock-down (0: none). */
@@ -96,6 +108,8 @@ export type Place = { x: number; y: number };
 export type World = {
   clock: number;
   adventurer: Adventurer;
+  /** The members, the adventurer with them: a companion is refused. */
+  members: number;
   /** The living goblins' tiles: one in the window sends the ticks to `TickLibrary`. */
   goblins: readonly Place[];
   /** `WorldTrait::calm`: no goblin in the awake set and no member activating. */
@@ -184,6 +198,9 @@ function assemble(chunks: readonly (bigint | undefined)[], ox: number, oy: numbe
 /** `SegmentTrait::board`: the board of the window of the adventurer on `(x, y)`. */
 export function board(area: Area, x: number, y: number): Board {
   const { cx, cy, ox, oy } = origin(x, y);
+  // `AssemblyAssert::assert_even_origin`, whose `odd` (`cy` odd) is all `assemble` reads of it: it
+  // never moves a bit, and `origin` always gives an even origin row
+  if (oy % 2 !== (cy + 2) % 2) panic("Assembly: odd origin");
   const parts = [
     piece(area, cx, cy),
     piece(area, cx + 1, cy),
@@ -215,7 +232,23 @@ function idle(world: World, on: Board): boolean {
   return world.goblins.every(({ x, y }) => position(on, x, y) >= FAR);
 }
 
-/** `SegmentTrait::ticks`: `n` ticks, on the fast path only (`TickTrait::idle`, its regeneration aside). */
+/**
+ * Whether `MemberTrait::regenerate` at tick `t` may change the adventurer's health: any pip source
+ * held (its health regen, Bleeding, Poison, Burning, an effect's pips), or health above its max
+ * (`heal` clamps even 0 pips).
+ */
+function regenerates(at: Adventurer, t: number): boolean {
+  return (
+    at.health_regen !== 0 ||
+    t <= at.bleeding ||
+    t <= at.poison ||
+    t <= at.burning ||
+    at.effects.some(({ pips, deadline }) => pips !== 0 && t <= deadline) ||
+    at.health > at.max_health
+  );
+}
+
+/** `SegmentTrait::ticks`: `n` ticks on the fast path (`TickTrait::idle`), none that regenerates. */
 function ticks(world: World, on: Board, n: number): void {
   if (n === 0 || world.defeated) return;
   if (!idle(world, on)) throw new NotMirrored(unported.TICK_LIBRARY);
@@ -225,6 +258,9 @@ function ticks(world: World, on: Board, n: number): void {
       throw new NotMirrored(unported.DEFEATED);
     }
     world.clock = u32add(world.clock, 1);
+    if (alive(world.adventurer) && regenerates(world.adventurer, world.clock)) {
+      throw new NotMirrored(unported.REGENERATION);
+    }
     world.adventurer.flags &= KEPT;
   }
 }
@@ -289,6 +325,7 @@ export function run(
   owed: number,
   weight: number,
 ): { world: World; done: Done } {
+  if (world.members !== 1) throw new NotMirrored(unported.COMPANIONS);
   const out = copy(world);
   let on = board(area, out.adventurer.x, out.adventurer.y);
   const changed = [...area.changed];

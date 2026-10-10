@@ -326,7 +326,14 @@ function segmentFromFelts(c: readonly bigint[]): [World, Area, readonly Action[]
   const [crippled, knocked] = [read.u32(), read.u32()];
   const world: World = {
     clock,
-    adventurer: { x, y, facing, status, health, crippled, knocked, flags: 0, movement: false },
+    // The unit-test fixture's: max health 480, no regeneration, no condition but Crippled and
+    // the knock-down, no effect
+    adventurer: {
+      ...{ x, y, facing, status, health, max_health: 480, health_regen: 0 },
+      ...{ bleeding: 0, poison: 0, burning: 0, effects: [], crippled, knocked },
+      ...{ flags: 0, movement: false },
+    },
+    members: 1,
     goblins: [],
     calm: true,
     defeated: false,

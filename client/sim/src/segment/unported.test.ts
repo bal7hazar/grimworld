@@ -32,11 +32,18 @@ function world(change: Partial<World> = {}): World {
       facing: 0,
       status: 0,
       health: 400,
+      max_health: 480,
+      health_regen: 0,
+      bleeding: 0,
+      poison: 0,
+      burning: 0,
+      effects: [],
       crippled: 0,
       knocked: 0,
       flags: 0,
       movement: false,
     },
+    members: 1,
     goblins: [],
     calm: true,
     defeated: false,
@@ -79,6 +86,46 @@ describe("the branches the segment table does not cover", () => {
     );
     expect(() => run(world({ calm: false }), AREA, [WAIT], 0, 10)).toThrow(
       notMirrored(unported.TICK_LIBRARY),
+    );
+  });
+
+  it("throws on a tick that regenerates, whatever its source", () => {
+    const sources: ((at: World["adventurer"]) => void)[] = [
+      (at) => (at.health_regen = 1),
+      (at) => (at.health_regen = -1),
+      (at) => (at.bleeding = 41),
+      (at) => (at.poison = 41),
+      (at) => (at.burning = 41),
+      (at) => (at.effects = [{ pips: 2, deadline: 41 }]),
+      (at) => (at.health = 481),
+    ];
+    for (const source of sources) {
+      const held = world();
+      source(held.adventurer);
+      expect(() => run(held, AREA, [WAIT], 0, 10)).toThrow(notMirrored(unported.REGENERATION));
+      expect(() => run(held, AREA, [], 1, 10)).toThrow(notMirrored(unported.REGENERATION));
+    }
+  });
+
+  it("runs a tick whose regeneration sources are past or empty", () => {
+    const quiet = world();
+    Object.assign(quiet.adventurer, {
+      bleeding: 40,
+      poison: 40,
+      burning: 40,
+      effects: [
+        { pips: 2, deadline: 40 },
+        { pips: 0, deadline: 100 },
+      ],
+      health: 480,
+    });
+    const { world: after } = run(quiet, AREA, [WAIT], 0, 10);
+    expect([after.clock, after.adventurer.health]).toEqual([41, 480]);
+  });
+
+  it("throws on a world of more than one member", () => {
+    expect(() => run(world({ members: 2 }), AREA, [WAIT], 0, 10)).toThrow(
+      notMirrored(unported.COMPANIONS),
     );
   });
 
