@@ -29,6 +29,18 @@ import {
 } from "../packing";
 import { awake, board, flood, flood_distance, move_ticks, next_step, position } from "../movement";
 import { arc, distance, facing, front, neighbor, reach, shape, sight } from "../window";
+import {
+  chunks,
+  feed,
+  member,
+  optionToFelts,
+  progressToFelts,
+  reveal as revealChunks,
+  revealFromFelts,
+  revealedToFelts,
+  word,
+} from "../reveal";
+import { base } from "../reveal/board";
 import type { Entry, Mirror } from "./replay";
 
 /** The felts of a case, exactly `count` of them. */
@@ -191,10 +203,39 @@ const movement: Record<string, Mirror> = {
   },
 };
 
+const reveal: Record<string, Mirror> = {
+  word: (c) => {
+    const [entropy, instance, chunk] = args(c, 3);
+    return [word(entropy!, instance!, small(chunk!))];
+  },
+  feed: (c) => {
+    const [entropy, ...fact] = args(c, 4);
+    return [feed(entropy!, fact)];
+  },
+  base: (c) => {
+    const [word, biome] = args(c, 2);
+    return [base(word!, small(biome!))];
+  },
+  sight: (c) => {
+    const [x, y, width, height] = args(c, 4).map(small);
+    return chunks(x!, y!, width!, height!).map(BigInt);
+  },
+  member: (c) => {
+    const [tile, k, odd] = args(c, 3);
+    return optionToFelts(member(small(tile!), small(k!), boolFromFelt(odd!)));
+  },
+  reveal: (c) => {
+    const [site, progress, instance, known, asked] = revealFromFelts(c);
+    const out = revealChunks(site, progress, instance, known, asked);
+    return [...progressToFelts(progress), ...revealedToFelts(out)];
+  },
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
   { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
   { file: "movement.jsonl", floor: 81, fns: movement },
+  { file: "reveal.jsonl", floor: 197, fns: reveal },
 ];
