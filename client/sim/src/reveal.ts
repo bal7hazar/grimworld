@@ -290,7 +290,7 @@ export function generate(
   for (const [at, tile] of site.anchors) {
     if (at !== chunk || tile >= 225) continue;
     if (has(INTERIOR, tile)) {
-      inner = inner | felt(pow(tile) + anchor_line(tile));
+      inner = inner | anchor_line(tile);
       anchors.push(tile);
     } else if (has(BOARD - INTERIOR, tile) && !corner(tile)) {
       ring = ring | pow(tile);
