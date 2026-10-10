@@ -1059,11 +1059,9 @@ mod tests {
 
     // AC-3: the vector table, printed one JSON line per case (`{"id", "case", "ok"}`, SPK-4's
     // form), and a digest of every case and outcome: a change to a rule or to the cases fails here
-    // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation).
-    #[test]
-    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
-    #[available_gas(l2_gas: 968230791)] // ceil(1.05 × 922124562 measured)
-    fn test_vectors() {
+    // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation). FND-23: in
+    // five parts of consecutive ids, each with its digest, so that a test's trace stays small.
+    fn check_vectors(first: u32, last: u32, expected: felt252) {
         let mut cases = edges();
         let mut seed: u64 = 1;
         while cases.len() < VECTORS {
@@ -1073,9 +1071,10 @@ mod tests {
         // Track CV's three (their mutation check of the mirror), after the seeded cases so that
         // no earlier id moves: ids 200, 201, 202.
         cases.append_span(cv_cases().span());
+        assert(cases.len() == TOTAL, 'vectors: case count moved');
         let mut digest: Array<felt252> = array![];
-        let mut id: u32 = 0;
-        for (hit, target) in cases.span() {
+        let mut id: u32 = first;
+        for (hit, target) in cases.span().slice(first, last - first) {
             let mut input: Array<felt252> = array![];
             hit.serialize(ref input);
             target.serialize(ref input);
@@ -1090,9 +1089,50 @@ mod tests {
         }
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
-        assert(digest == DIGEST, 'vectors moved: regenerate');
+        assert(digest == expected, 'vectors moved: regenerate');
     }
 
-    const DIGEST: felt252 =
-        1721532226947953684441861240057568072922553245391188094346499166904764442173;
+    #[test]
+    #[available_gas(l2_gas: 196721826)] // ceil(1.05 × 187354120 measured)
+    fn test_vectors_0() {
+        check_vectors(0, 41, DIGEST_0);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 250046790)] // ceil(1.05 × 238139800 measured)
+    fn test_vectors_1() {
+        check_vectors(41, 82, DIGEST_1);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 263136275)] // ceil(1.05 × 250605976 measured)
+    fn test_vectors_2() {
+        check_vectors(82, 123, DIGEST_2);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 244421575)] // ceil(1.05 × 232782452 measured)
+    fn test_vectors_3() {
+        check_vectors(123, 164, DIGEST_3);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 248287639)] // ceil(1.05 × 236464418 measured)
+    fn test_vectors_4() {
+        check_vectors(164, TOTAL, DIGEST_4);
+    }
+
+    /// The cases of the table: `VECTORS`, then track CV's three.
+    const TOTAL: u32 = 203;
+
+    const DIGEST_0: felt252 =
+        586421753970926501500974638465701345356105553413818986702921276783755203995;
+    const DIGEST_1: felt252 =
+        924219708081217976842002592206376387684010835646827443922158919412584381713;
+    const DIGEST_2: felt252 =
+        3472834525710173403964733565786141887649755441804071880667868155571221440760;
+    const DIGEST_3: felt252 =
+        1451526976089260957098234498248813736896198721646202816405381569518106911248;
+    const DIGEST_4: felt252 =
+        3259544917690136778980312074053006567758719917850998568235381858988265320536;
 }
