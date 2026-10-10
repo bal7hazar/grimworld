@@ -1008,6 +1008,7 @@ mod tests {
     // E-16's cap and E-1's weight on one action (`admit`); `owed`: a Move's owed ticks counted
     // with the next segment's first action; `reveal`: a reveal's weight after the Move's.
     #[test]
+    #[available_gas(l2_gas: 24266486)] // ceil(1.05 × 23110939 measured)
     fn test_batch_vectors() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;

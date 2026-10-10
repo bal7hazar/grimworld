@@ -625,26 +625,31 @@ fn warm_probe(records: u32) -> IReuseProbeDispatcher {
 }
 
 #[test]
+#[available_gas(l2_gas: 289622)] // ceil(1.05 × 275830 measured)
 fn test_records_written_none() {
     reuse_probe().write(0, 0, LIVE + 1);
 }
 
 #[test]
+#[available_gas(l2_gas: 16111862)] // ceil(1.05 × 15344630 measured)
 fn test_records_written_16_cold() {
     reuse_probe().write(0, 32, LIVE + 1);
 }
 
 #[test]
+#[available_gas(l2_gas: 95223062)] // ceil(1.05 × 90688630 measured)
 fn test_records_written_96_cold() {
     reuse_probe().write(0, 192, LIVE + 1);
 }
 
 #[test]
+#[available_gas(l2_gas: 84871941)] // ceil(1.05 × 80830420 measured)
 fn test_records_written_none_warm() {
     warm_probe(96).write(0, 0, LIVE + 1);
 }
 
 #[test]
+#[available_gas(l2_gas: 98762181)] // ceil(1.05 × 94059220 measured)
 fn test_records_written_96_warm() {
     warm_probe(96).write(0, 192, LIVE + 1);
 }
