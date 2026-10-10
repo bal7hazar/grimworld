@@ -30,6 +30,7 @@ AUTHORED_OBJECTS = {1, 3, 4, 6, 7}
 GATE_KINDS = {"hub": 1, "link": 2, "floor": 3, "rift": 4}
 GENERATED, AUTHORED = 0, 1
 MAX_DRAWS = 640
+MIN_FLOOR = 6  # `models::location::MIN_FLOOR` (R-40, CM-9)
 
 
 class Refused(Exception):
@@ -306,10 +307,27 @@ def assert_band(location):
         raise Refused("zone: level band")
 
 
-def assert_floor_rectangle(location):
-    if location["kind"] == LOCATION_KINDS["dungeon"] and \
-            location["width"] * location["height"] <= location["target"]:
+def assert_floor(location):
+    """`LocationAssert::assert_floor`: a dungeon floor (`N` > 0, whatever the kind) of at least
+    `MIN_FLOOR` chunks (R-40), its rectangle larger than `N` (R-28). A converted export is never a
+    floor (`N` 0): the twin keeps the shared table whole."""
+    target = location["target"]
+    if target == 0:
+        return
+    if target < MIN_FLOOR:
+        raise Refused("location: floor under 6 chunks", f"N {target}")
+    if location["width"] * location["height"] <= target:
         raise Refused("location: floor rectangle")
+
+
+def assert_gate_entry(gate_id, gate, size):
+    """R-41 (`GateAssert::assert_entry`): the entry chunk within the destination's `width × height`
+    rectangle, when the manifest gives its size (`location_sizes`; a hub has no map, nothing)."""
+    if size is None:
+        return
+    cy, cx = divmod(gate["entry_chunk"], 15)
+    if cx >= size[0] or cy >= size[1]:
+        raise Refused("gate: entry outside rectangle", f"gate {gate_id}")
 
 
 def assert_bridge(bridge, k, chunk, record):
@@ -357,7 +375,7 @@ def check_zone(z):
         anchors.setdefault(gate["anchor_chunk"], set()).add(gate["anchor_tile"])
     anchors.setdefault(loc["entry_chunk"], set()).add(loc["entry_tile"])
     assert_band(loc)
-    assert_floor_rectangle(loc)
+    assert_floor(loc)
     assert_set(z["chunk_set"], loc["width"], loc["height"])
     assert_candidates(z["candidates"], z["chunk_set"])
     assert_quotas(z["quotas"], z["chunk_set"], z["candidates"], z["hearts"])
@@ -372,6 +390,7 @@ def check_zone(z):
         raise Refused("zone: chunk not in the set", "the entry chunk")
     assert_entry(loc["entry_tile"], entry["walls"])
     for gate_id, gate in sorted(z["gates"].items()):
+        assert_gate_entry(gate_id, gate, z.get("destinations", {}).get(gate["destination"]))
         anchor = z["chunks"].get(gate["anchor_chunk"])
         if anchor is None:
             raise Refused("zone: chunk not in the set", f"gate {gate_id}'s anchor")

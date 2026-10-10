@@ -48,6 +48,15 @@ describe("ENG-08's sample zone in the editor", () => {
     expect(readManifest(JSON.stringify({ ...MANIFEST, location_kinds: { x: "lake" } }))).toMatch(
       /location_kinds is not a table of names/,
     );
+    const sizes = (location_sizes: unknown) => JSON.stringify({ ...MANIFEST, location_sizes });
+    expect(readManifest(sizes({ floor_1: [15, 15] }))).toEqual(
+      expect.objectContaining({ location_sizes: { floor_1: [15, 15] } }),
+    );
+    for (const bad of [{ floor_1: 15 }, { floor_1: [15] }, { floor_1: [15, 1.5] }, [[15, 15]]]) {
+      expect(readManifest(sizes(bad)), JSON.stringify(bad)).toMatch(
+        /location_sizes is not a table of names/,
+      );
+    }
     // A manifest built in code is held at the converter's port: refused, not packed.
     const wide = { ...MANIFEST, packs: { raiders: 70000, cubs: 2 } } as Manifest;
     const out = convert(SAMPLE, wide);

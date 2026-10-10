@@ -364,6 +364,8 @@ export interface Zone {
   hearts: Map<number, readonly [number, number] | null>;
   gates: Map<number, GateFields>;
   bridges: Map<number, BridgeFields[]>;
+  /** Each gate destination's `[width, height]` in chunks, when the manifest gives it (R-41). */
+  destinations: Map<number, readonly [number, number]>;
 }
 
 const floorAt = (walls: bigint, tile: number) => tile < 225 && !has(walls, tile);
@@ -477,9 +479,30 @@ function assertBand(l: LocationFields): void {
   if (l.level_min === 0 && l.level_max === 255) throw new Refused("zone: level band");
 }
 
-function assertFloorRectangle(l: LocationFields): void {
-  if (l.kind === LOCATION_KINDS.dungeon && l.width * l.height <= l.target) {
-    throw new Refused("location: floor rectangle");
+/** `LocationAssert::assert_floor`: a floor is any location with `N` > 0, whatever its kind. */
+export const MIN_FLOOR = 6; // `models::location::MIN_FLOOR` (R-40, CM-9)
+
+/** R-40 (a floor of at least `MIN_FLOOR` chunks) and R-28 (its rectangle above `N`). */
+export function assertFloor(l: LocationFields): void {
+  if (l.target === 0) return;
+  if (l.target < MIN_FLOOR) throw new Refused("location: floor under 6 chunks", `N ${l.target}`);
+  if (l.width * l.height <= l.target) throw new Refused("location: floor rectangle");
+}
+
+/**
+ * R-41 (`GateAssert::assert_entry`): the entry chunk within the destination's `width × height`
+ * rectangle, when the manifest gives its size (`location_sizes`; a hub has no map, nothing).
+ */
+export function assertGateEntry(
+  gateId: number,
+  gate: GateFields,
+  size: readonly [number, number] | undefined,
+): void {
+  if (size === undefined) return;
+  const cy = Math.floor(gate.entry_chunk / 15);
+  const cx = gate.entry_chunk % 15;
+  if (cx >= size[0] || cy >= size[1]) {
+    throw new Refused("gate: entry outside rectangle", `gate ${gateId}`);
   }
 }
 
@@ -534,7 +557,7 @@ export function checkZone(z: Zone): void {
   for (const gate of z.gates.values()) anchor(gate.anchor_chunk, gate.anchor_tile);
   anchor(loc.entry_chunk, loc.entry_tile);
   assertBand(loc);
-  assertFloorRectangle(loc);
+  assertFloor(loc);
   assertSet(z.chunk_set, loc.width, loc.height);
   assertCandidates(z.candidates, z.chunk_set);
   assertQuotas(z);
@@ -550,6 +573,7 @@ export function checkZone(z: Zone): void {
   if (!entry) throw new Refused("zone: chunk not in the set", "the entry chunk");
   assertEntry(loc.entry_tile, entry.walls);
   for (const [gateId, gate] of ascending(z.gates)) {
+    assertGateEntry(gateId, gate, z.destinations.get(gate.destination));
     const anchor = z.chunks.get(gate.anchor_chunk);
     if (!anchor) throw new Refused("zone: chunk not in the set", `gate ${gateId}'s anchor`);
     assertGate(gateId, gate, anchor);

@@ -27,8 +27,11 @@ const load = <T = ExportFile>(name: string): T => JSON.parse(read(`samples/${nam
 const MANIFEST = load<Manifest>("manifest.json");
 const TABLE = JSON.parse(read("checks.json")) as Record<
   "registry" | "pipeline" | "export",
-  { case: string; id: string; code: string }[]
+  { case: string; id: string; code: string; converter?: string }[]
 >;
+
+/** The registry cases with a converter twin; the others name why the converter cannot write them. */
+const TWINNED = TABLE.registry.filter((c) => c.converter === undefined);
 
 const zone = (): BuiltZone => buildZone(load("zone.json"), MANIFEST);
 const firstWall = (rec: R.ZoneChunk) => [...Array(225).keys()].find((t) => R.has(rec.walls, t))!;
@@ -109,6 +112,15 @@ const MUTATIONS: Record<string, (z: R.Zone) => void> = {
   floor_rectangle: (z) => {
     z.location.kind = R.LOCATION_KINDS.dungeon;
     z.location.target = 6;
+  },
+  floor_few: (z) => {
+    z.location.kind = R.LOCATION_KINDS.dungeon;
+    z.location.target = 5;
+  },
+  gate_entry_outside: (z) => {
+    expect(z.gates.get(3)!.destination).toBe(3);
+    expect(z.gates.get(3)!.entry_chunk).toBe(112);
+    z.destinations.set(3, [7, 7]);
   },
   quota_kind: (z) => {
     const [, param, n] = z.quotas[1]!;
@@ -400,11 +412,74 @@ describe("every case of checks.json, refused with its code", () => {
     expect(() => pipeline(z)).not.toThrow();
   });
 
-  it("has a mutation for each registry case", () => {
-    expect(Object.keys(MUTATIONS).sort()).toEqual(TABLE.registry.map((c) => c.case).sort());
+  it("has a mutation for each registry case that has a converter twin", () => {
+    expect(Object.keys(MUTATIONS).sort()).toEqual(TWINNED.map((c) => c.case).sort());
   });
 
-  for (const c of TABLE.registry) {
+  it("skips only the cases that name why the converter cannot write them", () => {
+    const alone = TABLE.registry.filter((c) => c.converter !== undefined);
+    expect(alone.length).toBeGreaterThan(0);
+    for (const c of alone) expect(c.converter, c.case).toContain("authored zones only");
+    expect(alone.map((c) => c.case).sort()).toEqual(
+      [
+        "floor_count_above_members",
+        "generated_count_above_members",
+        "generated_heart_template",
+        "generated_pack_rewrite_heart",
+        "generated_quota_draws",
+        "generated_set_outside",
+      ].sort(),
+    );
+    expect(TWINNED.length + alone.length).toBe(TABLE.registry.length);
+  });
+
+  it("R-40 and R-28 at their boundaries: N 1 to 5 refused, 6 to 11 passes, 12 refused, N 0 no floor", () => {
+    const floor = (n: number, width: number, height: number) => {
+      const z = zone();
+      Object.assign(z.location, { target: n, width, height });
+      return z;
+    };
+    const code = (n: number): string | undefined => {
+      try {
+        R.assertFloor(floor(n, 4, 3).location);
+      } catch (e) {
+        return (e as R.Refused).code;
+      }
+      return undefined;
+    };
+    expect(() => R.assertFloor(floor(0, 0, 0).location)).not.toThrow();
+    for (let n = 1; n <= 12; n++) {
+      const expected =
+        n < 6 ? "location: floor under 6 chunks" : n < 12 ? undefined : "location: floor rectangle";
+      expect(code(n), `N ${n}`).toBe(expected);
+    }
+  });
+
+  it("R-41 at its boundary: entry chunk 112 (7, 7) passes into 8 x 8; 113 and 127 are refused", () => {
+    const gate = (entry_chunk: number) => ({ ...zone().gates.get(3)!, entry_chunk });
+    expect(() => R.assertGateEntry(3, gate(112), [8, 8])).not.toThrow();
+    for (const entry of [113, 127]) {
+      expect(() => R.assertGateEntry(3, gate(entry), [8, 8]), `chunk ${entry}`).toThrow(
+        expect.objectContaining({ code: "gate: entry outside rectangle" }),
+      );
+    }
+    expect(() => R.assertGateEntry(3, gate(224), undefined)).not.toThrow();
+  });
+
+  it("takes a gate's destination size from the manifest; a hub has none; no table, nothing", () => {
+    expect(zone().destinations).toEqual(new Map([[3, [15, 15]]]));
+    const sized = structuredClone(MANIFEST) as { location_sizes?: Record<string, number[]> };
+    sized.location_sizes!["test_town"] = [1, 1];
+    expect(buildZone(load("zone.json"), sized as Manifest).destinations).toEqual(
+      new Map([[3, [15, 15]]]),
+    );
+    delete sized.location_sizes;
+    const bare = buildZone(load("zone.json"), sized as Manifest);
+    expect(bare.destinations.size).toBe(0);
+    expect(() => R.checkZone(bare)).not.toThrow();
+  });
+
+  for (const c of TWINNED) {
     it(`registry ${c.case} (${c.id}): ${c.code}`, () => {
       const z = zone();
       MUTATIONS[c.case]!(z);
@@ -466,11 +541,16 @@ describe("every case of checks.json, refused with its code", () => {
     expect(ids.sort()).toEqual([...ID_CASES].sort());
   });
 
+  // `buildZone` bypasses the schema (which refuses a negative quest too): the converter's own check
   it("id_negative (E-48): a negative id is refused, in a manifest and in a gate's quest", () => {
     for (const [table, name] of SAMPLE_IDS) {
-      expect(refusedWith(load("zone.json"), withId(table, name, -1)), table).toMatch(CODE);
+      expect(refusedWith(load("zone.json"), withId(table, name, -1)), table).toContain(
+        `"${name}": id -1`,
+      );
     }
-    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", -1))).toMatch(CODE);
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", -1))).toContain(
+      '"boss_arena": id -1',
+    );
     const z = load("zone.json");
     z.gates![0]!.quest = -1;
     expect(() => buildZone(z, MANIFEST)).toThrow(expect.objectContaining({ code: CODE }));
@@ -479,14 +559,17 @@ describe("every case of checks.json, refused with its code", () => {
   it("id_above_16_bits (E-49): 65535 converts, 65536 is refused", () => {
     for (const [table, name] of SAMPLE_IDS) {
       expect(refusedWith(load("zone.json"), withId(table, name, 65535)), table).toBeUndefined();
-      expect(refusedWith(load("zone.json"), withId(table, name, 65536)), table).toMatch(
-        /^export: id does not fit\|.*does not fit 16 bits/,
+      expect(refusedWith(load("zone.json"), withId(table, name, 65536)), table).toContain(
+        `${CODE}|`,
+      );
+      expect(refusedWith(load("zone.json"), withId(table, name, 65536)), table).toContain(
+        `"${name}": id 65536 does not fit 16 bits`,
       );
     }
     // A set piece's id is a u16 for the game too (`Location.set_pieces` is `Lanes16`)
     expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 65535))).toBeUndefined();
-    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 65536))).toMatch(
-      /^export: id does not fit\|.*boss_arena.*does not fit 16 bits/,
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 65536))).toContain(
+      '"boss_arena": id 65536 does not fit 16 bits',
     );
     for (const table of ID_TABLES) {
       expect(resolve({ [table]: { n: 65535 } } as Manifest, table, "n", "x"), table).toBe(65535);
@@ -506,7 +589,8 @@ describe("every case of checks.json, refused with its code", () => {
     // A gate's quest is the u32 of `Gate`: the only field of 32 bits
     const z = load("zone.json");
     z.gates![0]!.quest = 4294967295;
-    expect(buildZone(z, MANIFEST).gates.size).toBeGreaterThan(0);
+    const built = buildZone(z, MANIFEST);
+    expect([...built.gates.values()].map((g) => g.quest)).toContain(4294967295);
     z.gates![0]!.quest = 4294967296;
     expect(() => buildZone(z, MANIFEST)).toThrow(
       expect.objectContaining({ code: CODE, detail: expect.stringContaining("quest") }),

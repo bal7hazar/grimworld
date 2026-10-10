@@ -198,6 +198,16 @@ Built into `Registry`, the checks measured 51,562 (62.94 %); the authored reveal
 `HostsLibrary`, 48,938 (59.74 %); its laying as `RevealLibrary`'s entrypoint taking the records,
 44,015 (53.73 %): each refused by §1.3's 50 %, hence `ZoneChecks` (§3.5) and the split between the
 two libraries (`compose` where the records are read, `lay` where the placement code is).
+
+**ENG-R1c-1: the content bounds of generated zones** (§3.5's R-11, R-12, R-27, R-30 for every
+location, R-28 applied, R-40, R-41). Measured the same way, before (main at `56784a0`) and at the
+lot's head; no class of the expedition's path moved (`Instances`, `PlayLibrary`, `SegmentLibrary`,
+`TickLibrary`, `RevealLibrary`, `HostsLibrary`, `AiLibrary` and every other class: the same felts):
+
+| Class | Before | After | Cap | What moved |
+|---|---:|---:|---:|---|
+| `Registry` | 33,082 (40.38 %) | 33,179 (40.50 %) | 50 % | +97: R-28 and R-40 on its `LOCATION` check (`LocationAssert::assert_floor`), the index call on a `GATE` write |
+| `ZoneChecks` | 23,659 (28.88 %) | 26,298 (32.10 %) | 50 % | +2,639: the shared bounds for generated zones and floors, R-41 both ways, the gates' entry index |
 `SegmentLibrary` and `TickLibrary` are unchanged.
 
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
@@ -1020,15 +1030,27 @@ minor 1): **ENG-09 implements every one** (`ZoneAssert`; each refusal tested fro
 location has (`QUOTAS`' bounds, the chunk set's R-11 and R-12, the entry's R-26, a gate's R-18 and
 R-25 where its anchor chunk holds a `ZONE_CHUNK`) bind a zone with the marker, and the `LOCATION` write
 that sets it re-runs R-11, R-26, R-37 and the quotas' bounds: the converter writes the marker first.
-`Registry` keeps `heart_packs` (how many Heart quotas of authored zones name each `PACK` template, as
-`caste_skills`) for R-27's reverse check. **The checks run in `ZoneChecks`**
+**ENG-R1c-1 binds every other location with the shared bounds** (ENG-R1c's, which ENG-09 built for
+authored zones): R-11 on any chunk set; R-12, R-27 and R-30 on a generated zone's quotas (its
+members: its chunk set, or its rectangle without one) and a dungeon floor's (its members: its `N`
+chunks, the outline drawn at `create`), each with its reverse checks; R-41 on every gate into a
+location with a map; and, in `Registry` itself with no zone checks needed, R-28 and R-40 on a dungeon
+floor's `LOCATION` (`N` > 0, whatever the kind: the engine's `SiteTrait::emerging`).
+`Registry` keeps `heart_packs` (how many Heart quotas name each `PACK` template, every location's
+since ENG-R1c-1, as `caste_skills`) for R-27's reverse check, and `gate_entries` (per location, the
+entry chunks of the gates that lead to it, one bit each) with `gate_entry_counts` (the gates per
+location and chunk) for R-41's. A count is lowered only while above 0: `set_zone_checks` comes before
+any record (`lifecycle_probe.py`), and a record written before it is left out of the indexes. **The checks run in `ZoneChecks`**
 (`contracts/persistent/src/systems/zone.cairo`), `Registry`'s library class, by `library_call` in
-`Registry`'s context (it reads `records` and writes `heart_packs` under the same names): built into
+`Registry`'s context (it reads `records` and writes `heart_packs`, `gate_entries` and
+`gate_entry_counts` under the same names): built into
 `Registry` they took it to 62.94 % of the CASM limit, over §1.3's 50 %. Its class hash is the
 administrator's configuration, **`IRegistryAdmin.set_zone_checks(class_hash)`** (a new entrypoint of a
 frozen interface, ENG-09; administrator only, never 0; storage `zone_checks`, one slot): until it is
 set, an authored zone's own records and a `LOCATION` with the marker are refused (`registry: no zone
-checks`), and the other kinds' shared rules are skipped, no authored zone existing yet. A chunk of the set with no `ZONE_CHUNK` is the content
+checks`), and the other kinds' shared rules are skipped, no authored zone existing yet (and, since
+ENG-R1c-1, the generated zones' and gates' shared bounds with them: a deployment sets the class
+before any record). A chunk of the set with no `ZONE_CHUNK` is the content
 pipeline's (every chunk written), and the reveal reveals it as wall.
 
 **The writer's checks of authored map records** (deliverable 2; `RegistryAssert::assert_content`,
@@ -1039,8 +1061,8 @@ same code; CI's `map-format` job holds that every registry case has its Cairo tw
 
 | Id | Rule | Checked at (reads) | Reverse check (the other write re-runs it) | Code |
 |---|---|---|---|---|
-| R-11 | The chunk set within the `width × height` rectangle (ENG-R1c bound 1, reused) | the chunk set's `OUTLINE` (`LOCATION`) | a `LOCATION` rewrite, against the chunk set (ENG-09) | `zone: set outside rectangle` |
-| R-12 | A quota's count at most the zone's members (ENG-R1c bound 2) | `QUOTAS` (the chunk set) | a chunk set rewrite, against `QUOTAS` (ENG-09); a `CANDIDATES` write (spike) | `zone: count above members` |
+| R-11 | The chunk set within the `width × height` rectangle (ENG-R1c bound 1, reused; **every location's**, ENG-R1c-1) | the chunk set's `OUTLINE` (`LOCATION`) | a `LOCATION` rewrite, against the chunk set (ENG-09; every location, ENG-R1c-1) | `zone: set outside rectangle` |
+| R-12 | A quota's count at most the zone's members (ENG-R1c bound 2; **a generated zone's** members, its chunk set or its rectangle, and **a dungeon floor's**, its `N`: ENG-R1c-1) | `QUOTAS` (the chunk set, `LOCATION`) | a chunk set rewrite, against `QUOTAS` (ENG-09; a generated zone's, ENG-R1c-1); a `LOCATION` rewrite (ENG-R1c-1); a `CANDIDATES` write (spike) | `zone: count above members` |
 | R-13 | An authored zone's quota count at most its candidates (bound 2, authored form) | `QUOTAS` (`CANDIDATES`) | a `CANDIDATES` write, against `QUOTAS` (spike, `assert_candidates_write`) | `zone: count above candidates` |
 | R-14 | Spawn points, objects and candidate tiles on walkable tiles **of the interior** (rows and columns 1–13: a pack's goblins stand within 2 of its tile, `Placement::near`'s precondition; ENG-09), no two on one tile; an object of an authored kind, untouched; an empty entry all zeros, a candidate tile 0 where `CANDIDATES` does not name the chunk | `ZONE_CHUNK` (`CANDIDATES`) | a `CANDIDATES` write, against each chunk whose candidacy changed (spike) | `zone chunk: tile not floor`, `… tile taken`, `… object`, `… empty with a value` |
 | R-15 | Within E-3 with every candidate counted (an object quota's against 3 objects, a Heart's against 2 packs), so every draw fits | `ZONE_CHUNK` (`CANDIDATES`, `QUOTAS`) | a `CANDIDATES` write, against those chunks (spike); a `QUOTAS` write that changes a kind, against its candidates' chunks (ENG-09) | `zone chunk: over its caps` |
@@ -1050,10 +1072,10 @@ same code; CI's `map-format` job holds that every registry case has its Cairo tw
 | R-24 | A `ZONE_CHUNK`'s chunk in the chunk set | `ZONE_CHUNK` (the chunk set) | a chunk set rewrite that drops a chunk with a `ZONE_CHUNK` (ENG-09) | `zone: chunk not in the set` |
 | R-25 | The anchor chunk names the gate among its two (the gate index) | `GATE` (its anchor's `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that drops a gate id whose `GATE` anchors there (the stored record read, ENG-09) | `zone: gate not indexed` |
 | R-26 | The entry tile walkable | `LOCATION` with the marker, and the entry chunk's `ZONE_CHUNK`, each the other | (both directions in the column before) | `zone: entry not floor` |
-| R-27 | A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended) | `QUOTAS` (the Heart's `PACK`) | a `PACK` write that a Heart quota names: ENG-09 keeps a count of them per template, as `caste_skills` (spike, `assert_pack_write`) | `zone: heart template` |
-| R-28 | A dungeon floor's `width × height` above `N` (ENG-R1c bound 4; dungeons only; built by ENG-09, `LocationAssert::assert_floor_rectangle`, applied to dungeon floors by ENG-R1c) | `LOCATION` | — (one record) | `location: floor rectangle` |
+| R-27 | A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended; **every location's** Heart, ENG-R1c-1) | `QUOTAS` (the Heart's `PACK`) | a `PACK` write that a Heart quota names: ENG-09 keeps a count of them per template, as `caste_skills` (spike, `assert_pack_write`; every location's, ENG-R1c-1) | `zone: heart template` |
+| R-28 | A dungeon floor's `width × height` above `N` (ENG-R1c bound 4; re-audits t-0075 and t-0077, minor 3; a floor is `N` > 0, whatever the kind; built by ENG-09, applied by ENG-R1c-1 in `Registry`'s `LOCATION` check, `LocationAssert::assert_floor`, without the zone checks) | `LOCATION` | — (one record) | `location: floor rectangle` |
 | R-29 | An authored zone's quotas place no exit and no set piece | `QUOTAS` (the marker) | a `LOCATION` write that sets the marker, against `QUOTAS` (ENG-09) | `zone: quota kind` |
-| R-30 | **The location's quotas draw at most 640 times together at entry**, `min(count, members − count)` each (D-220; a generated zone's members, an authored zone's candidates) | `QUOTAS` (the chunk set, `CANDIDATES`) | a `CANDIDATES` write (spike) and a chunk set rewrite (ENG-09), against `QUOTAS` | `zone: quota draws` |
+| R-30 | **The location's quotas draw at most 640 times together at entry**, `min(count, members − count)` each (D-220; a generated zone's members, an authored zone's candidates; **generated zones and floors bound by ENG-R1c-1**, D-221) | `QUOTAS` (the chunk set, `CANDIDATES`, `LOCATION`) | a `CANDIDATES` write (spike), a chunk set rewrite (ENG-09; a generated zone's, ENG-R1c-1) and a `LOCATION` rewrite (ENG-R1c-1), against `QUOTAS` | `zone: quota draws` |
 | R-31 | Every candidate chunk in the zone | `CANDIDATES` (the chunk set) | a chunk set rewrite, against `CANDIDATES` (ENG-09) | `candidates: outside the set` |
 | R-33 | A bridge has a deck; two distinct ends off it | `BRIDGE` | — (one record) | `bridge: deck empty`, `bridge: end` |
 | R-34 | Each end walkable and next to a deck tile; **every deck tile walkable** (extended, ADR-0008 rule 1) | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against its `BRIDGE`s (ENG-09) | `bridge: end not floor`, `bridge: end not by the deck`, `bridge: deck not floor` |
@@ -1061,6 +1083,8 @@ same code; CI's `map-format` job holds that every registry case has its Cairo tw
 | R-37 | No spawn point, object, candidate tile, gate anchor or entry on a bridge's deck or ends (ADR-0008 rule 5) | `BRIDGE` (its `ZONE_CHUNK`, the `GATE`s it names, `LOCATION`'s entry) | a `ZONE_CHUNK` rewrite, a `GATE` write and a `LOCATION` write, each against the chunk's `BRIDGE`s | `bridge: tile taken` |
 | R-38 | Dropped by ADR-0008 rule 5 (D-227: one level, no rule reads which bridge a tile belongs to) | — | — | none |
 | R-39 | An authored zone's level band at most 255 levels (0 to 255 refused): a chunk's level is drawn with a byte's bound (audit t-0131, minor 1; D-140) | `LOCATION` with the marker | — (one record) | `zone: level band` |
+| R-40 | A dungeon floor of at least 6 chunks (CM-9: `N` from 6 to 12, the most `registry: floor over 12 chunks`; ENG-R1c bound 5, review t-0099 note 5: below, its exit and its Heart may find no layer beyond the entry; ENG-R1c-1, in `Registry`'s `LOCATION` check, without the zone checks) | `LOCATION` (`N` > 0) | — (one record) | `location: floor under 6 chunks` |
+| R-41 | A gate's entry chunk within its destination's `width × height` rectangle, when the destination has a map (ENG-R1c bound 6, review t-0099 note 5: outside, a floor's outline grows outside its rectangle and its frontier can come out empty, a draw of 0; ENG-R1c-1) | `GATE` (its destination's `LOCATION`, when written) | a `LOCATION` write, against the entries of the gates that lead to it (`gate_entries`, kept by `ZoneChecks` at each `GATE` write) | `gate: entry outside rectangle` |
 
 **R-30, sized from the measure** (D-220): ENG-05's worst legal plan (six passes of 112, 98,153,254 in
 `test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,
@@ -1069,7 +1093,7 @@ same code; CI's `map-format` job holds that every registry case has its Cairo tw
 640 draws among 225 candidates measure **95,035,380** (`test_pair_hosts_bound_authored`, review
 t-0084 note 4). Without R-30 a legal generated zone is one code change from the
 bound; with it, 4.2 % below. R-30 binds generated zones too (D-221, the project manager,
-2026-10-07): ENG-R1c builds it beside its four bounds, ENG-09 reuses it. The layout's own bounds (at most 2 spawn points and 3 objects, one
+2026-10-07): ENG-09 built it, ENG-R1c-1 applies it to generated zones and dungeon floors. The layout's own bounds (at most 2 spawn points and 3 objects, one
 candidate a quota a chunk, two gates a chunk, 15 bridges a chunk, a bridge in one chunk) are
 refused by the converter before any record (`export: …` codes). What no record holds alone is
 **the content pipeline's and the converter's**: every walkable tile reachable from the entry (P-1,

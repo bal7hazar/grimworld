@@ -622,7 +622,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "const held = Math.min(distance, far);",
     to: "const held = distance;",
     survives:
-      "no legal input: it needs an entry chunk outside the rectangle, which ENG-R1c's content rule makes illegal",
+      "no legal input: it needs an entry chunk outside the rectangle, which ENG-R1c's content rule makes illegal; R-41 (ENG-R1c-1) refuses such a gate on the content side",
   },
   {
     name: "a pack's level not held in the location's band",

@@ -1,5 +1,5 @@
 {
- "$comment": "The one table of an authored zone's checks (ENG-08 deliverable 2): the Registry's (ZONE_CHUNK and the other records' writes, ZoneAssert in contracts/persistent/src/systems/registry.cairo, ENG-09), the content pipeline's (the converter only: no record holds them alone) and the export's own. Ids R-n and E-n follow CLI-09 §5 where it has them. Each registry case runs through both sides: contracts/persistent/tests/test_zone.cairo's test_refuse_<case> (snforge, should_panic with the code) and tools/map-format/tests/test_convert.py (the converter refuses with the same code); test_convert.py also checks that each Cairo test exists with that code. R-38 is dropped (ADR-0008 rule 5, D-227): the registry ids go from R-37 to R-39.",
+ "$comment": "The one table of an authored zone's checks (ENG-08 deliverable 2): the Registry's (ZONE_CHUNK and the other records' writes, ZoneAssert in contracts/persistent/src/systems/registry.cairo, ENG-09), the content pipeline's (the converter only: no record holds them alone) and the export's own. Ids R-n and E-n follow CLI-09 §5 where it has them. Each registry case runs through both sides: contracts/persistent/tests/test_zone.cairo's test_refuse_<case> (snforge, should_panic with the code) and tools/map-format/tests/test_convert.py (the converter refuses with the same code); test_convert.py also checks that each Cairo test exists with that code. A registry case with a converter field is the Registry's alone: the field gives the reason the converter cannot write the record that breaks it (ENG-R1c-1: the converter writes authored zones only). R-38 is dropped (ADR-0008 rule 5, D-227): the registry ids go from R-37 to R-39.",
  "registry": [
   {
    "case": "set_outside",
@@ -119,6 +119,15 @@
    "mutation": "chunk 16's gates cleared"
   },
   {
+   "case": "gate_entry_outside",
+   "id": "R-41",
+   "code": "gate: entry outside rectangle",
+   "checked_at": "GATE; LOCATION of its destination (reverse check)",
+   "reads": "LOCATION (the destination); a set of the entry chunks of the gates leading to each location (ENG-R1c-1)",
+   "rule": "A gate's entry chunk within its destination's width × height rectangle, when the destination has a map (ENG-R1c bound 6, review t-0099 note 5: outside, a dungeon floor's outline grows outside its rectangle and its frontier can come out empty). The converter checks it when the manifest gives the destination's size (location_sizes)",
+   "mutation": "the dungeon floor gate 3 enters at chunk 112, (7, 7), made 7 × 7"
+  },
+  {
    "case": "entry_not_floor",
    "id": "R-26",
    "code": "zone: entry not floor",
@@ -176,10 +185,19 @@
    "case": "floor_rectangle",
    "id": "R-28",
    "code": "location: floor rectangle",
-   "checked_at": "LOCATION (a dungeon floor)",
+   "checked_at": "LOCATION (a dungeon floor: N > 0, whatever the kind)",
    "reads": "—",
-   "rule": "A dungeon floor's width × height above N (ENG-R1c bound 4; dungeons only)",
+   "rule": "A dungeon floor's width × height above N (ENG-R1c bound 4; re-audits t-0075 and t-0077, minor 3: at an area of N a floor can close early); applied by Registry's LOCATION check (ENG-R1c-1)",
    "mutation": "the location made a dungeon floor of N 6 in its 3 × 2 rectangle"
+  },
+  {
+   "case": "floor_few",
+   "id": "R-40",
+   "code": "location: floor under 6 chunks",
+   "checked_at": "LOCATION (a dungeon floor: N > 0, whatever the kind)",
+   "reads": "—",
+   "rule": "A dungeon floor of at least 6 chunks (CM-9: N from 6 to 12; ENG-R1c bound 5, review t-0099 note 5: below, its exit and its Heart may find no layer beyond the entry)",
+   "mutation": "the location made a dungeon floor of N 5 in its 3 × 2 rectangle"
   },
   {
    "case": "quota_kind",
@@ -198,6 +216,66 @@
    "reads": "OUTLINE (chunk set), CANDIDATES",
    "rule": "The location's quotas draw at most 640 times together at entry, min(count, members − count) a quota (D-220: with the eight task quotas the worst plan measures 95,799,175 L2 gas, under 100,000,000)",
    "mutation": "a 15 × 15 zone whose six quotas (three object quotas, two Hearts, a landmark) take 112 of 225 candidates each: 672 draws"
+  },
+  {
+   "case": "generated_set_outside",
+   "id": "R-11",
+   "code": "zone: set outside rectangle",
+   "checked_at": "OUTLINE (chunk set) of a generated zone",
+   "reads": "LOCATION",
+   "rule": "R-11 for a generated zone (ENG-R1c-1): its chunk set within its width × height rectangle; the reverse check at a LOCATION write",
+   "mutation": "a generated 2 × 1 zone's chunk set gains chunk 2",
+   "converter": "The converter writes authored zones only (the marker set, N 0): a generated zone's records are the content pipeline's (OPS-01)"
+  },
+  {
+   "case": "generated_count_above_members",
+   "id": "R-12",
+   "code": "zone: count above members",
+   "checked_at": "QUOTAS of a generated zone",
+   "reads": "OUTLINE (chunk set), LOCATION",
+   "rule": "R-12 for a generated zone (ENG-R1c-1): a quota's count at most its members (its chunk set, or its rectangle without one); the reverse checks at a chunk set or LOCATION write",
+   "mutation": "a generated 1 × 1 zone's vein of count 2",
+   "converter": "The converter writes authored zones only (the marker set, N 0): a generated zone's records are the content pipeline's (OPS-01)"
+  },
+  {
+   "case": "floor_count_above_members",
+   "id": "R-12",
+   "code": "zone: count above members",
+   "checked_at": "QUOTAS of a dungeon floor",
+   "reads": "LOCATION",
+   "rule": "R-12 for a dungeon floor (ENG-R1c-1): a quota's count at most its members, its N chunks (its outline, drawn at create); the reverse check at a LOCATION write",
+   "mutation": "a floor of N 6 whose exit has count 7",
+   "converter": "The converter writes authored zones only (N 0): a dungeon floor's quotas are the content pipeline's (OPS-01)"
+  },
+  {
+   "case": "generated_heart_template",
+   "id": "R-27",
+   "code": "zone: heart template",
+   "checked_at": "QUOTAS of a generated zone or a dungeon floor",
+   "reads": "PACK",
+   "rule": "R-27 for every location (ENG-R1c-1): a Heart's template exists, at least 1 at its fewest and at its most",
+   "mutation": "a generated zone's Heart names a template the registry does not hold",
+   "converter": "The converter writes authored zones only (the marker set, N 0): a generated zone's records are the content pipeline's (OPS-01)"
+  },
+  {
+   "case": "generated_pack_rewrite_heart",
+   "id": "R-27",
+   "code": "zone: heart template",
+   "checked_at": "PACK (reverse check)",
+   "reads": "a count of the Heart quotas naming the template, every location's (ENG-R1c-1)",
+   "rule": "A PACK write that a generated zone's Heart quota names re-runs R-27",
+   "mutation": "the cubs, which a generated zone's Heart names, rewritten with no goblin at their fewest",
+   "converter": "The converter writes authored zones only (the marker set, N 0): a generated zone's records are the content pipeline's (OPS-01)"
+  },
+  {
+   "case": "generated_quota_draws",
+   "id": "R-30",
+   "code": "zone: quota draws",
+   "checked_at": "QUOTAS of a generated zone",
+   "reads": "OUTLINE (chunk set), LOCATION",
+   "rule": "R-30 for a generated zone (D-221, ENG-R1c-1): its quotas draw at most 640 times together at entry, min(count, members − count) a quota, among its members; the reverse checks at a chunk set or LOCATION write",
+   "mutation": "a generated 15 × 15 zone's six veins of 112, 112, 112, 112, 112 and 81: 641 draws",
+   "converter": "The converter writes authored zones only (the marker set, N 0): a generated zone's records are the content pipeline's (OPS-01)"
   },
   {
    "case": "candidates_outside",
