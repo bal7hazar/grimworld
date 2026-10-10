@@ -82,6 +82,20 @@ export function fits(value: bigint, bits: number, code: string): bigint {
   return value;
 }
 
+/**
+ * A manifest id fits the field the record packs it into: neither negative nor `bits` wide or
+ * more (`records.py` assert_id, E-48 to E-50).
+ */
+export function assertId(what: string, value: unknown, bits: number): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= 2 ** bits) {
+    throw new Refused(
+      "export: id does not fit",
+      `${what}: id ${String(value)} does not fit ${bits} bits`,
+    );
+  }
+  return value;
+}
+
 export const has = (bits: bigint, i: number): boolean => ((bits >> BigInt(i)) & 1n) === 1n;
 export const bit = (i: number): bigint => 1n << BigInt(i);
 

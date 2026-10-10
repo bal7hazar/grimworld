@@ -9,6 +9,7 @@ import {
   convert,
   golden,
   pipeline,
+  resolve,
   recordsFile,
 } from "./convert";
 import * as R from "./records";
@@ -389,6 +390,9 @@ describe("the converter's port (ENG-08's samples)", () => {
   });
 });
 
+/** The cases that edit the manifest, not the export: tested below by their own tests. */
+const ID_CASES = ["id_negative", "id_above_16_bits", "id_above_32_bits"];
+
 describe("every case of checks.json, refused with its code", () => {
   it("passes the sample through the Registry's checks and the pipeline", () => {
     const z = zone();
@@ -416,12 +420,72 @@ describe("every case of checks.json, refused with its code", () => {
   });
 
   for (const c of [...TABLE.pipeline, ...TABLE.export]) {
-    if (c.case === "seam" || c.case === "malformed") continue;
+    if (c.case === "seam" || c.case === "malformed" || ID_CASES.includes(c.case)) continue;
     it(`${c.case} (${c.id}): ${c.code}`, () => {
       expect(EDITS[c.case], c.case).toBeDefined();
       expect(verdict(EDITS[c.case]!())).toBe(c.code);
     });
   }
+
+  /** Each id case: a manifest (or a gate's quest) the converter refuses, `test_convert.py`'s tests. */
+  const withId = (table: string, name: string, id: number): Manifest => {
+    const m = structuredClone(MANIFEST) as Record<string, unknown>;
+    (m[table] as Record<string, number>)[name] = id;
+    return m as Manifest;
+  };
+  const setPiece = () => load("set_piece.json");
+  const refusedWith = (raw: unknown, manifest: Manifest): string | undefined => {
+    const out = convert(raw, manifest);
+    return out instanceof R.Refused ? `${out.code}|${out.detail}` : undefined;
+  };
+  const CODE = "export: id does not fit";
+  const SAMPLE_IDS: [string, string][] = [
+    ["regions", Object.keys(MANIFEST.regions ?? {})[0]!],
+    ["packs", "raiders"],
+  ];
+
+  it("has a test for each id case", () => {
+    const ids = TABLE.export.filter((c) => c.code === CODE).map((c) => c.case);
+    expect(ids.sort()).toEqual([...ID_CASES].sort());
+  });
+
+  it("id_negative (E-48): a negative id is refused, in a manifest and in a gate's quest", () => {
+    for (const [table, name] of SAMPLE_IDS) {
+      expect(refusedWith(load("zone.json"), withId(table, name, -1)), table).toMatch(CODE);
+    }
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", -1))).toMatch(CODE);
+    const z = load("zone.json");
+    z.gates![0]!.quest = -1;
+    expect(() => buildZone(z, MANIFEST)).toThrow(expect.objectContaining({ code: CODE }));
+  });
+
+  it("id_above_16_bits (E-49): 65535 converts, 65536 is refused", () => {
+    for (const [table, name] of SAMPLE_IDS) {
+      expect(refusedWith(load("zone.json"), withId(table, name, 65535)), table).toBeUndefined();
+      expect(refusedWith(load("zone.json"), withId(table, name, 65536)), table).toMatch(
+        /^export: id does not fit\|.*does not fit 16 bits/,
+      );
+    }
+    // A set piece's id is not narrowed to 16 bits
+    expect(resolve({ set_pieces: { n: 65536 } } as Manifest, "set_pieces", "n", "x")).toBe(65536);
+    expect(() => resolve({ packs: { n: 65536 } } as Manifest, "packs", "n", "x")).toThrow(
+      expect.objectContaining({ code: CODE }),
+    );
+  });
+
+  it("id_above_32_bits (E-50): 4294967295 converts, 4294967296 is refused", () => {
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 4294967295))).toBeUndefined();
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", 4294967296))).toMatch(
+      /does not fit 32 bits/,
+    );
+    const z = load("zone.json");
+    z.gates![0]!.quest = 4294967295;
+    expect(buildZone(z, MANIFEST).gates.size).toBeGreaterThan(0);
+    z.gates![0]!.quest = 4294967296;
+    expect(() => buildZone(z, MANIFEST)).toThrow(
+      expect.objectContaining({ code: CODE, detail: expect.stringContaining("quest") }),
+    );
+  });
 
   it("malformed (E-40): an error no check names is a refusal, not a throw", () => {
     const broken = { ...load("zone.json"), entry: { x: 0, y: 0 } } as ExportFile;
@@ -436,7 +500,7 @@ describe("every case of checks.json, refused with its code", () => {
 
   it("has an edit for every export and pipeline case", () => {
     for (const c of [...TABLE.pipeline, ...TABLE.export]) {
-      if (c.case !== "seam" && c.case !== "malformed") {
+      if (c.case !== "seam" && c.case !== "malformed" && !ID_CASES.includes(c.case)) {
         expect(Object.keys(EDITS), c.case).toContain(c.case);
       }
     }
