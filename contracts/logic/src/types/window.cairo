@@ -1925,7 +1925,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, FND-23: a new slice of part 0 (the old part 2 is `test_vectors_4`)
+    // gas: raised, FND-23: a new slice of part 0 (the old `test_vectors_1` is `test_vectors_4`)
     #[available_gas(l2_gas: 442288822)] // ceil(1.05 × 421227449 measured)
     fn test_vectors_1() {
         check_vectors_items(152, 304, DIGEST_1);
