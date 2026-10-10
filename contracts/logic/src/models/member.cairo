@@ -1048,8 +1048,8 @@ mod tests {
     use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, Sheets, flag, status};
     use crate::types::world::fixtures::{Fixture, LIVE, opaque, two};
     use super::{
-        Member, MemberAssert, MemberConditionTrait, MemberLifecycleTrait, MemberTickTrait,
-        MemberTrait, MemberWordsTrait,
+        Member, MemberAssert, MemberConditionTrait, MemberLifecycleTrait, MemberSnapshotTrait,
+        MemberTickTrait, MemberTrait, MemberWords, MemberWordsTrait,
     };
 
     /// A member whose kit holds "Rending" (`CONDITION_DURATION` Bleeding +33 %) and
@@ -1613,5 +1613,47 @@ mod tests {
     #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_member_assert_pips() {
         MemberAssert::assert_pips(128);
+    }
+
+    // CBT-05f, every lane read back (review t-0125 note 2): a stats word holding one slot's
+    // quick-cast pairs and weapon-required bit at the ENG-01 §3.2 positions (168 + 2 s for slots
+    // 0–3, 242 + 2 (s − 4) for 4–7; 40 + s) is read at that slot only; then every slot at
+    // once, each with its own value.
+    #[test]
+    #[available_gas(l2_gas: 12457505)] // ceil(1.05 × 11864290 measured)
+    fn test_member_attribute_mapping_lanes() {
+        let member = Fixture::member(Fixture::spec());
+        let quick_bit = array![168_u32, 170, 172, 174, 242, 244, 246, 248].span();
+        for slot in 0..8_u8 {
+            let at: u32 = slot.into();
+            let stats = LIVE + 3 * two(*quick_bit[at]) + two(40 + at);
+            let words = MemberWords { stats, ..member.words };
+            let one = Member { words, ..member };
+            for other in 0..8_u8 {
+                let held = other == slot;
+                let pairs = if held {
+                    3
+                } else {
+                    0
+                };
+                assert(one.quick_cast_matches(other) == pairs, 'quick-cast lane');
+                assert(one.weapon_required(other) == held, 'weapon lane');
+            }
+        }
+        let pairs = array![1_u8, 2, 3, 1, 2, 3, 1, 2].span();
+        let mut stats = LIVE;
+        for slot in 0..8_u32 {
+            stats += (*pairs[slot]).into() * two(*quick_bit[slot]);
+            if slot % 2 == 0 {
+                stats += two(40 + slot);
+            }
+        }
+        let words = MemberWords { stats, ..member.words };
+        let all = Member { words, ..member };
+        for slot in 0..8_u8 {
+            let at: u32 = slot.into();
+            assert(all.quick_cast_matches(slot) == *pairs[at], 'quick-cast lanes together');
+            assert(all.weapon_required(slot) == (at % 2 == 0), 'weapon lanes together');
+        }
     }
 }

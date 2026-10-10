@@ -2361,7 +2361,8 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: quick-cast attribute')]
-    #[available_gas(l2_gas: 186337)] // ceil(1.05 × 177463 measured)
+    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
+    #[available_gas(l2_gas: 195671)] // ceil(1.05 × 186353 measured)
     fn test_quick_cast_attribute_not_held_refused() {
         let all = array![held(passive(id::QUICK_CAST_EVERY_N, 99, 4), Source::Inscription, 3, 1)];
         SnapshotBuildTrait::build(@loadout(1, 20), all.span());
