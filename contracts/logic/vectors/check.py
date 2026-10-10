@@ -51,6 +51,9 @@ TABLES = {
     "batch.jsonl": [
         "grimworld_logic::types::play::tests::test_batch_vectors",
     ],
+    "segment.jsonl": [
+        "grimworld_logic::types::play::tests::test_segment_vectors",
+    ],
     "reveal.jsonl": [
         "grimworld_logic::types::reveal::tests::test_vectors",
         "grimworld_logic::types::reveal::tests::test_vectors_1",
