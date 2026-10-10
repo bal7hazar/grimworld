@@ -33,9 +33,19 @@ import {
   movedBy,
   newObject,
 } from "./objects";
-import { buildingFootprint, doorOf, doorOffset, paintedFootprint, placedOn } from "./pack";
+import {
+  buildingFootprint,
+  doorOf,
+  doorOffset,
+  footprintSplit,
+  paintedFootprint,
+  placedOn,
+} from "./pack";
 import { doorChoices, kindOf as packKindOf } from "./palette";
 import { DEFAULT_LAYERS, LAYER_NAMES, type Layers } from "./view";
+
+/** The start of a footprint stroke's split warning (`footprintSplit`). */
+const SPLIT = "The footprint is split";
 
 /** Which palette group Paint uses (§2.3). */
 export type PaletteGroup = "terrain" | "ground";
@@ -370,7 +380,15 @@ export class EditorSession {
       this.onChange();
       return;
     }
-    if (after !== before) this.record([{ object: this.footprintId, before, after }]);
+    if (after === before) return;
+    this.record([{ object: this.footprintId, before, after }]);
+    // Live, not only at validation (review t-0154): a stroke that splits the footprint says so, and
+    // the warning goes when a later hex joins it again.
+    const split = footprintSplit(after);
+    if (split || this.said.startsWith(SPLIT)) {
+      this.said = split;
+      this.onChange();
+    }
   }
 
   strokeEnd(): void {

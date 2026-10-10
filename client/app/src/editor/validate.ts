@@ -282,7 +282,7 @@ export function validate(doc: MapDocument, manifest: Manifest | null = null): Fi
   if (zone) zoneChecks(doc, frame, span, manifest, out);
   else townChecks(doc, span, out);
   // A town's footprints are checked with its places (E-16); a zone's are the pack's buildings.
-  if (zone) footprintChecks(doc, out, frame);
+  if (zone) footprintChecks(doc, out, true);
   packChecks(doc, out);
   bridgeChecks(doc, out);
   groundChecks(doc, out);
@@ -292,13 +292,16 @@ export function validate(doc: MapDocument, manifest: Manifest | null = null): Fi
 }
 
 /**
- * Whether a gate is a dungeon's entrance, free of E-5 (D-215 Q9): its name in the content manifest
- * is `to_floor` or begins so. No record says it: GATE's `floor` kind is a floor-to-floor gate, and
- * the sample's entrance is a `link`. With no manifest, no gate is one. Track game gives the
- * converter and `checks.json` the same split in ENG-09; this follows it then.
+ * Whether a gate is a dungeon's entrance, free of E-5 (D-215 Q9, ENG-09): its destination location
+ * is a dungeon by the content manifest's `location_kinds`, as the converter reads it. No record
+ * says it: GATE's `floor` kind is a floor-to-floor gate, and the sample's entrance is a `link`. With
+ * no manifest, or a destination the manifest gives no kind, no gate is one.
  */
-export function dungeonEntrance(gateId: number, manifest: Manifest | null): boolean {
-  return manifest !== null && nameOf(manifest, "gates", gateId).startsWith("to_floor");
+export function dungeonEntrance(to: number, manifest: Manifest | null): boolean {
+  if (manifest === null) return false;
+  const kinds = manifest.location_kinds ?? {};
+  const name = nameOf(manifest, "locations", to);
+  return Object.hasOwn(kinds, name) && kinds[name] === "dungeon";
 }
 
 /** `checks.json`'s ids by refusal code: the first case of a code names it. */
@@ -323,6 +326,8 @@ function converterChecks(doc: MapDocument, manifest: Manifest, out: Findings): v
   const verdict = convert(file.file, manifest);
   if (!(verdict instanceof Refused)) return;
   const check = CHECK_IDS.get(verdict.code) ?? "E-40";
+  // The editor's own check of the same id has said it, where the author can Show it: said once.
+  if (out.list.some((f) => f.check === check && f.severity === "error")) return;
   const detail = verdict.detail ? ` (${verdict.detail})` : "";
   out.add(
     check,
@@ -456,12 +461,12 @@ function zoneChecks(
     for (let side = 0; side < 6; side++) {
       if (!inside(keyOf(sideOf(gate.at, side)))) border = true;
     }
-    // A gate to another location anchors on the outline; a dungeon's entrance (`to_floor`) is
-    // free inside the chunk set (track game, D-215 Q9).
-    if ((!inside(keyOf(gate.at)) || !border) && !dungeonEntrance(gate.id, manifest)) {
+    // A gate to another location anchors on the outline; a dungeon's entrance (its destination a
+    // dungeon) is free inside the chunk set (track game, D-215 Q9; ENG-09's converter).
+    if ((!inside(keyOf(gate.at)) || !border) && !dungeonEntrance(gate.to, manifest)) {
       out.error(
         "E-5",
-        `${name}'s anchor ${where(gate.at)} is not on the outline's border.`,
+        `${name}'s anchor ${where(gate.at)} is not on the outline's border (export: gate not on the outline).`,
         [gate.at],
         [id],
       );
@@ -585,7 +590,29 @@ function zoneChecks(
     }
   }
 
+  // R-39 (D-247): an authored zone's level band spans at most 255 levels: 0 to 255 is refused.
+  if (doc.meta.levelMin === 0 && doc.meta.levelMax === 255) {
+    out.error("R-39", "The level band 0 to 255 spans 256 levels: at most 255 (zone: level band).");
+  }
+
   if (!fit) return;
+
+  // R-14 (ENG-09): spawn points, features and quota places stand in their chunk's interior (rows
+  // and columns 1 to 13), so that a pack's goblins stand within 2 of its tile.
+  for (const [id, object] of [...doc.objects].sort(([a], [b]) => a - b)) {
+    if (!kindOf(object).perChunk || !indicesOk(object.at, fit)) continue;
+    const { tile } = chunkAt(object.at, fit);
+    const row = Math.floor(tile / CHUNK);
+    const col = tile % CHUNK;
+    if (row === 0 || row === CHUNK - 1 || col === 0 || col === CHUNK - 1) {
+      out.error(
+        "R-14",
+        `${OBJECT_NAMES[object.kind]} ${where(object.at)} stands on its chunk's ring: a placement needs the interior, rows and columns 1 to 13 (zone chunk: tile not floor).`,
+        [object.at],
+        [id],
+      );
+    }
+  }
 
   // R-2 and R-3: the entry's and the anchors' indices in the fitted map.
   for (const [id, entry] of entries) {
@@ -750,10 +777,14 @@ export function tally(findings: readonly Finding[]): { errors: number; warnings:
 }
 
 /**
- * E-16: every footprint on land, painted, one connected piece, and apart from the others (a town's,
- * a zone's); a zone's in its chunk set (D-215 Q9: footprints are authored per building).
+ * A building's footprint (a town's, a zone's), authored per building (D-215 Q9), with the converter's
+ * codes where it has them (ENG-09):
+ *
+ * - E-16: on land and painted, apart from the others' (the editor's own).
+ * - E-43 (`export: footprint outside the set`): a zone's lies in the zone, inside the outline.
+ * - E-44 (`export: footprint not connected`): one connected piece.
  */
-function footprintChecks(doc: MapDocument, out: Findings, fit: Fitted | null = null): void {
+function footprintChecks(doc: MapDocument, out: Findings, zone = false): void {
   const water = GROUND_KINDS.indexOf("water");
   const owner = new Map<number, number>();
   const buildings = [...doc.objects]
@@ -763,9 +794,10 @@ function footprintChecks(doc: MapDocument, out: Findings, fit: Fitted | null = n
     const name = OBJECT_NAMES[b.kind];
     const what = "building" in b ? b.building : "type" in b ? b.type : b.kind;
     const feet = footprintOf(b);
+    // A zone's unpainted hex is outside the zone: E-43's, said once.
     const off = feet.filter((t) => {
       const cell = doc.hexes.get(keyOf(t));
-      return cell === undefined || groundOfCell(cell) === water;
+      return cell === undefined ? !zone : groundOfCell(cell) === water;
     });
     if (off.length > 0) {
       out.error(
@@ -791,22 +823,21 @@ function footprintChecks(doc: MapDocument, out: Findings, fit: Fitted | null = n
     if (reached.size < keys.size) {
       const apart = feet.filter((t) => !reached.has(keyOf(t)));
       out.error(
-        "E-16",
-        `${name} ${what} ${where(b.at)}: its footprint is not one piece (${apart.length} hexes apart).`,
+        "E-44",
+        `${name} ${what} ${where(b.at)}: its footprint is not one piece (${apart.length} hexes apart; export: footprint not connected).`,
         apart,
         [id],
       );
     }
-    if (fit) {
-      const set = new Set(fit.chunkSet);
+    if (zone) {
       const outside = feet.filter((t) => {
-        const a = chunkAt(t, fit);
-        return a.cx < 0 || a.cy < 0 || a.cx >= CHUNK || !set.has(a.chunk);
+        const cell = doc.hexes.get(keyOf(t));
+        return cell === undefined || isOutside(cell);
       });
       if (outside.length > 0) {
         out.error(
-          "E-16",
-          `${name} ${what} ${where(b.at)} has ${outside.length} hexes outside the chunk set.`,
+          "E-43",
+          `${name} ${what} ${where(b.at)} has ${outside.length} hexes outside the zone (export: footprint outside the set).`,
           outside,
           [id],
         );
@@ -833,7 +864,7 @@ function footprintChecks(doc: MapDocument, out: Findings, fit: Fitted | null = n
  * the outline that no object covers (a building's footprint but its door, a blocking prop's hex):
  * what ENG-08's converter makes of it (track game, 2026-10-05).
  *
- * - E-20: a building's door is a hex of its footprint's border, and walkable.
+ * - E-20: a building's door is a hex of its footprint's border; E-45 (the converter's code): walkable.
  * - E-21: a character stands on a walkable hex.
  * - E-22: a prop stands on a painted hex inside the outline. A blocking one makes its hex
  *   unwalkable: a door or a character on it is refused by E-20 or E-21.
@@ -875,7 +906,12 @@ function packChecks(doc: MapDocument, out: Findings): void {
             [id],
           );
         } else if (door && !walkable(door)) {
-          out.error("E-20", `The ${o.type}'s door ${where(door)} is not walkable.`, [door], [id]);
+          out.error(
+            "E-45",
+            `The ${o.type}'s door ${where(door)} is not walkable (export: door not walkable).`,
+            [door],
+            [id],
+          );
         }
         break;
       }
@@ -907,17 +943,19 @@ function packChecks(doc: MapDocument, out: Findings): void {
 
 /**
  * A bridge's checks (CLI-09f; D-227, ADR-0008), on a zone or a town, for each bridge whose record
- * can be written (E-23 names the others). The converter's codes, where ADR-0008 names them (ENG-09
- * adds them to `checks.json`):
+ * can be written (E-23 names the others), with `checks.json`'s ids and codes (ENG-09):
  *
  * - R-37 (`bridge: tile taken`), widened to the deck: no object stands on a bridge's ends or deck
  *   (an entry, a gate, a spawn point, a quota place, a feature, a character, a prop, a building's
  *   footprint, another bridge).
- * - E-24 (`export: deck outside the zone`): every deck hex painted, inside the outline.
- * - E-25 (`export: deck blocked`): no deck hex blocked (a building's footprint but its door, a
- *   blocking prop); and every deck hex over water (D-227: walkable ground drawn over water).
+ * - E-46 (`export: deck outside the zone`): every deck hex painted, inside the outline.
+ * - E-47 (`export: deck blocked`): no deck hex blocked (a building's footprint but its door, a
+ *   blocking prop).
+ * - E-25 (the editor's own): every deck hex over water (D-227: walkable ground drawn over water).
  * - R-34 (`bridge: end not floor`): each end walkable land: a painted floor hex inside the outline,
- *   not water, that no object blocks.
+ *   not water, that no object blocks. R-34's deck half (`bridge: deck not floor`) holds by
+ *   construction: the converter writes every deck hex walkable (ADR-0008 rule 1), and so do E-6's and
+ *   E-7's reach here.
  */
 function bridgeChecks(doc: MapDocument, out: Findings): void {
   const zone = isZone(doc);
@@ -958,7 +996,7 @@ function bridgeChecks(doc: MapDocument, out: Findings): void {
     const outside = hexes.deck.filter((t) => !inside(t));
     if (outside.length > 0) {
       out.error(
-        "E-24",
+        "E-46",
         `${name}: ${outside.length} deck hexes lie outside the zone (export: deck outside the zone).`,
         outside,
         [id],
@@ -967,7 +1005,7 @@ function bridgeChecks(doc: MapDocument, out: Findings): void {
     const blocked = hexes.deck.filter((t) => inside(t) && covers.has(keyOf(t)));
     if (blocked.length > 0) {
       out.error(
-        "E-25",
+        "E-47",
         `${name}: ${blocked.length} deck hexes are blocked by a building or a prop (export: deck blocked).`,
         blocked,
         [id],

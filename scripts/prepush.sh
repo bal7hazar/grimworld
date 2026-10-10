@@ -252,17 +252,28 @@ pkg() {
   shift
   (cd "$root/$dir" && "$@")
 }
-# lockrun <command...>: through the machine's heavy lock, waiting at most lock_wait seconds; directly
-# where there is no flock.
+# capped <command...>: under an address-space cap of 10 GiB, inherited by every child. Where there is no prlimit
+# (the Mac) it runs uncapped, as before: the Mac has no cap to apply. The cap is on ADDRESS SPACE (prlimit --as),
+# not on resident memory: scarb and snforge reserve far more than they touch (hook run of 2026-10-10: snforge
+# VmPeak 6,973,232 kB for 3,595,852 kB resident). It comes from that measured VmPeak (/proc/<pid>/status): 1.5 x
+# 6.97 GB = 10.46 GB, so 10 GiB (10737418240); the rule is 1.5 x the VmPeak, at least 8 GiB, at most 16 GiB. A
+# step that reaches the cap may stall instead of failing: ENG-05c's `scarb build --test` did so on 2026-10-10 and
+# held the heavy lock for about 3 h.
+mem_cap=10737418240
+capped() {
+  if command -v prlimit > /dev/null 2>&1; then prlimit --as="$mem_cap" -- "$@"; else "$@"; fi
+}
+# lockrun <command...>: through the machine's heavy lock, waiting at most lock_wait seconds, the whole
+# under the cap; directly (and uncapped without prlimit) where there is no flock.
 lockrun() {
-  if [ "$have_flock" = 1 ]; then "$root/scripts/lock.sh" --heavy --wait "$lock_wait" "$@"; else "$@"; fi
+  if [ "$have_flock" = 1 ]; then capped "$root/scripts/lock.sh" --heavy --wait "$lock_wait" "$@"; else capped "$@"; fi
 }
 # gas_check: gas_budgets.py takes the lock through lock.sh, which reads GRIMWORLD_LOCK_WAIT.
 gas_check() {
   if [ "$have_flock" = 1 ]; then
-    GRIMWORLD_LOCK_WAIT=$lock_wait python3 scripts/gas_budgets.py --check
+    GRIMWORLD_LOCK_WAIT=$lock_wait capped python3 scripts/gas_budgets.py --check
   else
-    python3 scripts/gas_budgets.py --check --no-lock
+    capped python3 scripts/gas_budgets.py --check --no-lock
   fi
 }
 # pnpmrun <command...>: through the project lock where there is flock, waiting at most lock_wait seconds.
@@ -272,9 +283,9 @@ pnpmrun() {
 # vectors/check.py takes the lock through scripts/lock.sh wherever flock exists (FND-22); GRIMWORLD_LOCK_WAIT bounds the wait.
 vectors_check() {
   if [ "$have_flock" = 1 ]; then
-    GRIMWORLD_LOCK_WAIT=$lock_wait python3 contracts/logic/vectors/check.py
+    GRIMWORLD_LOCK_WAIT=$lock_wait capped python3 contracts/logic/vectors/check.py
   else
-    python3 contracts/logic/vectors/check.py
+    capped python3 contracts/logic/vectors/check.py
   fi
 }
 

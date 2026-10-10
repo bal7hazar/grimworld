@@ -34,8 +34,8 @@ vector or logic change (the client mirror reads those tables).
 
 | Part | Local test command | Known memory peak (source) |
 |---|---|---|
-| `contracts/logic`, `persistent`, `ephemeral` (Scarb workspace) | `cd contracts && snforge test -p grimworld_logic --max-threads 2` (or `grimworld_persistent`, `grimworld_ephemeral`; a filter goes last). The heavy vector and shape tests are split (FND-23: `types::window::tests::test_shapes_every_centre_0` to `_23`, `types::window::tests::test_vectors_0` to `_4`, `types::hit::tests::test_vectors_0` to `_4`): run them with `snforge test <filter>`, caps in the next column | Whole workspace, 2 threads: 4.88 GB capped, so `prlimit --as=8589934592` (8 GiB); 8 threads: 8.29 GB, fails: Mac (`docs/reports/FND-20-tests-under-8gb.md`). One package alone: unknown, **measure first†**. FND-23, VPS, `--max-threads 2`, `/usr/bin/time -v` (cap = 1.5 × peak, rounded up, floor 8 GiB): `test_shapes_every_centre_0` before the split (one 40-centre part) 4.69 GB, cap `--as=8589934592` (8 GiB); after: one 10-centre part 2.80 GB, cap `--as=8589934592` (8 GiB, the floor); all 24 shape parts 4.79 GB, cap 8 GiB; the window vector parts 2.78 GB, cap 8 GiB; the hit vector parts 2.89 GB, cap 8 GiB. A cold filtered run also compiles the package (about 4.6 GB): cap it at 8 GiB |
-| `contracts/` gas, generated files | `python3 scripts/gas_budgets.py --check`; `python3 contracts/tools/exp2_table.py --check`; `python3 contracts/logic/vectors/check.py` | 4.88 GB, cap `--as=8589934592` (8 GiB); none recorded; 4.03 GB, cap `--as=8589934592` (8 GiB) (same report) |
+| `contracts/logic`, `persistent`, `ephemeral` (Scarb workspace) | `cd contracts && snforge test -p grimworld_logic --max-threads 2` (or `grimworld_persistent`, `grimworld_ephemeral`; a filter goes last). The heavy vector and shape tests are split (FND-23: `types::window::tests::test_shapes_every_centre_0` to `_23`, `types::window::tests::test_vectors_0` to `_4`, `types::hit::tests::test_vectors_0` to `_4`): run them with `snforge test <filter>`, caps in the next column | Whole workspace, 2 threads: 4.88 GB VmPeak, capped, so `prlimit --as=8589934592` (8 GiB); 8 threads: 8.29 GB VmPeak, fails: Mac (`docs/reports/FND-20-tests-under-8gb.md`). One package alone: unknown, **measure first†**. FND-23, VPS, `--max-threads 2`, `/usr/bin/time -v` (cap = 1.5 × peak, rounded up, floor 8 GiB; the cap rule now sizes from VmPeak): `test_shapes_every_centre_0` before the split (one 40-centre part) 4.69 GB RSS, cap `--as=8589934592` (8 GiB); after: one 10-centre part 2.80 GB RSS, cap `--as=8589934592` (8 GiB, the floor); all 24 shape parts 4.79 GB RSS, cap 8 GiB; the window vector parts 2.78 GB RSS, cap 8 GiB; the hit vector parts 2.89 GB RSS, cap 8 GiB. A cold filtered run also compiles the package (about 4.6 GB): cap it at 8 GiB |
+| `contracts/` gas, generated files | `python3 scripts/gas_budgets.py --check`; `python3 contracts/tools/exp2_table.py --check`; `python3 contracts/logic/vectors/check.py` | 4.88 GB VmPeak, cap `--as=8589934592` (8 GiB); none recorded; 4.80 GB since FND-23 (CBT-05d; 4.03 GB VmPeak before), cap `--as=8589934592` (8 GiB) (same report for the first two) |
 | `indexer/emitter` (Cairo 2.19) | `cd indexer/emitter && snforge test --max-threads 2` | unknown, **measure first†** |
 | `client/sim` | `pnpm --filter @grimworld/sim test` | 500 MB (mutation check, under a 1024 MB heap; CV t-0157), heap cap `--max-old-space-size=768`; under a minute (orchestrators) |
 | `client/app` | `pnpm --filter @grimworld/app test`, plus `lint` and `typecheck` | none recorded; Node: heap cap at 1.5 × peak once measured; under a minute (orchestrators) |
@@ -47,12 +47,16 @@ vector or logic change (the client mirror reads those tables).
 | `spikes/*` (each its own Scarb or pnpm package) | from its folder: `snforge test` or `pnpm test`, only if you touched it | unknown, **measure first†** |
 | `tools/site` | no tests | n/a |
 
-† Memory rule (the address-space cap `prlimit --as` stops a runaway, it does not measure: address space exceeds
-resident memory, and a real 7.3 GB peak aborted under 8 GiB). Measure the peak RSS of every build or test run first:
-on the Mac, or on the VPS under `prlimit --as=8589934592 -- /usr/bin/time -v …` (8 GiB); if that capped run aborts,
-measure on the Mac. Never measure an unknown peak on the VPS under a larger cap. A run whose measured peak RSS is
-under about 8 GB may run on the VPS under `prlimit --as` set to 1.5 × its peak, rounded up, never below 8 GiB (8589934592) and at most 16 GiB (a cap below 8 GiB made `scarb package -p hexx` abort in zstd, "Allocation error: not enough memory", at 2 GiB for a 0.81 GB peak; it passed under 8 GiB). A run
-above about 8 GB runs on the Mac, never on the VPS. Never uncapped on the VPS.
+† Memory rule (D-251 (2026-10-10), the organisation's rule). The address-space cap `prlimit --as` stops a runaway, it
+does not measure. The peak that sizes a cap is the run's **VmPeak** (address space): `grep VmPeak /proc/<pid>/status`
+during the run; it is not "Maximum resident set size" (RSS), which is smaller (a real 7.3 GB peak aborted under 8 GiB).
+RSS still decides where a run goes: above about 8 GB RSS it runs on the Mac, never on the VPS. Measure every build or
+test run first, on the Mac or on the VPS under `prlimit --as=8589934592 -- …` (8 GiB); if that capped run aborts,
+measure on the Mac. Never measure an unknown peak on the VPS under a larger cap. A run under about 8 GB RSS may run on
+the VPS under `prlimit --as` set to 1.5 × its VmPeak, rounded up, never below 8 GiB (8589934592) and at most 16 GiB (a
+cap below 8 GiB made `scarb package -p hexx` abort in zstd, "Allocation error: not enough memory", at 2 GiB for a 0.81 GB
+peak; it passed under 8 GiB). A capped run that makes no progress for 15 minutes is stopped by its own pid and moved: to
+the Mac, or under a cap from its VmPeak. It is never left holding the heavy lock. Never uncapped on the VPS.
 
 Node/V8 runs (pnpm, node): `prlimit --as` cannot cap them, because V8 reserves a large address space and Node aborts
 at about 265 MB resident under `--as=8 GiB`. Cap the heap instead: `NODE_OPTIONS=--max-old-space-size=<MB>` at 1.5 × the

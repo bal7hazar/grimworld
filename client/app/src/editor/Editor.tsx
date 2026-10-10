@@ -1457,6 +1457,13 @@ function ExportDialog({
         <p data-export-verdict="" className={ready ? undefined : "ed-problem"}>
           {verdict}
         </p>
+        {file && "file" in file && file.dropped > 0 && (
+          <p data-export-dropped={file.dropped} className="ed-problem">
+            {file.dropped} painted {file.dropped === 1 ? "hex lies" : "hexes lie"} outside the
+            fitted rectangle ({file.file.size.width} × {file.file.size.height} chunks): not
+            exported.
+          </p>
+        )}
         <p>
           <button
             type="button"

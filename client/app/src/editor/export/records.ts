@@ -1,7 +1,6 @@
 /**
  * The on-chain records of a map, packed as ENG-08's converter packs them (CLI-09c): a port of
- * `map-format/records.py` (track game's, `spikes/SPK-16-authored-zone/map-format/`, then
- * `tools/map-format/`), line for line, with the same refusal codes. A record is a list of felts
+ * `tools/map-format/records.py` (track game's, promoted from SPK-16 by ENG-09), line for line, with the same refusal codes. A record is a list of felts
  * (`bigint`); every part carries `LIVE` (bit 250). Tiles are `15 row + column` in their chunk,
  * chunks `15 cy + cx` in the location (ADR-0006 §4).
  *
@@ -12,7 +11,7 @@
 export const LIVE = 1n << 250n;
 export const BOARD = (1n << 225n) - 1n;
 
-// Kinds (`content.cairo`; 26-28 proposed by ENG-08).
+// Kinds (`content.cairo`; 26-28 ENG-08's, built by ENG-09).
 export const LOCATION = 2;
 export const OUTLINE = 3;
 export const GATE = 4;
@@ -377,7 +376,11 @@ function assertChunk(
   let packs = 0;
   let objects = 0;
   const take = (tile: number) => {
-    if (!floorAt(walls, tile)) {
+    // Walkable and in the interior (rows and columns 1-13): a pack's goblins stand within 2 of its
+    // tile (`Placement::near`'s precondition, ENG-09)
+    const row = Math.floor(tile / 15);
+    const col = tile % 15;
+    if (!(floorAt(walls, tile) && row > 0 && row < 14 && col > 0 && col < 14)) {
       throw new Refused("zone chunk: tile not floor", `chunk ${chunk} tile ${tile}`);
     }
     if (taken.has(tile)) throw new Refused("zone chunk: tile taken", `chunk ${chunk} tile ${tile}`);
@@ -455,6 +458,11 @@ function assertQuotas(z: Zone): void {
   if (total > MAX_DRAWS) throw new Refused("zone: quota draws", `${total} draws`);
 }
 
+/** R-39 (audit t-0131): an authored zone's band at most 255 levels (0 to 255 refused). */
+function assertBand(l: LocationFields): void {
+  if (l.level_min === 0 && l.level_max === 255) throw new Refused("zone: level band");
+}
+
 function assertFloorRectangle(l: LocationFields): void {
   if (l.kind === LOCATION_KINDS.dungeon && l.width * l.height <= l.target) {
     throw new Refused("location: floor rectangle");
@@ -474,6 +482,28 @@ function assertBridge(bridge: BridgeFields, k: number, chunk: number, record: Zo
   }
   const near = dilate(deck, chunk);
   if (!(has(near, a) && has(near, b))) throw new Refused("bridge: end not by the deck");
+  // R-34 extended (ADR-0008 rule 1): every deck tile walkable in the chunk's plane
+  if (deck & record.walls) throw new Refused("bridge: deck not floor");
+}
+
+/** The tiles a chunk's authored content stands on: spawn points, objects, candidate tiles. */
+function content(record: ZoneChunk): Set<number> {
+  const tiles = new Set<number>();
+  for (const s of record.spawns) if (s.template) tiles.add(s.tile);
+  for (const o of record.objects) if (o.kind) tiles.add(o.tile);
+  for (const t of record.tiles) if (t) tiles.add(t);
+  return tiles;
+}
+
+/**
+ * R-37 (ADR-0008 rule 5): no spawn point, object, candidate tile, gate anchor or entry on a
+ * bridge's deck or ends.
+ */
+function assertClear(bridge: BridgeFields, tiles: ReadonlySet<number>): void {
+  const on = new Set<number>(bridge.ends);
+  for (let t = 0; t < 225; t++) if (has(bridge.deck, t)) on.add(t);
+  const hit = [...on].filter((t) => tiles.has(t)).sort((x, y) => x - y);
+  if (hit.length > 0) throw new Refused("bridge: tile taken", `tiles ${hit.slice(0, 3).join(" ")}`);
 }
 
 const ascending = <V>(m: Map<number, V>): [number, V][] => [...m].sort(([a], [b]) => a - b);
@@ -484,6 +514,12 @@ const ascending = <V>(m: Map<number, V>): [number, V][] => [...m].sort(([a], [b]
  */
 export function checkZone(z: Zone): void {
   const loc = z.location;
+  const anchors = new Map<number, Set<number>>();
+  const anchor = (chunk: number, tile: number) =>
+    anchors.set(chunk, (anchors.get(chunk) ?? new Set()).add(tile));
+  for (const gate of z.gates.values()) anchor(gate.anchor_chunk, gate.anchor_tile);
+  anchor(loc.entry_chunk, loc.entry_tile);
+  assertBand(loc);
   assertFloorRectangle(loc);
   assertSet(z.chunk_set, loc.width, loc.height);
   assertCandidates(z.candidates, z.chunk_set);
@@ -491,7 +527,10 @@ export function checkZone(z: Zone): void {
   for (const [chunk, record] of ascending(z.chunks)) {
     assertOutline(chunk, record.walls, z.chunk_set, z.masks.get(chunk) ?? 0n);
     assertChunk(record, chunk, z.candidates, z.quotas);
-    (z.bridges.get(chunk) ?? []).forEach((bridge, k) => assertBridge(bridge, k, chunk, record));
+    (z.bridges.get(chunk) ?? []).forEach((bridge, k) => {
+      assertBridge(bridge, k, chunk, record);
+      assertClear(bridge, new Set([...content(record), ...(anchors.get(chunk) ?? [])]));
+    });
   }
   const entry = z.chunks.get(loc.entry_chunk);
   if (!entry) throw new Refused("zone: chunk not in the set", "the entry chunk");

@@ -16,8 +16,8 @@ import { BIOMES, type Biome } from "../model";
 import type { FeatureKind, MapObject, Quota, QuotaKind } from "../objects";
 import { doorOffset, footprintOffsets, isPack, recordFor } from "../pack";
 import { BRIDGE_RUNS, bridgeAt, footprintAt, kindOf } from "../palette";
-import { type ExportFile, FORMAT, type Hex, type Manifest, VERSION } from "./convert";
-import { Refused } from "./records";
+import { type ExportFile, FORMAT, type Hex, type Manifest, VERSION, idBits } from "./convert";
+import { LOCATION_KINDS, Refused } from "./records";
 import { validate } from "./schema";
 
 /**
@@ -29,8 +29,9 @@ import { validate } from "./schema";
  * name no manifest holds, so that the converter refuses it as it would any unknown name (E-35).
  *
  * The export is of the **fitted** map (D-216): `origin` is the fit's global `(0, 0)` on the editor's
- * plane, `size` its rectangle; the painted hexes beyond the rectangle (outside the outline, or the
- * fit would hold them) are not written.
+ * plane, `size` its rectangle; only the hexes inside the rectangle are written, as the converter
+ * reads them (`tools/map-format`, ENG-09). The painted hexes beyond it (outside the outline, or the
+ * fit would hold them) are dropped, and counted (`dropped`), so that the export dialog warns.
  */
 
 /** The manifest tables a field's id is named in. */
@@ -73,7 +74,13 @@ function objectsOf<K extends MapObject["kind"]>(
     .filter((o): o is Extract<MapObject, { kind: K }> => o.kind === kind);
 }
 
-export type ExportResult = { readonly file: ExportFile } | { readonly problem: string };
+export type ExportResult =
+  | {
+      readonly file: ExportFile;
+      /** The painted hexes outside the fitted rectangle, not written. */
+      readonly dropped: number;
+    }
+  | { readonly problem: string };
 
 /** The zone as ENG-08's export, or why there is none (not a zone, no fit). */
 export function toExport(
@@ -89,6 +96,11 @@ export function toExport(
   if (typeof fit === "string") return { problem: "There is no fitted map to export." };
   const inRect = (x: number, y: number) =>
     x >= fit.x0 && x < fit.x0 + CHUNK * fit.width && y >= fit.y0 && y < fit.y0 + CHUNK * fit.height;
+  let dropped = 0;
+  for (const key of doc.hexes.keys()) {
+    const { x, y } = tileOfKey(key);
+    if (!inRect(x, y)) dropped += 1;
+  }
   const rows = spans(doc).flatMap((span) => {
     // Only the hexes within the fitted rectangle: trimmed at both ends, gaps kept.
     let from = 0;
@@ -191,7 +203,7 @@ export function toExport(
   for (const list of ["buildings", "props", "bridges"] as const) {
     if (file[list]!.length === 0) delete file[list];
   }
-  return { file };
+  return { file, dropped };
 }
 
 export type ImportResult =
@@ -247,6 +259,20 @@ export function fromExport(raw: unknown, manifest: Manifest): ImportResult {
     spawnTable: id("spawn_tables", e.spawn_table),
     quotas,
   };
+  // Bounded by the file's own rectangle (review t-0147): at most its rows, each span no wider than
+  // it, no hex outside it (the converter's E-32), so that a hostile file cannot build a huge map.
+  // Checked on the lengths, before a span is split into hexes.
+  const width = CHUNK * e.size.width;
+  const height = CHUNK * e.size.height;
+  if (e.rows.length > height) {
+    return refuse(`it has ${e.rows.length} rows, more than its ${height} hexes of height`);
+  }
+  for (const span of e.rows) {
+    const long = [span.terrain, span.ground ?? "", span.outline ?? ""].some(
+      (l) => l.length > width,
+    );
+    if (long) return refuse(`row ${span.y} is longer than its ${width} hexes of width`);
+  }
   const hexes = new Map<number, number>();
   for (const span of e.rows) {
     const terrain = [...span.terrain];
@@ -258,6 +284,11 @@ export function fromExport(raw: unknown, manifest: Manifest): ImportResult {
     }
     for (const [i, t] of terrain.entries()) {
       if (t === " ") continue;
+      const x = span.x + i - e.origin.x;
+      const y = span.y - e.origin.y;
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        return refuse(`the hex (${span.x + i}, ${span.y}) lies outside its size`);
+      }
       const g = span.ground?.[i];
       const ground = g === undefined || g === " " ? defaultGround() : GROUND_CHARS.indexOf(g);
       const outside = span.outline !== undefined && span.outline[i] !== "1";
@@ -387,7 +418,12 @@ export function isExportText(raw: unknown): boolean {
   return typeof raw === "object" && raw !== null && (raw as { format?: unknown }).format === FORMAT;
 }
 
-/** The manifest of a file's text, or why it is not one. */
+/**
+ * The manifest of a file's text, or why it is not one: tables of names to registry ids, each id a
+ * whole number its records' fields hold (`ID_BITS`, review t-0147: a negative or over-wide id is
+ * refused here, never packed); `pack_bounds`, each pack's `[min, max]`; `location_kinds`, each
+ * location's kind (ENG-09: a gate into a dungeon may stand inside the zone).
+ */
 export function readManifest(text: string): Manifest | string {
   let raw: unknown;
   try {
@@ -407,9 +443,17 @@ export function readManifest(text: string): Manifest | string {
       entries.every((v) =>
         table === "pack_bounds"
           ? Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n))
-          : Number.isInteger(v),
+          : table === "location_kinds"
+            ? typeof v === "string" && Object.hasOwn(LOCATION_KINDS, v)
+            : Number.isInteger(v),
       );
     if (!ok) return `The manifest's ${table} is not a table of names.`;
+    if (table === "pack_bounds" || table === "location_kinds") continue;
+    const bits = idBits(table);
+    const wide = entries.find((v) => (v as number) < 0 || (v as number) >= 2 ** bits);
+    if (wide !== undefined) {
+      return `The manifest's ${table} holds the id ${String(wide)}: an id is 0 to ${2 ** bits - 1}.`;
+    }
   }
   return raw as Manifest;
 }

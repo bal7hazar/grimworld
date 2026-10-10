@@ -1,7 +1,7 @@
 import { TILE_WIDTH } from "../input/coords";
 import { isMirrored } from "../render/facing";
 import type { Facing, Tile } from "../render/view";
-import { GROUND_KINDS, type MapDocument, type MapMeta, groundOfCell, keyOf } from "./model";
+import { GROUND_KINDS, type MapDocument, type MapMeta, groundOfCell, keyOf, sideOf } from "./model";
 import type { FieldSpec, KindSpec, PlaceChoice, StructureLook } from "./objects";
 import {
   BRIDGES,
@@ -155,6 +155,34 @@ export function paintedFootprint(
   }
   const ordered = [...hexes].sort((a, b) => a.y - b.y || a.x - b.x);
   return { ...object, footprint: footprintOffsets(object.at, ordered) };
+}
+
+/**
+ * The live warning of a footprint stroke (review t-0154): the footprint's hexes apart from the
+ * piece that holds the door, or "" when it is one piece. A stroke may join them again; validation
+ * refuses what is left apart (E-44, `export: footprint not connected`).
+ */
+export function footprintSplit(object: Of<"building">): string {
+  const feet = buildingFootprint(object);
+  const keys = new Set(feet.map(keyOf));
+  const start = doorOf(object) ?? feet[0];
+  if (!start || !keys.has(keyOf(start))) return "";
+  const reached = new Set([keyOf(start)]);
+  const pending = [start];
+  while (pending.length > 0) {
+    const t = pending.pop()!;
+    for (let side = 0; side < 6; side++) {
+      const next = sideOf(t, side);
+      if (keys.has(keyOf(next)) && !reached.has(keyOf(next))) {
+        reached.add(keyOf(next));
+        pending.push(next);
+      }
+    }
+  }
+  const apart = keys.size - reached.size;
+  return apart === 0
+    ? ""
+    : `The footprint is split: ${apart} hexes apart from the door's piece (E-44 until joined).`;
 }
 
 /** What a pack object would be placed as: the palette's placement. */

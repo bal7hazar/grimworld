@@ -47,8 +47,8 @@ Nine mutants were added to `src/parity/mutants.test.ts`, one per rule and three 
 | a reveal's weight not floored at 0 | id 24 (reveal) |
 | E-1's weight stop dropped from `admit` | id 8 (records) |
 
-The last two are mutants of the adapters in `tables.ts`, since the composition they break is the
-Cairo test's, not a contract function.
+The fifth and sixth (the owed ticks, the reveal's weight before the Move) are mutants of the adapters
+in `tables.ts`, since the composition they break is the Cairo test's; the other seven mutate `batch.ts`.
 
 ## Review fixes (t-0160)
 

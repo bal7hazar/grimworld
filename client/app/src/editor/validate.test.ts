@@ -196,6 +196,44 @@ describe("R checks: ENG-08's content checks for map records", () => {
     }
   });
 
+  it("R-14 (ENG-09): a placement stands in its chunk's interior, rows and columns 1 to 13", () => {
+    // Chunk 0's column 14 is its ring; column 13 its interior. Both painted floor.
+    for (const [object, ring] of [
+      [{ kind: "spawn", at: { x: 14, y: 6 }, template: 2 }, true],
+      [{ kind: "feature", at: { x: 14, y: 6 }, feature: "lever", param: 0 }, true],
+      [{ kind: "candidate", at: { x: 14, y: 6 }, quota: 0 }, true],
+      [{ kind: "spawn", at: { x: 13, y: 6 }, template: 2 }, false],
+    ] as [MapObject, boolean][]) {
+      const doc = zone();
+      set(doc, { x: 14, y: 6 }, FLOOR);
+      set(doc, { x: 13, y: 6 }, FLOOR);
+      const id = add(doc, object);
+      if (!ring) {
+        passes(doc, "R-14");
+        continue;
+      }
+      const found = fails(doc, "R-14");
+      expect(found[0]!.objects).toEqual([id]);
+      expect(found[0]!.message).toContain("chunk's ring");
+      expect(found[0]!.message).toContain("zone chunk: tile not floor");
+    }
+  });
+
+  it("R-39 (D-247): an authored zone's level band spans at most 255 levels", () => {
+    passes(zone(), "R-39");
+    const doc = zone();
+    doc.meta = { ...doc.meta, levelMin: 0, levelMax: 255 };
+    expect(fails(doc, "R-39")[0]!.message).toContain("zone: level band");
+    for (const [levelMin, levelMax] of [
+      [0, 254],
+      [1, 255],
+    ]) {
+      const fine = zone();
+      fine.meta = { ...fine.meta, levelMin: levelMin!, levelMax: levelMax! };
+      passes(fine, "R-39");
+    }
+  });
+
   it("R-15: per chunk, at most 2 spawn points and 3 features", () => {
     passes(zone(), "R-15");
     // A third spawn point in one chunk (the task's case): chunk 16 holds one, two more.
@@ -319,7 +357,8 @@ describe("E checks: the editor's own", () => {
     set(doc, { x: 44, y: 3 }, FLOOR, grass, true);
     add(doc, { kind: "feature", at: { x: 44, y: 3 }, feature: "chest", param: 0 });
     fails(doc, "E-10");
-    passes(doc, "R-14");
+    // R-14's walkable half passes (the hex is floor); its ring half is another rule.
+    expect(findings(doc, "R-14").filter((f) => !f.message.includes("ring"))).toEqual([]);
   });
 
   it("E-12: ground agrees with terrain, as a warning", () => {

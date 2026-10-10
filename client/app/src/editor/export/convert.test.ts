@@ -17,14 +17,14 @@ import { validate } from "./schema";
 /**
  * The port held to ENG-08's converter (CLI-09c's acceptance): the samples convert to the committed
  * outputs, text for text and felt for felt, and every case of `checks.json` is refused with its
- * code by the same mutation as `map-format/tests/test_convert.py`'s.
+ * code by the same mutation as `tools/map-format/tests/test_convert.py`'s (ENG-09).
  */
 
-const SPIKE = new URL("../../../../../spikes/SPK-16-authored-zone/", import.meta.url);
-const read = (path: string) => readFileSync(new URL(path, SPIKE), "utf8");
+const FORMAT = new URL("../../../../../tools/map-format/", import.meta.url);
+const read = (path: string) => readFileSync(new URL(path, FORMAT), "utf8");
 const load = <T = ExportFile>(name: string): T => JSON.parse(read(`samples/${name}`)) as T;
 const MANIFEST = load<Manifest>("manifest.json");
-const TABLE = JSON.parse(read("map-format/checks.json")) as Record<
+const TABLE = JSON.parse(read("checks.json")) as Record<
   "registry" | "pipeline" | "export",
   { case: string; id: string; code: string }[]
 >;
@@ -35,7 +35,9 @@ const firstFloor = (rec: R.ZoneChunk) => [...Array(225).keys()].find((t) => !R.h
 const chunk = (z: R.Zone, c: number) => z.chunks.get(c)!;
 const bridge = (z: R.Zone) => z.bridges.get(15)![0]!;
 
-/** Each registry case: the mutation of `tests/test_checks.cairo`'s test of the same name. */
+const ring = (t: number) => [0, 14].includes(Math.floor(t / 15)) || [0, 14].includes(t % 15);
+
+/** Each registry case: the mutation of `test_zone.cairo`'s `test_refuse_<case>`. */
 const MUTATIONS: Record<string, (z: R.Zone) => void> = {
   set_outside: (z) => {
     z.chunk_set |= R.bit(3);
@@ -48,6 +50,10 @@ const MUTATIONS: Record<string, (z: R.Zone) => void> = {
   },
   spawn_on_wall: (z) => {
     chunk(z, 1).spawns[0]!.tile = firstWall(chunk(z, 1));
+  },
+  spawn_on_ring: (z) => {
+    const rec = chunk(z, 1);
+    rec.spawns[0]!.tile = [...Array(225).keys()].find((t) => !R.has(rec.walls, t) && ring(t))!;
   },
   object_kind: (z) => {
     expect(chunk(z, 0).objects[0]!.kind).toBe(R.OBJECTS.landmark);
@@ -67,7 +73,9 @@ const MUTATIONS: Record<string, (z: R.Zone) => void> = {
     z.candidates.forEach((set, i) => {
       if (R.has(set, 2)) taken.add(rec.tiles[i]!);
     });
-    const free = [...Array(225).keys()].filter((t) => !R.has(rec.walls, t) && !taken.has(t));
+    const free = [...Array(225).keys()].filter(
+      (t) => !R.has(rec.walls, t) && !taken.has(t) && !ring(t),
+    );
     rec.objects.push(
       { tile: free[0]!, kind: 1, state: 0, param: 0 },
       { tile: free[1]!, kind: 1, state: 0, param: 0 },
@@ -89,6 +97,10 @@ const MUTATIONS: Record<string, (z: R.Zone) => void> = {
   },
   entry_not_floor: (z) => {
     z.location.entry_tile = firstWall(chunk(z, 0));
+  },
+  level_band: (z) => {
+    z.location.level_min = 0;
+    z.location.level_max = 255;
   },
   heart_template: (z) => {
     z.hearts.set(2, [0, 2]);
@@ -134,6 +146,13 @@ const MUTATIONS: Record<string, (z: R.Zone) => void> = {
   },
   bridge_apart: (z) => {
     bridge(z).ends = [firstFloor(chunk(z, 15)), bridge(z).ends[1]];
+  },
+  bridge_deck_floor: (z) => {
+    chunk(z, 15).walls |= bridge(z).deck;
+  },
+  bridge_tile_taken: (z) => {
+    const [a] = bridge(z).ends;
+    chunk(z, 15).objects.push({ tile: a, kind: R.OBJECTS.chest, state: 0, param: 0 });
   },
   bridge_index: (z) => {
     chunk(z, 15).bridges = 0;
@@ -203,7 +222,11 @@ const EDITS: Record<string, () => unknown> = {
   three_gates: () => {
     const e = load("zone.json");
     const g = e.gates![0]!;
-    e.gates!.push({ ...g, gate: "to_floor", x: g.x + 2 }, { ...g, x: g.x + 3 });
+    // Both into the dungeon, so that E-5 (a gate elsewhere on the outline) does not apply
+    e.gates!.push(
+      { ...g, gate: "to_floor", to: "floor_1", x: g.x + 2 },
+      { ...g, to: "floor_1", x: g.x + 3 },
+    );
     return e;
   },
   bridge_across: () => {
@@ -243,6 +266,48 @@ const EDITS: Record<string, () => unknown> = {
     const e = load("zone.json");
     e.features![1]!.x = e.origin.x + 33;
     e.features![1]!.y = e.origin.y + 20;
+    return e;
+  },
+  deck_outside: () => {
+    const e = load("zone.json");
+    e.bridges![0]!.deck = [[e.origin.x + 33, e.origin.y + 20]];
+    return e;
+  },
+  deck_blocked: () => {
+    const e = load("zone.json");
+    const tree = e.props![0]!;
+    e.bridges![0]!.deck = [[tree.x, tree.y]];
+    return e;
+  },
+  footprint_outside: () => {
+    const e = load("zone.json");
+    e.buildings![0]!.footprint.push([e.origin.x + 33, e.origin.y + 20]);
+    return e;
+  },
+  footprint_disconnected: () => {
+    const e = load("zone.json");
+    const b = e.buildings![0]!;
+    const [x, y] = b.door;
+    b.footprint.push([x + 4, y + 4]);
+    return e;
+  },
+  door_not_walkable: () => {
+    const e = load("zone.json");
+    const plane = new Plane(e);
+    const door = plane.glob(...e.buildings![0]!.door).join(",");
+    for (const span of e.rows) {
+      span.terrain = [...span.terrain]
+        .map((t, i) => (plane.glob(span.x + i, span.y).join(",") === door ? "#" : t))
+        .join("");
+    }
+    return e;
+  },
+  gate_inside: () => {
+    // The gate to the town moved to the zone's inside (all six neighbours in the zone)
+    const e = load("zone.json");
+    const [g, inside] = e.gates!;
+    g!.x = inside!.x;
+    g!.y = inside!.y;
     return e;
   },
   set_piece_size: () => {
@@ -294,11 +359,33 @@ describe("the converter's port (ENG-08's samples)", () => {
     }
   });
 
-  it("keeps the schema and the kind table equal to track game's", () => {
-    for (const name of ["schema.json", "kinds.json"]) {
+  it("keeps the schema, the kind table and the checks' table equal to track game's", () => {
+    for (const name of ["schema.json", "kinds.json", "checks.json"]) {
       const mine = readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
-      expect(JSON.parse(mine), name).toEqual(JSON.parse(read(`map-format/${name}`)));
+      expect(JSON.parse(mine), name).toEqual(JSON.parse(read(name)));
     }
+  });
+
+  it("writes a bridge's deck walkable: with the ford painted water, it is the only crossing", () => {
+    const e = load("zone.json");
+    const z = buildZone(e, MANIFEST);
+    for (const [x, y] of e.bridges![0]!.deck) {
+      const g = z.plane.glob(x, y).join(",");
+      expect(z.walk.has(g), "the deck walkable").toBe(true);
+      expect(z.plane.cells.get(g)!.walk, "painted as water").toBe(false);
+    }
+    expect(verdict(e)).toBe("accepted");
+  });
+
+  it("lets a dungeon's entrance stand inside the chunk set (E-5)", () => {
+    const e = load("zone.json");
+    const z = buildZone(e, MANIFEST);
+    const g = e.gates![1]!;
+    expect(MANIFEST.location_kinds![g.to]).toBe("dungeon");
+    const inner = R.neighbours(...z.plane.glob(g.x, g.y)).every(([x, y]) =>
+      z.zone.has(`${x},${y}`),
+    );
+    expect(inner, "inside").toBe(true);
   });
 });
 
