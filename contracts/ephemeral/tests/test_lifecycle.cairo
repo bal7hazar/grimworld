@@ -133,6 +133,17 @@ mod RevealDouble {
 
     #[abi(embed_v0)]
     impl RevealImpl of IRevealLibrary<ContractState> {
+        // ENG-09's authored zones: no test of this file enters one
+        fn authored(
+            self: @ContractState,
+            site: Site,
+            progress: Progress,
+            instance_id: felt252,
+            pieces: Span<(u8, grimworld_logic::models::set_piece::SetPiece, u64, felt252)>,
+        ) -> (Progress, Span<(u8, felt252, felt252)>) {
+            (progress, array![].span())
+        }
+
         fn reveal(
             self: @ContractState,
             site: Site,
