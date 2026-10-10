@@ -50,6 +50,9 @@ Exit 0 and the records written; exit 1 and one line `refused: <code>: <detail>`,
 - **Every placement (spawn point, object, candidate tile) on a walkable tile of the interior** (rows and
   columns 1 to 13 of its chunk): a pack's goblins stand within 2 of its tile (R-14, ENG-09).
 - Nothing on a bridge's deck or ends (R-37), every deck tile walkable (R-34 extended).
+- **An id that does not fit its field**, before any record is packed (`export: id does not fit`, E-48 to E-50): a
+  manifest id is not negative (E-48), is below 2^16 for a region, location, gate, pack, collector, landmark,
+  skill, spawn table or set piece (E-49), and a gate's `quest` below 2^32 (E-50).
 
 The manifest (`samples/manifest.json`) maps each name an export uses to its registry id, and each
 location to its kind (`location_kinds`); OPS-01 writes the real one.

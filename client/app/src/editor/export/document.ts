@@ -16,7 +16,7 @@ import { BIOMES, type Biome } from "../model";
 import type { FeatureKind, MapObject, Quota, QuotaKind } from "../objects";
 import { doorOffset, footprintOffsets, isPack, recordFor } from "../pack";
 import { BRIDGE_RUNS, bridgeAt, footprintAt, kindOf } from "../palette";
-import { type ExportFile, FORMAT, type Hex, type Manifest, VERSION, idBits } from "./convert";
+import { type ExportFile, FORMAT, type Hex, type Manifest, VERSION, ID_BITS } from "./convert";
 import { LOCATION_KINDS, Refused } from "./records";
 import { validate } from "./schema";
 
@@ -449,10 +449,9 @@ export function readManifest(text: string): Manifest | string {
       );
     if (!ok) return `The manifest's ${table} is not a table of names.`;
     if (table === "pack_bounds" || table === "location_kinds") continue;
-    const bits = idBits(table);
-    const wide = entries.find((v) => (v as number) < 0 || (v as number) >= 2 ** bits);
+    const wide = entries.find((v) => (v as number) < 0 || (v as number) >= 2 ** ID_BITS);
     if (wide !== undefined) {
-      return `The manifest's ${table} holds the id ${String(wide)}: an id is 0 to ${2 ** bits - 1}.`;
+      return `The manifest's ${table} holds the id ${String(wide)}: an id is 0 to ${2 ** ID_BITS - 1}.`;
     }
   }
   return raw as Manifest;

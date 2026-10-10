@@ -498,6 +498,87 @@ class Export(unittest.TestCase):
         here = z["plane"].glob(g["x"], g["y"])
         self.assertTrue(all(n in z["zone"] for n in R.neighbours(*here)), "inside")
 
+    # The ids of the manifest, each packed into a fixed field (`convert.ID_BITS`): the largest that
+    # fits converts, one more is refused, and so is a negative one, before any record is packed.
+    # (table, a name of the sample's export in it): the region, the zone and the gates' locations,
+    # the gate, the pack (spawn template, heart), the collector, the landmark, the spawn table.
+    SAMPLE_IDS = (("regions", "test_region"), ("locations", "meadow_edge"),
+                  ("locations", "floor_1"), ("gates", "to_town"), ("packs", "raiders"),
+                  ("collectors", "camp"), ("landmarks", "old_oak"), ("spawn_tables", "meadow"))
+    ID_TABLES = ("regions", "locations", "gates", "packs", "collectors", "landmarks", "skills",
+                 "spawn_tables", "set_pieces")
+
+    def with_id(self, table, name, value):
+        manifest = copy.deepcopy(MANIFEST)
+        manifest[table][name] = value
+        return manifest
+
+    def refused_id(self, export, manifest, needle):
+        with self.assertRaises(R.Refused) as caught:
+            convert.convert(export, manifest)
+        self.assertEqual(caught.exception.code, "export: id does not fit")
+        self.assertIn(needle, caught.exception.detail)
+
+    def test_id_negative(self):
+        for table, name in self.SAMPLE_IDS:
+            with self.subTest(table=table):
+                self.refused_id(load("zone.json"), self.with_id(table, name, -1), f"{name!r}: id -1")
+        self.refused_id(load("set_piece.json"), self.with_id("set_pieces", "boss_arena", -1),
+                        "'boss_arena': id -1")
+        export = load("zone.json")
+        export["gates"][0]["quest"] = -1  # the schema refuses it too: the converter's own check
+        with self.assertRaises(R.Refused) as caught:
+            convert.build_zone(export, MANIFEST)
+        self.assertEqual(caught.exception.code, "export: id does not fit")
+
+    def test_id_above_16_bits(self):
+        top, over = (1 << 16) - 1, 1 << 16
+        for table, name in self.SAMPLE_IDS:
+            with self.subTest(table=table):
+                convert.convert(load("zone.json"), self.with_id(table, name, top))
+                self.refused_id(load("zone.json"), self.with_id(table, name, over),
+                                f"{name!r}: id {over} does not fit 16 bits")
+        # A set piece's id is a u16 for the game (`Location.set_pieces` is `Lanes16`)
+        writes, _ = convert.convert(load("set_piece.json"),
+                                    self.with_id("set_pieces", "boss_arena", top))
+        self.assertEqual(writes[0][1], top)
+        self.refused_id(load("set_piece.json"), self.with_id("set_pieces", "boss_arena", over),
+                        f"'boss_arena': id {over} does not fit 16 bits")
+        for table in self.ID_TABLES:
+            with self.subTest(table=table, at="resolve"):
+                self.assertEqual(convert.resolve({table: {"n": top}}, table, "n", "x"), top)
+                with self.assertRaises(R.Refused) as caught:
+                    convert.resolve({table: {"n": over}}, table, "n", "x")
+                self.assertEqual(caught.exception.code, "export: id does not fit")
+
+    def test_id_above_32_bits(self):
+        top, over = (1 << 32) - 1, 1 << 32
+        # A gate's quest is the u32 of `Gate`: the only field of 32 bits
+        export = load("zone.json")
+        export["gates"][0]["quest"] = top
+        z = convert.build_zone(export, MANIFEST)
+        self.assertEqual(max(g["quest"] for g in z["gates"].values()), top)
+        export["gates"][0]["quest"] = over
+        with self.assertRaises(R.Refused) as caught:
+            convert.build_zone(export, MANIFEST)
+        self.assertEqual(caught.exception.code, "export: id does not fit")
+        self.assertIn("quest", caught.exception.detail)
+
+    def test_id_refused_through_main(self):
+        """Exit 1 and one `refused:` line, no output file written."""
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest, out = os.path.join(tmp, "m.json"), os.path.join(tmp, "r.json")
+            with open(manifest, "w", encoding="utf-8") as f:
+                json.dump(self.with_id("regions", "test_region", 1 << 16), f)
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = convert.main([os.path.join(SAMPLES, "zone.json"), "--manifest", manifest,
+                                     "--out", out])
+            self.assertEqual(code, 1)
+            self.assertTrue(buffer.getvalue().startswith("refused: export: id does not fit"),
+                            buffer.getvalue())
+            self.assertFalse(os.path.exists(out))
+
     def test_every_export_case_tested(self):
         names = {n[len("test_"):] for n in dir(self) if n.startswith("test_")}
         for case in TABLE["export"]:

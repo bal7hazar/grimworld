@@ -94,7 +94,8 @@ export const WALKER_ID = 1;
  *   loop; a building's footprint but its door and a blocking prop's hex are walls, as the
  *   validation counts them and as the converter will make them (ENG-08). A bridge's deck is
  *   floor, its ground still water under the sprite (D-227, ADR-0008 rule 1); one outside the
- *   outline or blocked stays as painted (E-24, E-25 refuse it).
+ *   outline or blocked stays as painted (E-46 `export: deck outside the zone`, R-37
+ *   `bridge: tile taken` refuse it).
  */
 export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions): SandboxWorld {
   const zone = isZone(doc);

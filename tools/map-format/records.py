@@ -47,6 +47,14 @@ def fits(value, bits, code):
     return value
 
 
+def assert_id(what, value, bits):
+    """A manifest id fits the field the record packs it into: neither negative nor `bits` wide or more
+    (`pack_*` would shift it into its neighbour's bits, or write a negative felt)."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < (1 << bits):
+        raise Refused("export: id does not fit", f"{what}: id {value!r} does not fit {bits} bits")
+    return value
+
+
 def has(bits, i):
     return (bits >> i) & 1 == 1
 
