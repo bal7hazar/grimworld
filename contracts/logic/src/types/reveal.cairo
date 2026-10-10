@@ -1007,7 +1007,7 @@ pub mod tests {
     // chunk's edge bit `s` is open exactly when side `s` of its ring holds an opening.
     #[test]
     // gas: raised, ENG-10b: each floor built as create makes it, its outline and hosts first
-    #[available_gas(l2_gas: 104344181)] // ceil(1.05 × 99375410 measured)
+    #[available_gas(l2_gas: 104228639)] // ceil(1.05 × 99265370 measured)
     fn test_edges_against_hexx_sides() {
         let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed: felt252 = 0;
@@ -1113,7 +1113,7 @@ pub mod tests {
 
     // The location's border and a void chunk close a side (D-134); an anchor on it stays open.
     #[test]
-    #[available_gas(l2_gas: 58153261)] // ceil(1.05 × 55384058 measured)
+    #[available_gas(l2_gas: 58145701)] // ceil(1.05 × 55376858 measured)
     fn test_border_and_void_closed_but_anchors() {
         // Chunks (0, 0), (1, 0) and (0, 1) of a 2 × 2 zone; (1, 1) is outside the outline.
         let mut site = zone(biome::FOREST, 2, 2, no_quotas());
@@ -1275,13 +1275,13 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 340200851)] // ceil(1.05 × 324000810 measured)
+    #[available_gas(l2_gas: 340149737)] // ceil(1.05 × 323952130 measured)
     fn test_dungeon_revealed_whole_n_6() {
         check_dungeon(6, 0, 4);
     }
 
     #[test]
-    #[available_gas(l2_gas: 276870983)] // ceil(1.05 × 263686650 measured)
+    #[available_gas(l2_gas: 276837866)] // ceil(1.05 × 263655110 measured)
     fn test_dungeon_revealed_whole_n_12() {
         check_dungeon(12, 50, 2);
     }
@@ -1477,7 +1477,7 @@ pub mod tests {
 
     // D-140: no word panics, with any mask on any chunk.
     #[test]
-    #[available_gas(l2_gas: 70951683)] // ceil(1.05 × 67573031 measured)
+    #[available_gas(l2_gas: 70798341)] // ceil(1.05 × 67426991 measured)
     fn test_no_panic_any_mask() {
         let mut seed: felt252 = 0;
         while seed != 12 {
@@ -2044,7 +2044,7 @@ pub mod tests {
     // that chunk's first pack is the Heart (template 2, which the spawn table names too).
     #[test]
     // gas: raised, ENG-10b: the floor revealed whole, the Heart hosted at the farthest
-    #[available_gas(l2_gas: 121898073)] // ceil(1.05 × 116093402 measured)
+    #[available_gas(l2_gas: 121846959)] // ceil(1.05 × 116044722 measured)
     fn test_heart_at_the_band_top() {
         let quotas = QuotaSet {
             quotas: [
@@ -2571,7 +2571,7 @@ pub mod tests {
     /// with 1 to 4 sides known; the location's edge, a void chunk and an anchor; a cut.
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
-    #[available_gas(l2_gas: 257503327)] // ceil(1.05 × 245241263 measured)
+    #[available_gas(l2_gas: 257502067)] // ceil(1.05 × 245240063 measured)
     fn test_vectors_1() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_1;
