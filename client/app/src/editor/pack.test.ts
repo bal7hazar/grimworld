@@ -423,24 +423,27 @@ describe("the pack's checks (CLI-09e part 2)", () => {
     expect(fails(wet, "E-16")[0]!.message).toContain("off the land");
   });
 
-  it("E-20: a building's door on its footprint's border and walkable", () => {
+  it("E-20 and E-45: a building's door on its footprint's border, and walkable", () => {
     const doc = block(town());
     add(doc, building({ x: 10, y: 4 }));
     passes(doc, "E-20");
+    passes(doc, "E-45");
     // Fail: a wall under the door. Fix: the door on another border hex.
     const walled = block(town());
     const id = add(walled, building({ x: 10, y: 4 }));
     walled.hexes.set(keyOf({ x: 10, y: 4 }), cellOf(WALL, grass, false));
-    expect(fails(walled, "E-20")[0]!.message).toContain("is not walkable");
+    expect(fails(walled, "E-45")[0]!.message).toContain(
+      "is not walkable (export: door not walkable)",
+    );
     const o = walled.objects.get(id) as Extract<PackObject, { kind: "building" }>;
     const other = doorChoices(buildingFootprint(o)).find((t) => t.x !== 10 || t.y !== 4)!;
     walled.objects.set(id, { ...o, door: doorOffset(o.at, other) });
-    passes(walled, "E-20");
+    passes(walled, "E-45");
     // A blocking prop on the door shuts it.
     const shut = block(town());
     add(shut, building({ x: 10, y: 4 }));
     add(shut, prop({ x: 10, y: 4 }, "rock"));
-    fails(shut, "E-20");
+    fails(shut, "E-45");
     // A door inside the footprint (a castle three rows deep): off its border.
     const deep = block(town());
     const castle = building({ x: 10, y: 4 }, "castle", "0,0", 2) as Extract<
@@ -687,14 +690,14 @@ describe("a building's footprint, painted hex by hex (CLI-09h)", () => {
     expect(placed.record.anchor).toEqual({ x: 10, y: 6 });
   });
 
-  it("the checks hold: a painted piece apart fails E-16, one off the border door fails E-20", () => {
+  it("the checks hold: a painted piece apart fails E-44, one off the border door fails E-20", () => {
     const { doc, id, s } = armed();
-    expect(findings(doc, "E-16")).toEqual([]);
+    expect(findings(doc, "E-44")).toEqual([]);
     // A hex apart from the building: not one piece.
     click(s, { x: 20, y: 15 });
-    fails(doc, "E-16");
+    fails(doc, "E-44");
     s.undo();
-    expect(findings(doc, "E-16")).toEqual([]);
+    expect(findings(doc, "E-44")).toEqual([]);
     expect(findings(doc, "E-20")).toEqual([]);
     // The door painted off the border by the file: E-20 names it.
     const o = doc.objects.get(id) as PackObject & { kind: "building" };

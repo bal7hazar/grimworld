@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Tile } from "../render/view";
 import { type Manifest, convert, recordsFile } from "./export/convert";
 import { fromExport, readManifest, toExport } from "./export/document";
+import * as R from "./export/records";
 import { Refused } from "./export/records";
 import { loadMap, saveMap } from "./file";
 import {
@@ -32,14 +33,14 @@ import { townStructures, walkWorld } from "./walkWorld";
  * failing map is that fixture with one change. `GRIMWORLD_WRITE_FIXTURES=1` writes the fixture and
  * its export again (then `prettier --write` them); the records file is the converter's own output:
  *
- *     python3 spikes/SPK-16-authored-zone/map-format/convert.py \
+ *     python3 tools/map-format/convert.py \
  *         client/app/src/editor/fixtures/bridge-zone.export.json \
- *         --manifest spikes/SPK-16-authored-zone/samples/manifest.json \
+ *         --manifest tools/map-format/samples/manifest.json \
  *         --out client/app/src/editor/fixtures/bridge-zone.records.json
  */
 
 const DIR = new URL("./fixtures/", import.meta.url);
-const SAMPLES = new URL("../../../../spikes/SPK-16-authored-zone/samples/", import.meta.url);
+const SAMPLES = new URL("../../../../tools/map-format/samples/", import.meta.url);
 const MANIFEST = readManifest(readFileSync(new URL("manifest.json", SAMPLES), "utf8")) as Manifest;
 
 const grass = GROUND_KINDS.indexOf("grass");
@@ -195,7 +196,7 @@ describe("the committed bridge fixture", () => {
   it("validates with no error: every bridge check passes", () => {
     const doc = fixture();
     expect(errors(doc)).toEqual([]);
-    for (const check of ["R-37", "E-24", "E-25", "R-34", "E-6", "E-7"]) passes(doc, check);
+    for (const check of ["R-37", "E-46", "E-47", "E-25", "R-34", "E-6", "E-7"]) passes(doc, check);
     // With the content manifest, the converter's own checks run on its export too.
     expect(validate(doc, MANIFEST).filter((f) => f.severity === "error")).toEqual([]);
   });
@@ -248,29 +249,29 @@ describe("R-37 widened (bridge: tile taken): nothing on a bridge's ends or deck"
   });
 });
 
-describe("E-24 (export: deck outside the zone)", () => {
+describe("E-46 (export: deck outside the zone)", () => {
   it("a deck hex outside the outline fails", () => {
     const doc = fixture();
     const [stone] = bridgesOf(doc);
     doc.hexes.set(keyOf(stone!.deck[0]!), cellOf(WALL, water, true));
-    fails(doc, "E-24", "export: deck outside the zone");
+    fails(doc, "E-46", "export: deck outside the zone");
   });
 
   it("a deck hex left unpainted fails", () => {
     const doc = fixture();
     const [stone] = bridgesOf(doc);
     doc.hexes.delete(keyOf(stone!.deck[2]!));
-    fails(doc, "E-24", "export: deck outside the zone");
+    fails(doc, "E-46", "export: deck outside the zone");
   });
 
   it("on a town, a deck over painted water passes", () => {
     const doc = fixture();
     doc.meta = { ...doc.meta, kind: "town", biome: null };
-    passes(doc, "E-24");
+    passes(doc, "E-46");
   });
 });
 
-describe("E-25: the deck over water (export: deck blocked)", () => {
+describe("E-47 (export: deck blocked), and E-25: the deck over water", () => {
   it("a blocking prop on the deck fails", () => {
     const doc = fixture();
     const [stone] = bridgesOf(doc);
@@ -282,7 +283,7 @@ describe("E-25: the deck over water (export: deck blocked)", () => {
       facing: 0,
       mirror: false,
     });
-    fails(doc, "E-25", "export: deck blocked");
+    fails(doc, "E-47", "export: deck blocked");
   });
 
   it("a building's footprint on the deck fails", () => {
@@ -298,7 +299,7 @@ describe("E-25: the deck over water (export: deck blocked)", () => {
       door: "0,0",
       footprint: "",
     });
-    fails(doc, "E-25", "export: deck blocked");
+    fails(doc, "E-47", "export: deck blocked");
   });
 
   it("a deck hex on land fails", () => {
@@ -370,11 +371,16 @@ describe("the deck is walkable (ADR-0008 rule 1)", () => {
     expect(world.terrain.hidden[beside.y * CHUNK + beside.x]).toBe("wall");
   });
 
-  it("the converter's port, as convert.py on main, still refuses the river (P-1) until ENG-09", () => {
+  it("the converter's port, as tools/map-format's (ENG-09), writes the deck walkable: P-1 holds", () => {
     const out = toExport(riverZone(), MANIFEST, "fixture");
     if ("problem" in out) throw new Error(out.problem);
     const verdict = convert(out.file, MANIFEST);
-    expect(verdict instanceof Refused && verdict.code).toBe("pipeline: unreachable tile");
+    if (verdict instanceof Refused) throw verdict;
+    // The deck's two hexes, painted water walls, are floor in the chunk's record.
+    const chunk = verdict.zone!.chunks.get(0)!;
+    const [deck] = bridgesOf(riverZone());
+    for (const t of deck!.deck) expect(R.has(chunk.walls, t.y * CHUNK + t.x), keyOf(t)).toBe(false);
+    expect(validate(riverZone(), MANIFEST).filter((f) => f.severity === "error")).toEqual([]);
   });
 });
 
@@ -557,7 +563,11 @@ describe("a deck along one line", () => {
           expect(at.every((k) => k >= 0)).toBe(true);
           expect(at[0]).toBe(0);
           expect(at[at.length - 1]).toBe(line.length - 3);
-          at.slice(1).forEach((k, i) => expect(k - at[i]!).toBeLessThanOrEqual(2));
+          // Each copy past the one before, by one or two hexes (review t-0154).
+          at.slice(1).forEach((k, i) => {
+            expect(k - at[i]!).toBeGreaterThan(0);
+            expect(k - at[i]!).toBeLessThanOrEqual(2);
+          });
         }
       }
     });

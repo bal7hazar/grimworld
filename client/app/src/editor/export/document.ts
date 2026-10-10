@@ -16,8 +16,8 @@ import { BIOMES, type Biome } from "../model";
 import type { FeatureKind, MapObject, Quota, QuotaKind } from "../objects";
 import { doorOffset, footprintOffsets, isPack, recordFor } from "../pack";
 import { BRIDGE_RUNS, bridgeAt, footprintAt, kindOf } from "../palette";
-import { type ExportFile, FORMAT, type Hex, type Manifest, VERSION } from "./convert";
-import { Refused } from "./records";
+import { type ExportFile, FORMAT, type Hex, type Manifest, VERSION, idBits } from "./convert";
+import { LOCATION_KINDS, Refused } from "./records";
 import { validate } from "./schema";
 
 /**
@@ -387,7 +387,12 @@ export function isExportText(raw: unknown): boolean {
   return typeof raw === "object" && raw !== null && (raw as { format?: unknown }).format === FORMAT;
 }
 
-/** The manifest of a file's text, or why it is not one. */
+/**
+ * The manifest of a file's text, or why it is not one: tables of names to registry ids, each id a
+ * whole number its records' fields hold (`ID_BITS`, review t-0147: a negative or over-wide id is
+ * refused here, never packed); `pack_bounds`, each pack's `[min, max]`; `location_kinds`, each
+ * location's kind (ENG-09: a gate into a dungeon may stand inside the zone).
+ */
 export function readManifest(text: string): Manifest | string {
   let raw: unknown;
   try {
@@ -407,9 +412,17 @@ export function readManifest(text: string): Manifest | string {
       entries.every((v) =>
         table === "pack_bounds"
           ? Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n))
-          : Number.isInteger(v),
+          : table === "location_kinds"
+            ? typeof v === "string" && Object.hasOwn(LOCATION_KINDS, v)
+            : Number.isInteger(v),
       );
     if (!ok) return `The manifest's ${table} is not a table of names.`;
+    if (table === "pack_bounds" || table === "location_kinds") continue;
+    const bits = idBits(table);
+    const wide = entries.find((v) => (v as number) < 0 || (v as number) >= 2 ** bits);
+    if (wide !== undefined) {
+      return `The manifest's ${table} holds the id ${String(wide)}: an id is 0 to ${2 ** bits - 1}.`;
+    }
   }
   return raw as Manifest;
 }

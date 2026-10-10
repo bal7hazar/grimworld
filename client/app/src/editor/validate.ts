@@ -326,6 +326,8 @@ function converterChecks(doc: MapDocument, manifest: Manifest, out: Findings): v
   const verdict = convert(file.file, manifest);
   if (!(verdict instanceof Refused)) return;
   const check = CHECK_IDS.get(verdict.code) ?? "E-40";
+  // The editor's own check of the same id has said it, where the author can Show it: said once.
+  if (out.list.some((f) => f.check === check && f.severity === "error")) return;
   const detail = verdict.detail ? ` (${verdict.detail})` : "";
   out.add(
     check,

@@ -99,6 +99,14 @@ const HUB_FIELDS = ["location", "region"] as const;
 const fdiv = (a: number, b: number) => Math.floor(a / b);
 const fmod = (a: number, b: number) => ((a % b) + b) % b;
 
+/**
+ * The width of a manifest table's ids: the record field each is packed into (a region, a location,
+ * a gate, a pack template, a param: 16 bits). A set piece's id is only a record's id.
+ */
+export function idBits(table: string): number {
+  return table === "set_pieces" ? 32 : 16;
+}
+
 export function resolve(manifest: Manifest, table: string, name: unknown, what: string): number {
   const ids = (manifest[table] ?? {}) as Readonly<Record<string, number>>;
   if (typeof name !== "string" || !Object.hasOwn(ids, name)) {
@@ -107,7 +115,16 @@ export function resolve(manifest: Manifest, table: string, name: unknown, what: 
       `${what} ${JSON.stringify(name)} not in the manifest's ${table}`,
     );
   }
-  return ids[name]!;
+  // Before any packing (review t-0147): an id its field cannot hold is no registry id. The
+  // converter packs what it is given; a manifest `readManifest` read never holds one.
+  const id = ids[name]!;
+  if (!Number.isInteger(id) || id < 0 || id >= 2 ** idBits(table)) {
+    throw new R.Refused(
+      "export: unknown name",
+      `${what} ${JSON.stringify(name)}'s id ${id} does not fit ${idBits(table)} bits`,
+    );
+  }
+  return id;
 }
 
 type G = readonly [number, number];
