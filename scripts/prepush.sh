@@ -252,14 +252,14 @@ pkg() {
   shift
   (cd "$root/$dir" && "$@")
 }
-# capped <command...>: under an address-space cap of 10 GiB, inherited by every child. Where there is no prlimit
+# capped <command...>: under an address-space cap of 13 GiB, inherited by every child. Where there is no prlimit
 # (the Mac) it runs uncapped, as before: the Mac has no cap to apply. The cap is on ADDRESS SPACE (prlimit --as),
-# not on resident memory: scarb and snforge reserve far more than they touch (hook run of 2026-10-10: snforge
-# VmPeak 6,973,232 kB for 3,595,852 kB resident). It comes from that measured VmPeak (/proc/<pid>/status): 1.5 x
-# 6.97 GB = 10.46 GB, so 10 GiB (10737418240); the rule is 1.5 x the VmPeak, at least 8 GiB, at most 16 GiB. A
-# step that reaches the cap may stall instead of failing: ENG-05c's `scarb build --test` did so on 2026-10-10 and
-# held the heavy lock for about 3 h.
-mem_cap=10737418240
+# not on resident memory: scarb and snforge reserve far more than they touch. It comes from the measured VmPeak
+# (/proc/<pid>/status): ENG-05c measured the hook at 9,070,512 KiB under its former 10 GiB cap; x 1.5 =
+# 13,605,768 KiB, which is at most 13 GiB (13,631,488 KiB), so 13 GiB (13958643712) (D-251, accepted in D-252).
+# The rule is 1.5 x the VmPeak, at least 8 GiB, at most 16 GiB. A step that reaches the cap may stall instead of
+# failing: ENG-05c's `scarb build --test` did so on 2026-10-10 and held the heavy lock for about 3 h.
+mem_cap=13958643712
 capped() {
   if command -v prlimit > /dev/null 2>&1; then prlimit --as="$mem_cap" -- "$@"; else "$@"; fi
 }
