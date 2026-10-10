@@ -1234,6 +1234,7 @@ mod tests {
     // goblin (the ticks of the fast path; the goblin records of a fight are `TickLibrary`'s, held
     // by the ephemeral tests). One family a branch of `run`, listed in `vectors/README.md`.
     #[test]
+    // gas: raised, RV-02: by 1, to ceil(1.05 × measured) (#420's review; it was rounded down)
     #[available_gas(l2_gas: 1026515159)] // ceil(1.05 × 977633484 measured)
     fn test_segment_vectors() {
         let mut digest: Array<felt252> = array![];
