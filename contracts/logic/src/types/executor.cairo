@@ -1265,8 +1265,9 @@ pub struct Delegate {
     pub listed: u8,
     /// The last carrier's records (`subcontent`) under their key (CBT-05d): every member's bar,
     /// effects and kit words, then each goblin carried's caste and held effect's skill, all that
-    /// `subcontent` reads; a carrier with the same key takes them without the pass.
-    pub memo: Option<(Span<felt252>, Content)>,
+    /// `subcontent` reads; a carrier with the same key takes them without the pass. Boxed: the
+    /// rules are copied at every call that takes them.
+    pub memo: Option<Box<(Span<felt252>, Content)>>,
 }
 
 pub impl DelegateRules of Rules<Delegate> {
@@ -1537,14 +1538,17 @@ pub impl DelegateCarry of Carry<Delegate> {
         }
         let key = key.span();
         let mut content = match self.memo {
-            Some((last, records)) => if last == key {
-                records
-            } else {
-                ExecutorTrait::subcontent(@world, picked.span(), @self.content)
+            Some(memo) => {
+                let (last, records) = memo.unbox();
+                if last == key {
+                    records
+                } else {
+                    ExecutorTrait::subcontent(@world, picked.span(), @self.content)
+                }
             },
             None => ExecutorTrait::subcontent(@world, picked.span(), @self.content),
         };
-        self.memo = Some((key, content));
+        self.memo = Some(BoxTrait::new((key, content)));
         let words = Words {
             clock: world.clock, members, goblins, killed: array![], defeated: false,
         };
