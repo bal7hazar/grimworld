@@ -794,6 +794,42 @@ const MUTANTS: readonly Mutant[] = [
     from: "const clamped = Math.min(Math.max(x, EXP2_LOW), EXP2_HIGH);",
     to: "const clamped = x;",
   },
+  {
+    name: "E-16's cap of 17 records",
+    file: "batch.ts",
+    from: "export const MAX_RECORDS = 16;",
+    to: "export const MAX_RECORDS = 17;",
+  },
+  {
+    name: "the 16th record cut (the cap exclusive)",
+    file: "batch.ts",
+    from: "records > MAX_RECORDS",
+    to: "records >= MAX_RECORDS",
+  },
+  {
+    name: "a first record weighs nothing more (no +1)",
+    file: "batch.ts",
+    from: "const total = Number(add(u8, BigInt(cost), BigInt(firsts)));",
+    to: "const total = cost;",
+  },
+  {
+    name: "the invocation's first action is bound too (E-21)",
+    file: "batch.ts",
+    from: "if (ran && (records",
+    to: "if ((records",
+  },
+  {
+    name: "a Move's owed ticks are not counted with the next action",
+    file: "parity/tables.ts",
+    from: "Number(owed! + fresh!),",
+    to: "Number(fresh!),",
+  },
+  {
+    name: "a reveal's weight is taken before the Move, not after",
+    file: "parity/tables.ts",
+    from: "revealed(after, Number(chunks!))",
+    to: "revealed(small(weight!), Number(chunks!))",
+  },
 ];
 
 const SRC = new URL("../", import.meta.url);
