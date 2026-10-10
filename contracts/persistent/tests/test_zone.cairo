@@ -139,7 +139,7 @@ fn cubs() -> Pack {
 /// A location of `kind` with no map but its size (the town, the dungeon floor the gates reach).
 fn plain(kind: u8, width: u8, height: u8, target: u8) -> Location {
     LocationTrait::new(
-        kind, 1, 1, 1, 3, 0, width, height, target, 0, 0, 0, false, 0, 0, Lanes16 { lanes: [0; 16] },
+        kind, 1, 1, 1, 3, 0, width, height, target, 0, 0, 0, false, 0, 0, Lanes16 { lanes: [0; 15] },
     )
 }
 
