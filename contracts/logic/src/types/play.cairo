@@ -560,13 +560,11 @@ pub impl SegmentImpl of SegmentTrait {
         if ran && (changed + fresh > MAX_RECORDS || total > weight) {
             return None;
         }
-        Some(
-            if weight > total {
-                weight - total
-            } else {
-                0
-            },
-        )
+        Some(if weight > total {
+            weight - total
+        } else {
+            0
+        })
     }
 
     /// The weight left after a reveal of `chunks` chunks (2 a chunk, design/02), taken from the
@@ -972,9 +970,7 @@ mod tests {
     /// One `owed` row: a Move's owed ticks (`owed` records, `owed_firsts` first ones) counted with
     /// the next segment's first action (`next`: whether there is one; its `fresh` records,
     /// `firsts` and `cost`), as `SegmentTrait::run` counts them; the owed ticks run either way.
-    fn owed_row(
-        ref digest: Array<felt252>, ref id: u32, case: [u32; 8],
-    ) {
+    fn owed_row(ref digest: Array<felt252>, ref id: u32, case: [u32; 8]) {
         let [changed, owed, owed_firsts, fresh, firsts, cost, weight, next] = case;
         let (stopped, written, left) = if next == 0 {
             (0, changed + owed, weight)
@@ -1052,9 +1048,9 @@ mod tests {
         owed_row(ref digest, ref id, [0, 8, 8, 0, 0, 1, 8, 1]);
         owed_row(ref digest, ref id, [16, 40, 0, 0, 0, 1, 4, 0]);
         owed_row(ref digest, ref id, [16, 80, 0, 0, 0, 1, 4, 0]);
-        // `reveal`: (weight, the Move's ticks, its first records, chunks revealed) → (weight after
-        // the Move, after the reveal): the Move counted first, then 2 a chunk, floored at 0, so a
-        // Move that reveals more than the weight left is played
+        // `reveal`: (weight, the Move's ticks, its first records, chunks revealed) → (weight
+        // after the Move, after the reveal): the Move counted first, then 2 a chunk, floored at 0,
+        // so a Move that reveals more than the weight left is played
         let reveals: Array<(u8, u8, u8, u32)> = array![
             (10, 1, 0, 1), (10, 2, 0, 3), (3, 1, 0, 2), (1, 1, 0, 1), (10, 1, 2, 4), (2, 2, 0, 1),
         ];

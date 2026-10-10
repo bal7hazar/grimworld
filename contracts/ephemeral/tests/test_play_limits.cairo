@@ -601,7 +601,8 @@ fn test_play_records_owed_ticks() {
     assert(engaged_corridor(one) == 17, 'the owed tick engaged seven');
 }
 
-// ---- CBT-05d: E-16's bound written, 96 goblin records cold ---------------------------------------
+// ---- CBT-05d: E-16's bound written, 96 goblin records cold
+// ---------------------------------------
 // A Move's owed ticks run whatever they change (ENG-01 E-16): with 16 records counted before them,
 // a batch writes at most 16 + 2 × 40 = 96 goblin records, two words each. `ReuseProbe` (ENG-01's
 // *Reuse, measured*) writes the words in one call, to keys never written (cold) or written before
@@ -618,7 +619,11 @@ fn warm_probe(records: u32) -> IReuseProbeDispatcher {
     let probe = reuse_probe();
     let mut key: u32 = 0;
     while key < 2 * records {
-        store(probe.contract_address, map_entry_address(selector!("slots"), array![key.into()].span()), array![LIVE + 2].span());
+        store(
+            probe.contract_address,
+            map_entry_address(selector!("slots"), array![key.into()].span()),
+            array![LIVE + 2].span(),
+        );
         key += 1;
     }
     probe

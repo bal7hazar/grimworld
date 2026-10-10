@@ -173,9 +173,9 @@ pub impl MemberImpl of MemberTrait {
         )
     }
 
-    /// The member of `words`, `member`'s words after a carrier (CBT-05d): when their effects, stats,
-    /// bar and kit are `member`'s, every field `load` derives from those is `member`'s and only
-    /// the hot fields are read again; else `load`.
+    /// The member of `words`, `member`'s words after a carrier (CBT-05d): when their effects,
+    /// stats, bar and kit are `member`'s, every field `load` derives from those is `member`'s and
+    /// only the hot fields are read again; else `load`.
     fn reload(member: @Member, words: MemberWords, ref index: Index, sheets: @Sheets) -> Member {
         let was = *member.words;
         if words.effects != was.effects
@@ -217,7 +217,7 @@ pub impl MemberImpl of MemberTrait {
             burning,
             knocked,
             words,
-            ..*member
+            ..*member,
         }
     }
 

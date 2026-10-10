@@ -4775,4 +4775,3 @@ fn test_fight_roster_count() {
     println!("fight: goblins away from their spawn chunk {}", away);
     assert(away < 60, 'never 60');
 }
-
