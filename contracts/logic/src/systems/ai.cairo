@@ -49,6 +49,7 @@ pub mod AiLibrary {
                 level,
                 frozen,
                 listed,
+                memo: None,
             };
             AiTrait::step(ref world, @sheets, ref rules, resolved);
             (world.store(), rules.ground)

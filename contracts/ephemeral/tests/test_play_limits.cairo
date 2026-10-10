@@ -7,6 +7,7 @@
 // randomness and the hub are `test_lifecycle`'s doubles, declared by name.
 use grimworld_ephemeral::models::instance::Header;
 use grimworld_ephemeral::models::member::MemberState;
+use grimworld_ephemeral::probes::{IReuseProbeDispatcher, IReuseProbeDispatcherTrait};
 use grimworld_ephemeral::systems::instances::{IInstancesDispatcher, IInstancesDispatcherTrait};
 use grimworld_logic::actions::Action;
 use grimworld_logic::content::{CASTE, GATE, LOCATION, PACK, REGION};
@@ -424,7 +425,7 @@ fn prepare_alert(world: World) {
 // two actions sent alone. The goblin engaged and nothing else has no record: its pack's `alert`
 // bits are Engaged (ENG-01 §3.2), which the single batches derive it from.
 #[test]
-#[available_gas(l2_gas: 351119649)] // ceil(1.05 × 334399665 measured)
+#[available_gas(l2_gas: 347616187)] // ceil(1.05 × 331063035 measured)
 fn test_play_first_records_and_alert() {
     let actions = array![Action::Move(0), Action::Wait, Action::Wait];
     let (words_one, words_two, played, stop, one) = twin(
@@ -598,4 +599,62 @@ fn test_play_records_owed_ticks() {
     assert(played == 5 && stop == STOP_WEIGHT, 'stopped after the owed tick');
     assert(words_one == words_two, 'batch = singles: words');
     assert(engaged_corridor(one) == 17, 'the owed tick engaged seven');
+}
+
+// ---- CBT-05d: E-16's bound written, 96 goblin records cold
+// ---------------------------------------
+// A Move's owed ticks run whatever they change (ENG-01 E-16): with 16 records counted before them,
+// a batch writes at most 16 + 2 × 40 = 96 goblin records, two words each. `ReuseProbe` (ENG-01's
+// *Reuse, measured*) writes the words in one call, to keys never written (cold) or written before
+// (warm: `store` sets them first); each figure less the probe's call writing nothing.
+
+fn reuse_probe() -> IReuseProbeDispatcher {
+    let class = declare("ReuseProbe").unwrap().contract_class();
+    let (address, _) = class.deploy(@array![]).unwrap();
+    IReuseProbeDispatcher { contract_address: address }
+}
+
+/// The probe with the words of `records` goblin records written before (warm).
+fn warm_probe(records: u32) -> IReuseProbeDispatcher {
+    let probe = reuse_probe();
+    let mut key: u32 = 0;
+    while key < 2 * records {
+        store(
+            probe.contract_address,
+            map_entry_address(selector!("slots"), array![key.into()].span()),
+            array![LIVE + 2].span(),
+        );
+        key += 1;
+    }
+    probe
+}
+
+#[test]
+#[available_gas(l2_gas: 289517)] // ceil(1.05 × 275730 measured)
+fn test_records_written_none() {
+    reuse_probe().write(0, 0, LIVE + 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 16111757)] // ceil(1.05 × 15344530 measured)
+fn test_records_written_16_cold() {
+    reuse_probe().write(0, 32, LIVE + 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 95222957)] // ceil(1.05 × 90688530 measured)
+fn test_records_written_96_cold() {
+    reuse_probe().write(0, 192, LIVE + 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 84871941)] // ceil(1.05 × 80830420 measured)
+fn test_records_written_none_warm() {
+    warm_probe(96).write(0, 0, LIVE + 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 98762181)] // ceil(1.05 × 94059220 measured)
+fn test_records_written_96_warm() {
+    warm_probe(96).write(0, 192, LIVE + 1);
 }

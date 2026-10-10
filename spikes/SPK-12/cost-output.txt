@@ -52,3 +52,12 @@ Batches: D-172 stops a batch before a tick that would pass the limit, so each wo
 | 27 exploration + 3 fights at real health (4 ticks each) (E: the mix) | 1,134,859,477 | $1.000 | 1.71x |
 | 27 exploration + 3 whole fights (10 ticks of 8 attackers) (E: the mix) | 2,017,943,461 | $1.778 | 3.04x |
 | 27 exploration + 3 whole fights, lever 1 (at most 4 attackers) (E: the mix) | 1,665,717,859 | $1.467 | 2.51x |
+
+## S1 at CBT-05d (the cheaper goblin carrier): 30 batches, k of them a fight
+
+| batches | L2 gas | S1 | against 663 M |
+|---|--:|--:|--:|
+| 30 exploration batches, 4 reveals (E: the mix) | 619,314,859 | $0.546 | 0.93x |
+| 27 exploration + 3 fights at real health (4 ticks each) (E: the mix) | 1,078,021,777 | $0.950 | 1.63x |
+| 27 exploration + 3 whole fights (10 ticks of 8 attackers) (E: the mix) | 1,870,489,321 | $1.648 | 2.82x |
+| 27 exploration + 3 whole fights, lever 1 (at most 4 attackers) (E: the mix) | 1,592,268,289 | $1.403 | 2.40x |
