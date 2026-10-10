@@ -161,6 +161,54 @@ pub impl MemberImpl of MemberTrait {
         )
     }
 
+    /// The member of `words`, `member`'s words after a carrier (CBT-05d): when their effects, stats,
+    /// bar and kit are `member`'s, every field `load` derives from those is `member`'s and only
+    /// the hot fields are read again; else `load`.
+    fn reload(member: @Member, words: MemberWords, ref index: Index, sheets: @Sheets) -> Member {
+        let was = *member.words;
+        if words.effects != was.effects
+            || words.stats != was.stats
+            || words.bar != was.bar
+            || words.kit != was.kit {
+            return Self::load(words, ref index, sheets);
+        }
+        let (
+            status,
+            health,
+            energy,
+            adrenaline,
+            flags,
+            act_slot,
+            act_target,
+            act_tile,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+        ) =
+            Self::hot(
+            @words,
+        );
+        Member {
+            status,
+            health,
+            energy,
+            adrenaline,
+            flags,
+            act_slot,
+            act_target,
+            act_tile,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+            words,
+            ..*member
+        }
+    }
+
     /// A member from its words, with what it derives once: the maxima and regeneration of
     /// `MemberStats`, each held effect's deadline and `REGENERATION` pips (a skill's at the slot's
     /// rank, a potion's through the belt of `MemberKit`), its bar's positions in the content and

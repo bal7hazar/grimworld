@@ -1263,6 +1263,10 @@ pub struct Delegate {
     /// Inside `AiLibrary`: the living goblins away from their spawn chunk its world does not hold
     /// (D-238's roster count).
     pub listed: u8,
+    /// The last carrier's records (`subcontent`) under their key (CBT-05d): every member's bar,
+    /// effects and kit words, then each goblin carried's caste and held effect's skill, all that
+    /// `subcontent` reads; a carrier with the same key takes them without the pass.
+    pub memo: Option<(Span<felt252>, Content)>,
 }
 
 pub impl DelegateRules of Rules<Delegate> {
@@ -1456,18 +1460,55 @@ pub impl DelegateCarry of Carry<Delegate> {
         let wide = ExecutorTrait::wide(@lever, sheets, carrier);
         let mut picked: Array<u32> = array![];
         let mut sub = actor;
-        for (i, state) in world.alive() {
-            let (x, y, _) = GoblinPlaceTrait::at(state);
-            let at = board.position(x, y);
-            let own = actor == Actor::Goblin(i);
-            let near = wide
-                && (WindowTrait::distance(at, source_at) <= 1
-                    || WindowTrait::distance(at, address_at) <= 1);
-            if own || addressed == Some(i) || near {
-                if own {
-                    sub = Actor::Goblin(picked.len());
+        if wide {
+            for (i, state) in world.alive() {
+                let (x, y, _) = GoblinPlaceTrait::at(state);
+                let at = board.position(x, y);
+                let own = actor == Actor::Goblin(i);
+                let near = WindowTrait::distance(at, source_at) <= 1
+                    || WindowTrait::distance(at, address_at) <= 1;
+                if own || addressed == Some(i) || near {
+                    if own {
+                        sub = Actor::Goblin(picked.len());
+                    }
+                    picked.append(i);
                 }
-                picked.append(i);
+            }
+        } else {
+            // CBT-05d: a `SINGLE` carrier's goblins are its source and the addressed one, living,
+            // read without the pass over every goblin the loop above makes (the same picks)
+            let own = match actor {
+                Actor::Goblin(i) => if world.goblin(i).is_alive() {
+                    Some(i)
+                } else {
+                    None
+                },
+                Actor::Member(_) => None,
+            };
+            let other = match addressed {
+                Some(i) => if own != Some(i) && world.goblin(i).is_alive() {
+                    Some(i)
+                } else {
+                    None
+                },
+                None => None,
+            };
+            match (own, other) {
+                (Some(i), Some(j)) => if i < j {
+                    sub = Actor::Goblin(0);
+                    picked.append(i);
+                    picked.append(j);
+                } else {
+                    sub = Actor::Goblin(1);
+                    picked.append(j);
+                    picked.append(i);
+                },
+                (Some(i), None) => {
+                    sub = Actor::Goblin(0);
+                    picked.append(i);
+                },
+                (None, Some(j)) => picked.append(j),
+                (None, None) => {},
             }
         }
         let mut members = array![];
@@ -1481,11 +1522,32 @@ pub impl DelegateCarry of Carry<Delegate> {
         for i in picked.span() {
             goblins.append(world.goblin(*i).store());
         }
+        // Option (3)'s lever (1): only the records the sub-world's loads need, those of the last
+        // carrier when its key is the same (a pack's goblins hitting the same member, CBT-05d).
+        let mut key: Array<felt252> = array![];
+        for words in members.span() {
+            key.append(*words.bar);
+            key.append(*words.effects);
+            key.append(*words.kit);
+        }
+        for i in picked.span() {
+            let goblin = world.goblin(*i);
+            key.append(goblin.caste.into());
+            key.append(goblin.effect_of().carrier.into());
+        }
+        let key = key.span();
+        let mut content = match self.memo {
+            Some((last, records)) => if last == key {
+                records
+            } else {
+                ExecutorTrait::subcontent(@world, picked.span(), @self.content)
+            },
+            None => ExecutorTrait::subcontent(@world, picked.span(), @self.content),
+        };
+        self.memo = Some((key, content));
         let words = Words {
             clock: world.clock, members, goblins, killed: array![], defeated: false,
         };
-        // Option (3)'s lever (1): only the records the sub-world's loads need.
-        let mut content = ExecutorTrait::subcontent(@world, picked.span(), @self.content);
         // The carrier's skill at its position in the trimmed content (the class loads that one);
         // a potion drunk in the action phase (CBT-05b) joins it if no held effect brought it.
         let carrier = match carrier {
@@ -1538,7 +1600,7 @@ pub impl DelegateCarry of Carry<Delegate> {
         self.cache = cache;
         let mut m = 0;
         for words in out.members {
-            let member = MemberTrait::load(words, ref self.index, sheets);
+            let member = MemberTrait::reload(@world.member(m), words, ref self.index, sheets);
             world.set_member(m, member);
             m += 1;
         }

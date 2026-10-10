@@ -3598,6 +3598,7 @@ fn test_cost_route_c_tick() {
         level: 10,
         frozen: 0,
         listed: 0,
+        memo: None,
     };
     TickTrait::tick(ref world, @sheets, ref rules);
     assert(rules.cache.hits == 8 && !world.defeated, 'eight hits');
@@ -3883,6 +3884,7 @@ fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
         level: 10,
         frozen: 0,
         listed: 0,
+        memo: None,
     };
     (world, sheets, rules)
 }
@@ -4231,6 +4233,7 @@ fn segment_of(words: Words, actions: Span<Action>) -> (Words, grimworld_logic::t
         level: 10,
         frozen: 0,
         listed: 0,
+        memo: None,
     };
     let done = grimworld_logic::types::play::SegmentTrait::run(
         ref world, @sheets, ref rules, @area, @classes, actions, 0, 10,
@@ -4569,6 +4572,7 @@ fn cap_step(cap: u8) -> u8 {
         level: 10,
         frozen: 0,
         listed: 0,
+        memo: None,
     };
     let (_, attacks) = grimworld_logic::types::ai::AiTrait::capped(
         ref world, @sheets, ref rules, 0, cap,
@@ -4771,3 +4775,4 @@ fn test_fight_roster_count() {
     println!("fight: goblins away from their spawn chunk {}", away);
     assert(away < 60, 'never 60');
 }
+

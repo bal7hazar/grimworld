@@ -42,6 +42,7 @@ pub mod SegmentLibrary {
                 level,
                 frozen: 0,
                 listed: 0,
+                memo: None,
             };
             let _ = Zero::<felt252>::zero();
             let done = SegmentTrait::run(

@@ -546,17 +546,38 @@ pub impl SegmentImpl of SegmentTrait {
             }
             fresh.append(*now.entity);
         }
+        weight = Self::admit(changed.len(), fresh.len(), firsts, cost, ran, weight)?;
+        changed.append_span(fresh.span());
+        Some(all)
+    }
+
+    /// E-16's cap and E-1's weight on one action (`fits`' rule, `vectors/batch.jsonl`): with
+    /// `changed` records counted before it, `fresh` new ones, `firsts` of them first records, and
+    /// `cost` ticks, the weight left after it, floored at 0; `None` when `ran` (not the
+    /// invocation's first action, E-21) and it would pass `MAX_RECORDS` or the weight.
+    fn admit(changed: u32, fresh: u32, firsts: u8, cost: u8, ran: bool, weight: u8) -> Option<u8> {
         let total = cost + firsts;
-        if ran && (changed.len() + fresh.len() > MAX_RECORDS || total > weight) {
+        if ran && (changed + fresh > MAX_RECORDS || total > weight) {
             return None;
         }
-        changed.append_span(fresh.span());
-        weight = if weight > total {
-            weight - total
+        Some(
+            if weight > total {
+                weight - total
+            } else {
+                0
+            },
+        )
+    }
+
+    /// The weight left after a reveal of `chunks` chunks (2 a chunk, design/02), taken from the
+    /// weight left after the Move that caused it, floored at 0 (`PlayLibrary`, between segments).
+    fn revealed(weight: u8, chunks: u32) -> u8 {
+        let cost: u8 = 2 * chunks.try_into().unwrap();
+        if weight > cost {
+            weight - cost
         } else {
             0
-        };
-        Some(all)
+        }
     }
 
     /// Every goblin of `world` as it is now (one copy of `current` for its two callers).
@@ -923,6 +944,7 @@ mod tests {
             level: 1,
             frozen: 0,
             listed: 0,
+            memo: None,
         };
         let classes = Classes {
             executor: Zero::zero(),
@@ -947,6 +969,113 @@ mod tests {
         assert(x == 20 && y == 22 && world.clock == 49, 'the member did not move');
     }
 
+    /// One `owed` row: a Move's owed ticks (`owed` records, `owed_firsts` first ones) counted with
+    /// the next segment's first action (`next`: whether there is one; its `fresh` records,
+    /// `firsts` and `cost`), as `SegmentTrait::run` counts them; the owed ticks run either way.
+    fn owed_row(
+        ref digest: Array<felt252>, ref id: u32, case: [u32; 8],
+    ) {
+        let [changed, owed, owed_firsts, fresh, firsts, cost, weight, next] = case;
+        let (stopped, written, left) = if next == 0 {
+            (0, changed + owed, weight)
+        } else {
+            match SegmentTrait::admit(
+                changed,
+                owed + fresh,
+                (owed_firsts + firsts).try_into().unwrap(),
+                cost.try_into().unwrap(),
+                true,
+                weight.try_into().unwrap(),
+            ) {
+                Some(left) => (0, changed + owed + fresh, left.into()),
+                None => (1, changed + owed, weight),
+            }
+        };
+        let mut row: Array<felt252> = array![];
+        for v in case.span() {
+            row.append((*v).into());
+        }
+        emit(
+            ref digest,
+            ref id,
+            "owed",
+            row.span(),
+            array![stopped.into(), written.into(), left.into()].span(),
+        );
+    }
+
+    // `vectors/batch.jsonl` (CBT-05d): where a batch stops, for the client's mirror. `records`:
+    // E-16's cap and E-1's weight on one action (`admit`); `owed`: a Move's owed ticks counted
+    // with the next segment's first action; `reveal`: a reveal's weight after the Move's.
+    #[test]
+    fn test_batch_vectors() {
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = 0;
+        // `records`: (changed, fresh, firsts, cost, ran, weight) → (stopped, changed after,
+        // weight left): the 16th record passes and the 17th stops, from 10 and across the
+        // boundary; first records weigh 1 more each (E-1), the weight cut at exactly 0 and one
+        // past; the invocation's first action binds neither (E-21), its weight floored at 0
+        let cases: Array<(u32, u32, u8, u8, bool, u8)> = array![
+            (10, 6, 0, 1, true, 9), (10, 7, 0, 1, true, 9), (15, 1, 0, 1, true, 5),
+            (16, 0, 0, 1, true, 5), (16, 1, 0, 1, true, 5), (0, 16, 0, 1, true, 10),
+            (0, 17, 0, 1, true, 10), (2, 2, 2, 1, true, 3), (2, 3, 3, 1, true, 3),
+            (0, 1, 1, 2, true, 2), (0, 0, 0, 2, true, 1), (0, 20, 8, 1, false, 10),
+            (0, 20, 12, 1, false, 10), (40, 1, 0, 1, false, 0),
+        ];
+        for (changed, fresh, firsts, cost, ran, weight) in cases.span() {
+            let ran_felt: felt252 = if *ran {
+                1
+            } else {
+                0
+            };
+            let case = array![
+                (*changed).into(), (*fresh).into(), (*firsts).into(), (*cost).into(), ran_felt,
+                (*weight).into(),
+            ];
+            let ok = match SegmentTrait::admit(*changed, *fresh, *firsts, *cost, *ran, *weight) {
+                Some(left) => array![0, (*changed + *fresh).into(), left.into()],
+                None => array![1, (*changed).into(), (*weight).into()],
+            };
+            emit(ref digest, ref id, "records", case.span(), ok.span());
+        }
+        // `owed`: (changed, owed, owed firsts, next fresh, next firsts, next cost, weight, next)
+        // → (the next action stopped, records written, weight left). The owed ticks' 7 records
+        // after 10 stop a next action that adds none (`test_play_records_owed_ticks`: 17
+        // written); 6 do not; with no next action, nothing stops and every owed record is
+        // written: 16 + 40 (the window's goblins) and E-16's 16 + 2 × 40 = 96
+        owed_row(ref digest, ref id, [10, 7, 0, 0, 0, 1, 4, 1]);
+        owed_row(ref digest, ref id, [10, 6, 0, 0, 0, 1, 4, 1]);
+        owed_row(ref digest, ref id, [10, 6, 0, 1, 0, 1, 4, 1]);
+        owed_row(ref digest, ref id, [10, 7, 0, 0, 0, 1, 4, 0]);
+        owed_row(ref digest, ref id, [0, 8, 8, 0, 0, 1, 9, 1]);
+        owed_row(ref digest, ref id, [0, 8, 8, 0, 0, 1, 8, 1]);
+        owed_row(ref digest, ref id, [16, 40, 0, 0, 0, 1, 4, 0]);
+        owed_row(ref digest, ref id, [16, 80, 0, 0, 0, 1, 4, 0]);
+        // `reveal`: (weight, the Move's ticks, its first records, chunks revealed) → (weight after
+        // the Move, after the reveal): the Move counted first, then 2 a chunk, floored at 0, so a
+        // Move that reveals more than the weight left is played
+        let reveals: Array<(u8, u8, u8, u32)> = array![
+            (10, 1, 0, 1), (10, 2, 0, 3), (3, 1, 0, 2), (1, 1, 0, 1), (10, 1, 2, 4), (2, 2, 0, 1),
+        ];
+        for (weight, ticks, firsts, chunks) in reveals.span() {
+            let after = SegmentTrait::admit(0, (*firsts).into(), *firsts, *ticks, true, *weight)
+                .unwrap();
+            let left = SegmentTrait::revealed(after, *chunks);
+            emit(
+                ref digest,
+                ref id,
+                "reveal",
+                array![(*weight).into(), (*ticks).into(), (*firsts).into(), (*chunks).into()]
+                    .span(),
+                array![after.into(), left.into()].span(),
+            );
+        }
+        let digest = core::poseidon::poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
+        assert(digest == BATCH_DIGEST, 'vectors moved: regenerate');
+    }
+
     const DIGEST: felt252 =
         927113589772750725131747890767271916714351212897433227864916371620935306790;
+    const BATCH_DIGEST: felt252 = 0;
 }
