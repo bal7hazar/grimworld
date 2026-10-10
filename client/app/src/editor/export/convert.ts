@@ -21,6 +21,8 @@ export interface Manifest {
   readonly pack_bounds?: Readonly<Record<string, readonly [number, number]>>;
   /** Each location's kind (`zone`, `town`, `dungeon`…): a gate to a dungeon may stand inside. */
   readonly location_kinds?: Readonly<Record<string, string>>;
+  /** Each location with a map, its `[width, height]` in chunks (R-41, ENG-R1c-1). */
+  readonly location_sizes?: Readonly<Record<string, readonly [number, number]>>;
 }
 
 export type Hex = readonly [number, number];
@@ -347,6 +349,7 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     chunks.get(c)!.tiles[i] = t;
   }
   const gates = new Map<number, R.GateFields>();
+  const destinations = new Map<number, readonly [number, number]>();
   for (const gt of e.gates ?? []) {
     const [c, t] = chunkOf(gt.x, gt.y, "gate");
     const gid = resolve(manifest, "gates", gt.gate, "gate");
@@ -375,6 +378,13 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
       rank: gt.rank ?? 0,
       quest: R.assertId(`gate ${JSON.stringify(gt.gate)} quest`, gt.quest ?? 0, GATE_QUEST_BITS),
     });
+    // R-41: the destination's rectangle, when the manifest gives it (`location_sizes`) and the
+    // destination has a map (a hub has none)
+    const sizes = manifest.location_sizes ?? {};
+    const size = Object.hasOwn(sizes, gt.to) ? sizes[gt.to] : undefined;
+    if (size !== undefined && destination !== "town" && destination !== "outpost") {
+      destinations.set(gates.get(gid)!.destination, size);
+    }
   }
   const bridges = new Map<number, R.BridgeFields[]>();
   for (const b of e.bridges ?? []) {
@@ -429,6 +439,7 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     candidates,
     hearts,
     gates,
+    destinations,
     bridges,
     walk,
     zone,
