@@ -539,9 +539,14 @@ if OPTIONS.get("--authored") == "on":
             continue
         if kind in (map_records.CANDIDATES, map_records.QUOTAS) and OPTIONS.get("--quotas") != "on":
             continue
-        if kind == map_records.ZONE_CHUNK and rid % 256 == 0:
+        if kind == map_records.ZONE_CHUNK:
+            # Chunk 0 names both gates anchored on its entry tile; without quotas no chunk keeps a
+            # candidate tile (R-14: none where no `CANDIDATES` names the chunk)
             chunk = map_records.unpack_zone_chunk(felts)
-            chunk["gates"] = [2, 6]
+            if rid % 256 == 0:
+                chunk["gates"] = [2, 6]
+            if OPTIONS.get("--quotas") != "on":
+                chunk["tiles"] = [0] * 6
             felts = map_records.pack_zone_chunk(chunk)
         authored.append((kind, rid, felts))
     records[5:5] = authored
