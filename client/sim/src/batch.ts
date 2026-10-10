@@ -4,9 +4,8 @@
 // weight (a first record raises it by 1), and a reveal's 2 a chunk. This file mirrors those two
 // only; the rules, their edges and their reasons are the Cairo functions' documentation.
 //
-// A preview of a batch also needs `SegmentTrait::run`'s composition, not mirrored here: the owed
-// ticks' fold, the Move counted before `revealed`, the cost `max(1, ticks)`, the `cost > weight`
-// check, the `ran` rule, the stop after a reveal Move, and `fits`. A later lot mirrors them.
+// `SegmentTrait::run`'s composition around `admit` (the owed ticks' fold, the cost `max(1, ticks)`,
+// the `cost > weight` check, the `ran` rule, the stop after a reveal Move, `fits`) is `segment.ts`'s.
 
 import { add, mul, narrow, u32, u8 } from "./felt";
 

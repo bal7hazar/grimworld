@@ -61,6 +61,18 @@ describe("parity with the Cairo code", () => {
     expect(Object.fromEntries(counts)).toEqual({ records: 14, owed: 8, reveal: 6 });
   });
 
+  it("covers every fn of segment.jsonl with its count", () => {
+    const counts = replay(table("segment.jsonl"), readTable("segment.jsonl"));
+    expect(Object.fromEntries(counts)).toEqual({
+      fold: 6,
+      reveal: 6,
+      cost: 12,
+      ran: 4,
+      fits: 5,
+      halt: 14,
+    });
+  });
+
   it("covers every fn of packing.jsonl with its count", () => {
     const counts = replay(table("packing.jsonl"), readTable("packing.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({

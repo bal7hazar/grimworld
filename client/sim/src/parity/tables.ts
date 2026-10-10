@@ -42,6 +42,8 @@ import {
   word,
 } from "../reveal";
 import { base } from "../reveal/board";
+import { run as runSegment } from "../segment";
+import type { Action, Area, Done, World } from "../segment";
 import type { Entry, Mirror } from "./replay";
 
 /** The felts of a case, exactly `count` of them. */
@@ -274,6 +276,110 @@ const batch: Record<string, Mirror> = {
   },
 };
 
+/** The felts of a `Serde`, read in order. */
+class Reader {
+  private at = 0;
+  constructor(private readonly felts: readonly bigint[]) {}
+  felt(): bigint {
+    const felt = this.felts[this.at++];
+    if (felt === undefined) throw new RangeError(`${this.felts.length} felts, more expected`);
+    return felt;
+  }
+  small(): number {
+    return small(this.felt());
+  }
+  u16(): number {
+    return Number(fromFelt(u16, this.felt()));
+  }
+  u32(): number {
+    return Number(fromFelt(u32, this.felt()));
+  }
+  span<T>(item: () => T): T[] {
+    return Array.from({ length: this.u32() }, item);
+  }
+  end(): void {
+    if (this.at !== this.felts.length) {
+      throw new RangeError(`${this.felts.length} felts, ${this.at} read`);
+    }
+  }
+}
+
+/** An `Action` of a `Serde`: the variants a segment row holds; the combat ones are not mirrored. */
+function action(read: Reader): Action {
+  const variant = read.felt();
+  if (variant === 0n) return { kind: "move", direction: read.small() };
+  if (variant === 1n) return { kind: "turn", direction: read.small() };
+  if (variant === 2n) return { kind: "wait" };
+  if (variant === 6n) return { kind: "interact", tile: read.u16() };
+  throw new RangeError(`action variant ${variant}: not in the segment table`);
+}
+
+/**
+ * A `segment` row's case: the adventurer (alone, no goblin, flags 0, no effect, as the unit-test
+ * fixture), `Area`, `owed`, `weight`, the actions.
+ */
+function segmentFromFelts(c: readonly bigint[]): [World, Area, readonly Action[], number, number] {
+  const read = new Reader(c);
+  const clock = read.u32();
+  const [x, y, facing, status] = [read.small(), read.small(), read.small(), read.small()];
+  const health = read.u16();
+  const [crippled, knocked] = [read.u32(), read.u32()];
+  const world: World = {
+    clock,
+    // The unit-test fixture's: max health 480, no regeneration, no condition but Crippled and
+    // the knock-down, no effect
+    adventurer: {
+      ...{ x, y, facing, status, health, max_health: 480, health_regen: 0 },
+      ...{ bleeding: 0, poison: 0, burning: 0, effects: [], crippled, knocked },
+      ...{ flags: 0, movement: false },
+    },
+    members: 1,
+    goblins: [],
+    calm: true,
+    defeated: false,
+    armed: [],
+  };
+  const area: Area = {
+    width: read.small(),
+    height: read.small(),
+    known: read.felt(),
+    revealed: read.felt(),
+    chunks: read.span(() => [read.small(), read.felt()] as const),
+    changed: read.span(() => read.u16()),
+    ran: boolFromFelt(read.felt()),
+  };
+  const owed = read.small();
+  const weight = read.small();
+  const actions = read.span(() => action(read));
+  read.end();
+  return [world, area, actions, owed, weight];
+}
+
+/** The world after and `Done`, as the row prints them. */
+function segmentToFelts(world: World, done: Done): bigint[] {
+  const { x, y, facing, flags } = world.adventurer;
+  return [
+    ...[world.clock, x, y, facing, flags, done.played, done.weight, done.owed].map(BigInt),
+    ...bool(done.reveal),
+    ...(done.illegal === undefined ? [1n] : [0n, BigInt(done.illegal)]),
+    ...bool(done.heavy),
+    BigInt(done.changed.length),
+    ...done.changed.map(BigInt),
+    ...bool(done.undo),
+  ];
+}
+
+/** Every `fn` of the segment table is one call of `run`; the `fn` names the branch it is about. */
+const segmentRow: Mirror = (c) => {
+  const [world, area, actions, owed, weight] = segmentFromFelts(c);
+  const { world: after, done } = runSegment(world, area, actions, owed, weight);
+  return segmentToFelts(after, done);
+};
+
+const segment: Record<string, Mirror> = Object.fromEntries(
+  ["fold", "reveal", "cost", "ran", "fits", "halt"].map((name) => [name, segmentRow]),
+);
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
@@ -282,4 +388,5 @@ export const TABLES: readonly Entry[] = [
   { file: "movement.jsonl", floor: 81, fns: movement },
   { file: "reveal.jsonl", floor: 197, fns: reveal },
   { file: "batch.jsonl", floor: 28, fns: batch },
+  { file: "segment.jsonl", floor: 47, fns: segment },
 ];
