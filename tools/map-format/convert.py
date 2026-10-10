@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""The converter of ENG-08 (deliverable 5): an editor's export (`grimworld-export`, version 1,
-`schema.json`) to the on-chain records of its map, in the order of their writes, and to the seed's
-rows. Python 3, the standard library only. Promoted to `tools/map-format/` by ENG-09 (D-215).
+"""The converter (ENG-08 deliverable 5, promoted from SPK-16 by ENG-09, D-215 ruling 9): an editor's
+export (`grimworld-export`, version 1, `schema.json`) to the on-chain records of its map, in the
+order of their writes, and to the seed's rows. Python 3, the standard library only.
 
 It refuses exactly what the Registry's checks refuse (`records.py`, the same codes as
-`src/checks.cairo`), and checks itself what no record holds alone, the content pipeline's rules:
-every walkable tile of the zone reachable from its entry, the records re-assembled across their
-seams equal to the painted map, each bridge's deck connected.
+`RegistryAssert`'s and `ZoneAssert`'s in `contracts/persistent/src/systems/registry.cairo`), and
+checks itself what no record holds alone, the content pipeline's rules: every walkable tile of the
+zone reachable from its entry, the records re-assembled across their seams equal to the painted
+map, each bridge's deck connected. Only the hexes inside the fitted rectangle (`size` chunks from
+the origin, D-216) are exported; a painted hex outside it is refused (`export: hex outside the
+size`).
 
-    python3 map-format/convert.py samples/zone.json --manifest samples/manifest.json \\
+    python3 tools/map-format/convert.py samples/zone.json --manifest samples/manifest.json \\
         --out samples/zone.records.json [--golden samples/zone.golden.json] [--seed out.json]
 
 Exit 0 and the records written; exit 1 and one line `refused: <code>: <detail>` otherwise.
@@ -100,7 +103,7 @@ def build_zone(export, manifest):
     the pipeline's rules read."""
     table = kinds()
     plane = Plane(export)
-    blocked = set()
+    blocked, footprints = set(), []
     # [Compute] What the client-only objects make unwalkable: a building's footprint but its door,
     # a blocking prop's hex (track game, 2026-10-05; CLI-09e §4)
     for b in export.get("buildings", []):
@@ -110,6 +113,7 @@ def build_zone(export, manifest):
         door = plane.glob(*b["door"])
         if door not in foot or all(n in foot for n in R.neighbours(*door)):
             raise R.Refused("export: door not on the border", f"building {b['kind']!r}")
+        footprints.append((b["kind"], foot, door))
         blocked |= foot - {door}
     for p in export.get("props", []):
         kind = table["props"].get(p["kind"])
@@ -121,7 +125,27 @@ def build_zone(export, manifest):
         if n["kind"] not in table["npcs"]:
             raise R.Refused("export: unknown kind", f"npc {n['kind']!r}")
     zone = {g for g, c in plane.cells.items() if c["inside"]}
-    walk = {g for g in zone if plane.cells[g]["walk"] and g not in blocked}
+    # [Compute] Each building's footprint, authored per building (the kind table's is the editor's
+    # default): in the zone and in one piece, its door walkable (track CV, 2026-10-07)
+    for kind, foot, door in footprints:
+        if foot - zone:
+            raise R.Refused("export: footprint outside the set", f"building {kind!r}")
+        if connected(foot, door) != foot:
+            raise R.Refused("export: footprint not connected", f"building {kind!r}")
+        if not plane.cells[door]["walk"]:
+            raise R.Refused("export: door not walkable", f"building {kind!r}")
+    # [Compute] The bridges' decks: walkable ground over water (D-227, ADR-0008 rule 1), refused
+    # outside the zone or on a blocked hex, then written walkable before the walls
+    decks = set()
+    for b in export.get("bridges", []):
+        if b["kind"] not in table["bridges"]:
+            raise R.Refused("export: unknown kind", f"bridge {b['kind']!r}")
+        decks |= {plane.glob(*h) for h in b["deck"]}
+    if decks - zone:
+        raise R.Refused("export: deck outside the zone", f"{sorted(decks - zone)[:3]}")
+    if decks & blocked:
+        raise R.Refused("export: deck blocked", f"{sorted(decks & blocked)[:3]}")
+    walk = {g for g in zone if plane.cells[g]["walk"] and g not in blocked} | decks
     # [Compute] The chunk set and the border chunks' masks
     chunk_set, masks, tiles_of = 0, {}, {}
     for g in zone:
@@ -190,6 +214,12 @@ def build_zone(export, manifest):
     for gt in export.get("gates", []):
         c, t = chunk_of(gt["x"], gt["y"], "gate")
         gid = resolve(manifest, "gates", gt["gate"], "gate")
+        # E-5: a gate to another location anchors on the outline (a zone hex with a neighbour
+        # outside the zone); a dungeon's entrance (its destination a dungeon) may stand inside
+        g = plane.glob(gt["x"], gt["y"])
+        destination = manifest.get("location_kinds", {}).get(gt["to"])
+        if destination != "dungeon" and all(n in zone for n in R.neighbours(*g)):
+            raise R.Refused("export: gate not on the outline", f"gate {gt['gate']!r}")
         slot = chunks[c]["gates"]
         if 0 not in slot:
             raise R.Refused("export: three gates in a chunk", f"chunk {c}")
@@ -201,8 +231,6 @@ def build_zone(export, manifest):
                       "rank": gt.get("rank", 0), "quest": gt.get("quest", 0)}
     bridges = {}
     for b in export.get("bridges", []):
-        if b["kind"] not in table["bridges"]:
-            raise R.Refused("export: unknown kind", f"bridge {b['kind']!r}")
         deck = [plane.chunk_tile(plane.glob(*h)) for h in b["deck"]]
         ends = [plane.chunk_tile(plane.glob(*h)) for h in b["ends"]]
         c = deck[0][0]

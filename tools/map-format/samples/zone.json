@@ -1,0 +1,426 @@
+{
+ "format": "grimworld-export",
+ "version": 1,
+ "editor": "spike",
+ "kind": "zone",
+ "name": "Meadow Edge",
+ "location": "meadow_edge",
+ "region": "test_region",
+ "biome": "meadow",
+ "level_min": 1,
+ "level_max": 3,
+ "rank": 0,
+ "spawn_table": "meadow",
+ "origin": {
+  "x": -20,
+  "y": -14
+ },
+ "size": {
+  "width": 3,
+  "height": 2
+ },
+ "rows": [
+  {
+   "y": -14,
+   "x": -20,
+   "terrain": "###########################################",
+   "ground": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -13,
+   "x": -20,
+   "terrain": "#........................................##",
+   "ground": "eggggggggggggggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -12,
+   "x": -20,
+   "terrain": "#........................................##",
+   "ground": "eggggggggggggggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -11,
+   "x": -20,
+   "terrain": "#....#...................................##",
+   "ground": "eggggegggggggggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -10,
+   "x": -20,
+   "terrain": "#..........................#.............##",
+   "ground": "eggggggggggggggggggggggggggegggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -9,
+   "x": -20,
+   "terrain": "#........................................##",
+   "ground": "eggggggggggggggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -8,
+   "x": -20,
+   "terrain": "#...................#####................##",
+   "ground": "egggggggggggggggggggwwwwwggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -7,
+   "x": -20,
+   "terrain": "....................#####................##",
+   "ground": "ggggggggggggggggggggwwwwwggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -6,
+   "x": -20,
+   "terrain": "#...................#####................##",
+   "ground": "egggggggggggggggggggwwwwwggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -5,
+   "x": -20,
+   "terrain": "#................................#.......##",
+   "ground": "eggggggggggggggggggggggggggggggggegggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -4,
+   "x": -20,
+   "terrain": "#........................................##",
+   "ground": "eggggggggggggggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -3,
+   "x": -20,
+   "terrain": "#...........#............................##",
+   "ground": "egggggggggggeggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -2,
+   "x": -20,
+   "terrain": "#........................................##",
+   "ground": "eggggggggggggggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": -1,
+   "x": -20,
+   "terrain": "#........................................##",
+   "ground": "eggggggggggggggggggggggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": 0,
+   "x": -20,
+   "terrain": "#.............................#############",
+   "ground": "egggggggggggggggggggggggggggggeeeeeeeeeeeeg",
+   "outline": "1111111111111111111111111111111111111111110"
+  },
+  {
+   "y": 1,
+   "x": -20,
+   "terrain": "#............................#############",
+   "ground": "eggggggggggggggggggggggggggggegggggggggggg",
+   "outline": "111111111111111111111111111111000000000000"
+  },
+  {
+   "y": 2,
+   "x": -20,
+   "terrain": "#.......#....................##",
+   "ground": "egggggggwggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 3,
+   "x": -20,
+   "terrain": "#.......#....................##",
+   "ground": "egggggggwggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 4,
+   "x": -20,
+   "terrain": "#.......#........#...........##",
+   "ground": "egggggggwggggggggegggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 5,
+   "x": -20,
+   "terrain": "#.......#....................##",
+   "ground": "egggggggwggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 6,
+   "x": -20,
+   "terrain": "#...#...#....................##",
+   "ground": "egggegggwggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 7,
+   "x": -20,
+   "terrain": "#.......#....................##",
+   "ground": "egggggggwggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 8,
+   "x": -20,
+   "terrain": "#.......#....................##",
+   "ground": "egggggggwggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 9,
+   "x": -20,
+   "terrain": "#.......#....................##",
+   "ground": "egggggggwggggggggggggggggggggeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 10,
+   "x": -20,
+   "terrain": "#.......#................######",
+   "ground": "egggggggwggggggggggggggggeeeeeg",
+   "outline": "1111111111111111111111111111110"
+  },
+  {
+   "y": 11,
+   "x": -20,
+   "terrain": "#.......#...............######",
+   "ground": "egggggggwgggggggggggggggeggggg",
+   "outline": "111111111111111111111111100000"
+  },
+  {
+   "y": 12,
+   "x": -20,
+   "terrain": "#.......................##",
+   "ground": "egggggggggggggggggggggggeg",
+   "outline": "11111111111111111111111110"
+  },
+  {
+   "y": 13,
+   "x": -20,
+   "terrain": "#.......................##",
+   "ground": "egggggggggggggggggggggggeg",
+   "outline": "11111111111111111111111110"
+  },
+  {
+   "y": 14,
+   "x": -20,
+   "terrain": "#.......................##",
+   "ground": "egggggggggggggggggggggggeg",
+   "outline": "11111111111111111111111110"
+  },
+  {
+   "y": 15,
+   "x": -20,
+   "terrain": "##########################",
+   "ground": "eeeeeeeeeeeeeeeeeeeeeeeeeg",
+   "outline": "11111111111111111111111110"
+  }
+ ],
+ "entry": {
+  "x": -20,
+  "y": -7
+ },
+ "quotas": [
+  {
+   "kind": "collector",
+   "param": "camp",
+   "count": 1
+  },
+  {
+   "kind": "vein",
+   "param": null,
+   "count": 1
+  },
+  {
+   "kind": "heart",
+   "param": "raiders",
+   "count": 1
+  }
+ ],
+ "candidates": [
+  {
+   "quota": 0,
+   "x": 1,
+   "y": -11
+  },
+  {
+   "quota": 0,
+   "x": -2,
+   "y": 6
+  },
+  {
+   "quota": 1,
+   "x": 16,
+   "y": -9
+  },
+  {
+   "quota": 1,
+   "x": -17,
+   "y": 11
+  },
+  {
+   "quota": 2,
+   "x": 18,
+   "y": -4
+  },
+  {
+   "quota": 2,
+   "x": 4,
+   "y": 5
+  }
+ ],
+ "spawns": [
+  {
+   "template": "raiders",
+   "x": -1,
+   "y": -4
+  },
+  {
+   "template": "cubs",
+   "x": 13,
+   "y": -11
+  },
+  {
+   "template": "cubs",
+   "x": -8,
+   "y": 10
+  },
+  {
+   "template": "raiders",
+   "x": 7,
+   "y": 7
+  }
+ ],
+ "features": [
+  {
+   "feature": "landmark",
+   "param": "old_oak",
+   "x": -11,
+   "y": -5
+  },
+  {
+   "feature": "chest",
+   "param": null,
+   "x": 20,
+   "y": -2
+  },
+  {
+   "feature": "lever",
+   "param": null,
+   "x": -4,
+   "y": 12
+  }
+ ],
+ "gates": [
+  {
+   "gate": "to_town",
+   "to": "test_town",
+   "kind": "hub",
+   "rank": 0,
+   "quest": 0,
+   "entry_chunk": 0,
+   "entry_tile": 0,
+   "x": -20,
+   "y": -7
+  },
+  {
+   "gate": "to_floor",
+   "to": "floor_1",
+   "kind": "link",
+   "rank": 0,
+   "quest": 0,
+   "entry_chunk": 112,
+   "entry_tile": 112,
+   "x": 0,
+   "y": 8
+  }
+ ],
+ "npcs": [
+  {
+   "kind": "sheep",
+   "x": -14,
+   "y": -2,
+   "facing": 3
+  }
+ ],
+ "buildings": [
+  {
+   "kind": "hut",
+   "footprint": [
+    [
+     5,
+     -2
+    ],
+    [
+     6,
+     -2
+    ],
+    [
+     5,
+     -1
+    ]
+   ],
+   "anchor": [
+    5,
+    -2
+   ],
+   "door": [
+    5,
+    -2
+   ],
+   "depth": 1,
+   "mirror": false
+  }
+ ],
+ "props": [
+  {
+   "kind": "tree",
+   "x": -10,
+   "y": -10,
+   "variant": 2
+  },
+  {
+   "kind": "bush",
+   "x": -9,
+   "y": -10,
+   "variant": 0,
+   "flip": true
+  }
+ ],
+ "bridges": [
+  {
+   "kind": "stone_bridge",
+   "deck": [
+    [
+     -12,
+     6
+    ]
+   ],
+   "ends": [
+    [
+     -13,
+     6
+    ],
+    [
+     -11,
+     6
+    ]
+   ]
+  }
+ ]
+}

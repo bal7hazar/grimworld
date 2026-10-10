@@ -1,9 +1,10 @@
-"""The converter (ENG-08 AC-3, AC-7): the samples convert, the committed outputs are what it writes,
-and it refuses each case of `checks.json` with its code. A registry case is the same mutation as
-`tests/test_checks.cairo`'s `test_refuse_<case>`, which snforge runs; `test_cairo_twins` holds that
-each one exists there with the same code.
+"""The converter (ENG-08 AC-3, AC-7; ENG-09): the samples convert, the committed outputs are what it
+writes, and it refuses each case of `checks.json` with its code. A registry case is refused by the
+Registry itself in `contracts/persistent/tests/test_zone.cairo`'s `test_refuse_<case>` (a write of
+the sample, or a rewrite, that breaks the same rule), which snforge runs; `test_cairo_twins` holds
+that each one exists there with the same code.
 
-    python3 -m unittest discover -s map-format/tests -p 'test_*.py'
+    python3 -m unittest discover -s tools/map-format/tests -p 'test_*.py'
 """
 import contextlib
 import copy
@@ -17,8 +18,9 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FORMAT = os.path.dirname(HERE)
-SPIKE = os.path.dirname(FORMAT)
-SAMPLES = os.path.join(SPIKE, "samples")
+ROOT = os.path.dirname(os.path.dirname(FORMAT))
+SAMPLES = os.path.join(FORMAT, "samples")
+TWINS = os.path.join(ROOT, "contracts", "persistent", "tests", "test_zone.cairo")
 sys.path.insert(0, FORMAT)
 
 import convert  # noqa: E402
@@ -57,7 +59,7 @@ def gate(z, gid):
     return z["gates"][gid]
 
 
-# Each registry case: the mutation of `tests/test_checks.cairo`'s test of the same name.
+# Each registry case: the mutation the Cairo twin of the same name writes (`TWINS`).
 def m_set_outside(z):
     z["chunk_set"] |= 1 << 3
 
@@ -73,6 +75,12 @@ def m_count_above_candidates(z):
 def m_spawn_on_wall(z):
     rec = z["chunks"][1]
     rec["spawns"][0]["tile"] = first_wall(rec)
+
+
+def m_spawn_on_ring(z):
+    rec = z["chunks"][1]
+    rec["spawns"][0]["tile"] = next(t for t in range(225) if not R.has(rec["walls"], t)
+                                    and (t // 15 in (0, 14) or t % 15 in (0, 14)))
 
 
 def m_object_kind(z):
@@ -95,7 +103,8 @@ def m_over_caps(z):
     rec = z["chunks"][2]
     taken = {s["tile"] for s in rec["spawns"]} | {o["tile"] for o in rec["objects"]}
     taken |= {rec["tiles"][i] for i in range(len(z["candidates"])) if R.has(z["candidates"][i], 2)}
-    free = [t for t in range(225) if not R.has(rec["walls"], t) and t not in taken]
+    free = [t for t in range(225) if not R.has(rec["walls"], t) and t not in taken
+            and 0 < t // 15 < 14 and 0 < t % 15 < 14]
     rec["objects"] += [{"tile": free[0], "kind": 1, "state": 0, "param": 0},
                        {"tile": free[1], "kind": 1, "state": 0, "param": 0}]
 
@@ -173,6 +182,16 @@ def m_bridge_apart(z):
     bridge(z)["ends"] = (first_floor(z["chunks"][15]), e)
 
 
+def m_bridge_deck_floor(z):
+    z["chunks"][15]["walls"] |= bridge(z)["deck"]
+
+
+def m_bridge_tile_taken(z):
+    a, _ = bridge(z)["ends"]
+    z["chunks"][15]["objects"].append({"tile": a, "kind": R.OBJECTS["chest"], "state": 0,
+                                       "param": 0})
+
+
 def m_bridge_index(z):
     z["chunks"][15]["bridges"] = 0  # index 0 of a chunk holding 0 (Cairo: index 1 of 1)
 
@@ -213,8 +232,8 @@ class Registry(unittest.TestCase):
         self.assertEqual(sorted(MUTATIONS), sorted(c["case"] for c in TABLE["registry"]))
 
     def test_cairo_twins(self):
-        """Each registry case is `test_refuse_<case>` in tests/test_checks.cairo, with its code."""
-        source = read(os.path.join(SPIKE, "tests", "test_checks.cairo"))
+        """Each registry case is `test_refuse_<case>` in the Registry's tests, with its code."""
+        source = read(TWINS)
         for case in TABLE["registry"]:
             pattern = (r"#\[should_panic\(expected: '" + re.escape(case["code"]) + r"'\)\]\s*"
                        r"fn test_refuse_" + case["case"] + r"\(\)")
@@ -258,6 +277,19 @@ class Pipeline(unittest.TestCase):
             convert.pipeline(z)
         self.assertEqual(caught.exception.code, "pipeline: seam")
 
+    def test_bridge_the_only_crossing(self):
+        """D-227 (ADR-0008 rule 6): with the ford painted as water, the bridge is the stream's only
+        crossing; its deck is written walkable, so P-1 accepts the map; with the deck left out of
+        the plane the far bank would be unreachable."""
+        export = load("zone.json")
+        plane = convert.Plane(export)
+        deck = {plane.glob(*h) for h in export["bridges"][0]["deck"]}
+        z = convert.build_zone(export, MANIFEST)
+        for g in deck:
+            self.assertIn(g, z["walk"], "the deck walkable")
+            self.assertFalse(plane.cells[g]["walk"], "painted as water")
+        converted(export)
+
     def test_deck_disconnected(self):
         export = load("zone.json")
         b = export["bridges"][0]
@@ -299,7 +331,9 @@ class Export(unittest.TestCase):
     def test_three_gates(self):
         export = load("zone.json")
         g = dict(export["gates"][0])
-        export["gates"] += [dict(g, gate="to_floor", x=g["x"] + 2), dict(g, x=g["x"] + 3)]
+        # Both into the dungeon, so that E-5 (a gate elsewhere on the outline) does not apply
+        export["gates"] += [dict(g, gate="to_floor", to="floor_1", x=g["x"] + 2),
+                            dict(g, to="floor_1", x=g["x"] + 3)]
         self.refused(export, "export: three gates in a chunk")
 
     def test_bridge_across(self):
@@ -406,6 +440,59 @@ class Export(unittest.TestCase):
             convert.build_zone = original
         self.assertEqual(code, 1)
         self.assertTrue(out.getvalue().startswith("refused: export: malformed"), out.getvalue())
+
+    def test_deck_outside(self):
+        export = load("zone.json")
+        export["bridges"][0]["deck"] = [[export["origin"]["x"] + 33, export["origin"]["y"] + 20]]
+        self.refused(export, "export: deck outside the zone")
+
+    def test_deck_blocked(self):
+        export = load("zone.json")
+        tree = export["props"][0]
+        export["bridges"][0]["deck"] = [[tree["x"], tree["y"]]]
+        self.refused(export, "export: deck blocked")
+
+    def test_footprint_outside(self):
+        export = load("zone.json")
+        b = export["buildings"][0]
+        b["footprint"].append([export["origin"]["x"] + 33, export["origin"]["y"] + 20])
+        self.refused(export, "export: footprint outside the set")
+
+    def test_footprint_disconnected(self):
+        export = load("zone.json")
+        b = export["buildings"][0]
+        x, y = b["door"]
+        b["footprint"].append([x + 4, y + 4])
+        self.refused(export, "export: footprint not connected")
+
+    def test_door_not_walkable(self):
+        export = load("zone.json")
+        plane = convert.Plane(export)
+        b = export["buildings"][0]
+        door = plane.glob(*b["door"])
+        for span in export["rows"]:
+            row = list(span["terrain"])
+            for i in range(len(row)):
+                if plane.glob(span["x"] + i, span["y"]) == door:
+                    row[i] = "#"
+            span["terrain"] = "".join(row)
+        self.refused(export, "export: door not walkable")
+
+    def test_gate_inside(self):
+        # The gate to the town moved to the zone's inside (all six neighbours in the zone)
+        export = load("zone.json")
+        g, inside = export["gates"]
+        g["x"], g["y"] = inside["x"], inside["y"]
+        self.refused(export, "export: gate not on the outline")
+
+    def test_dungeon_entrance_inside(self):
+        # A gate into a dungeon (`floor_1`) may stand inside the chunk set: the sample's does
+        export = load("zone.json")
+        z = convert.build_zone(export, MANIFEST)
+        g = export["gates"][1]
+        self.assertEqual(MANIFEST["location_kinds"][g["to"]], "dungeon")
+        here = z["plane"].glob(g["x"], g["y"])
+        self.assertTrue(all(n in z["zone"] for n in R.neighbours(*here)), "inside")
 
     def test_every_export_case_tested(self):
         names = {n[len("test_"):] for n in dir(self) if n.startswith("test_")}

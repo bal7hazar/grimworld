@@ -1,6 +1,8 @@
-"""The on-chain records of a map, packed exactly as the Cairo models pack them (ENG-01 §3.5; the
-spike's `src/zone_chunk.cairo` and `src/records.cairo` for the proposed kinds), and the Registry's
-content checks of an authored zone's records (`src/checks.cairo`), with the same refusal codes.
+"""The on-chain records of a map, packed exactly as the Cairo models pack them (ENG-01 §3.5;
+`contracts/logic/src/models/{location,zone_chunk,bridge,candidates}.cairo`), and the Registry's
+content checks of an authored zone's records (`ZoneAssert` in
+`contracts/persistent/src/systems/registry.cairo` and the models' `...Assert`), with the same
+refusal codes.
 
 A record is a list of felts (Python ints); every part carries `LIVE` (bit 250), as `join` writes it.
 Tiles are `15 row + column` in their chunk, chunks `15 cy + cx` in the location (ADR-0006 §4).
@@ -9,7 +11,7 @@ Tiles are `15 row + column` in their chunk, chunks `15 cy + cx` in the location 
 LIVE = 1 << 250
 BOARD = (1 << 225) - 1
 
-# Kinds (`content.cairo`; 26-28 proposed by ENG-08).
+# Kinds (`content.cairo`; 26-28 ENG-08's, built by ENG-09).
 LOCATION, OUTLINE, GATE, QUOTAS, PACK, SET_PIECE = 2, 3, 4, 5, 7, 24
 ZONE_CHUNK, BRIDGE, CANDIDATES = 26, 27, 28
 KIND_NAMES = {LOCATION: "LOCATION", OUTLINE: "OUTLINE", GATE: "GATE", QUOTAS: "QUOTAS",
@@ -204,7 +206,10 @@ def assert_chunk(record, chunk, candidates, quotas):
     packs = objects = 0
 
     def take(tile):
-        if not _floor(walls, tile):
+        # Walkable and in the interior (rows and columns 1-13): a pack's goblins stand within 2
+        # of its tile (`Placement::near`'s precondition, ENG-09)
+        row, col = divmod(tile, 15)
+        if not (_floor(walls, tile) and 0 < row < 14 and 0 < col < 14):
             raise Refused("zone chunk: tile not floor", f"chunk {chunk} tile {tile}")
         if tile in taken:
             raise Refused("zone chunk: tile taken", f"chunk {chunk} tile {tile}")
@@ -307,12 +312,36 @@ def assert_bridge(bridge, k, chunk, record):
     near = dilate(deck, chunk)
     if not (has(near, a) and has(near, b)):
         raise Refused("bridge: end not by the deck")
+    # R-34 extended (ADR-0008 rule 1): every deck tile walkable in the chunk's plane
+    if deck & record["walls"]:
+        raise Refused("bridge: deck not floor")
+
+
+def content(record):
+    """The tiles a chunk's authored content stands on: spawn points, objects, candidate tiles."""
+    tiles = {s["tile"] for s in record["spawns"] if s["template"]}
+    tiles |= {o["tile"] for o in record["objects"] if o["kind"]}
+    tiles |= {t for t in record["tiles"] if t}
+    return tiles
+
+
+def assert_clear(bridge, tiles):
+    """R-37 (ADR-0008 rule 5): no spawn point, object, candidate tile, gate anchor or entry on a
+    bridge's deck or ends."""
+    a, b = bridge["ends"]
+    on = {t for t in range(225) if has(bridge["deck"], t)} | {a, b}
+    if on & set(tiles):
+        raise Refused("bridge: tile taken", f"tiles {sorted(on & set(tiles))[:3]}")
 
 
 def check_zone(z):
     """Every Registry check of an authored zone's records `z` (the converter's `zone` dict): the
     same rules as `src/checks.cairo`, run on what each write reads."""
     loc = z["location"]
+    anchors = {}
+    for gate in z["gates"].values():
+        anchors.setdefault(gate["anchor_chunk"], set()).add(gate["anchor_tile"])
+    anchors.setdefault(loc["entry_chunk"], set()).add(loc["entry_tile"])
     assert_floor_rectangle(loc)
     assert_set(z["chunk_set"], loc["width"], loc["height"])
     assert_candidates(z["candidates"], z["chunk_set"])
@@ -322,6 +351,7 @@ def check_zone(z):
         assert_chunk(record, chunk, z["candidates"], z["quotas"])
         for k, bridge in enumerate(z["bridges"].get(chunk, [])):
             assert_bridge(bridge, k, chunk, record)
+            assert_clear(bridge, content(record) | anchors.get(chunk, set()))
     entry = z["chunks"].get(loc["entry_chunk"])
     if entry is None:
         raise Refused("zone: chunk not in the set", "the entry chunk")

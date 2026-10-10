@@ -1,0 +1,18 @@
+{
+ "format": "grimworld-records",
+ "version": 1,
+ "source": "town.json",
+ "writes": [
+  {
+   "order": 0,
+   "kind": "LOCATION",
+   "kind_id": 2,
+   "id": 1,
+   "parts": [
+    "0x400000000000000000000000000000000000000000000000000000000000101",
+    "0x400000000000000000000000000000000000000000000000000000000000000"
+   ],
+   "what": "LOCATION (a hub: no map)"
+  }
+ ]
+}

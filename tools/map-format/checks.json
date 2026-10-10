@@ -1,5 +1,5 @@
 {
- "$comment": "The one table of an authored zone's checks (ENG-08 deliverable 2): the Registry's (ZONE_CHUNK and the other records' writes, src/checks.cairo, built by ENG-09), the content pipeline's (the converter only: no record holds them alone) and the export's own. Ids R-n and E-n follow CLI-09 §5 where it has them. Each registry case runs through both sides: tests/test_checks.cairo's test_refuse_<case> (snforge, should_panic with the code) and map-format/tests/test_convert.py (the converter refuses with the same code); test_convert.py also checks that each Cairo test exists with that code.",
+ "$comment": "The one table of an authored zone's checks (ENG-08 deliverable 2): the Registry's (ZONE_CHUNK and the other records' writes, ZoneAssert in contracts/persistent/src/systems/registry.cairo, ENG-09), the content pipeline's (the converter only: no record holds them alone) and the export's own. Ids R-n and E-n follow CLI-09 §5 where it has them. Each registry case runs through both sides: contracts/persistent/tests/test_zone.cairo's test_refuse_<case> (snforge, should_panic with the code) and tools/map-format/tests/test_convert.py (the converter refuses with the same code); test_convert.py also checks that each Cairo test exists with that code.",
  "registry": [
   {
    "case": "set_outside",
@@ -36,6 +36,15 @@
    "reads": "—",
    "rule": "Spawn points, objects and candidate tiles on walkable tiles",
    "mutation": "chunk 1's first spawn point on its first wall tile"
+  },
+  {
+   "case": "spawn_on_ring",
+   "id": "R-14",
+   "code": "zone chunk: tile not floor",
+   "checked_at": "ZONE_CHUNK",
+   "reads": "—",
+   "rule": "Spawn points, objects and candidate tiles in the interior (rows and columns 1 to 13): a pack's goblins stand within 2 of its tile (Placement::near's precondition, ENG-09)",
+   "mutation": "chunk 1's spawn point on a floor tile of its ring"
   },
   {
    "case": "object_kind",
@@ -227,6 +236,24 @@
    "mutation": "the bridge's first end on chunk 15's first floor tile"
   },
   {
+   "case": "bridge_deck_floor",
+   "id": "R-34",
+   "code": "bridge: deck not floor",
+   "checked_at": "BRIDGE, ZONE_CHUNK (reverse check)",
+   "reads": "ZONE_CHUNK, BRIDGE",
+   "rule": "Every deck tile walkable in its chunk's plane (R-34 extended, ADR-0008 rule 1: a deck is floor)",
+   "mutation": "chunk 15's plane given its bridge's deck as wall"
+  },
+  {
+   "case": "bridge_tile_taken",
+   "id": "R-37",
+   "code": "bridge: tile taken",
+   "checked_at": "BRIDGE, ZONE_CHUNK, GATE, LOCATION (each against the other)",
+   "reads": "ZONE_CHUNK, BRIDGE, GATE, LOCATION",
+   "rule": "No spawn point, object, candidate tile, gate anchor or entry on a bridge's deck or ends (ADR-0008 rule 5)",
+   "mutation": "a chest on chunk 15's bridge's first end"
+  },
+  {
    "case": "bridge_index",
    "id": "R-35",
    "code": "bridge: index",
@@ -295,6 +322,42 @@
    "id": "R-36",
    "code": "export: bridge across chunks",
    "rule": "Format 1: a bridge (deck and ends) lies in one chunk"
+  },
+  {
+   "case": "deck_outside",
+   "id": "E-46",
+   "code": "export: deck outside the zone",
+   "rule": "A deck tile inside the zone (ADR-0008 rule 1)"
+  },
+  {
+   "case": "deck_blocked",
+   "id": "E-47",
+   "code": "export: deck blocked",
+   "rule": "A deck tile on no building's footprint and no blocking prop (ADR-0008 rule 1)"
+  },
+  {
+   "case": "footprint_outside",
+   "id": "E-43",
+   "code": "export: footprint outside the set",
+   "rule": "A building's footprint, authored per building, lies in the zone"
+  },
+  {
+   "case": "footprint_disconnected",
+   "id": "E-44",
+   "code": "export: footprint not connected",
+   "rule": "A building's footprint is one connected piece"
+  },
+  {
+   "case": "door_not_walkable",
+   "id": "E-45",
+   "code": "export: door not walkable",
+   "rule": "A building's door stands on painted walkable ground"
+  },
+  {
+   "case": "gate_inside",
+   "id": "E-5",
+   "code": "export: gate not on the outline",
+   "rule": "A gate to another location anchors on the outline (a zone hex with a neighbour outside the zone); a dungeon's entrance (its destination LOCATION a dungeon, the manifest's location_kinds) may stand inside the chunk set"
   },
   {
    "case": "schema",
