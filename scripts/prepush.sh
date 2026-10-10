@@ -254,7 +254,10 @@ pkg() {
 }
 # capped <command...>: under an address-space cap of 8 GiB (2026-10-10 rule, the floor; measured peaks: build
 # 2.35 GB, the contracts workspace 4.88 GB, vectors/check.py 4.80 GB, D-246), inherited by every child. Where
-# there is no prlimit (the Mac) it runs uncapped, as before: the Mac has no cap to apply.
+# there is no prlimit (the Mac) it runs uncapped, as before: the Mac has no cap to apply. The cap is on ADDRESS
+# SPACE (prlimit --as), not on resident memory: scarb and snforge reserve far more than they touch (hook run of
+# 2026-10-10: snforge VmPeak 6.97 GB for 3.60 GB resident), so a step that fails at the cap is measured by its
+# VmPeak (/proc/<pid>/status), not its RSS; the cap is then 1.5 x that VmPeak, at most 16 GiB.
 mem_cap=8589934592
 capped() {
   if command -v prlimit > /dev/null 2>&1; then prlimit --as="$mem_cap" -- "$@"; else "$@"; fi
