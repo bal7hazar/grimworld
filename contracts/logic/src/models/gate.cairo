@@ -2,8 +2,10 @@
 
 use crate::content::{GATE, Record};
 use crate::packing::{P16, P32, P40, P48, P56, P64, P72, P8, P80, join, split};
+use crate::types::reveal::board::BoardTrait;
 pub use super::index::Gate;
 use super::location::{LocationAssert, LocationTrait};
+use super::outline::OutlineTrait;
 
 /// Gate kinds (ENG-01 §3.5).
 pub mod kind {
@@ -18,6 +20,8 @@ pub mod errors {
     pub const ANCHOR_TILE: felt252 = 'gate: anchor tile';
     pub const ENTRY_CHUNK: felt252 = 'gate: entry chunk';
     pub const ENTRY_TILE: felt252 = 'gate: entry tile';
+    /// R-41: an entry chunk outside its destination's `width × height` rectangle.
+    pub const ENTRY_OUTSIDE: felt252 = 'gate: entry outside rectangle';
     // `Hub.enter`'s refusals of a gate (design/01 *Connectivity*, ENG-06).
     /// No `GATE` record under that id.
     pub const NONE: felt252 = 'gate: none';
@@ -104,6 +108,23 @@ pub impl GateAssert of GateAssertTrait {
         LocationAssert::assert_index(*self.anchor_tile, errors::ANCHOR_TILE);
         LocationAssert::assert_index(*self.entry_chunk, errors::ENTRY_CHUNK);
         LocationAssert::assert_index(*self.entry_tile, errors::ENTRY_TILE);
+    }
+
+    /// R-41 (ENG-R1c's bound 6, review t-0099 note 5), at a `GATE` write whose destination has a
+    /// map: its entry chunk within the destination's `width × height` rectangle, else a dungeon
+    /// floor's outline grows from outside it (`OutlineTrait::draw` checks only the far sides) and
+    /// its frontier can come out empty (a draw of 0, D-140).
+    #[inline(always)]
+    fn assert_entry(self: @Gate, width: u8, height: u8) {
+        Self::assert_entries(BoardTrait::pow(*self.entry_chunk), width, height);
+    }
+
+    /// R-41 for every gate at once: `entries`, the entry chunks of the gates that lead to a
+    /// location, within its rectangle (a `LOCATION` write's reverse check, `Registry`'s
+    /// `gate_entries`).
+    fn assert_entries(entries: felt252, width: u8, height: u8) {
+        let inside = OutlineTrait::rectangle(width, height);
+        assert(BoardTrait::minus(entries, inside) == 0, errors::ENTRY_OUTSIDE);
     }
 }
 
