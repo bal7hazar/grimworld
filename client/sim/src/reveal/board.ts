@@ -139,7 +139,8 @@ export function dilate(tiles: bigint, odd: boolean): bigint {
   const west = felt((tiles & NOT_COLUMN_14) * 2n);
   const east = felt((tiles & NOT_COLUMN_0) * INV_1);
   const north =
-    felt(tiles * ROW_UP) | (felt((evens & NOT_COLUMN_0) * P14) | felt((odds & NOT_COLUMN_14) * 0x10000n));
+    felt(tiles * ROW_UP) |
+    (felt((evens & NOT_COLUMN_0) * P14) | felt((odds & NOT_COLUMN_14) * 0x10000n));
   const rows = tiles & NOT_ROW_0;
   const south =
     felt(rows * INV_15) |

@@ -25,7 +25,14 @@ export const MAX_OBJECTS_PER_CHUNK = 3;
 export const CRITERION_REACH_LANDMARK = 2;
 
 /** `models::quotas::kind`. */
-export const quota = { EXIT: 1, HEART: 2, VEIN: 3, COLLECTOR: 4, LANDMARK: 5, SET_PIECE: 6 } as const;
+export const quota = {
+  EXIT: 1,
+  HEART: 2,
+  VEIN: 3,
+  COLLECTOR: 4,
+  LANDMARK: 5,
+  SET_PIECE: 6,
+} as const;
 
 /** `models::chunk::object`. */
 export const object = {
@@ -432,4 +439,3 @@ export function place(
   }
   return placement;
 }
-

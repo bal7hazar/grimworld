@@ -10,18 +10,7 @@
 
 import { poseidonHashMany } from "@scure/starknet";
 import { REVEAL, derive, domain } from "./fate";
-import {
-  type IntType,
-  add,
-  feltArg,
-  fromFelt,
-  i8,
-  panic,
-  toFelt,
-  u16,
-  u32,
-  u8,
-} from "./felt";
+import { type IntType, add, feltArg, fromFelt, i8, panic, toFelt, u16, u32, u8 } from "./felt";
 import { felt, mix, rngNew, type Rng, draw } from "./hexx";
 import {
   BOARD,
@@ -174,7 +163,13 @@ function knownTerrain(known: readonly [number, Terrain][], chunk: number): Terra
 
 /** An opening on `at` among its `allowed` tiles (not empty): `TRIES` draws, then the exact one. */
 export function opening(allowed: bigint, at: number, draws: Rng): number {
-  const [first, step] = ([[14, 15], [0, 15], [0, 1]] as const)[at] ?? [210, 1];
+  const [first, step] = (
+    [
+      [14, 15],
+      [0, 15],
+      [0, 1],
+    ] as const
+  )[at] ?? [210, 1];
   for (let tries = 0; tries < TRIES; tries++) {
     const tile = first + step * (1 + draw(draws, 13));
     if (has(allowed, tile)) return tile;
@@ -260,7 +255,14 @@ export function root(interior: bigint, anchors: readonly number[]): number | und
   return anchors.find((tile) => has(interior, tile));
 }
 
-const EMPTY_PACK: PackPlacement = { tile: 0, template: 0, level: 0, count: 0, offsets: 0, alert: 0 };
+const EMPTY_PACK: PackPlacement = {
+  tile: 0,
+  template: 0,
+  level: 0,
+  count: 0,
+  offsets: 0,
+  alert: 0,
+};
 const EMPTY_OBJECT: PlacedObject = { tile: 0, kind: 0, state: 0, param: 0 };
 
 /** Generates one revealable chunk and records it in `progress`. */
@@ -281,7 +283,8 @@ export function generate(
   const set = piece(site, due);
   // 3. The ring: each side copied, closed or drawn; the anchors opened
   const draws = rngNew(mix(chunkWord, 4n));
-  let [ring, edges] = decide(site, progress, instance_id, known, chunk, tiles, draws);
+  const [decided, edges] = decide(site, progress, instance_id, known, chunk, tiles, draws);
+  let ring = decided;
   const anchors: number[] = [];
   let inner = 0n;
   for (const [at, tile] of site.anchors) {
@@ -389,7 +392,15 @@ export function member(tile: number, k: number, odd: boolean): number | undefine
   const row = Math.floor(tile / 15);
   const column = tile % 15;
   const [dr, dq] =
-    k < 3 ? [0, k + 2] : k < 7 ? [1, k - 2] : k < 12 ? [2, k - 7] : k < 16 ? [3, k - 12] : [4, k - 16];
+    k < 3
+      ? [0, k + 2]
+      : k < 7
+        ? [1, k - 2]
+        : k < 12
+          ? [2, k - 7]
+          : k < 16
+            ? [3, k - 12]
+            : [4, k - 16];
   const half = odd ? Math.floor((dr + 1) / 2) : Math.floor(dr / 2);
   const x = column + dq + half;
   const y = row + dr;
@@ -532,4 +543,3 @@ export function revealedToFelts(revealed: readonly Revealed[]): bigint[] {
 export function optionToFelts(value: number | undefined): bigint[] {
   return value === undefined ? [1n] : [0n, toFelt(u8, BigInt(value))];
 }
-
