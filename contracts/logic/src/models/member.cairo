@@ -1467,6 +1467,35 @@ mod tests {
         assert(again == super::Member { words, ..member }, 'store writes the fields');
     }
 
+    // CBT-05d: `reload` is `load` on the words a carrier returns: the hot fields changed (a hit
+    // taken, an activation), and the effects word changed (a held effect, `load` again).
+    #[test]
+    fn test_member_reload_is_load() {
+        let content = Fixture::hold_content();
+        let (sheets, mut index) = content.index();
+        let mut spec = Fixture::spec();
+        spec.conditions = [11, 12, 13, 14];
+        spec.adrenaline = 7;
+        spec
+            .effects =
+                [(11, false, 90, 12), (12, false, 85, 12), (13, false, 85, 12), (3, true, 100, 0)];
+        let member = MemberTrait::load(Fixture::member_words(spec), ref index, @sheets);
+        let mut hit = member;
+        hit.health = 1;
+        hit.adrenaline = 9;
+        hit.knocked = 99;
+        hit.start(3, 17, 2, 70);
+        let words = hit.store();
+        let loaded = MemberTrait::load(words, ref index, @sheets);
+        assert(MemberTrait::reload(@member, words, ref index, @sheets) == loaded, 'hot fields');
+        let mut held = hit;
+        let _ = held.hold(Fixture::held(14, false, 86, 12), 11, true, 81, @sheets);
+        let words = held.store();
+        assert(words.effects != member.words.effects, 'the effects moved');
+        let loaded = MemberTrait::load(words, ref index, @sheets);
+        assert(MemberTrait::reload(@member, words, ref index, @sheets) == loaded, 'effects');
+    }
+
     // CBT-02d: the bar's positions in the content, found once at the load; an empty slot holds
     // none.
     #[test]
