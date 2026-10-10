@@ -764,6 +764,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `types::infliction::tests::test_infliction_duration_edges` | 6010 | 6311 | 5.01 % | 0 | 0 | 2026-10-02 | f55176c |
 | `types::play::tests::test_batch_vectors` | 23110939 | 24266486 | 5.00 % | 0 | 0 | 2026-10-10 | c6633cb |
 | `types::play::tests::test_segment_slow_move_heavy` | 105860447 | 111111543 | 4.96 % | 0 | 0 | 2026-10-10 | c6633cb |
+| `types::play::tests::test_segment_vectors` | 977633484 | 1026515158 | 5.00 % | 0 | 0 | 2026-10-10 | 8204241 |
 | `types::play::tests::test_vectors` | 284846076 | 299063390 | 4.99 % | 0 | 0 | 2026-10-09 | a76c672 |
 | `types::reveal::authored::tests::test_authored_domains_apart` | 8158734 | 8566671 | 5.00 % | 0 | 0 | 2026-10-10 | 1ac4f86 |
 | `types::reveal::authored::tests::test_authored_reveal_missing_record` | 479141 | 503099 | 5.00 % | 0 | 0 | 2026-10-10 | 1ac4f86 |

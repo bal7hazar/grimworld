@@ -81,6 +81,52 @@ The cases:
   stopped), not by this table.
 - `reveal`: the Move's ticks and first records are taken first, then 2 a chunk, floored at 0: a Move that reveals more chunks than the weight left still plays.
 
+## `segment.jsonl`: one segment of a batch, `SegmentTrait::run` (RV-01, D-248)
+
+Printed by `types::play::tests::test_segment_vectors`, with its digest. One line: `{"id", "fn", "case", "ok"}`,
+every felt in hex; every struct, `Option` and `Span` is its Cairo `Serde` (a span: its length, then its elements;
+an `Option`: `1` for `None`, `0` then the value for `Some`; an enum: its variant's index, then its value).
+`fn` names the branch of `run` the row is about; the shape is the same for every row.
+
+**`case`**, in order:
+- the adventurer (member 0, alone in the world, no goblin): `clock`, `x`, `y` (global tile), `facing`, `status`
+  (0 inside, 1 down), `health`, Crippled's deadline (0: not Crippled; a Move at tick `t0 ≤ deadline` takes 2 ticks),
+  the end of a knock-down (0: none; knocked while `t0 ≤` it); energy and the rest as the unit-test fixture;
+- `Area`: `width`, `height` (3 × 3 chunks, all known), `known`, `revealed`, `chunks` (the span of `(chunk, walkable
+  bits)` of the revealed chunks: bit `15 ly + lx`, 1 walkable), `changed` (the goblin entities whose records
+  the invocation's earlier segments changed), `ran`;
+- `owed` (ticks), `weight`;
+- the actions (a span): `Move(d)` is `0, d`, `Turn(d)` `1, d`, `Wait` `2`, `Interact(tile)` `6, tile`.
+  A direction is the one of `vectors/movement.jsonl`: 0 takes x − 1, 3 takes x + 1, 1 and 2 take y + 1, 4 and 5 take y − 1
+  (one tile, the window's rows; odd and even rows are the window's, not these columns).
+
+**`ok`**: the world after: `clock`, `x`, `y`, `facing`, the adventurer's `flags` (bit 0: turned since the last
+tick; cleared by the next tick); then `Done`: `played`, `weight`, `owed`, `reveal`, `illegal` (`Option<Illegal>`:
+`[1]`, or `[0, i]` with `i`: 0 Clock, 1 Absent, 2 Knocked, 3 Turned, 13 Kind, 14 Blocked), `heavy`, `changed` (its
+length, then the entities), `undo`. The world after is also the world of a row that stopped: an action that is
+`heavy` without `undo`, or illegal, wrote nothing; one that is `undo` is written (the caller runs the segment again
+with the actions before it).
+
+No class is called (the class hashes are zero), so every row has no goblin and its ticks take the fast path
+(`TickTrait::idle`: the clock advances, the adventurer regenerates and the turned flag clears). The goblin
+records of a fight (`fits` counting new records and first records, the weight of E-1, the owed ticks' records) are
+`TickLibrary`'s; `fits` is reached here through the 17 records the area already holds (E-16: more than 16 stops an
+action when `ran`). The owed ticks' records are held by `test_play_records_owed_ticks`
+(`contracts/ephemeral/tests/test_play_limits.cairo`) and by `batch.jsonl`'s `owed`.
+
+The cases (47):
+
+| `fn` | ids | what |
+|---|---|---|
+| `fold` (6) | 0–5 | the owed ticks run first: `owed` 0 and 3 before a Wait (0, 1), with no action (2); with Crippled to tick 42 a Move takes 2 ticks without `owed` and 1 after 2 owed ticks (3, 4); `changed` passes through (5) |
+| `reveal` (6) | 6–11 | a Move ends the segment (`reveal`, `owed` = its ticks, the clock not advanced, the actions after it do not run): sight reaches an unrevealed chunk (6), the chunk changes East (7), after Wait, Turn with 2 owed ticks and Crippled (8, `owed` 2), West (10), North (11); 9: Moves that reveal nothing (the window follows, they and the Wait run) |
+| `cost` (12) | 12–23 | `max(1, ticks)`: a Turn (0 ticks, none run) is charged 1 (12), a Wait 1 (13), a Move 1 or 2 (14, 15); the weight exact: Wait 1 (16), Turn 1 (17), Crippled Move 2 (20); over by 1, nothing written: Wait 0 (18), Turn 0 (19), Crippled Move 1 (21: `step` stops it, `heavy`); weight spent over several actions (22, 23) |
+| `ran` (4) | 24–27 | `ran = area.ran or played > 0`, with 17 records held (16 for the last): neither, the first action runs (24); `area.ran` alone refuses it (25, `heavy` and `undo`); `played` alone refuses the second (26); both at 16 records run both (27) |
+| `fits` (5) | 28–32 | accepts at 16 records after a Move and a Turn (28), refuses at 17 with the Move kept (29, `undo`); refuses a Turn then a Wait (30); a Move that reveals accepted at 16 (31) and refused at 17 (32: `reveal` false, `played` 0, the Move written) |
+| `halt` (14) | 33–46 | the illegal halts: Clock (33–35: Move, Turn, Wait at `LAST_TICK + 1`), Absent (36–38 health 0, 39 status down), Knocked (40, 41; a Wait is legal, 42), Blocked (43 a wall; the Wait before it runs), Turned (44), Kind (Interact, 45, and after two Waits, 46) |
+
+`Heavy` is not an `Illegal`: it is `heavy` in `Done` (ids 18, 19, 21 and 22, 23).
+
 ## `hit.jsonl`: one hit (CBT-03a)
 
 Printed by `types::hit::tests::test_vectors_0` to `test_vectors_4` (ids 0–40, 41–81, 82–122, 123–163, 164–202; FND-23), each part with its digest. One line: `{"id", "case", "ok"}`.
