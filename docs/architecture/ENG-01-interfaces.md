@@ -182,6 +182,24 @@ division a field); **the defeat's closing path in `Instances`**, which holds `cl
 `TickLibrary` stays at 76.53 % (75 % aimed), `TrapLibrary` at 76.85 % (50 % aimed; most of its code
 is the executor's strike, entries and conditions).
 
+**ENG-09: the engine reads authored terrain.** Measured at the lot's head (Linux, Scarb 2.20.1,
+`RAYON_NUM_THREADS=1`, `class_sizes.py`) against CBT-05g's figures above:
+
+| Class | Before (CBT-05g) | After | Cap | What moved |
+|---|---:|---:|---:|---|
+| `Instances` | 30,883 (37.70 %) | 30,935 (37.76 %) | 40,960 (50 %) | +52: `Location`'s marker (`map`) decoded and carried (24.5 % of the cap free) |
+| `PlayLibrary` | 55,453 (67.69 %) | 55,510 (67.76 %) | 65,536 (80 %) | +57: the same (15.3 % free) |
+| `HostsLibrary` | 30,342 (37.04 %) | 40,394 (49.31 %) | 50 % | the authored site, the hosts among candidates, each chunk composed (`AuthoredTrait::compose`) |
+| `RevealLibrary` | 37,519 (45.80 %) | 40,945 (49.98 %) | 50 % | its second entrypoint `authored`, the packs laid (`AuthoredTrait::lay`); 15 felts left |
+| `Registry` | 31,213 (38.10 %) | 33,082 (40.38 %) | 50 % | the zone checks' call, `heart_packs`, `zone_checks`, the parents of the new kinds |
+| `ZoneChecks` (new) | — | 23,629 (28.84 %) | 50 % | an authored zone's checks, `Registry`'s library class |
+
+Built into `Registry`, the checks measured 51,562 (62.94 %); the authored reveal whole in
+`HostsLibrary`, 48,938 (59.74 %); its laying as `RevealLibrary`'s entrypoint taking the records,
+44,015 (53.73 %): each refused by §1.3's 50 %, hence `ZoneChecks` (§3.5) and the split between the
+two libraries (`compose` where the records are read, `lay` where the placement code is).
+`SegmentLibrary` and `TickLibrary` are unchanged.
+
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
 every other at 50 %.
 
@@ -951,8 +969,10 @@ invocations that read content.
 D-214 a zone is drawn with the map editor and held in the registry; dungeons stay generated. The
 records below are **built** (ENG-09): `grimworld_logic::models::{zone_chunk, bridge, candidates}`,
 the marker in `models::location` (`Location.map`, `location::map`), the checks in each model's
-`...Assert` and in `Registry`'s `ZoneAssert` (`contracts/persistent/src/systems/registry.cairo`), the
-reveal in `types::reveal::authored`, run by `HostsLibrary` (`enter`, `reveal`); the converter in
+`...Assert` and in `ZoneChecks`' `ZoneAssert` (`contracts/persistent/src/systems/zone.cairo`,
+`Registry`'s library class), the reveal in `types::reveal::authored`: `HostsLibrary` (`enter`,
+`reveal`) reads the site, draws the hosts at `enter` and composes each chunk (`compose`), then
+`IRevealLibrary.authored`, a second entrypoint, lays its packs (`lay`); the converter in
 `tools/map-format/` (promoted from SPK-16, whose README holds the format's measures). **Ids**: three
 new kinds after `COUNTER` (25), `LAST_KIND` 28; `PARTS` gains 2, 1, 3; no record passes 3 parts, so
 `bundle`'s bound ("at most 32 records, at most 3 parts each", §4.5) is unchanged.
