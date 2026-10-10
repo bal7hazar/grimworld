@@ -706,6 +706,8 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_tick::test_deterministic` | 60360690 | 63378725 | 2026-10-07 | faa262c |
 | grimworld_logic | `test_tick::test_fight_roster_count` | 453211438 | 475872010 | 2026-10-10 | c6633cb |
 | grimworld_logic | `test_tick::test_library_matches_pipeline` | 374985695 | 393734980 | 2026-10-10 | c6633cb |
+| grimworld_logic | `test_tick::test_memo_missed_on_a_changed_key` | 159562080 | 167540184 | 2026-10-10 | fe9ef76 |
+| grimworld_logic | `test_tick::test_memo_taken_on_the_same_key` | 79135020 | 83091771 | 2026-10-10 | fe9ef76 |
 | grimworld_logic | `test_tick::test_parity_examples` | 132047596 | 138649976 | 2026-10-07 | faa262c |
 | grimworld_logic | `test_tick::test_parity_states` | 174863024 | 183606176 | 2026-10-07 | faa262c |
 | grimworld_logic | `test_tick::test_parity_terms_eight` | 224056080 | 235258884 | 2026-10-07 | faa262c |

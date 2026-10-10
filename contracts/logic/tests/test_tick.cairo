@@ -4845,7 +4845,7 @@ fn memo_hits(
 
 // The same key (two `HOB` goblins, the member unchanged): the second hit takes the memo.
 #[test]
-#[available_gas(l2_gas: 83091876)] // ceil(1.05 × 79135120 measured)
+#[available_gas(l2_gas: 83091771)] // ceil(1.05 × 79135020 measured)
 fn test_memo_taken_on_the_same_key() {
     let (kept, _, key, after) = memo_hits(0, 2, false, true, false);
     let (fresh, _, _, _) = memo_hits(0, 2, false, false, false);
