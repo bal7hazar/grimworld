@@ -26,6 +26,14 @@ pub mod biome {
     pub const RUIN: u8 = 4;
 }
 
+/// The map's format (`Location.map`, part 0 bits 144–151; ENG-08's marker, D-215 ruling 7).
+pub mod map {
+    /// Generated at reveal (ADR-0006 §2): dungeons, and a zone not authored (the fallback).
+    pub const GENERATED: u8 = 0;
+    /// Authored with the map editor, format version 1 (D-214): `ZONE_CHUNK`, `CANDIDATES`.
+    pub const AUTHORED: u8 = 1;
+}
+
 /// Chunks of a location, and tiles of a chunk: an index is below this (15 × 15, ADR-0006).
 pub const INDEX_BOUND: u8 = 225;
 /// A width or height in chunks is below this: 4 bits, at most 15 (ENG-01 §3.2).
@@ -36,6 +44,12 @@ pub mod errors {
     pub const HEIGHT: felt252 = 'location: height';
     pub const ENTRY_CHUNK: felt252 = 'location: entry chunk';
     pub const ENTRY_TILE: felt252 = 'location: entry tile';
+    /// A map format this reader does not know (ENG-09).
+    pub const MAP: felt252 = 'location: map';
+    /// A dungeon floor whose rectangle is not larger than its `N` (R-28, ENG-R1c's bound 4).
+    pub const FLOOR_RECTANGLE: felt252 = 'location: floor rectangle';
+    /// An authored zone's band of more than 255 levels (R-39, audit t-0131).
+    pub const LEVEL_BAND: felt252 = 'zone: level band';
 }
 
 #[generate_trait]
@@ -75,7 +89,19 @@ pub impl LocationImpl of LocationTrait {
             entry_chunk,
             entry_tile,
             set_pieces,
+            map: map::GENERATED,
         }
+    }
+
+    /// The location with its map's format (`map::AUTHORED` for a zone drawn with the editor).
+    fn with_map(self: Location, map: u8) -> Location {
+        Location { map, ..self }
+    }
+
+    /// Whether its terrain is authored (D-214): read from the registry, never generated.
+    #[inline(always)]
+    fn authored(self: @Location) -> bool {
+        *self.map == map::AUTHORED
     }
 
     /// The global tile `(x, y)` of tile `15 row + column` of chunk `15 cy + cx`: `x = 15 cx +
@@ -111,6 +137,25 @@ pub impl LocationAssert of LocationAssertTrait {
         assert(*self.height < SIDE_BOUND, errors::HEIGHT);
         Self::assert_index(*self.entry_chunk, errors::ENTRY_CHUNK);
         Self::assert_index(*self.entry_tile, errors::ENTRY_TILE);
+        assert(*self.map <= map::AUTHORED, errors::MAP);
+    }
+
+    /// R-39 (audit t-0131), at an authored zone's `LOCATION` write: its level band at most 255
+    /// levels, so that a chunk's level, drawn uniformly in it with a byte's bound, never overflows
+    /// (D-140). A generated zone's levels are not drawn so (`PlacementTrait::level`).
+    /// R-28 (ENG-R1c's bound 4, built by ENG-09): a dungeon floor's `width × height` above its
+    /// `N`, else its last chunks can be walled in (ADR-0006 *Outlines*). `Registry`'s check of a
+    /// `LOCATION` write.
+    fn assert_band(self: @Location) {
+        assert(*self.level_min != 0 || *self.level_max != 255, errors::LEVEL_BAND);
+    }
+
+    /// R-28 (see above).
+    fn assert_floor_rectangle(self: @Location) {
+        if *self.kind == kind::DUNGEON {
+            let area: u16 = (*self.width).into() * (*self.height).into();
+            assert(area > (*self.target).into(), errors::FLOOR_RECTANGLE);
+        }
     }
 }
 
@@ -137,7 +182,9 @@ pub impl LocationRecord of Record<Location> {
             + (*self.next_floor).into() * P88
             + (*self.spawn_table).into() * P104
             + sealed * P120;
-        let high: u128 = (*self.entry_chunk).into() + (*self.entry_tile).into() * P8;
+        let high: u128 = (*self.entry_chunk).into()
+            + (*self.entry_tile).into() * P8
+            + (*self.map).into() * P16;
         array![join(low, high), pack_lanes16(*self.set_pieces)].span()
     }
 
@@ -157,7 +204,8 @@ pub impl LocationRecord of Record<Location> {
         let (low, floors) = DivRem::div_rem(low, s8);
         let (low, next_floor) = DivRem::div_rem(low, s16);
         let (sealed, spawn_table) = DivRem::div_rem(low, s16);
-        let (entry_tile, entry_chunk) = DivRem::div_rem(high, s8);
+        let (high, entry_chunk) = DivRem::div_rem(high, s8);
+        let (map, entry_tile) = DivRem::div_rem(high, s8);
         Location {
             kind: kind.try_into().unwrap(),
             region: region.try_into().unwrap(),
@@ -175,6 +223,7 @@ pub impl LocationRecord of Record<Location> {
             entry_chunk: entry_chunk.try_into().unwrap(),
             entry_tile: entry_tile.try_into().unwrap(),
             set_pieces: unpack_lanes16(*parts[1]),
+            map: map.try_into().unwrap(),
         }
     }
 }

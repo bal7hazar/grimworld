@@ -41,23 +41,41 @@ pub const CONTRACT_POOL: u8 = 23;
 pub const SET_PIECE: u8 = 24;
 /// A "distinct" counter of titles (design/13, T-2): what sets its bits.
 pub const COUNTER: u8 = 25;
+/// One chunk of an authored zone (D-214, ENG-08, built by ENG-09): its walkable plane and its
+/// features; id `location × 256 + chunk`, as `OUTLINE`.
+pub const ZONE_CHUNK: u8 = 26;
+/// One bridge of an authored zone, lying in one chunk (D-217, D-227): id `location × 4096 + chunk
+/// × 16 + k`.
+pub const BRIDGE: u8 = 27;
+/// The candidate chunks of an authored zone's quotas (D-215 ruling 3): id `location × 2 + k`, part
+/// `j` quota `3 k + j`'s.
+pub const CANDIDATES: u8 = 28;
 /// The last kind: kinds are 1 to `LAST_KIND`.
-pub const LAST_KIND: u8 = 25;
+pub const LAST_KIND: u8 = 28;
 
 /// Felts per record of each kind (index = kind; 0 is not a kind).
-pub const PARTS: [u8; 26] = [
-    0, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1,
+pub const PARTS: [u8; 29] = [
+    0, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 3,
 ];
 
 /// Allocation (ENG-01 fix loop 1, F-8). **Sequential** kinds take ids 1, 2, 3 … in order: a new
 /// id must be `last_id(kind) + 1`, and `last_id` is the highest written. **Composite** kinds take
-/// ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE`: `location × 256 +
-/// chunk`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by quiver (`TASK`,
-/// `QUEST`: the administrator's quiver ids, taken as they are, D-145). `last_id` stays 0 for them.
+/// ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE` and `ZONE_CHUNK`:
+/// `location × 256 + chunk`; `BRIDGE`: `location × 4096 + chunk × 16 + k`; `CANDIDATES`:
+/// `location × 2 + k`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by
+/// quiver (`TASK`, `QUEST`: the administrator's quiver ids, taken as they are, D-145). `last_id`
+/// stays 0 for them.
 /// For every kind a record **exists** when its part 0 is not 0: its writer sets `LIVE` (bit 250)
 /// in part 0, so that a record whose fields are all 0 still exists.
 pub fn is_sequential(kind: u8) -> bool {
-    kind != QUOTAS && kind != OUTLINE && kind != SHOP && kind != TASK && kind != QUEST
+    kind != QUOTAS
+        && kind != OUTLINE
+        && kind != SHOP
+        && kind != TASK
+        && kind != QUEST
+        && kind != ZONE_CHUNK
+        && kind != BRIDGE
+        && kind != CANDIDATES
 }
 
 /// Whether a record read from the registry exists: its part 0 is not 0 (a record never written

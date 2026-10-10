@@ -15,7 +15,9 @@ pub mod RevealLibrary {
     use starknet::storage_access::StorePacking;
     use crate::interface::IRevealLibrary;
     use crate::models::chunk::{Features, FeaturesStorePacking, Terrain, TerrainStorePacking};
-    use crate::types::reveal::{Progress, RevealTrait, Site};
+    use crate::models::set_piece::SetPiece;
+    use crate::types::reveal::authored::AuthoredTrait;
+    use crate::types::reveal::{Progress, RevealTrait, Revealed, Site};
 
     #[storage]
     struct Storage {}
@@ -32,18 +34,35 @@ pub mod RevealLibrary {
         ) -> (Progress, Span<(u8, felt252, felt252)>) {
             let mut progress = progress;
             let revealed = RevealTrait::reveal(@site, ref progress, instance_id, known, chunks);
-            let mut words: Array<(u8, felt252, felt252)> = array![];
-            for chunk in revealed {
-                words
-                    .append(
-                        (
-                            chunk.chunk,
-                            StorePacking::<Terrain, felt252>::pack(chunk.terrain),
-                            StorePacking::<Features, felt252>::pack(chunk.features),
-                        ),
-                    );
-            }
-            (progress, words.span())
+            (progress, words(revealed))
         }
+
+        fn authored(
+            self: @ContractState,
+            site: Site,
+            progress: Progress,
+            instance_id: felt252,
+            pieces: Span<(u8, SetPiece, u64, felt252)>,
+        ) -> (Progress, Span<(u8, felt252, felt252)>) {
+            let mut progress = progress;
+            let revealed = AuthoredTrait::lay(@site, ref progress, instance_id, pieces);
+            (progress, words(revealed))
+        }
+    }
+
+    /// The chunks' two words, packed as `Instances` stores them.
+    fn words(revealed: Array<Revealed>) -> Span<(u8, felt252, felt252)> {
+        let mut words: Array<(u8, felt252, felt252)> = array![];
+        for chunk in revealed {
+            words
+                .append(
+                    (
+                        chunk.chunk,
+                        StorePacking::<Terrain, felt252>::pack(chunk.terrain),
+                        StorePacking::<Features, felt252>::pack(chunk.features),
+                    ),
+                );
+        }
+        words.span()
     }
 }

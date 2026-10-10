@@ -64,7 +64,7 @@ address in `Hub` and `Instances` (`set_contracts`), not the game's code.
 | `Market` → `Hub` | `seller`, `escrow`, `release`, `transfer_gold`, `exchange` | caller = the registered `market` |
 | player → `Market` | lots and trades | through `Hub.seller(adventurer, caller)`: the caller owns the adventurer's account; Tin rank to sell (design/16) |
 | anyone → `Market.return_lot` | an expired lot | nothing beyond expiry (design/16: "the seller, or anyone") |
-| administrator → every contract | `set_contracts`, `set_admin`, `upgrade`, `Registry.set_record` | caller = `admin` (who holds it: Q-08) |
+| administrator → every contract | `set_contracts`, `set_admin`, `upgrade`, `Registry.set_record`, `Registry.set_zone_checks` (ENG-09) | caller = `admin` (who holds it: Q-08) |
 | anyone → `TxHashFate.fate` | | none needed (no state); refuses chain id `SN_MAIN` at deployment and at every call (tested) |
 | anyone → views | | none |
 
@@ -181,6 +181,24 @@ division a field); **the defeat's closing path in `Instances`**, which holds `cl
 (`PlayLibrary.play` returns the defeat). D-222's own aims are not reached by these levers:
 `TickLibrary` stays at 76.53 % (75 % aimed), `TrapLibrary` at 76.85 % (50 % aimed; most of its code
 is the executor's strike, entries and conditions).
+
+**ENG-09: the engine reads authored terrain.** Measured at the lot's head (Linux, Scarb 2.20.1,
+`RAYON_NUM_THREADS=1`, `class_sizes.py`) against CBT-05g's figures above:
+
+| Class | Before (CBT-05g) | After | Cap | What moved |
+|---|---:|---:|---:|---|
+| `Instances` | 30,883 (37.70 %) | 30,935 (37.76 %) | 40,960 (50 %) | +52: `Location`'s marker (`map`) decoded and carried (24.5 % of the cap free) |
+| `PlayLibrary` | 55,453 (67.69 %) | 55,510 (67.76 %) | 65,536 (80 %) | +57: the same (15.3 % free) |
+| `HostsLibrary` | 30,342 (37.04 %) | 40,394 (49.31 %) | 50 % | the authored site, the hosts among candidates, each chunk composed (`AuthoredTrait::compose`) |
+| `RevealLibrary` | 37,519 (45.80 %) | 40,945 (49.98 %) | 50 % | its second entrypoint `authored`, the packs laid (`AuthoredTrait::lay`); 15 felts left |
+| `Registry` | 31,213 (38.10 %) | 33,082 (40.38 %) | 50 % | the zone checks' call, `heart_packs`, `zone_checks`, the parents of the new kinds |
+| `ZoneChecks` (new) | — | 23,659 (28.88 %) | 50 % | an authored zone's checks (R-39 included), `Registry`'s library class |
+
+Built into `Registry`, the checks measured 51,562 (62.94 %); the authored reveal whole in
+`HostsLibrary`, 48,938 (59.74 %); its laying as `RevealLibrary`'s entrypoint taking the records,
+44,015 (53.73 %): each refused by §1.3's 50 %, hence `ZoneChecks` (§3.5) and the split between the
+two libraries (`compose` where the records are read, `lay` where the placement code is).
+`SegmentLibrary` and `TickLibrary` are unchanged.
 
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
 every other at 50 %.
@@ -947,20 +965,25 @@ A `bundle` read costs about **36,000 a slot** in execution (107,620 a three-part
 and 32 records), which §9.3–§10 do not count beyond the call's C: ENG-06 and ENG-07 add it to the
 invocations that read content.
 
-**Authored zones (ENG-08; proposed, built by ENG-09; D-214, D-215, D-216, D-217, D-220).** Since
+**Authored zones (ENG-08's format, built by ENG-09; D-214, D-215, D-216, D-217, D-220, D-227).** Since
 D-214 a zone is drawn with the map editor and held in the registry; dungeons stay generated. The
-records below are **proposed, not built**: the spike `spikes/SPK-16-authored-zone/` packs, checks
-and reveals them (`src/`), its converter writes them (`map-format/`), and its README holds the
-measures (SPK-16). **Ids**: three new kinds after `COUNTER` (25); `PARTS` gains 2, 1, 3; no record
-passes 3 parts, so `bundle`'s bound ("at most 32 records, at most 3 parts each", §4.5) is unchanged.
+records below are **built** (ENG-09): `grimworld_logic::models::{zone_chunk, bridge, candidates}`,
+the marker in `models::location` (`Location.map`, `location::map`), the checks in each model's
+`...Assert` and in `ZoneChecks`' `ZoneAssert` (`contracts/persistent/src/systems/zone.cairo`,
+`Registry`'s library class), the reveal in `types::reveal::authored`: `HostsLibrary` (`enter`,
+`reveal`) reads the site, draws the hosts at `enter` and composes each chunk (`compose`), then
+`IRevealLibrary.authored`, a second entrypoint, lays its packs (`lay`); the converter in
+`tools/map-format/` (promoted from SPK-16, whose README holds the format's measures). **Ids**: three
+new kinds after `COUNTER` (25), `LAST_KIND` 28; `PARTS` gains 2, 1, 3; no record passes 3 parts, so
+`bundle`'s bound ("at most 32 records, at most 3 parts each", §4.5) is unchanged.
 
 | Kind | Part | Bits |
 |---|---|---|
 | `ZONE_CHUNK` (26) | 0 | **ENG-08** (composite, id `location × 256 + chunk`, as `OUTLINE`; its parent the `LOCATION`): **the walkable plane** (D-215 ruling 1), bit `15 row + column`, 1 = wall, the convention of `Terrain` and `SET_PIECE`; a tile outside the chunk's mask is a wall (R-20). Bits 225–249: the reserved planes' flags, 0 in format version 1 (a reader of version 1 refuses a chunk with one set). One felt a plane: **225 tile bits, 25 free, `LIVE` at 250** |
 | `ZONE_CHUNK` | 1 | **the features**, `SET_PIECE`'s part 1 extended in its high limb: spawn points `i` of 2 (tile 0–7 · template 8–23, a `PACK`) at `24 i` (D-215 ruling 4: their level and count drawn at entry); objects at 48, 80 and 128, each in `Object`'s 32-bit layout (§3.2; chest, node, terrain trap, landmark, lever; state 0); **the candidate tile of quota `i`** of 6 at `160 + 8 i`, meaningful where `CANDIDATES` names the chunk for quota `i` (0 elsewhere, R-14); **the bridges** it holds 208–211 (`BRIDGE` records `0 … count − 1`); **the gates anchored here**, two `GATE` ids at 212 and 228 (0 none): the registry's index of a location's gates (#348's deferred item); 244–249 free |
-| `BRIDGE` (27) | 0 | **ENG-08** (D-217's reserved bridge plane; composite, id `location × 4096 + chunk × 16 + k`, `k` below its chunk's count): the deck, bit `15 row + column` (1 = a deck tile), 0–224 · end A 225–232 · end B 233–240 · 241–249 free. Format 1: a bridge lies in one chunk; a one-tile deck with its two ends is valid. The reveal does not read it in version 1: its rules are ENG-08b's |
+| `BRIDGE` (27) | 0 | **ENG-08** (D-217's reserved bridge plane; composite, id `location × 4096 + chunk × 16 + k`, `k` below its chunk's count): the deck, bit `15 row + column` (1 = a deck tile), 0–224 · end A 225–232 · end B 233–240 · 241–249 free. Format 1: a bridge lies in one chunk; a one-tile deck with its two ends is valid. **No rule of play reads it** (D-227, ADR-0008): the deck is walkable in the chunk's plane (the converter writes it so), the record is the client's |
 | `CANDIDATES` (28) | 0–2 | **ENG-08** (D-215 ruling 3; composite, id `location × 2 + k`): part `j`, quota `3 k + j`'s candidate chunks, bit `15 cy + cx`, 0–224. The draw at entry reads these one or two records, not every chunk |
-| `LOCATION` | 0 | **ENG-08, the marker**: bits 144–151, the map's format: 0 generated (every location today), 1 authored, format version 1. `LocationRecord::unpack` reads the rest of the high limb as the entry tile today: ENG-09 bounds the entry tile to 8 bits and reads the marker beside it. A zone without the marker is generated (D-215 ruling 7) |
+| `LOCATION` | 0 | **ENG-08, the marker** (built by ENG-09, `Location.map`): bits 144–151, the map's format: 0 generated, 1 authored, format version 1; the entry tile 8 bits beside it; `Registry` refuses another value (`location: map`). A zone without the marker is generated (D-215 ruling 7) |
 
 A chunk takes **two felts** (one plane and its features); a later plane (ruling 1's condition: a rule
 that needs more than walkable, such as sight across water) is a **third part** of `ZONE_CHUNK`, its
@@ -991,23 +1014,35 @@ calls). The converter writes in this order: `LOCATION` with the marker → the c
 other when it exists** (CBT-02c's precedent, DS-18), so no order and no rewrite lets a breach
 through; the order above only makes each write find what it checks against. The table's
 *Reverse check* column names, for each rule, what the other record's write re-runs (review t-0084,
-minor 1): **ENG-09 implements every one**; the spike prototypes the two the review's scenario needs
-(`ZoneAssert::assert_candidates_write`, `assert_pack_write`, tested by `test_refuse_candidates_rewrite_count`,
-`_tile` and `test_refuse_pack_rewrite_heart`). A chunk of the set with no `ZONE_CHUNK`
-is the content pipeline's (every chunk written), and ENG-09 reveals it as wall.
+minor 1): **ENG-09 implements every one** (`ZoneAssert`; each refusal tested from both sides in
+`contracts/persistent/tests/test_zone.cairo`). The records of an authored zone's own kinds
+(`ZONE_CHUNK`, `CANDIDATES`, `BRIDGE`) are checked whatever the marker; the rules on kinds every
+location has (`QUOTAS`' bounds, the chunk set's R-11 and R-12, the entry's R-26, a gate's R-18 and
+R-25 where its anchor chunk holds a `ZONE_CHUNK`) bind a zone with the marker, and the `LOCATION` write
+that sets it re-runs R-11, R-26, R-37 and the quotas' bounds: the converter writes the marker first.
+`Registry` keeps `heart_packs` (how many Heart quotas of authored zones name each `PACK` template, as
+`caste_skills`) for R-27's reverse check. **The checks run in `ZoneChecks`**
+(`contracts/persistent/src/systems/zone.cairo`), `Registry`'s library class, by `library_call` in
+`Registry`'s context (it reads `records` and writes `heart_packs` under the same names): built into
+`Registry` they took it to 62.94 % of the CASM limit, over §1.3's 50 %. Its class hash is the
+administrator's configuration, **`IRegistryAdmin.set_zone_checks(class_hash)`** (a new entrypoint of a
+frozen interface, ENG-09; administrator only, never 0; storage `zone_checks`, one slot): until it is
+set, an authored zone's own records and a `LOCATION` with the marker are refused (`registry: no zone
+checks`), and the other kinds' shared rules are skipped, no authored zone existing yet. A chunk of the set with no `ZONE_CHUNK` is the content
+pipeline's (every chunk written), and the reveal reveals it as wall.
 
 **The writer's checks of authored map records** (deliverable 2; `RegistryAssert::assert_content`,
-built by ENG-09 as `ZoneAssert` rules; ids R-1 … R-20 are CLI-09 §5's, the editor's validation;
-codes as the spike panics with them). **The editor reproduces exactly these**: one table,
-`spikes/SPK-16-authored-zone/map-format/checks.json` (each case run by the spike's Cairo test and
-by the converter, with the same code):
+built by ENG-09 as `ZoneAssert` and the models' rules; ids R-1 … R-20 are CLI-09 §5's, the editor's
+validation). **The editor reproduces exactly these**: one table, `tools/map-format/checks.json` (each
+case run by `Registry` in `contracts/persistent/tests/test_zone.cairo` and by the converter, with the
+same code; CI's `map-format` job holds that every registry case has its Cairo twin):
 
 | Id | Rule | Checked at (reads) | Reverse check (the other write re-runs it) | Code |
 |---|---|---|---|---|
 | R-11 | The chunk set within the `width × height` rectangle (ENG-R1c bound 1, reused) | the chunk set's `OUTLINE` (`LOCATION`) | a `LOCATION` rewrite, against the chunk set (ENG-09) | `zone: set outside rectangle` |
 | R-12 | A quota's count at most the zone's members (ENG-R1c bound 2) | `QUOTAS` (the chunk set) | a chunk set rewrite, against `QUOTAS` (ENG-09); a `CANDIDATES` write (spike) | `zone: count above members` |
 | R-13 | An authored zone's quota count at most its candidates (bound 2, authored form) | `QUOTAS` (`CANDIDATES`) | a `CANDIDATES` write, against `QUOTAS` (spike, `assert_candidates_write`) | `zone: count above candidates` |
-| R-14 | Spawn points, objects and candidate tiles on walkable tiles, no two on one tile; an object of an authored kind, untouched; an empty entry all zeros, a candidate tile 0 where `CANDIDATES` does not name the chunk | `ZONE_CHUNK` (`CANDIDATES`) | a `CANDIDATES` write, against each chunk whose candidacy changed (spike) | `zone chunk: tile not floor`, `… tile taken`, `… object`, `… empty with a value` |
+| R-14 | Spawn points, objects and candidate tiles on walkable tiles **of the interior** (rows and columns 1–13: a pack's goblins stand within 2 of its tile, `Placement::near`'s precondition; ENG-09), no two on one tile; an object of an authored kind, untouched; an empty entry all zeros, a candidate tile 0 where `CANDIDATES` does not name the chunk | `ZONE_CHUNK` (`CANDIDATES`) | a `CANDIDATES` write, against each chunk whose candidacy changed (spike) | `zone chunk: tile not floor`, `… tile taken`, `… object`, `… empty with a value` |
 | R-15 | Within E-3 with every candidate counted (an object quota's against 3 objects, a Heart's against 2 packs), so every draw fits | `ZONE_CHUNK` (`CANDIDATES`, `QUOTAS`) | a `CANDIDATES` write, against those chunks (spike); a `QUOTAS` write that changes a kind, against its candidates' chunks (ENG-09) | `zone chunk: over its caps` |
 | R-16 | D-134's corners **lifted** for an authored chunk (ruling 5): no code but the generation and `SetPieceAssert` reads them (SPK-16, `test_corners.cairo`) | — | — | none |
 | R-18 | A gate's anchor walkable | `GATE` (its anchor's `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against the `GATE`s it names (ENG-09) | `zone: gate anchor not floor` |
@@ -1016,13 +1051,16 @@ by the converter, with the same code):
 | R-25 | The anchor chunk names the gate among its two (the gate index) | `GATE` (its anchor's `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that drops a gate id whose `GATE` anchors there (the stored record read, ENG-09) | `zone: gate not indexed` |
 | R-26 | The entry tile walkable | `LOCATION` with the marker, and the entry chunk's `ZONE_CHUNK`, each the other | (both directions in the column before) | `zone: entry not floor` |
 | R-27 | A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended) | `QUOTAS` (the Heart's `PACK`) | a `PACK` write that a Heart quota names: ENG-09 keeps a count of them per template, as `caste_skills` (spike, `assert_pack_write`) | `zone: heart template` |
-| R-28 | A dungeon floor's `width × height` above `N` (ENG-R1c bound 4; dungeons only) | `LOCATION` | — (one record) | `location: floor rectangle` |
+| R-28 | A dungeon floor's `width × height` above `N` (ENG-R1c bound 4; dungeons only; built by ENG-09, `LocationAssert::assert_floor_rectangle`, applied to dungeon floors by ENG-R1c) | `LOCATION` | — (one record) | `location: floor rectangle` |
 | R-29 | An authored zone's quotas place no exit and no set piece | `QUOTAS` (the marker) | a `LOCATION` write that sets the marker, against `QUOTAS` (ENG-09) | `zone: quota kind` |
 | R-30 | **The location's quotas draw at most 640 times together at entry**, `min(count, members − count)` each (D-220; a generated zone's members, an authored zone's candidates) | `QUOTAS` (the chunk set, `CANDIDATES`) | a `CANDIDATES` write (spike) and a chunk set rewrite (ENG-09), against `QUOTAS` | `zone: quota draws` |
 | R-31 | Every candidate chunk in the zone | `CANDIDATES` (the chunk set) | a chunk set rewrite, against `CANDIDATES` (ENG-09) | `candidates: outside the set` |
 | R-33 | A bridge has a deck; two distinct ends off it | `BRIDGE` | — (one record) | `bridge: deck empty`, `bridge: end` |
-| R-34 | Each end walkable and next to a deck tile | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against its `BRIDGE`s (ENG-09) | `bridge: end not floor`, `bridge: end not by the deck` |
+| R-34 | Each end walkable and next to a deck tile; **every deck tile walkable** (extended, ADR-0008 rule 1) | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against its `BRIDGE`s (ENG-09) | `bridge: end not floor`, `bridge: end not by the deck`, `bridge: deck not floor` |
 | R-35 | A bridge's index below its chunk's count | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that lowers its count below a written `BRIDGE` (ENG-09) | `bridge: index` |
+| R-37 | No spawn point, object, candidate tile, gate anchor or entry on a bridge's deck or ends (ADR-0008 rule 5) | `BRIDGE` (its `ZONE_CHUNK`, the `GATE`s it names, `LOCATION`'s entry) | a `ZONE_CHUNK` rewrite, a `GATE` write and a `LOCATION` write, each against the chunk's `BRIDGE`s | `bridge: tile taken` |
+| R-38 | Dropped by ADR-0008 rule 5 (D-227: one level, no rule reads which bridge a tile belongs to) | — | — | none |
+| R-39 | An authored zone's level band at most 255 levels (0 to 255 refused): a chunk's level is drawn with a byte's bound (audit t-0131, minor 1; D-140) | `LOCATION` with the marker | — (one record) | `zone: level band` |
 
 **R-30, sized from the measure** (D-220): ENG-05's worst legal plan (six passes of 112, 98,153,254 in
 `test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,
@@ -1034,14 +1072,15 @@ bound; with it, 4.2 % below. R-30 binds generated zones too (D-221, the project 
 2026-10-07): ENG-R1c builds it beside its four bounds, ENG-09 reuses it. The layout's own bounds (at most 2 spawn points and 3 objects, one
 candidate a quota a chunk, two gates a chunk, 15 bridges a chunk, a bridge in one chunk) are
 refused by the converter before any record (`export: …` codes). What no record holds alone is
-**the content pipeline's and the converter's**: every walkable tile reachable from the entry (P-1;
-over the walkable plane only, so **a map whose only crossing is a bridge is refused until ENG-08b**
-gives the deck its rules),
+**the content pipeline's and the converter's**: every walkable tile reachable from the entry (P-1,
+on the plane the converter writes, every deck tile walkable: a bridge may be a zone's only crossing,
+D-227),
 the records re-assembled across their seams equal to the painted map (P-2), a bridge's deck
 connected (P-3); a spawn point's template, a collector's and a landmark's existence (R-17, OPS-01's
 manifest).
 
-**What stays random on an authored zone** (rulings 3 and 4; built by ENG-09): the quotas' hosts,
+**What stays random on an authored zone** (rulings 3 and 4; built by ENG-09, `types::reveal::authored`,
+`EntropyTrait::authored_hosts` and `spawns`): the quotas' hosts,
 `count` chunks among each quota's candidates, drawn once at `create` from `derive(entropy,
 domain(instance, 226, REVEAL), 0)` by ENG-05's law (`PlacementTrait::subset`, D-220's complement
 draw); each chunk's spawn points' level (uniform in the band, the template's offset held in it) and
@@ -2086,6 +2125,26 @@ another terrain, other placements and another cost at each run of the probe (up 
 | `leave` to a dungeon floor | 11,930,772 | 11,888,772 | **D-231** (replaces D-228's 11,890,000); before ENG-10b, 8,276,640 |
 | `leave` back into the zone | 11,382,672 | 12,348,672 | **D-231**; before, 11,320,640 · 11,640,640 |
 | `enter` into a dungeon floor (`--floor on`, new with ENG-05b) | 10,355,520 | 10,145,520 | **D-231** (the case added by the orchestrator, 2026-10-07) |
+
+**The D-144 ceilings of an authored zone ("authored", D-247)** (the project manager, 2026-10-10, under
+D-144: ENG-09's six runs each, `lifecycle_probe.py --authored on`, without and with `--quotas on`, at
+`e674cc8`, the maximum + 5 %). The zone is `tools/map-format`'s sample, the test region's zone
+authored; its quotas, when written, a collector, a landmark and a Heart drawn among candidates. The
+generated zone's ceilings above (D-231) are unchanged, and both sets stand: a zone is held to the set
+of its map's format. A later measure above a ceiling here is a rise for the project manager to rule.
+
+| Entrypoint (on the node, `lifecycle_probe.py --authored on`) | Without quotas | With quotas | Decided |
+|---|---:|---:|---|
+| `enter`, the adventurer's first | 13,327,020 | 15,391,320 | **D-247** (maxima 12,692,400 · 14,658,400) |
+| `enter`, a later entry | 6,575,520 | 7,373,520 | **D-247** (maxima 6,262,400 · 7,022,400) |
+| `leave` back into the zone (gate 4) | 11,802,672 | 13,566,672 | **D-247** (maxima 11,240,640 · 12,920,640) |
+| `leave` to a dungeon floor (gate 6) | 12,014,772 | 12,308,772 | **D-247** (maxima 11,442,640 · 11,722,640) |
+
+The `leave` back into the zone with quotas spread 10,560,640 to 12,920,640 over the six runs (22 %),
+from the draws (the entry draw follows the transaction hash): the six-run maximum is the ceiling.
+These ceilings are documents, as D-231's: no probe or check reads them. `docs/BUDGETS.md` and each
+`GAS.md` are generated from snforge's tests (`scripts/gas_budgets.py`, checked by `--check`) and hold
+no node ceiling.
 
 **ENG-05b's reset of these ceilings** (the project manager, 2026-10-07: from at least six runs, the
 maximum plus 5 %, rounded up; `lifecycle_probe.py --floor on`, six runs without a quota and six

@@ -45,14 +45,18 @@ fn test_bitmap() {
 }
 
 #[test]
-#[available_gas(l2_gas: 11781)] // ceil(1.05 × 11220 measured)
+// gas: raised, ENG-09: one more kind's parts asserted (25 and the last, 28)
+#[available_gas(l2_gas: 13220)] // ceil(1.05 × 12590 measured)
 fn test_identifiers() {
     let id = instance_id(7, 3);
     assert(id == 7 * 0x100000000 + 3, 'instance id');
     assert(instance_parts(id) == (7, 3), 'parts');
     assert(goblin_entity(0, 0) == 8, 'first goblin');
     assert(goblin_entity(224, 9) == 8 + 16 * 224 + 9, 'last goblin');
-    assert(parts(2) == 2 && parts(15) == 3 && parts(LAST_KIND) == 1, 'parts per kind');
+    assert(
+        parts(2) == 2 && parts(15) == 3 && parts(25) == 1 && parts(LAST_KIND) == 3,
+        'parts per kind',
+    );
 }
 
 // Fix loop 1: a counter is never 0 in storage (F-4); a high limb that would reach LIVE, or a

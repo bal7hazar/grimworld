@@ -20,7 +20,12 @@ assert_macros.workspace = true
 sierra = true
 casm = true
 # CBT-02e (D-168): `Hub.set_build` calls `FlattenLibrary` by `library_call`; its tests declare it.
-build-external-contracts = ["grimworld_logic::systems::flatten::FlattenLibrary"]
+# ENG-09: the authored zone's reveal, `HostsLibrary` reading `Registry`, is tested on the real path.
+build-external-contracts = [
+    "grimworld_logic::systems::flatten::FlattenLibrary",
+    "grimworld_logic::systems::hosts::HostsLibrary",
+    "grimworld_logic::systems::reveal::RevealLibrary",
+]
 
 [scripts]
 test.workspace = true

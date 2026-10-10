@@ -15,7 +15,7 @@ packages by path.
 | `src/authored.cairo` | The draws at entry (hosts among candidates, spawn points' level and count) and the reveal of an authored chunk |
 | `src/library.cairo` | `AuthoredLibrary`, the authored path as a class (its size), and `ChunkSlots` (the copy's two slots) |
 | `tests/` | `test_format` (bits, round trips, the golden file), `test_checks` (every refusal), `test_draws` (randomness, order), `test_corners` (D-134), `test_cost` (the pairs) |
-| `map-format/` | `schema.json` (the export, JSON Schema 2020-12), `kinds.json` (the kind table), `checks.json` (the one table of checks), `convert.py` (export → records, seed rows, golden file), `records.py` (the packers and the checks in Python), `schema_check.py` (a validator of the schema's keywords), `tests/` |
+| `map-format/` | **Promoted to `tools/map-format/` by ENG-09** (its converter, schema, checks table and samples, with ENG-09's additions; the Registry's twins in `contracts/persistent/tests/test_zone.cairo`); kept here as the spike's history, unchanged, while track CV's editor tests read it. `schema.json` (the export, JSON Schema 2020-12), `kinds.json` (the kind table), `checks.json` (the one table of checks), `convert.py` (export → records, seed rows, golden file), `records.py` (the packers and the checks in Python), `schema_check.py` (a validator of the schema's keywords), `tests/` |
 | `samples/` | `zone.json` (the test region's zone drawn as an authored 3 × 2 zone), `town.json`, `set_piece.json`, `manifest.json`; the converter's outputs `*.records.json`, `zone.golden.json` (read by the Cairo tests), `zone.seed.json`; `make_samples.py` draws them |
 | `pairs.py`, `pairs.txt`, `snforge-test-output-{1,2}.txt` | The measures: two clean builds and their pairs |
 

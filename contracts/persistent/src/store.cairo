@@ -592,6 +592,28 @@ pub impl RegistryStoreImpl of RegistryStoreTrait {
         self.caste_skills.entry(skill).write(count)
     }
 
+    // `zone_checks`: the class of an authored zone's checks (`ZoneChecks`, ENG-09), one slot
+
+    /// Read by `set_record` for the records an authored zone's checks concern.
+    #[inline(always)]
+    fn get_zone_class(self: @RegistryState) -> ClassHash {
+        self.zone_checks.read()
+    }
+
+    /// Written by `set_zone_checks`.
+    #[inline(always)]
+    fn set_zone_class(ref self: RegistryState, class_hash: ClassHash) {
+        self.zone_checks.write(class_hash)
+    }
+
+    // `heart_packs[template]`: how many Heart quotas of authored zones name the template (R-27),
+    // written by `ZoneChecks` in `Registry`'s context
+
+    #[inline(always)]
+    fn get_heart_count(self: @RegistryState, template: u32) -> u32 {
+        self.heart_packs.entry(template).read()
+    }
+
     // Records: `records[(kind, id, part)]`, one felt a part, `parts(kind)` parts
 
     /// Whether the record exists: its part 0 is not 0 (ENG-01 §3.5), one read.
@@ -1115,7 +1137,8 @@ mod registry_layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 64638)] // ceil(1.05 × 61560 measured)
+    // gas: raised, ENG-09: two more variables laid out (heart_packs, zone_checks)
+    #[available_gas(l2_gas: 79412)] // ceil(1.05 × 75630 measured)
     fn test_registry_storage_addresses() {
         let state = @Registry::contract_state_for_testing();
         assert(
@@ -1141,6 +1164,18 @@ mod registry_layout_tests {
                 state.caste_skills.entry(7).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("caste_skills"), array![7].span()),
             'caste_skills',
+        );
+        assert(
+            address_of(
+                state.heart_packs.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("heart_packs"), array![7].span()),
+            'heart_packs',
+        );
+        assert(
+            address_of(
+                state.zone_checks.as_ptr().__storage_pointer_address__,
+            ) == selector!("zone_checks"),
+            'zone_checks',
         );
     }
 

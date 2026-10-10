@@ -68,6 +68,10 @@ the member is engaged (its health fell, or a goblin of the pack has a record aft
 health before and after, and the run exits 3 when no pack was reached or nobody engaged. The node
 emits no event per hit, so the ticks with attacks are not observable from a batch.
 
+ENG-09 (`--authored on`, with or without `--quotas on`): the zone is the authored sample of
+`tools/map-format/` (see the option below): `enter` and `leave` into it read its terrain from the
+registry (D-214, D-215). A measure for D-144, not the recorded streams.
+
 ENG-R1b (`Instances` and `Registry` on the store, AC-3): with `--scope r1b` the same two options
 write and compare another stream, of the same transactions: `Instances`' and `Registry`'s storage
 writes (key, value) and every event of `Instances` with its keys and data, in emission order; then
@@ -298,6 +302,13 @@ def deploy(package, class_hash, *calldata):
 
 
 registry = deploy("persistent", declare("persistent", "Registry"), ADDRESS)
+# ENG-09 (D-245): the registry's zone checks (`ZoneChecks`, its library class) are part of its
+# deployment, set by the administrator before any record, as a constructor's configuration would be;
+# the transaction is not remembered, so that the recorded streams (every transaction after `Hub`'s
+# deployment, and the storage keys they and the deployments write) stay those recorded before ENG-09.
+zone_checks = declare("persistent", "ZoneChecks")
+sncast("persistent", "--account", names[0], "--wait", "invoke", "--url", URL, "--contract-address",
+       registry, "--function", "set_zone_checks", "--calldata", zone_checks)
 fate = deploy("persistent", declare("persistent", "TxHashFate"))
 # ENG-05: the reveal's library class, declared before `Hub`'s deployment so that the recorded
 # transactions are the ones they were; its class hash is `Instances`' constructor argument.
@@ -310,7 +321,7 @@ instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub,
                    reveal, hosts_library, trap_library)
 emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances,
       "flatten_class": flatten, "reveal_class": reveal, "hosts_class": hosts_library,
-      "trap_class": trap_library})
+      "trap_class": trap_library, "zone_checks_class": zone_checks})
 WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
 NAMES = {int(registry, 16): "registry", int(fate, 16): "fate", int(hub, 16): "hub",
          int(instances, 16): "instances", int(flatten, 16): "flatten_class",
@@ -510,8 +521,42 @@ records = [(REGION, 1, region(1, 0, 1, "Test Region")),
            (GATE, 6, gate(2, 3, (0, 105), (112, 112), LINK))]
 # ENG-05 (D-208): with `--quotas on`, the zone's `QUOTAS` of the seed (a collector, id 1, once), so
 # that `create` draws and writes a host; a measure, not the recorded streams (which run without).
-if OPTIONS.get("--quotas") == "on":
+if OPTIONS.get("--quotas") == "on" and OPTIONS.get("--authored") != "on":
     records.append((QUOTAS, 2, [LIVE + 4 + 1 * 2 ** 8 + 1 * 2 ** 24]))
+# ENG-09 (`--authored on`): the zone (location 2) is `tools/map-format`'s sample, the test region's
+# zone drawn as an authored 3 x 2 zone, its marker set, its records as the converter writes them
+# (the chunk set, the masks, each `ZONE_CHUNK` and its bridge), after the seed's two pack templates
+# its spawn points and Heart name; its chunk 0 names gates 2 and 6, both anchored on the entry tile
+# (R-25). With `--quotas on`, its `CANDIDATES` and `QUOTAS` too (a collector, a landmark and a Heart
+# drawn among the author's candidates at `create`); without, none. A measure (D-144), not the
+# recorded streams.
+if OPTIONS.get("--authored") == "on":
+    sys.path.insert(0, os.path.join(os.path.dirname(CONTRACTS), "tools", "map-format"))
+    import convert as map_convert  # noqa: E402
+    import records as map_records  # noqa: E402
+    samples = os.path.join(os.path.dirname(CONTRACTS), "tools", "map-format", "samples")
+    writes, _ = map_convert.convert(map_convert.load_json(os.path.join(samples, "zone.json")),
+                                    map_convert.load_json(os.path.join(samples, "manifest.json")))
+    authored = [(7, row[0], pack_record(row)) for row in seed_rows("packs", 17)]
+    for kind, rid, felts, _ in writes:
+        if kind == map_records.LOCATION:
+            records[2] = (LOCATION, 2, felts)
+            continue
+        if kind == map_records.GATE:
+            continue
+        if kind in (map_records.CANDIDATES, map_records.QUOTAS) and OPTIONS.get("--quotas") != "on":
+            continue
+        if kind == map_records.ZONE_CHUNK:
+            # Chunk 0 names both gates anchored on its entry tile; without quotas no chunk keeps a
+            # candidate tile (R-14: none where no `CANDIDATES` names the chunk)
+            chunk = map_records.unpack_zone_chunk(felts)
+            if rid % 256 == 0:
+                chunk["gates"] = [2, 6]
+            if OPTIONS.get("--quotas") != "on":
+                chunk["tiles"] = [0] * 6
+            felts = map_records.pack_zone_chunk(chunk)
+        authored.append((kind, rid, felts))
+    records[5:5] = authored
 # ENG-05b (the orchestrator, 2026-10-07): with `--floor on`, gate 7, a link from the start hub into
 # the dungeon's first floor (location 3), and one `enter` through it before the accounts change
 # owner; a measure, not the recorded streams (which run without).

@@ -24,6 +24,12 @@ pub mod errors {
     pub const NOT_NEXT: felt252 = 'registry: id not next';
     pub const NO_PARENT: felt252 = 'registry: no parent';
     pub const OUTLINE_CHUNK: felt252 = 'registry: outline chunk';
+    /// A `ZONE_CHUNK` or `BRIDGE` id whose chunk is not below 225 (ENG-09).
+    pub const CHUNK: felt252 = 'registry: chunk';
+    /// An authored zone's record before `set_zone_checks` (ENG-09).
+    pub const NO_ZONE_CHECKS: felt252 = 'registry: no zone checks';
+    /// `set_zone_checks` with the zero class hash.
+    pub const ZONE_CHECKS_ZERO: felt252 = 'registry: zone checks zero';
     /// A `LOCATION` whose dungeon floor holds more than 12 chunks (ENG-10b, CM-9).
     pub const FLOOR_SIZE: felt252 = 'registry: floor over 12 chunks';
     /// `records` and `bundle` past their bound (ENG-01 §4.5).
@@ -44,6 +50,11 @@ pub trait IRegistryAdmin<T> {
     /// The highest id of a sequential kind; 0 for a composite kind.
     fn last_id(self: @T, kind: u8) -> u32;
     fn set_admin(ref self: T, admin: ContractAddress);
+    /// The class of an authored zone's checks (`ZoneChecks`, ENG-09; administrator only, never 0):
+    /// `set_record` runs them by `library_call` on the records of an authored zone and on the
+    /// rules they share with other records. Until it is set, an authored zone's records are
+    /// refused (`'registry: no zone checks'`).
+    fn set_zone_checks(ref self: T, class_hash: ClassHash);
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
 
@@ -75,8 +86,8 @@ pub impl InputsImpl of Inputs {
 pub mod Registry {
     use core::num::traits::Zero;
     use grimworld_logic::content::{
-        ARMOR_SET, CASTE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE,
-        SHOP, SKILL, SPAWN_TABLE, is_sequential, parts,
+        ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE,
+        PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK, is_sequential, parts,
     };
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
@@ -84,11 +95,13 @@ pub mod Registry {
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
-    use grimworld_logic::models::location::{INDEX_BOUND, LocationRecord};
+    use grimworld_logic::models::location::{
+        INDEX_BOUND, LocationRecord, errors as location_errors, map,
+    };
     use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
     use grimworld_logic::models::outline::CHUNK_SET;
     use grimworld_logic::models::pack::{PackAssert, PackRecord};
-    use grimworld_logic::models::quotas::{QuotaSetAssert, QuotaSetRecord};
+    use grimworld_logic::models::quotas::{QuotaBoundsAssert, QuotaSetAssert, QuotaSetRecord};
     use grimworld_logic::models::set_piece::{SetPieceAssert, SetPieceRecord};
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
@@ -98,6 +111,7 @@ pub mod Registry {
     use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::models::versions::{Versions, VersionsTrait};
     use crate::store::RegistryStoreTrait;
+    use crate::systems::zone::{IZoneChecksDispatcherTrait, IZoneChecksLibraryDispatcher};
     use super::{Inputs, NOT_IMPLEMENTED, VERSION, errors};
 
     /// ENG-01 §3.5's layout (`store::registry_layout_tests`), read and written only by the store
@@ -118,6 +132,14 @@ pub mod Registry {
         /// while it is not 0, the skill is refused above 63 strikes (DS-18 across records, in
         /// either order of writes; CBT-02c fix loop 2).
         pub caste_skills: Map<u32, u32>,
+        /// How many Heart quotas of authored zones name each `PACK` template: while it is not 0,
+        /// the template is refused empty at its fewest or at its most (R-27 across records, in
+        /// either order of writes; ENG-09). Written by `ZoneChecks` in this contract's context.
+        pub heart_packs: Map<u32, u32>,
+        /// The class of an authored zone's checks (`ZoneChecks`, ENG-09), called by
+        /// `library_call` in this contract's context; 0 until the administrator sets it, and while
+        /// it is 0 no authored zone's record can be written.
+        pub zone_checks: ClassHash,
     }
 
     #[constructor]
@@ -178,6 +200,7 @@ pub mod Registry {
                     // A new id: none of its keys was ever written (ids are never reused, records
                     // never zeroed), so there is nothing to read or compare.
                     self.name_skills(kind, id, record);
+                    self.name_hearts(kind, id, record);
                     self.set_new_record(kind, id, record);
                     self.set_last_id(kind, id_wide);
                     self.raise_versions(false);
@@ -188,6 +211,7 @@ pub mod Registry {
                 self.assert_parent(kind, id);
             }
             self.name_skills(kind, id, record);
+            self.name_hearts(kind, id, record);
             if self.update_record(kind, id, record) {
                 self.raise_versions(Inputs::includes(kind));
             }
@@ -201,6 +225,11 @@ pub mod Registry {
             self.assert_admin();
             RegistryAssert::assert_new_admin(admin);
             self.set_administrator(admin);
+        }
+        fn set_zone_checks(ref self: ContractState, class_hash: ClassHash) {
+            self.assert_admin();
+            assert(class_hash.is_non_zero(), errors::ZONE_CHECKS_ZERO);
+            self.set_zone_class(class_hash);
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -254,11 +283,23 @@ pub mod Registry {
         ///   its interior's floor). That the ids they name exist is the content pipeline's
         ///   (OPS-01).
         /// - `LOCATION`: a dungeon floor's `N` at most 12 (`MAX_CHUNKS`, CM-9; ENG-10b: the outline
-        ///   drawn at `create` and its bit-parallel walks assume it).
+        ///   drawn at `create` and its bit-parallel walks assume it); a map format it knows.
+        /// - an authored zone's records (ENG-01 §3.5's R-table, ENG-09): every rule between two
+        ///   records at the write of either, against the other when it exists (`ZoneAssert`).
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == LOCATION {
-                assert(LocationRecord::unpack(record).target <= MAX_CHUNKS, errors::FLOOR_SIZE);
+                let location = LocationRecord::unpack(record);
+                assert(location.target <= MAX_CHUNKS, errors::FLOOR_SIZE);
+                assert(location.map <= map::AUTHORED, location_errors::MAP);
+                self.assert_zone(kind, id, record, location.map == map::AUTHORED);
+            } else if kind == OUTLINE || kind == GATE || kind == QUOTAS {
+                if kind == QUOTAS {
+                    QuotaSetRecord::unpack(record).assert_legal();
+                }
+                self.assert_zone(kind, id, record, false);
+            } else if kind == ZONE_CHUNK || kind == CANDIDATES || kind == BRIDGE {
+                self.assert_zone(kind, id, record, true);
             } else if kind == MODIFIER {
                 ModifierRecord::unpack(record).assert_legal();
             } else if kind == ARMOR_SET {
@@ -271,12 +312,14 @@ pub mod Registry {
                 }
             } else if kind == ITEM {
                 ItemRecord::unpack(record).assert_legal();
-            } else if kind == QUOTAS {
-                QuotaSetRecord::unpack(record).assert_legal();
             } else if kind == SPAWN_TABLE {
                 SpawnTableRecord::unpack(record).assert_legal();
             } else if kind == PACK {
-                PackRecord::unpack(record).assert_legal();
+                let pack = PackRecord::unpack(record);
+                pack.assert_legal();
+                if self.get_heart_count(id) != 0 {
+                    QuotaBoundsAssert::assert_heart(@pack);
+                }
             } else if kind == SET_PIECE {
                 SetPieceRecord::unpack(record).assert_legal();
             } else if kind == CASTE {
@@ -294,6 +337,20 @@ pub mod Registry {
             }
         }
 
+        /// An authored zone's checks (ENG-01 §3.5's R-table, ENG-09), in `ZoneChecks` by
+        /// `library_call`, in this contract's context: for a record of an authored zone (`own`: its
+        /// own kinds, or a `LOCATION` with the marker) the class must be set; for the other kinds
+        /// their rules shared with an authored zone run once it is (before, no authored zone can
+        /// exist).
+        fn assert_zone(self: @ContractState, kind: u8, id: u32, record: Span<felt252>, own: bool) {
+            let checks = self.get_zone_class();
+            if checks.is_zero() {
+                assert(!own, errors::NO_ZONE_CHECKS);
+                return;
+            }
+            IZoneChecksLibraryDispatcher { class_hash: checks }.check(kind, id, record);
+        }
+
         /// A sequential id that is not new must exist: at most `last_id` (ids are append-only).
         #[inline(always)]
         fn assert_existing(id: u64, last: u64) {
@@ -303,8 +360,10 @@ pub mod Registry {
         /// A composite id names an existing parent: `QUOTAS` its location (the same id, D-145),
         /// `OUTLINE` a location (and a chunk below 225, or 255), `SHOP` a location as its hub (its
         /// existence only: that it is a town or an outpost is the content pipeline's check).
-        /// `TASK` and `QUEST` take the administrator's quiver ids as they are (D-145): that a
-        /// quiver id exists is the content pipeline's check (OPS-01).
+        /// `ZONE_CHUNK` a location and a chunk below 225, `BRIDGE` a location and a chunk below
+        /// 225, `CANDIDATES` a location (ENG-09). `TASK` and `QUEST` take the administrator's
+        /// quiver ids as they are (D-145): that a quiver id exists is the content pipeline's check
+        /// (OPS-01).
         #[inline(always)]
         fn assert_parent(self: @ContractState, kind: u8, id: u32) {
             if kind == QUOTAS {
@@ -317,6 +376,16 @@ pub mod Registry {
                 self.assert_exists(LOCATION, location);
             } else if kind == SHOP {
                 self.assert_exists(LOCATION, id / 16);
+            } else if kind == ZONE_CHUNK {
+                let (location, chunk) = DivRem::div_rem(id, 256);
+                assert(chunk < INDEX_BOUND.into(), errors::CHUNK);
+                self.assert_exists(LOCATION, location);
+            } else if kind == BRIDGE {
+                let (location, rest) = DivRem::div_rem(id, 4096);
+                assert(rest / 16 < INDEX_BOUND.into(), errors::CHUNK);
+                self.assert_exists(LOCATION, location);
+            } else if kind == CANDIDATES {
+                self.assert_exists(LOCATION, id / 2);
             }
         }
 
@@ -331,6 +400,7 @@ pub mod Registry {
             assert(count <= MAX_READ, errors::TOO_MANY);
         }
     }
+
 
     #[generate_trait]
     pub impl InternalImpl of InternalTrait {
@@ -365,6 +435,18 @@ pub mod Registry {
                         self.set_caste_count(s.into(), count + now - before);
                     }
                 }
+            }
+        }
+
+        /// A `QUOTAS` or a `LOCATION` written (after every check): `ZoneChecks` moves the counts of
+        /// `heart_packs` (R-27's reverse check, ENG-09) when the class is set.
+        fn name_hearts(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
+            if kind != QUOTAS && kind != LOCATION {
+                return;
+            }
+            let checks = self.get_zone_class();
+            if checks.is_non_zero() {
+                IZoneChecksLibraryDispatcher { class_hash: checks }.name_hearts(kind, id, record);
             }
         }
 
@@ -408,7 +490,8 @@ mod inputs_tests {
     use super::Inputs;
 
     #[test]
-    #[available_gas(l2_gas: 104255)] // ceil(1.05 × 99290 measured)
+    // gas: raised, ENG-09: three more kinds to loop over (LAST_KIND 28)
+    #[available_gas(l2_gas: 115815)] // ceil(1.05 × 110300 measured)
     fn test_flattening_inputs() {
         for kind in 1..LAST_KIND + 1 {
             let expected = kind == SKILL || kind == ITEM || kind == MODIFIER;

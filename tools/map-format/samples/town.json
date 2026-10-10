@@ -1,0 +1,111 @@
+{
+ "format": "grimworld-export",
+ "version": 1,
+ "editor": "spike",
+ "kind": "town",
+ "name": "Test Town",
+ "location": "test_town",
+ "region": "test_region",
+ "origin": {
+  "x": 100,
+  "y": 40
+ },
+ "size": {
+  "width": 1,
+  "height": 1
+ },
+ "rows": [
+  {
+   "y": 40,
+   "x": 100,
+   "terrain": "############",
+   "ground": "eeeeeeeeeeee"
+  },
+  {
+   "y": 41,
+   "x": 100,
+   "terrain": "#..........#",
+   "ground": "egggggggggge"
+  },
+  {
+   "y": 42,
+   "x": 100,
+   "terrain": "#..........#",
+   "ground": "egggggggggge"
+  },
+  {
+   "y": 43,
+   "x": 100,
+   "terrain": "#..........#",
+   "ground": "egggggggggge"
+  },
+  {
+   "y": 44,
+   "x": 100,
+   "terrain": "#..........#",
+   "ground": "egggggggggge"
+  },
+  {
+   "y": 45,
+   "x": 100,
+   "terrain": "#..........#",
+   "ground": "egggggggggge"
+  },
+  {
+   "y": 46,
+   "x": 100,
+   "terrain": "#..........#",
+   "ground": "egggggggggge"
+  },
+  {
+   "y": 47,
+   "x": 100,
+   "terrain": "############",
+   "ground": "eeeeeeeeeeee"
+  }
+ ],
+ "npcs": [
+  {
+   "kind": "pawn",
+   "x": 104,
+   "y": 43,
+   "facing": 0
+  }
+ ],
+ "buildings": [
+  {
+   "kind": "forge",
+   "footprint": [
+    [
+     106,
+     44
+    ],
+    [
+     107,
+     44
+    ],
+    [
+     106,
+     45
+    ]
+   ],
+   "anchor": [
+    106,
+    44
+   ],
+   "door": [
+    106,
+    44
+   ],
+   "depth": 1
+  }
+ ],
+ "props": [
+  {
+   "kind": "rock",
+   "x": 102,
+   "y": 42,
+   "variant": 1
+  }
+ ]
+}
