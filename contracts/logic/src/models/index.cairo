@@ -37,7 +37,8 @@ pub struct Region {
 /// Part 0: type 0–7 · region 8–23 · biome 24–31 · level min 32–39 · level max 40–47
 /// · rank required 48–55 · width 56–63 · height 64–71 (chunks, 1–15) · `N` 72–79 ·
 /// floors 80–87 · next floor 88–103 · spawn table 104–119 · sealed 120–127 · entry
-/// chunk 128–135 · entry tile 136–143 · `LIVE`.
+/// chunk 128–135 · entry tile 136–143 · the map's format 144–151 (`location::map`, ENG-08's
+/// marker, ENG-09) · `LIVE`.
 /// Part 1: the set pieces, up to 15 `SET_PIECE` ids (`Lanes16`, 0 for none) · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Location {
@@ -68,6 +69,9 @@ pub struct Location {
     pub entry_tile: u8,
     /// The authored chunks its quotas may place (ADR-0006, *Set pieces*).
     pub set_pieces: Lanes16,
+    /// The map's format (`location::map`): generated (every location before D-214, and every
+    /// dungeon) or authored with the map editor (a zone, D-214, D-215; ENG-08's marker).
+    pub map: u8,
 }
 
 /// `GATE`, 1 part (design/01 *Connectivity*, ADR-0006: a gate is an anchor on the outline).
@@ -430,6 +434,46 @@ pub struct SetPiece {
     pub walls: felt252,
     pub packs: [SetPack; 2],
     pub objects: [Object; 3],
+}
+
+/// `ZONE_CHUNK`, 2 parts (D-214, D-215; ENG-08's format, ENG-01 §3.5): one chunk of an authored
+/// zone, id `location × 256 + chunk`.
+/// Part 0: **the walkable plane**, bit `15 row + column` (1 = wall), bits 0–224 · reserved planes'
+/// flags 225–249, 0 in format version 1 · `LIVE`.
+/// Part 1: spawn points `i` (24 bits: tile 0–7 · template 8–23) at `24 i` for `i` 0–1 · objects
+/// (32 bits, `Object`'s layout, state 0) at 48, 80 (low limb) and 128 · the candidate tile of
+/// quota `i` at `160 + 8 i` (`i` 0–5) · the bridges it holds 208–211 · the gates anchored here,
+/// two `GATE` ids at 212 and 228 · `LIVE`.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct ZoneChunk {
+    pub walls: felt252,
+    /// Their level and count drawn at entry (D-215 ruling 4).
+    pub spawns: [SetPack; 2],
+    pub objects: [Object; 3],
+    /// The candidate tile of each quota, where `CANDIDATES` names this chunk (0 elsewhere).
+    pub tiles: [u8; 6],
+    /// Its `BRIDGE` records are `0 … bridges − 1`.
+    pub bridges: u8,
+    /// The `GATE` ids anchored in this chunk (0 none): the registry's index of a zone's gates.
+    pub gates: [u16; 2],
+}
+
+/// `BRIDGE`, 1 part (D-217, D-227, ADR-0008): one bridge lying in one chunk of an authored zone,
+/// id `location × 4096 + chunk × 16 + k`. Its deck is walkable in the chunk's plane; no rule of
+/// play reads the record (the client draws it).
+/// Part 0: the deck, bit `15 row + column` (1 = a deck tile), 0–224 · end A 225–232 · end B
+/// 233–240 · `LIVE`.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct Bridge {
+    pub deck: felt252,
+    pub ends: (u8, u8),
+}
+
+/// `CANDIDATES`, 3 parts (D-215 ruling 3): id `location × 2 + k`; part `j` the candidate chunks of
+/// quota `3 k + j`, bit `15 cy + cx`, 0–224 · `LIVE` in each part.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct Candidates {
+    pub sets: [felt252; 3],
 }
 
 /// The terrain of a revealed chunk (ENG-01 §3.2): walls of the 225 tiles (bit `15 row + column`,

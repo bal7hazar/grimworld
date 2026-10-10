@@ -6,7 +6,7 @@
 //! kind and param), the location's set pieces, the masks of the chunks to reveal and the seed
 //! in; one bitmap a quota, and the masks with their chunks' hosts above the board, out. A
 //! generated zone's; an authored zone's quotas are drawn among the author's candidates instead
-//! (D-214, D-215 ruling 3; ENG-08's format, ENG-09). A dungeon floor's call (`floor`, ENG-10b;
+//! (D-214, D-215 ruling 3; ENG-08's format, ENG-09: `enter` and `reveal` below). A dungeon floor's call (`floor`, ENG-10b;
 //! ENG-10a, D-223): once at `create`, its outline (`OutlineTrait::draw`), its layers by distance
 //! from the entry, its quotas' hosts over the outline (the exit and the Heart first, among the
 //! farthest chunks) and the masks of the chunks the entry reveals, with their hosts.
@@ -18,27 +18,41 @@
 //! `RevealLibrary`'s call), `reveal` a reveal in play (the site, the stored hosts and outline, then
 //! `RevealLibrary`'s call); `hosts` and `floor` stay its entrypoints, which `enter` runs in
 //! process.
+//!
+//! **An authored zone** (a zone whose `LOCATION` carries the marker, `Location::authored`; D-214,
+//! D-215, ENG-09) is revealed here, not by `RevealLibrary`: its site (`authored_site`) reads the
+//! `ZONE_CHUNK` records of the chunks to reveal and, at `enter`, its `CANDIDATES`; its quotas'
+//! hosts are drawn once at `enter` among the candidates (`AuthoredTrait::hosts`, counter 226) and
+//! stored by `Instances` as a generated zone's are; each chunk's plane is copied and its draws
+//! keyed by the chunk (`AuthoredTrait::reveal`). The generated path, `RevealLibrary` and its
+//! vectors, is unchanged: the fallback of every zone without the marker (D-215 ruling 7).
 
 #[starknet::contract]
 pub mod HostsLibrary {
+    use starknet::storage_access::StorePacking;
     use starknet::{ClassHash, ContractAddress};
-    use crate::content::{OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, exists};
+    use crate::content::{
+        CANDIDATES, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, ZONE_CHUNK, exists,
+    };
     use crate::fate::EntropyTrait;
     use crate::interface::{
         IHostsLibrary, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
         IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher,
     };
-    use crate::models::chunk::Terrain;
-    use crate::models::location::Location;
+    use crate::models::candidates::{CandidatesRecord, CandidatesTrait};
+    use crate::models::chunk::{Features, FeaturesStorePacking, Terrain, TerrainStorePacking};
+    use crate::models::location::{Location, LocationTrait};
     use crate::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait as RecordOutlineTrait};
     use crate::models::pack::{Pack, PackRecord};
     use crate::models::quotas::{QuotaSet, QuotaSetRecord, kind as quota_kind};
     use crate::models::set_piece::{SetPiece, SetPieceRecord};
     use crate::models::spawn_table::{SpawnTable, SpawnTableRecord};
+    use crate::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
     use crate::snapshot::TaskEntry;
+    use crate::types::reveal::authored::AuthoredTrait;
     use crate::types::reveal::outline::{Outline, OutlineTrait};
     use crate::types::reveal::placement::PlacementTrait;
-    use crate::types::reveal::{Progress, ProgressTrait, Site};
+    use crate::types::reveal::{Progress, ProgressTrait, Revealed, Site};
     /// Tasks whose quotas a reveal places (ENG-01 §3.2: the location's 6, then 8).
     const TASK_QUOTAS: u32 = 8;
 
@@ -110,6 +124,20 @@ pub mod HostsLibrary {
             entropy: felt252,
             instance_id: felt252,
         ) -> (Progress, Span<(u8, felt252, felt252)>, Span<felt252>, Option<Outline>) {
+            if location.target == 0 && location.authored() {
+                let (site, records, candidates) = authored_site(
+                    registry, destination, location, entry_chunk, chunks, true,
+                );
+                let mut progress = ProgressTrait::new(@site, entropy);
+                let hosts = AuthoredTrait::hosts(
+                    @site.quotas, candidates, EntropyTrait::authored_hosts(entropy, instance_id),
+                )
+                    .span();
+                let revealed = AuthoredTrait::reveal(
+                    @site, ref progress, instance_id, records, hosts, chunks,
+                );
+                return (progress, words(revealed), hosts, None);
+            }
             let mut site = site(
                 registry, destination, location, entry_chunk, entry_tile, tasks, chunks,
             );
@@ -172,6 +200,16 @@ pub mod HostsLibrary {
             known: Span<(u8, Terrain)>,
             chunks: Span<u8>,
         ) -> (Progress, Span<(u8, felt252, felt252)>) {
+            if location.target == 0 && location.authored() {
+                let (site, records, _) = authored_site(
+                    registry, destination, location, entry_chunk, chunks, false,
+                );
+                let mut progress = progress;
+                let revealed = AuthoredTrait::reveal(
+                    @site, ref progress, instance_id, records, hosts, chunks,
+                );
+                return (progress, words(revealed));
+            }
             let mut site = site(
                 registry, destination, location, entry_chunk, entry_tile, tasks, chunks,
             );
@@ -307,6 +345,114 @@ pub mod HostsLibrary {
             packs: packs.span(),
             pieces: pieces.span(),
         }
+    }
+
+    /// What an authored zone's reveal reads (ENG-09), in the fewest calls: one `bundle` of its
+    /// `QUOTAS`, its chunk set, at `enter` (`hosts`) its two `CANDIDATES` records, and the
+    /// `ZONE_CHUNK` of each chunk of `chunks`; then one `records` of the `PACK` templates its Heart
+    /// quotas and those chunks' spawn points name. No spawn table, set piece, mask nor task: an
+    /// authored zone's packs are its spawn points, its border tiles are walls in its plane (R-20),
+    /// and a task places nothing there (D-221). Returns the site, each chunk's record (a chunk
+    /// without one is left out) and the six quotas' candidate sets (empty unless `hosts`).
+    fn authored_site(
+        registry: ContractAddress,
+        destination: u16,
+        location: Location,
+        entry_chunk: u8,
+        chunks: Span<u8>,
+        hosts: bool,
+    ) -> (Site, Span<(u8, ZoneChunk)>, Span<felt252>) {
+        let registry = IRegistryReadDispatcher { contract_address: registry };
+        let mut requests: Array<(u8, u32)> = array![
+            (QUOTAS, destination.into()),
+            (OUTLINE, RecordOutlineTrait::id(destination, CHUNK_SET)),
+        ];
+        if hosts {
+            requests.append((CANDIDATES, CandidatesTrait::id(destination, 0)));
+            requests.append((CANDIDATES, CandidatesTrait::id(destination, 1)));
+        }
+        for chunk in chunks {
+            requests.append((ZONE_CHUNK, ZoneChunkTrait::id(destination, *chunk)));
+        }
+        let (_, _, parts) = registry.bundle(requests.span());
+        // [Compute] The records, in the order asked
+        let quotas: QuotaSet = QuotaSetRecord::unpack(parts.slice(0, 1));
+        let chunk_set = bitmap(parts.slice(1, 1));
+        let mut at: u32 = 2;
+        let mut candidates: Array<felt252> = array![];
+        if hosts {
+            let [c0, c1, c2] = CandidatesRecord::unpack(parts.slice(2, 3)).sets;
+            let [c3, c4, c5] = CandidatesRecord::unpack(parts.slice(5, 3)).sets;
+            candidates = array![c0, c1, c2, c3, c4, c5];
+            at = 8;
+        }
+        let mut ids: Array<u32> = array![];
+        let mut records: Array<(u8, ZoneChunk)> = array![];
+        for chunk in chunks {
+            let record = parts.slice(at, 2);
+            at += 2;
+            if exists(record) {
+                let value = ZoneChunkRecord::unpack(record);
+                for spawn in value.spawns.span() {
+                    add(ref ids, *spawn.template);
+                }
+                records.append((*chunk, value));
+            }
+        }
+        // [Compute] The pack templates named
+        for entry in quotas.quotas.span() {
+            if *entry.kind == quota_kind::HEART {
+                add(ref ids, *entry.param);
+            }
+        }
+        let mut packs: Array<(u16, Pack)> = array![];
+        if ids.len() != 0 {
+            let read = registry.records(PACK, ids.span());
+            let mut i: u32 = 0;
+            for id in ids.span() {
+                let record = read.slice(i, 1);
+                if exists(record) {
+                    packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
+                }
+                i += 1;
+            }
+        }
+        let site = Site {
+            target: 0,
+            biome: location.biome,
+            level_min: location.level_min,
+            level_max: location.level_max,
+            width: location.width,
+            height: location.height,
+            entry_chunk,
+            chunk_set,
+            west: 0,
+            north: 0,
+            masks: array![].span(),
+            anchors: array![].span(),
+            quotas,
+            tasks: array![].span(),
+            spawn: SpawnTable { spawns: [Default::default(); 7], density: 0 },
+            packs: packs.span(),
+            pieces: array![].span(),
+        };
+        (site, records.span(), candidates.span())
+    }
+
+    /// The revealed chunks' two words, packed as `Instances` stores them (`RevealLibrary`'s).
+    fn words(revealed: Array<Revealed>) -> Span<(u8, felt252, felt252)> {
+        let mut out: Array<(u8, felt252, felt252)> = array![];
+        for chunk in revealed {
+            out
+                .append(
+                    (
+                        chunk.chunk,
+                        StorePacking::<Terrain, felt252>::pack(chunk.terrain),
+                        StorePacking::<Features, felt252>::pack(chunk.features),
+                    ),
+                );
+        }
+        out.span()
     }
 
     /// An `OUTLINE` record's bitmap (0 for none).

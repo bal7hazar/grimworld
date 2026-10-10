@@ -5,6 +5,8 @@
 
 use crate::content::{QUOTAS, Record};
 use crate::packing::{P16, P24, P32, P64, P8, P96, join, peel, split};
+use crate::types::reveal::board::BoardTrait;
+use super::pack::{Pack, PackTrait};
 pub use super::index::{Quota, QuotaSet};
 
 /// Quota kinds (ADR-0006 *Quotas*, design/17, design/18).
@@ -27,6 +29,11 @@ pub mod kind {
 
 /// Quotas of a location.
 pub const COUNT: u8 = 6;
+/// The most draws a zone's location quotas ask together at entry (R-30, D-220, D-221), each pass
+/// drawing `min(count, members − count)`: 640, so that with the snapshot's eight task quotas the
+/// worst plan measures 95,799,175 L2 gas (SPK-16, `test_pair_plan_bound_hosts`), under D-220's
+/// 100,000,000.
+pub const MAX_DRAWS: u16 = 640;
 
 pub mod errors {
     pub const KIND: felt252 = 'quotas: kind';
@@ -34,6 +41,16 @@ pub mod errors {
     pub const EMPTY: felt252 = 'quotas: empty with a value';
     /// A quota that places nothing (count 0).
     pub const COUNT: felt252 = 'quotas: count 0';
+    /// R-12: a count above the zone's members.
+    pub const ABOVE_MEMBERS: felt252 = 'zone: count above members';
+    /// R-13: an authored zone's count above its candidates.
+    pub const ABOVE_CANDIDATES: felt252 = 'zone: count above candidates';
+    /// R-27: a Heart whose template is missing, or empty at its fewest or at its most.
+    pub const HEART: felt252 = 'zone: heart template';
+    /// R-29: an exit or a set piece in an authored zone.
+    pub const KIND_AUTHORED: felt252 = 'zone: quota kind';
+    /// R-30: more than `MAX_DRAWS` draws together.
+    pub const DRAWS: felt252 = 'zone: quota draws';
 }
 
 #[generate_trait]
@@ -64,6 +81,75 @@ pub impl QuotaSetAssert of QuotaSetAssertTrait {
                 assert(*quota.count != 0, errors::COUNT);
             }
         }
+    }
+}
+
+/// The content bounds of a zone's quotas (ENG-R1c's, built once by ENG-09 and shared: ENG-01
+/// §3.5's R-12, R-13, R-27, R-29, R-30). `Registry` applies them to an authored zone at its
+/// `QUOTAS`, chunk set, `CANDIDATES` and `LOCATION` writes; ENG-R1c applies them to generated
+/// zones.
+#[generate_trait]
+pub impl QuotaBoundsAssert of QuotaBoundsAssertTrait {
+    /// In order, quota by quota: R-29, an authored zone's kinds (no exit, no set piece, which a
+    /// zone's author does not place); R-12, each count at most the zone's `members`; R-13, for an
+    /// authored zone (`candidates`, the six quotas' chunk sets), at most its candidates; R-27, a
+    /// Heart's template (`hearts[i]`, the `PACK` read, `None` when missing) at least 1 at its
+    /// fewest and at its most; then R-30, the draws of every pass at most `MAX_DRAWS` together, a
+    /// pass drawing among the members (generated) or the candidates (authored).
+    fn assert_bounds(
+        self: @QuotaSet, members: u8, candidates: Option<Span<felt252>>, hearts: Span<Option<Pack>>,
+    ) {
+        let mut draws: u16 = 0;
+        let mut i: u32 = 0;
+        for entry in self.quotas.span() {
+            let what = *entry.kind;
+            if what != 0 {
+                let count = *entry.count;
+                let mut left = members;
+                if let Some(sets) = candidates {
+                    assert(what != kind::EXIT && what != kind::SET_PIECE, errors::KIND_AUTHORED);
+                    assert(count <= members, errors::ABOVE_MEMBERS);
+                    left = BoardTrait::count(*sets[i]);
+                    assert(count <= left, errors::ABOVE_CANDIDATES);
+                } else {
+                    assert(count <= members, errors::ABOVE_MEMBERS);
+                }
+                draws += Self::draws(count, left).into();
+                if what == kind::HEART {
+                    match *hearts[i] {
+                        Some(pack) => {
+                            let (low, high) = pack.bounds();
+                            assert(low >= 1 && high >= 1, errors::HEART);
+                        },
+                        None => core::panic_with_felt252(errors::HEART),
+                    }
+                }
+            }
+            i += 1;
+        }
+        assert(draws <= MAX_DRAWS, errors::DRAWS);
+    }
+
+    /// The draws of one pass (D-220's complement draw, `PlacementTrait::subset`): none when the
+    /// count takes every member, else the smaller of the subset and its complement.
+    #[inline(always)]
+    fn draws(count: u8, left: u8) -> u8 {
+        if count >= left {
+            0
+        } else if count.into() * 2_u16 > left.into() {
+            left - count
+        } else {
+            count
+        }
+    }
+
+    /// R-27's reverse check, at a `PACK` write that a Heart quota of an authored zone names
+    /// (`Registry` keeps a count of them per template, as `caste_skills`): the template still at
+    /// least 1 at its fewest and at its most.
+    #[inline(always)]
+    fn assert_heart(pack: @Pack) {
+        let (low, high) = pack.bounds();
+        assert(low >= 1 && high >= 1, errors::HEART);
     }
 }
 

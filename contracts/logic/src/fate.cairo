@@ -83,6 +83,24 @@ pub impl EntropyImpl of EntropyTrait {
         Self::word(entropy, instance_id, 225)
     }
 
+    /// The seed of an authored zone's quota hosts among the author's candidates (D-215 ruling 3,
+    /// ENG-08's Q6, built by ENG-09), drawn once at `create`: `derive(entropy,
+    /// domain(instance_id, 226, REVEAL), 0)`, the word of no chunk (0–224), nor of a generated
+    /// zone's hosts (225).
+    #[inline]
+    fn authored_hosts(entropy: felt252, instance_id: felt252) -> felt252 {
+        derive(entropy, domain(instance_id, 226, REVEAL), 0)
+    }
+
+    /// The word of an authored chunk's spawn points (D-215 ruling 4, ENG-08's Q6): their level
+    /// and counts, `derive(entropy, domain(instance_id, 256 + chunk, REVEAL), 0)`, keyed by the
+    /// chunk alone, so that no order of reveals changes it; counters 256–480 are no chunk's word,
+    /// nor the hosts' (225, 226), nor the outline's (227).
+    #[inline]
+    fn spawns(entropy: felt252, instance_id: felt252, chunk: u8) -> felt252 {
+        derive(entropy, domain(instance_id, 256 + chunk.into(), REVEAL), 0)
+    }
+
     /// The seed of a dungeon floor's outline (ENG-10a, D-223, `reveal::outline::OutlineTrait`),
     /// drawn once at `create`: `derive(entropy, domain(instance_id, 227, REVEAL), 0)`, the word of
     /// no chunk (0–224), nor of the hosts (225), nor of an authored zone's hosts (226, SPK-16).

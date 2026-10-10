@@ -1,5 +1,9 @@
 pub mod armor_set;
 pub mod base;
+/// A bridge of an authored zone, `BRIDGE` (D-217, D-227; ENG-09).
+pub mod bridge;
+/// The candidate chunks of an authored zone's quotas, `CANDIDATES` (D-215; ENG-09).
+pub mod candidates;
 pub mod caste;
 /// The words of a revealed chunk (ENG-05): terrain, packs, objects.
 pub mod chunk;
@@ -24,3 +28,5 @@ pub mod set_piece;
 pub mod skill;
 /// A location's spawn table, `SPAWN_TABLE` (ENG-05).
 pub mod spawn_table;
+/// One chunk of an authored zone, `ZONE_CHUNK` (D-214, D-215; ENG-09).
+pub mod zone_chunk;

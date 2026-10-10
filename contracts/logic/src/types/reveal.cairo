@@ -51,6 +51,8 @@
 //! a placement without room or tile is skipped. A neighbour revealed but not given in `known` is
 //! the caller's error (asserted).
 
+/// The reveal of an authored zone (D-214, D-215; ENG-09).
+pub mod authored;
 pub mod board;
 pub mod outline;
 pub mod placement;
