@@ -21,9 +21,10 @@
 //! 4. the segments (`SegmentLibrary`, once a segment): the actions in order, a tick without a
 //!    goblin in the window in process, one with a fight in `TickLibrary` (D-235). **A segment ends
 //!    when a Move brings sight onto a chunk to reveal or the adventurer into another chunk**; then
-//!    the chunks sight touches are revealed (`RevealLibrary`, as `create` does: a zone's hosts from
-//!    the stored bitmaps of the quotas the generation counts, a dungeon floor's from its stored
-//!    outline, A7, A8), **the area moves to the 3 × 3 around the adventurer's chunk, and the
+//!    the chunks sight touches are revealed (`HostsLibrary.reveal`, which reads the site and calls
+//!    `RevealLibrary`, as `create`'s `enter` does; CBT-05g: a zone's hosts from the stored bitmaps
+//!    of the quotas the generation still owes, a dungeon floor's from its stored outline, A7, A8),
+//!    **the area moves to the 3 × 3 around the adventurer's chunk, and the
 //!    goblins of its new chunks are read (the content they need with them) and merged by entity
 //!    id**; a goblin home with its spawn chunk outside the area, and not killed by the batch,
 //!    leaves the batch's world, written back first if it changed (ENG-07b: re-read from its record,
@@ -31,8 +32,8 @@
 //!    actions sent as single batches hold (t-0109, major 1, minor 4);
 //! 5. the words written back: the member's four, each goblin whose words changed (`record`), each
 //!    chunk whose objects or packs changed, the roster, the header (sequence, clock, counts); then
-//!    `GoblinKilled`, `ChunkRevealed`, `BatchPlayed` and, on a defeat, `Defeated` and the closing
-//!    report.
+//!    `GoblinKilled`, `ChunkRevealed`, `BatchPlayed` and, on a defeat, `Defeated`; the closing path
+//!    and its report are `Instances`' after the call (CBT-05g), `play` returning the defeat.
 //!
 //! **A goblin written back** (`record`; ENG-01 §3.2, design/18: a pack shares its aggro): an
 //! untouched goblin (no record yet) whose only change is its engagement sets its pack's `alert`
@@ -54,7 +55,8 @@ use grimworld_logic::types::InstanceId;
 
 #[starknet::interface]
 pub trait IPlayLibrary<T> {
-    /// `play`'s body, its admission first (ENG-01 §4.1; D-236), in `Instances`' context.
+    /// `play`'s body, its admission first (ENG-01 §4.1; D-236), in `Instances`' context. Whether
+    /// the adventurer was defeated: `Instances` then runs the closing path (CBT-05g).
     fn play(
         ref self: T,
         instance_id: InstanceId,
@@ -62,7 +64,7 @@ pub trait IPlayLibrary<T> {
         sequence: u32,
         version: u32,
         actions: felt252,
-    );
+    ) -> bool;
 }
 
 #[starknet::contract]
@@ -83,18 +85,17 @@ pub mod PlayLibrary {
             sequence: u32,
             version: u32,
             actions: felt252,
-        ) {
+        ) -> bool {
             let mut instances = Instances::unsafe_new_contract_state();
-            PlayTrait::play(ref instances, instance_id, adventurer_id, sequence, version, actions);
+            PlayTrait::play(ref instances, instance_id, adventurer_id, sequence, version, actions)
         }
     }
 }
 use grimworld_logic::actions::decode_batch;
 use grimworld_logic::content::{CASTE, ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
 use grimworld_logic::interface::{
-    IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRevealLibraryDispatcherTrait,
-    IRevealLibraryLibraryDispatcher, ISegmentLibraryDispatcherTrait,
-    ISegmentLibraryLibraryDispatcher,
+    IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
+    IRegistryReadDispatcherTrait, ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher,
 };
 use grimworld_logic::models::chunk::{
     Features, FeaturesStorePacking, PackPlacementTrait, Terrain, TerrainStorePacking,
@@ -106,9 +107,8 @@ use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackRecord, PackTrait};
 use grimworld_logic::packing::{Bitmap, LIVE, Lanes16};
 use grimworld_logic::types::play::{Area, Classes};
+use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
-use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
-use grimworld_logic::types::reveal::{ProgressTrait, SightTrait};
 use grimworld_logic::types::tick::{
     CasteSheet, CasteSheetTrait, Content, PotionSheet, PotionSheetTrait, SkillSheet,
     SkillSheetTrait, ai,
@@ -120,7 +120,6 @@ use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
 use crate::helpers::stored::StoredTrait;
 use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
-use crate::models::member::MemberState;
 use crate::store::InstancesStoreTrait;
 use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
 use crate::systems::instances::play_class;
@@ -171,7 +170,7 @@ pub impl PlayImpl of PlayTrait {
         sequence: u32,
         version: u32,
         actions: felt252,
-    ) {
+    ) -> bool {
         // The admission (D-236, from `Instances`): the caller controls the member, then the
         // instance's checks; a refusal is a `BatchPlayed` that ran nothing.
         let (slot, generation) = grimworld_logic::types::instance_parts(instance_id);
@@ -188,7 +187,7 @@ pub impl PlayImpl of PlayTrait {
                 Stop::Closed
             };
             self.played(instance_id, adventurer_id, sequence, @header, 0, stop, version);
-            return;
+            return false;
         }
         let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
         // [Read] The member, the area
@@ -238,7 +237,7 @@ pub impl PlayImpl of PlayTrait {
         let (current, _, parts) = registry.bundle(requests.span());
         if current != version {
             self.played(instance_id, adventurer_id, sequence, @header, 0, Stop::Version, current);
-            return;
+            return false;
         }
         let location: Location = LocationRecord::unpack(parts.slice(0, 2));
         let mut at: u32 = 3;
@@ -290,7 +289,7 @@ pub impl PlayImpl of PlayTrait {
                     .played(
                         instance_id, adventurer_id, sequence, @header, 0, Stop::Invalid, version,
                     );
-                return;
+                return false;
             },
         };
         let actions = match decode_batch(actions) {
@@ -300,7 +299,7 @@ pub impl PlayImpl of PlayTrait {
                     .played(
                         instance_id, adventurer_id, sequence, @header, 0, Stop::Invalid, version,
                     );
-                return;
+                return false;
             },
         };
         let area = Self::area(@self, slot, @location, set, revealed, @ground);
@@ -316,7 +315,7 @@ pub impl PlayImpl of PlayTrait {
                 members,
                 actions.span(),
                 read,
-            );
+            )
     }
 
     /// The goblins of `chunks` (their packs' goblins: a record when `touched`, else derived from
@@ -476,7 +475,7 @@ pub impl PlayImpl of PlayTrait {
         members: Array<MemberWords>,
         actions: Span<Action>,
         read: Read,
-    ) {
+    ) -> bool {
         let Read { mut header, location, mut area, ground, goblins, roster, mut book } = read;
         let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
         let mut words = Words {
@@ -747,10 +746,8 @@ pub impl PlayImpl of PlayTrait {
         self.played(instance_id, adventurer_id, sequence, @header, played, stop, version);
         if out.defeated {
             self.emit(Defeated { instance_id, adventurer_id });
-            let placement = self.get_placement(adventurer_id);
-            let state: MemberState = StorePacking::unpack(*out.members[member.into()].state);
-            self.close(instance_id, slot, header, placement, state, Outcome::Defeated, 0, 0);
         }
+        out.defeated
     }
 
     /// `goblin` written back if its words differ from those it was last loaded with (`find`): an
@@ -890,10 +887,12 @@ pub impl PlayImpl of PlayTrait {
             );
     }
 
-    /// Reveals `chunks` in play (ENG-05's engine, `create`'s path): the location's site, the
-    /// progress from the stored quotas; a zone's hosts from the stored bitmaps of the quotas the
-    /// generation counts only (a reused slot's stale bitmaps never read, A7), a dungeon floor's
-    /// outline and hosts from storage, drawing nothing (A8, D-229). Writes the chunks, the revealed
+    /// Reveals `chunks` in play (ENG-05's engine, `create`'s path) through `HostsLibrary.reveal`
+    /// (CBT-05g), which reads the location's site and calls `RevealLibrary`: the progress from the
+    /// stored quotas; a zone's hosts from the stored bitmaps of the quotas the generation still
+    /// owes only (a reused slot's stale bitmaps never read, A7: a quota the generation does not
+    /// count has nothing left), a dungeon floor's outline and hosts from storage, drawing nothing
+    /// (A8, D-229). Writes the chunks, the revealed
     /// set, the header's count and the quotas; adds the chunks to the area and the ground.
     fn reveal(
         ref self: InstancesState,
@@ -911,13 +910,16 @@ pub impl PlayImpl of PlayTrait {
             8
         };
         let tasks = self.get_tasks(slot, read);
-        let mut site = self
-            .site(header.location, location, header.entry_chunk, header.entry_tile, tasks, chunks);
         let entropy = self.get_entropy(slot);
-        let start = ProgressTrait::new(@site, entropy);
+        let progress = self
+            .get_quotas(slot)
+            .model()
+            .progress(area.revealed, header.revealed_count, entropy);
+        // The hosts of the quotas still owed: a quota's host bit is read only while it has
+        // something left (`PlacementTrait::due`), so the others are 0, unread (CBT-05g)
         let mut hosts: Array<felt252> = array![];
         let mut quota: u8 = 0;
-        for count in start.left.span() {
+        for count in progress.left.span() {
             hosts.append(if *count > 0 {
                 self.get_hosts(slot, quota)
             } else {
@@ -925,26 +927,11 @@ pub impl PlayImpl of PlayTrait {
             });
             quota += 1;
         }
-        let hosts = hosts.span();
-        let mut masks: Array<(u8, felt252)> = array![];
-        if *location.target != 0 {
-            let (set, west, north) = self.get_outline(slot);
-            site.chunk_set = set;
-            site.west = west;
-            site.north = north;
-            for chunk in chunks {
-                masks.append((*chunk, QuotaPlacementTrait::with_hosts(0, hosts, *chunk)));
-            }
+        let outline = if *location.target != 0 {
+            Some(self.get_outline(slot))
         } else {
-            for (chunk, mask) in site.masks {
-                masks.append((*chunk, QuotaPlacementTrait::with_hosts(*mask, hosts, *chunk)));
-            }
-        }
-        site.masks = masks.span();
-        let progress = self
-            .get_quotas(slot)
-            .model()
-            .progress(area.revealed, header.revealed_count, entropy);
+            None
+        };
         // The terrain of every revealed neighbour of the chunks (their seams)
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in chunks {
@@ -968,8 +955,24 @@ pub impl PlayImpl of PlayTrait {
                 }
             }
         }
-        let (progress, out) = IRevealLibraryLibraryDispatcher { class_hash: self.get_reveal() }
-            .reveal(site, progress, instance_id.into(), known.span(), chunks);
+        let (progress, out) = IHostsLibraryLibraryDispatcher {
+            class_hash: self.get_hosts_library(),
+        }
+            .reveal(
+                self.get_registry(),
+                self.get_reveal(),
+                header.location,
+                *location,
+                header.entry_chunk,
+                header.entry_tile,
+                tasks,
+                hosts.span(),
+                outline,
+                progress,
+                instance_id.into(),
+                known.span(),
+                chunks,
+            );
         for chunk in out {
             let (index, terrain, features) = *chunk;
             self.set_chunk(slot, index, terrain, features);
@@ -1372,4 +1375,3 @@ pub impl PlayImpl of PlayTrait {
     }
 }
 use grimworld_logic::actions::Action;
-use grimworld_logic::types::Outcome;
