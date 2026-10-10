@@ -29,6 +29,7 @@ use hexx::board::rng::{Rng, RngTrait};
 use crate::fate::EntropyTrait;
 use crate::models::chunk::{Object, Terrain, object};
 use crate::models::quotas::{QuotaSet, kind as quota};
+use crate::models::set_piece::{SetPack, SetPiece};
 use crate::models::zone_chunk::{QUOTAS, ZoneChunk, ZoneChunkTrait};
 use super::board::{BOARD, BoardTrait, INTERIOR};
 use super::placement::{Placement, PlacementTrait};
@@ -40,6 +41,7 @@ pub impl AuthoredImpl of AuthoredTrait {
     /// a quota in order (6), 0 for a quota with no count: at `create`, once, from `seed`
     /// (`EntropyTrait::authored_hosts`). R-13 keeps each count at most its candidates, R-30 the
     /// draws at most 640 together.
+    #[inline(never)]
     fn hosts(quotas: @QuotaSet, candidates: Span<felt252>, seed: felt252) -> Array<felt252> {
         let mut out: Array<felt252> = array![];
         let mut t: felt252 = 0;
@@ -77,11 +79,143 @@ pub impl AuthoredImpl of AuthoredTrait {
         out
     }
 
-    /// Reveals `chunks` in order, each that is revealable now (`RevealTrait::revealable`: inside
-    /// the zone's chunk set, not yet revealed), from its record in `records` (a chunk of the set
-    /// without one is all wall: the content pipeline writes every chunk, ENG-01 §3.5), and records
-    /// it in `progress`. `hosts`: each quota's host chunks (`hosts`), 0 for a quota with nothing
-    /// left.
+    /// One authored chunk composed (`HostsLibrary`, where the records are read): as a `SetPiece`,
+    /// its plane; its objects, the authored ones then each hosted quota's on its candidate tile
+    /// (a quota with something `left` whose host bitmap holds the chunk), each on a walkable tile
+    /// of the interior not yet taken (D-140: else not laid, the quota kept owed); its packs to lay,
+    /// each hosted Heart then the spawn points, at most 2 (R-15). With `marks`: bits 0–5 the
+    /// object quotas laid; bits `16 + 4 j`, pack `j`'s Heart quota plus one (0: a spawn point).
+    #[inline(never)]
+    fn compose(
+        site: @Site, left: Span<u8>, chunk: u8, record: @ZoneChunk, hosts: Span<felt252>,
+    ) -> (SetPiece, u32) {
+        let walls = *record.walls;
+        let mut free = BoardTrait::minus(INTERIOR, walls);
+        let mut objects: Array<Object> = array![];
+        for item in record.objects.span() {
+            if *item.kind != 0 {
+                objects.append(*item);
+                free = BoardTrait::minus(free, BoardTrait::pow(*item.tile));
+            }
+        }
+        let mut packs: Array<SetPack> = array![];
+        let mut marks: u32 = 0;
+        let mut i: u8 = 0;
+        while i != QUOTAS {
+            let index: u32 = i.into();
+            if *left[index] != 0 && BoardTrait::has(*hosts[index], chunk) {
+                let entry = *site.quotas.quotas.span()[index];
+                let tile = record.tile(i);
+                if entry.kind == quota::HEART {
+                    if packs.len() < 2 {
+                        let shift: u32 = if packs.len() == 0 {
+                            0x10000
+                        } else {
+                            0x100000
+                        };
+                        marks += (index + 1) * shift;
+                        packs.append(SetPack { tile, template: entry.param });
+                    }
+                } else if objects.len() < 3 && tile < 225 && BoardTrait::has(free, tile) {
+                    let kind = if entry.kind == quota::VEIN {
+                        object::VEIN
+                    } else if entry.kind == quota::COLLECTOR {
+                        object::COLLECTOR
+                    } else {
+                        object::LANDMARK
+                    };
+                    objects.append(Object { tile, kind, state: 0, param: entry.param });
+                    free = BoardTrait::minus(free, BoardTrait::pow(tile));
+                    marks += PlacementTrait::bit(i).into();
+                }
+            }
+            i += 1;
+        }
+        for spawn in record.spawns.span() {
+            if *spawn.template != 0 && packs.len() < 2 {
+                packs.append(*spawn);
+            }
+        }
+        while packs.len() < 2 {
+            packs.append(Default::default());
+        }
+        while objects.len() < 3 {
+            objects.append(Default::default());
+        }
+        let piece = SetPiece {
+            walls,
+            packs: [*packs[0], *packs[1]],
+            objects: [*objects[0], *objects[1], *objects[2]],
+        };
+        (piece, marks)
+    }
+
+    /// Reveals the chunks of `pieces` in order (`(chunk, piece, marks)`, `pieces`), each that is
+    /// revealable now (`RevealTrait::revealable`: inside the zone's chunk set, not yet revealed),
+    /// and records it in `progress`: the terrain copied (no edge: a zone), the objects as composed,
+    /// then the packs, the chunk's level drawn first from its own word, each Heart at the band's
+    /// top (D-208), each spawn point at that level (`RevealLibrary`).
+    #[inline(never)]
+    fn lay(
+        site: @Site, ref progress: Progress, instance_id: felt252, pieces: Span<(u8, SetPiece, u32)>,
+    ) -> Array<Revealed> {
+        let mut out: Array<Revealed> = array![];
+        for entry in pieces {
+            let (chunk, piece, marks) = *entry;
+            if !RevealTrait::revealable(site, @progress, array![].span(), chunk) {
+                continue;
+            }
+            let mut placement = Placement {
+                packs: array![],
+                objects: array![],
+                allowed: BoardTrait::minus(INTERIOR, piece.walls),
+                placed: (marks % 0x10000).try_into().unwrap(),
+                odd: (chunk / 15) % 2 == 1,
+                level: 0,
+            };
+            for item in piece.objects.span() {
+                if *item.kind != 0 {
+                    placement.objects.append(*item);
+                    placement
+                        .allowed = BoardTrait::minus(placement.allowed, BoardTrait::pow(*item.tile));
+                }
+            }
+            let mut rng: Rng = RngTrait::new(
+                EntropyTrait::spawns(progress.entropy, instance_id, chunk),
+            );
+            let low = *site.level_min;
+            let high = *site.level_max;
+            let level = if high > low {
+                low + rng.draw_byte((high - low + 1).try_into().unwrap())
+            } else {
+                low
+            };
+            let mut heart = marks / 0x10000;
+            for pack in piece.packs.span() {
+                let (rest, q) = DivRem::div_rem(heart, 0x10);
+                heart = rest;
+                if *pack.template != 0 {
+                    placement.level = if q != 0 {
+                        high
+                    } else {
+                        level
+                    };
+                    if placement.pack(ref rng, site, *pack.template, Some(*pack.tile)) && q != 0 {
+                        placement.placed += PlacementTrait::bit((q - 1).try_into().unwrap());
+                    }
+                }
+            }
+            let features = RevealTrait::features(placement.packs.span(), placement.objects.span());
+            progress.left = PlacementTrait::spend(progress.left, placement.placed);
+            progress.revealed += BoardTrait::pow(chunk);
+            progress.count += 1;
+            out.append(Revealed { chunk, terrain: Terrain { walls: piece.walls, edges: 0 }, features });
+        }
+        out
+    }
+
+    /// `compose` then `lay`, in one place (the tests; `HostsLibrary` composes and `RevealLibrary`
+    /// lays): `records`, the chunks' `ZONE_CHUNK`s; `hosts`, each quota's host chunks.
     fn reveal(
         site: @Site,
         ref progress: Progress,
@@ -90,117 +224,38 @@ pub impl AuthoredImpl of AuthoredTrait {
         hosts: Span<felt252>,
         chunks: Span<u8>,
     ) -> Array<Revealed> {
-        let mut out: Array<Revealed> = array![];
-        for entry in chunks {
-            let chunk = *entry;
-            if RevealTrait::revealable(site, @progress, array![].span(), chunk) {
-                let mut record: Option<ZoneChunk> = None;
-                for found in records {
-                    let (at, value) = *found;
-                    if at == chunk {
-                        record = Some(value);
-                    }
-                }
-                let (revealed, placed) = match record {
-                    Some(record) => Self::chunk(
-                        site, @progress, instance_id, chunk, @record, hosts,
-                    ),
-                    None => (
-                        Revealed {
-                            chunk,
-                            terrain: Terrain { walls: BOARD, edges: 0 },
-                            features: RevealTrait::features(array![].span(), array![].span()),
-                        },
-                        0,
-                    ),
-                };
-                progress.left = PlacementTrait::spend(progress.left, placed);
-                progress.revealed += BoardTrait::pow(chunk);
-                progress.count += 1;
-                out.append(revealed);
-            }
-        }
-        out
+        let left = progress.left;
+        let pieces = Self::pieces(site, left.span(), records, hosts, chunks);
+        Self::lay(site, ref progress, instance_id, pieces)
     }
 
-    /// One chunk's two words (ENG-01 §3.2) and the quotas it placed: the terrain copied from the
-    /// record (no edge: a zone), then the objects (the authored ones, then each hosted quota's on
-    /// its candidate tile), then the packs (each hosted Heart at the band's top, then the spawn
-    /// points at the level drawn for the chunk). What finds no room or no tile is not placed, and
-    /// a quota keeps it owed (D-140: no legal content panics).
-    fn chunk(
+    /// One piece a chunk of `chunks`, in order: its record composed (`compose`), or all wall for a
+    /// chunk without one (the content pipeline writes every chunk, ENG-01 §3.5).
+    #[inline(never)]
+    fn pieces(
         site: @Site,
-        progress: @Progress,
-        instance_id: felt252,
-        chunk: u8,
-        record: @ZoneChunk,
+        left: Span<u8>,
+        records: Span<(u8, ZoneChunk)>,
         hosts: Span<felt252>,
-    ) -> (Revealed, u16) {
-        let walls = *record.walls;
-        let mut placement = Placement {
-            packs: array![],
-            objects: array![],
-            allowed: BoardTrait::minus(INTERIOR, walls),
-            placed: 0,
-            odd: (chunk / 15) % 2 == 1,
-            level: 0,
-        };
-        // [Compute] The objects: the authored ones, then each hosted quota's on its candidate tile
-        for item in record.objects.span() {
-            if *item.kind != 0 {
-                placement.objects.append(*item);
-                placement.allowed = BoardTrait::minus(placement.allowed, BoardTrait::pow(*item.tile));
-            }
-        }
-        let mut hearts: Array<(u8, u16, u8)> = array![];
-        let left = progress.left.span();
-        let mut i: u8 = 0;
-        while i != QUOTAS {
-            let index: u32 = i.into();
-            if *left[index] != 0 && BoardTrait::has(*hosts[index], chunk) {
-                let entry = *site.quotas.quotas.span()[index];
-                let tile = record.tile(i);
-                if entry.kind == quota::HEART {
-                    hearts.append((i, entry.param, tile));
-                } else if placement.objects.len() < 3 && placement.take(tile) {
-                    let kind = if entry.kind == quota::VEIN {
-                        object::VEIN
-                    } else if entry.kind == quota::COLLECTOR {
-                        object::COLLECTOR
-                    } else {
-                        object::LANDMARK
-                    };
-                    placement.objects.append(Object { tile, kind, state: 0, param: entry.param });
-                    placement.placed += PlacementTrait::bit(i);
+        chunks: Span<u8>,
+    ) -> Span<(u8, SetPiece, u32)> {
+        let mut out: Array<(u8, SetPiece, u32)> = array![];
+        for chunk in chunks {
+            let mut piece = SetPiece {
+                walls: BOARD, packs: [Default::default(); 2], objects: [Default::default(); 3],
+            };
+            let mut marks: u32 = 0;
+            for entry in records {
+                let (at, record) = *entry;
+                if at == *chunk {
+                    let (composed, laid) = Self::compose(site, left, at, @record, hosts);
+                    piece = composed;
+                    marks = laid;
                 }
             }
-            i += 1;
+            out.append((*chunk, piece, marks));
         }
-        // [Compute] The packs: the level drawn first, then each Heart at the band's top (D-208),
-        // then the spawn points at the chunk's level
-        let mut rng: Rng = RngTrait::new(EntropyTrait::spawns(*progress.entropy, instance_id, chunk));
-        let low = *site.level_min;
-        let high = *site.level_max;
-        let level = if high > low {
-            low + rng.draw_byte((high - low + 1).try_into().unwrap())
-        } else {
-            low
-        };
-        placement.level = high;
-        for heart in hearts.span() {
-            let (i, template, tile) = *heart;
-            if placement.pack(ref rng, site, template, Some(tile)) {
-                placement.placed += PlacementTrait::bit(i);
-            }
-        }
-        placement.level = level;
-        for spawn in record.spawns.span() {
-            if *spawn.template != 0 {
-                placement.pack(ref rng, site, *spawn.template, Some(*spawn.tile));
-            }
-        }
-        let features = RevealTrait::features(placement.packs.span(), placement.objects.span());
-        (Revealed { chunk, terrain: Terrain { walls, edges: 0 }, features }, placement.placed)
+        out.span()
     }
 }
 

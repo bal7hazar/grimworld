@@ -8,3 +8,5 @@ pub mod hub;
 pub mod market;
 /// `Registry`: content as data.
 pub mod registry;
+/// `ZoneChecks`: an authored zone's content checks, `Registry`'s library class (ENG-09).
+pub mod zone;

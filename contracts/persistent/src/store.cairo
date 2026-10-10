@@ -592,16 +592,27 @@ pub impl RegistryStoreImpl of RegistryStoreTrait {
         self.caste_skills.entry(skill).write(count)
     }
 
-    // `heart_packs[template]`: how many Heart quotas of authored zones name the template (R-27)
+    // `zone_checks`: the class of an authored zone's checks (`ZoneChecks`, ENG-09), one slot
+
+    /// Read by `set_record` for the records an authored zone's checks concern.
+    #[inline(always)]
+    fn get_zone_class(self: @RegistryState) -> ClassHash {
+        self.zone_checks.read()
+    }
+
+    /// Written by `set_zone_checks`.
+    #[inline(always)]
+    fn set_zone_class(ref self: RegistryState, class_hash: ClassHash) {
+        self.zone_checks.write(class_hash)
+    }
+
+    // `heart_packs[template]`: how many Heart quotas of authored zones name the template (R-27),
+    // written by `ZoneChecks` in `Registry`'s context
+
 
     #[inline(always)]
     fn get_heart_count(self: @RegistryState, template: u32) -> u32 {
         self.heart_packs.entry(template).read()
-    }
-
-    #[inline(always)]
-    fn set_heart_count(ref self: RegistryState, template: u32, count: u32) {
-        self.heart_packs.entry(template).write(count)
     }
 
     // Records: `records[(kind, id, part)]`, one felt a part, `parts(kind)` parts
@@ -1159,6 +1170,12 @@ mod registry_layout_tests {
                 state.heart_packs.entry(7).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("heart_packs"), array![7].span()),
             'heart_packs',
+        );
+        assert(
+            address_of(
+                state.zone_checks.as_ptr().__storage_pointer_address__,
+            ) == selector!("zone_checks"),
+            'zone_checks',
         );
     }
 

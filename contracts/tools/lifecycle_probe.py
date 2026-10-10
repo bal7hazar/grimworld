@@ -560,6 +560,11 @@ if OPTIONS.get("--fight") == "on":
     records += [(8, row[0], caste_record(row)) for row in seed_rows("castes", 30)]
     records += [(7, row[0], pack_record(row)) for row in seed_rows("packs", 17)]
     records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 16)]
+# ENG-09: an authored zone's records need the registry's zone checks (`ZoneChecks`, its library
+# class); only with `--authored on`, so that the recorded streams do not move.
+if OPTIONS.get("--authored") == "on":
+    invoke("Registry.set_zone_checks", registry, "set_zone_checks",
+           declare("persistent", "ZoneChecks"), record=False)
 for kind, rid, parts in records:
     invoke(f"set_record {kind} {rid}", registry, "set_record", kind, rid, len(parts), *parts,
            record=False)

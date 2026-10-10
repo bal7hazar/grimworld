@@ -145,7 +145,8 @@ fn plain(kind: u8, width: u8, height: u8, target: u8) -> Location {
 
 #[generate_trait]
 impl ZoneFixture of Fixture {
-    /// A registry deployed with `ADMIN`, the caller `ADMIN`; the town (1), the two templates, a
+    /// A registry deployed with `ADMIN`, the caller `ADMIN`, its zone checks set (`ZoneChecks`);
+    /// the town (1), the two templates, a
     /// first gate (1, so that the sample's are 2 and 3), then the sample: its `LOCATION` (2) and
     /// every record in the converter's order; then the dungeon floor its gate reaches (3).
     fn deploy() -> Registry {
@@ -158,6 +159,7 @@ impl ZoneFixture of Fixture {
             safe: IRegistryAdminSafeDispatcher { contract_address: address },
             read: IRegistryReadDispatcher { contract_address: address },
         };
+        r.admin.set_zone_checks(class("ZoneChecks"));
         r.admin.set_record(LOCATION, 1, plain(location_kind::TOWN, 0, 0, 0).pack());
         r.admin.set_record(PACK, 1, raiders().pack());
         r.admin.set_record(PACK, 2, cubs().pack());
@@ -362,6 +364,38 @@ fn test_authored_reveal_through_hosts_library() {
             assert(*a.left.span()[i] == 0, 'every quota placed');
         }
         entropy = entropy * 31 + 7;
+    }
+}
+
+// --- The zone checks' class ------------------------------------------------------------------------
+
+// Before `set_zone_checks`, an authored zone's records are refused: none can exist unchecked.
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+#[should_panic(expected: 'registry: no zone checks')]
+fn test_refuse_without_zone_checks() {
+    let class = declare("Registry").unwrap().contract_class();
+    let (address, _) = class.deploy(@array![ADMIN]).unwrap();
+    start_cheat_caller_address(address, ADMIN.try_into().unwrap());
+    let r = Registry {
+        address,
+        admin: IRegistryAdminDispatcher { contract_address: address },
+        safe: IRegistryAdminSafeDispatcher { contract_address: address },
+        read: IRegistryReadDispatcher { contract_address: address },
+    };
+    r.admin.set_record(LOCATION, 1, plain(location_kind::TOWN, 0, 0, 0).pack());
+    let zone = plain(location_kind::ZONE, 1, 1, 0).with_map(map::AUTHORED);
+    r.refuse(LOCATION, 2, zone.pack());
+}
+
+#[test]
+#[available_gas(l2_gas: 4000000000)]
+#[should_panic(expected: 'registry: zone checks zero')]
+fn test_refuse_zone_checks_zero() {
+    let r = ZoneFixture::deploy();
+    match r.safe.set_zone_checks(0.try_into().unwrap()) {
+        Ok(()) => core::panic_with_felt252('not refused'),
+        Err(data) => core::panic_with_felt252(*data.at(0)),
     }
 }
 

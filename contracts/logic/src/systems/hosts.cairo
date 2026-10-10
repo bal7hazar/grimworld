@@ -23,9 +23,10 @@
 //! D-215, ENG-09) is revealed here, not by `RevealLibrary`: its site (`authored_site`) reads the
 //! `ZONE_CHUNK` records of the chunks to reveal and, at `enter`, its `CANDIDATES`; its quotas'
 //! hosts are drawn once at `enter` among the candidates (`AuthoredTrait::hosts`, counter 226) and
-//! stored by `Instances` as a generated zone's are; then `RevealLibrary`'s second entrypoint,
-//! `authored`, copies each chunk's plane and draws what is keyed by the chunk
-//! (`AuthoredTrait::reveal`; the placement code is `RevealLibrary`'s already). The generated path,
+//! stored by `Instances` as a generated zone's are; each chunk is composed here from its record
+//! and the hosts (`AuthoredTrait::compose`: its plane, its objects, the packs to lay), then
+//! `RevealLibrary`'s second entrypoint, `authored`, lays the packs with what is drawn from the
+//! chunk's own word (`AuthoredTrait::lay`; the placement code is `RevealLibrary`'s already). The generated path,
 //! `RevealLibrary::reveal` and its vectors, is unchanged: the fallback of every zone without the
 //! marker (D-215 ruling 7).
 
@@ -134,8 +135,11 @@ pub mod HostsLibrary {
                     @site.quotas, candidates, EntropyTrait::authored_hosts(entropy, instance_id),
                 )
                     .span();
+                let pieces = AuthoredTrait::pieces(
+                    @site, progress.left.span(), records, hosts, chunks,
+                );
                 let (progress, revealed) = IRevealLibraryLibraryDispatcher { class_hash: reveal }
-                    .authored(site, progress, instance_id, records, hosts, chunks);
+                    .authored(site, progress, instance_id, pieces);
                 return (progress, revealed, hosts, None);
             }
             let mut site = site(
@@ -204,8 +208,11 @@ pub mod HostsLibrary {
                 let (site, records, _) = authored_site(
                     registry, destination, location, entry_chunk, chunks, false,
                 );
+                let pieces = AuthoredTrait::pieces(
+                    @site, progress.left.span(), records, hosts, chunks,
+                );
                 return IRevealLibraryLibraryDispatcher { class_hash: reveal }
-                    .authored(site, progress, instance_id, records, hosts, chunks);
+                    .authored(site, progress, instance_id, pieces);
             }
             let mut site = site(
                 registry, destination, location, entry_chunk, entry_tile, tasks, chunks,
@@ -306,18 +313,7 @@ pub mod HostsLibrary {
                 add(ref ids, *entry.param);
             }
         }
-        let mut packs: Array<(u16, Pack)> = array![];
-        if ids.len() != 0 {
-            let records = registry.records(PACK, ids.span());
-            let mut i: u32 = 0;
-            for id in ids.span() {
-                let record = records.slice(i, 1);
-                if exists(record) {
-                    packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
-                }
-                i += 1;
-            }
-        }
+        let packs = templates(registry, ids.span());
         let count = if tasks.len() < TASK_QUOTAS {
             tasks.len()
         } else {
@@ -339,7 +335,7 @@ pub mod HostsLibrary {
             quotas,
             tasks: tasks.slice(0, count),
             spawn,
-            packs: packs.span(),
+            packs,
             pieces: pieces.span(),
         }
     }
@@ -351,6 +347,7 @@ pub mod HostsLibrary {
     /// authored zone's packs are its spawn points, its border tiles are walls in its plane (R-20),
     /// and a task places nothing there (D-221). Returns the site, each chunk's record (a chunk
     /// without one is left out) and the six quotas' candidate sets (empty unless `hosts`).
+    #[inline(never)]
     fn authored_site(
         registry: ContractAddress,
         destination: u16,
@@ -402,18 +399,7 @@ pub mod HostsLibrary {
                 add(ref ids, *entry.param);
             }
         }
-        let mut packs: Array<(u16, Pack)> = array![];
-        if ids.len() != 0 {
-            let read = registry.records(PACK, ids.span());
-            let mut i: u32 = 0;
-            for id in ids.span() {
-                let record = read.slice(i, 1);
-                if exists(record) {
-                    packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
-                }
-                i += 1;
-            }
-        }
+        let packs = templates(registry, ids.span());
         let site = Site {
             target: 0,
             biome: location.biome,
@@ -430,10 +416,29 @@ pub mod HostsLibrary {
             quotas,
             tasks: array![].span(),
             spawn: SpawnTable { spawns: [Default::default(); 7], density: 0 },
-            packs: packs.span(),
+            packs,
             pieces: array![].span(),
         };
         (site, records.span(), candidates.span())
+    }
+
+    /// The `PACK` templates `ids` that the registry holds, `(id, template)`, in one `records` call
+    /// (none when `ids` is empty).
+    #[inline(never)]
+    fn templates(registry: IRegistryReadDispatcher, ids: Span<u32>) -> Span<(u16, Pack)> {
+        let mut packs: Array<(u16, Pack)> = array![];
+        if ids.len() != 0 {
+            let records = registry.records(PACK, ids);
+            let mut i: u32 = 0;
+            for id in ids {
+                let record = records.slice(i, 1);
+                if exists(record) {
+                    packs.append(((*id).try_into().unwrap(), PackRecord::unpack(record)));
+                }
+                i += 1;
+            }
+        }
+        packs.span()
     }
 
     /// An `OUTLINE` record's bitmap (0 for none).

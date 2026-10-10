@@ -15,7 +15,7 @@ pub mod RevealLibrary {
     use starknet::storage_access::StorePacking;
     use crate::interface::IRevealLibrary;
     use crate::models::chunk::{Features, FeaturesStorePacking, Terrain, TerrainStorePacking};
-    use crate::models::zone_chunk::ZoneChunk;
+    use crate::models::set_piece::SetPiece;
     use crate::types::reveal::authored::AuthoredTrait;
     use crate::types::reveal::{Progress, RevealTrait, Revealed, Site};
 
@@ -42,14 +42,10 @@ pub mod RevealLibrary {
             site: Site,
             progress: Progress,
             instance_id: felt252,
-            records: Span<(u8, ZoneChunk)>,
-            hosts: Span<felt252>,
-            chunks: Span<u8>,
+            pieces: Span<(u8, SetPiece, u32)>,
         ) -> (Progress, Span<(u8, felt252, felt252)>) {
             let mut progress = progress;
-            let revealed = AuthoredTrait::reveal(
-                @site, ref progress, instance_id, records, hosts, chunks,
-            );
+            let revealed = AuthoredTrait::lay(@site, ref progress, instance_id, pieces);
             (progress, words(revealed))
         }
     }
