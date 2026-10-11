@@ -27,11 +27,11 @@ const TABLE = readTable("segment2.jsonl");
 const CONTENT = readContent(new Felts(TABLE[0]!.ok!));
 
 describe("the segment2 codecs", () => {
-  it("round-trips the table's content (row 0, 263 felts)", () => {
+  it("round-trips the table's content (row 0, 276 felts)", () => {
     const read = new Felts(TABLE[0]!.ok!);
     const content = readContent(read);
     read.end();
-    expect(TABLE[0]!.ok!.length).toBe(263);
+    expect(TABLE[0]!.ok!.length).toBe(276);
     expect(writeContent(content)).toEqual(TABLE[0]!.ok);
   });
 

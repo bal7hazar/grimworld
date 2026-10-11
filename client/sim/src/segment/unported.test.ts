@@ -1,6 +1,5 @@
 // What the segment tables cannot show of the mirror (CLI-02f, CLI-02g-A): the branches of
-// `SegmentTrait::run` it does not mirror (a Move off the window's edge, D-255; a Heavy refusal whose
-// call changed the ground, game's fix pending), that `run` does not change what it is given, and
+// `SegmentTrait::run` it does not mirror (a Move off the window's edge, D-255), that a refusal leaves the ground as it was (D-259), that `run` does not change what it is given, and
 // that the replayer of the parity tests stays out of the app's API.
 
 import { readFileSync } from "node:fs";
@@ -8,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import * as sim from "../index";
 import { board as origin_board, position } from "../movement";
 import { LIVE } from "../packing";
-import { NotMirrored, run, unported } from "../segment";
+import { run } from "../segment";
 import type { Segment } from "../segment";
 import { WIDTH, inside, neighbor } from "../window";
 import type { Classes } from "./classes";
@@ -102,17 +101,17 @@ function acting(ticks: number, changes: boolean): Classes {
 }
 
 describe("the segment beyond its tables", () => {
-  it("throws on a combat action refused as Heavy whose call changed the ground", () => {
-    // An instant trap skill (0 ticks) with no weight left: `run` keeps the placed trap, a bug
+  it("restores the ground on a combat action refused as Heavy whose call changed it (D-259)", () => {
+    // An instant trap skill (0 ticks) with no weight left: the act call placed a trap, the refusal drops it
     const heavy: Segment = {
       ...segment(),
       owed: 0,
       weight: 0,
       actions: [{ kind: "skill", slot: 0, target: { tile: true, value: 112 } }],
     };
-    expect(() => run(heavy, acting(0, true))).toThrow(new NotMirrored(unported.HEAVY_GROUND));
-    // The ground unchanged, restoring and keeping agree: the refusal is mirrored
-    expect(run(heavy, acting(0, false)).done.heavy).toBe(true);
+    const refused = run(heavy, acting(0, true));
+    expect(refused.done.heavy).toBe(true);
+    expect(refused.ground).toEqual(heavy.ground);
     // Run within the weight, the changed ground is kept
     const ran = run({ ...heavy, weight: 1 }, acting(0, true));
     expect([ran.done.played, ran.ground.length]).toEqual([1, 1]);

@@ -1132,6 +1132,12 @@ const MUTANTS: readonly Mutant[] = [
     to: "",
   },
   {
+    name: "a Heavy refusal keeps ActionLibrary's ground (combat)",
+    file: "segment.ts",
+    from: '    result = { halt: "heavy" };\n',
+    to: '    rules.ground = out.ground;\n    result = { halt: "heavy" };\n',
+  },
+  {
     name: "a combat action over the weight is kept (combat)",
     file: "segment.ts",
     from: "  } else if (out.outcome.ticks > weight ||",
