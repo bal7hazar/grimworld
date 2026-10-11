@@ -1378,7 +1378,13 @@ fn test_unindexed_gate_cannot_hide_an_entry() {
     r.admin.set_record(GATE, 1, gate_to(2, 112));
     r.admin.set_record(GATE, 2, gate_to(2, 112));
     r.admin.set_record(GATE, 1, gate_to(2, 0));
-    r.refused(LOCATION, 2, plain(location_kind::DUNGEON, 7, 8, 6).pack(), 'gate: entry outside rectangle');
+    r
+        .refused(
+            LOCATION,
+            2,
+            plain(location_kind::DUNGEON, 7, 8, 6).pack(),
+            'gate: entry outside rectangle',
+        );
     r.admin.set_record(GATE, 2, gate_to(2, 0));
     r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 7, 8, 6).pack());
 }

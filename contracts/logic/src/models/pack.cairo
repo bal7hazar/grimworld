@@ -20,7 +20,8 @@ pub mod errors {
     pub const NO_CASTE: felt252 = 'pack: no caste';
     /// More goblins than a pack holds at its fewest (E-3: 5).
     pub const SIZE: felt252 = 'pack: min above 5';
-    /// A template whose castes' minimums sum to 0 (R-42, BND-01): a pack of no goblin at its fewest.
+    /// A template whose castes' minimums sum to 0 (R-42, BND-01): a pack of no goblin at its
+    /// fewest.
     pub const NO_FEWEST: felt252 = 'pack: fewest is 0';
 }
 

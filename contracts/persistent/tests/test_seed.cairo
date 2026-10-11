@@ -616,7 +616,8 @@ impl SeedFixture of Fixture {
 // The test region, written and read back in one `bundle` (AC-4): 18 records, 22 slots (ENG-05: two
 // pack templates, a spawn table, the zone's and floor 1's quotas).
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 63206204)] // ceil(1.05 × 60196384 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
@@ -711,7 +712,8 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 18 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 58719753)] // ceil(1.05 × 55923574 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
@@ -720,7 +722,8 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 91340954)] // ceil(1.05 × 86991384 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();

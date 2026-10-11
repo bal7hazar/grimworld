@@ -96,7 +96,8 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16262816)] // ceil(1.05 × 15488396 measured)
 fn test_read_cost_baseline() {
     let (probe, registry) = setup();
@@ -106,7 +107,8 @@ fn test_read_cost_baseline() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16413586)] // ceil(1.05 × 15631986 measured)
 fn test_read_cost_one_call_one_read() {
     let (probe, registry) = setup();
@@ -116,7 +118,8 @@ fn test_read_cost_one_call_one_read() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16490729)] // ceil(1.05 × 15705456 measured)
 fn test_read_cost_bundle_1() {
     let (probe, registry) = setup();
@@ -126,7 +129,8 @@ fn test_read_cost_bundle_1() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16553750)] // ceil(1.05 × 15765476 measured)
 fn test_read_cost_bundle_2() {
     let (probe, registry) = setup();
@@ -136,7 +140,8 @@ fn test_read_cost_bundle_2() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16931876)] // ceil(1.05 × 16125596 measured)
 fn test_read_cost_bundle_8() {
     let (probe, registry) = setup();
@@ -146,7 +151,8 @@ fn test_read_cost_bundle_8() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16619239)] // ceil(1.05 × 15827846 measured)
 fn test_read_cost_two_calls() {
     let (probe, registry) = setup();
@@ -156,7 +162,8 @@ fn test_read_cost_two_calls() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 17623144)] // ceil(1.05 × 16783946 measured)
 fn test_read_cost_eight_calls() {
     let (probe, registry) = setup();
@@ -166,7 +173,8 @@ fn test_read_cost_eight_calls() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16309961)] // ceil(1.05 × 15533296 measured)
 fn test_read_cost_local_1() {
     let (probe, _) = setup();
@@ -176,7 +184,8 @@ fn test_read_cost_local_1() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
+// indexed
 #[available_gas(l2_gas: 16550758)] // ceil(1.05 × 15762626 measured)
 fn test_read_cost_local_8() {
     let (probe, _) = setup();
