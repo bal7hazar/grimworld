@@ -248,18 +248,14 @@ describe("the mirror on the recorded goblin world (CLI-10d)", () => {
     throw new Error("no parity record expected");
   };
 
-  it("loads the listed goblin with the assembled content: only the unported TickLibrary stops it", async () => {
+  it("predicts the real Wait with the assembled content: the goblin sets compared, no mismatch", async () => {
     const state = { ...goblinState(), content: await goblinContent() };
-    expect(segmentOf(state).words.goblins).toHaveLength(1);
-    const predict = mirrorOf(state);
-    expect(() => predict([{ kind: "wait" }])).toThrow(
-      "not mirrored: TickLibrary::ticks (no port in client/sim yet)",
-    );
-    const result = reconcile(chain, [{ kind: "wait" }], predict, noLog);
-    expect(result.mirror).toEqual({
-      kind: "not-mirrored",
-      reason: "not mirrored: TickLibrary::ticks (no port in client/sim yet)",
-    });
+    expect(state.content.castes).toHaveLength(1);
+    const segment = segmentOf(state);
+    expect(segment.words.goblins).toHaveLength(1);
+    const result = reconcile(chain, [{ kind: "wait" }], mirrorOf(state), noLog);
+    expect(chain.kind === "played" && chain.view.goblins).toHaveLength(1);
+    expect(result.mirror).toMatchObject({ kind: "predicted", played: 1, stop: Stop.None });
     expect(result.mismatches).toEqual([]);
   });
 
