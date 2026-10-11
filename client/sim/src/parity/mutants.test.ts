@@ -4,12 +4,23 @@
 // throwing where Cairo returned. A mutant the vectors do not kill is a hole in the vectors: it is
 // reported to track game, never closed by editing a table here: it is listed with `survives`
 // (what the tables lack), and this test then requires it to survive, so that the day the game's
-// cases kill it the mark must go.
+// cases kill it the mark must go. A mutant that drops a refusal (`refusal`, CLI-02g-B1) is another
+// kind: no row of any table records a panic of `GoblinTrait::load` or of `assert_awake`, so the
+// tables cannot kill it, and this test requires that they do not; the unit tests' cases
+// (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must.
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-type Mutant = { name: string; file: string; from: string; to: string; survives?: string };
+type Mutant = {
+  name: string;
+  file: string;
+  from: string;
+  to: string;
+  survives?: string;
+  /** A refusal no row records: the tables must not kill it, `parity/refusals.ts` must. */
+  refusal?: true;
+};
 
 const MUTANTS: readonly Mutant[] = [
   {
@@ -1007,7 +1018,7 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "a dead goblin is alive (occupied, idle)",
     file: "segment.ts",
-    from: "world.goblins.filter((goblin) => goblinAi(goblin.state) < DEAD)",
+    from: "world.goblins.filter(is_goblin_alive)",
     to: "world.goblins.filter(() => true)",
   },
   {
@@ -1030,32 +1041,32 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     name: "health regeneration ignored on the fast path (regeneration)",
-    file: "segment.ts",
-    from: "  let pips = member.health_regen;",
-    to: "  let pips = 0;",
+    file: "segment/tick.ts",
+    from: "let pips = member.health_regen + degeneration(",
+    to: "let pips = 0 + degeneration(",
   },
   {
     name: "health regenerates past its max (regeneration)",
-    file: "segment.ts",
+    file: "segment/tick.ts",
     from: "  return Math.min(health + change, max);",
     to: "  return health + change;",
   },
   {
     name: "Bleeding ends a tick early (regeneration)",
-    file: "segment.ts",
-    from: "  if (t <= member.bleeding) pips -= 3;",
-    to: "  if (t < member.bleeding) pips -= 3;",
+    file: "segment/tick.ts",
+    from: "  if (t <= bleeding) pips -= 3;",
+    to: "  if (t < bleeding) pips -= 3;",
   },
   {
     name: "energy does not regenerate on the fast path (regeneration)",
-    file: "segment.ts",
+    file: "segment/tick.ts",
     from: "  member.energy = Math.min(u16add(member.energy, member.energy_regen), member.max_energy);\n",
     to: "",
   },
   {
     name: "adrenaline does not decay on the fast path (regeneration)",
-    file: "segment.ts",
-    from: "  member.adrenaline = member.adrenaline < 1 ? 0 : member.adrenaline - 1;\n",
+    file: "segment/tick.ts",
+    from: "  if (!engaged) member.adrenaline = decay(member.adrenaline);\n",
     to: "",
     survives:
       "no row ticks the fast path with a member's adrenaline above 0 (the fixture's member holds none, and no class call leaves one before a fast-path tick)",
@@ -1087,8 +1098,8 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "a placed trap's goblin is not sent with the call (trap)",
     file: "segment.ts",
-    from: "const goblins = index < 0 ? [] : [{ ...world.goblins[index]! }];",
-    to: "const goblins: GoblinWords[] = [];",
+    from: "const goblins = index < 0 ? [] : [storeGoblin(world.goblins[index]!)];",
+    to: "const goblins: never[] = [];",
   },
   {
     name: "a goblin in the window keeps the fast path (ticks)",
@@ -1146,6 +1157,34 @@ const MUTANTS: readonly Mutant[] = [
     survives:
       "no row changes a goblin twice in a segment that one action left unrecorded (an untouched goblin engaged and nothing else, row 22's 249, which no later action changes): every other goblin changed is in `changed` already",
   },
+  {
+    name: "a caste missing from the content is not refused (NO_CASTE)",
+    file: "segment/words.ts",
+    from: "  if (at === undefined) panic(errors.NO_CASTE);\n",
+    to: "",
+    refusal: true,
+  },
+  {
+    name: "a caste skill missing from the content is not refused (assert_kit)",
+    file: "segment/goblin.ts",
+    from: "  assert_kit(sheets.kits[caste_at]!);\n",
+    to: "",
+    refusal: true,
+  },
+  {
+    name: "more than 8 awake goblins are not refused (assert_awake)",
+    file: "segment/world.ts",
+    from: "  assert_awake(goblins.flatMap((goblin, at) => (goblin.awake ? [at] : [])));\n",
+    to: "",
+    refusal: true,
+  },
+  {
+    name: "a regeneration above an i8 is not refused (assert_pips)",
+    file: "segment/goblin.ts",
+    from: "  assert_pips(effect_regen);\n",
+    to: "",
+    refusal: true,
+  },
 ];
 
 const SRC = new URL("../", import.meta.url);
@@ -1160,6 +1199,7 @@ type Parity = {
   replay: typeof import("./replay").replay;
   readTable: typeof import("./table").readTable;
   TABLES: typeof import("./tables").TABLES;
+  refusals: typeof import("./refusals");
 };
 
 /** A copy of `src/` with the mutant's one replacement, in `.mutants/<index>/`. */
@@ -1177,12 +1217,13 @@ async function copy(mutant: Mutant, index: number): Promise<Parity> {
     writeFileSync(target, source);
   }
   const load = (name: string) => import(/* @vite-ignore */ new URL(`parity/${name}.ts`, root).href);
-  const [replay, table, tables] = await Promise.all([
+  const [replay, table, tables, refusals] = await Promise.all([
     load("replay"),
     load("table"),
     load("tables"),
+    load("refusals"),
   ]);
-  return { replay: replay.replay, readTable: table.readTable, TABLES: tables.TABLES };
+  return { replay: replay.replay, readTable: table.readTable, TABLES: tables.TABLES, refusals };
 }
 
 /** The first divergence the vectors find, or `undefined` when the mutant survives. */
@@ -1192,6 +1233,18 @@ function killer(parity: Parity): string | undefined {
       parity.replay(entry, parity.readTable(entry.file));
     } catch (error) {
       return (error as Error).message.split(": case")[0]!.split(": threw")[0];
+    }
+  }
+  return undefined;
+}
+
+/** The first refusal of `parity/refusals.ts` the copy no longer makes, or `undefined`. */
+function refusalKiller(parity: Parity): string | undefined {
+  for (const refusal of parity.refusals.REFUSALS) {
+    try {
+      parity.refusals.refused(refusal);
+    } catch (error) {
+      return `refusals: ${(error as Error).message}`;
     }
   }
   return undefined;
@@ -1223,7 +1276,15 @@ describe("the mutation check", () => {
   MUTANTS.forEach((mutant, index) => {
     const known = mutant.survives;
     it(`${known === undefined ? "kills" : "a known survivor"}: ${mutant.name}`, async () => {
-      const found = killer(await copy(mutant, index));
+      const parity = await copy(mutant, index);
+      if (mutant.refusal) {
+        const found = refusalKiller(parity);
+        results.push(`| ${index + 1} | ${mutant.name} | ${found ?? "**survives**"} |`);
+        expect(killer(parity), `${mutant.name}: the tables record no refusal`).toBeUndefined();
+        expect(found, `${mutant.name} survived the refusals`).toBeDefined();
+        return;
+      }
+      const found = killer(parity);
       results.push(`| ${index + 1} | ${mutant.name} | ${found ?? `**survives**: ${known}`} |`);
       if (known === undefined) {
         expect(found, `${mutant.name} survived the vectors`).toBeDefined();
