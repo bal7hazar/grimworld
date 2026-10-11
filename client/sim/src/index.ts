@@ -148,6 +148,8 @@ export type { Ran, Segment } from "./segment";
 // The seam of the classes a segment calls; their ports replace the parity tests' replayer
 export { digest as callDigest } from "./segment/classes";
 export type { ActCall, Classes, TicksCall, TriggerCall } from "./segment/classes";
+// `TrapLibrary::trigger`, computed (CLI-02g-D): a `Classes.trigger` for a preview
+export { triggerClass as trapTrigger } from "./trap";
 export {
   Felts,
   readAction,

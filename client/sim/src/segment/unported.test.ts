@@ -4,7 +4,7 @@
 // `parity/seam.ts`' cases), that `run` does not change what it is given, and that the replayer of
 // the parity tests stays out of the app's API.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as sim from "../index";
 import { board as origin_board, position } from "../movement";
@@ -64,7 +64,11 @@ describe("the segment beyond its tables", () => {
       for (const [, specifier] of text.matchAll(/(?:from|import)\s+["']([^"']+)["']/g)) {
         // A package (`@scure/starknet`) is not a module of `parity/`
         if (!specifier!.startsWith(".")) continue;
-        const target = new URL(`${specifier}.ts`, new URL(file, root));
+        // A module, or a folder's `index.ts` (`./body`)
+        const module = new URL(`${specifier}.ts`, new URL(file, root));
+        const target = existsSync(module)
+          ? module
+          : new URL(`${specifier}/index.ts`, new URL(file, root));
         queue.push(target.pathname.slice(root.pathname.length));
       }
     }
