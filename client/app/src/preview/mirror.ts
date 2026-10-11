@@ -39,8 +39,9 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  *   alone, and the view cannot tell a window's goblins from a roster's;
  * - a revealed chunk around the controlled member that the region does not give;
  * - no content given, where the segment reads a sheet (a goblin's caste or skill, a bar's skill):
- *   it panics `... not in content`. Given content that lacks a sheet the segment reads is no such
- *   case: the panic reaches `reconcile`'s `predict`, which logs it as a mirror failure.
+ *   it panics `... not in content`; an Item action is refused up front, as its potion's lookup
+ *   would answer `Illegal.Empty` where the chain uses the potion. Given content that lacks a
+ *   sheet the segment reads is no such case: the panic reaches `reconcile`'s `predict`, which logs it as a mirror failure.
  * The goblins are the view's as they are, derived ones included (at full health, in their pack's
  * state): `PlayLibrary` loads them by the same functions.
  * Of the three classes behind the seam, `TrapLibrary::trigger` is client/sim's `trapTrigger`
@@ -237,6 +238,13 @@ export function mirrorOf(state: MirrorState, classes: Classes = nativeClasses): 
     // Built per call: a state the segment cannot be built from is `NotMirrored` there, in `reconcile`
     const segment = segmentOf(state);
     const start = at(state.view.members[state.member]!.state);
+    // Item is the one combat action that reads a sheet without panicking: `item` looks the belt
+    // potion up with `findIndex` and refuses `Illegal.Empty` where the content lacks it, while the
+    // chain loads and uses it. Skill panics `not in content` (`at(sheets.skills, ...)`) and Attack
+    // reads no sheet, so neither needs this guard.
+    if (state.content === undefined && actions.some((a) => a.kind === "item")) {
+      throw new NotMirrored("no content given, the segment reads a sheet (an Item's potion)");
+    }
     let ran: ReturnType<typeof runSegment>;
     try {
       ran = runSegment({ ...segment, actions: [...actions] }, classes);

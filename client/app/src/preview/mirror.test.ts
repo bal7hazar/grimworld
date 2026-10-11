@@ -233,6 +233,14 @@ describe("the mirror on the recorded state", () => {
     expect(() => unportedClasses.trigger({} as never)).toThrow(NotMirrored);
   });
 
+  it("is no prediction for an Item action with no content given (review t-0215)", () => {
+    const noContent: MirrorState = { ...recordedState(), content: undefined };
+    expect(() => mirrorOf(noContent)([{ kind: "item", slot: 0, entity: 0 }])).toThrow(NotMirrored);
+    expect(() => mirrorOf(noContent)([{ kind: "item", slot: 0, entity: 0 }])).toThrow(
+      "no content given",
+    );
+  });
+
   it("runs the trap and action classes natively: ticks alone stays unported", () => {
     expect(nativeClasses.trigger).toBe(trapTrigger);
     expect(nativeClasses.act).toBe(actionAct);
@@ -432,6 +440,7 @@ describe("the native action class on segment2.jsonl's act rows (CLI-10g)", () =>
     const withTicks = ACT_ROWS.filter((id) =>
       segment2Row(id).calls.some((c) => c.kind === "ticks"),
     );
+    expect(withTicks).toHaveLength(5);
     for (const id of withTicks) {
       expect(() => runSegment(segment2Row(id).segment, nativeClasses), `row ${id}`).toThrow(
         "TickLibrary::ticks",

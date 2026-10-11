@@ -214,8 +214,7 @@ two that refuse a kept shape: `TILE` counted with `ALLY`, and `TILE` first with 
 refused; the third such mutant, `SELF` counted as a `TILE` one, is killed by the tables, not by
 `actcases.ts`). `mixed`'s attack arm (`let entity = attack`) has no test: it is defence in depth.
 `assert_carrier`'s `ATTACK_ENTRY` keeps an attack's entries `FOE` + `SINGLE`, so legal content
-never holds an attack with a `TILE` entry, and `act` does not carry an attack (the ticks do), so
-no case reaches the arm. 16 survive, holes of `act.jsonl`
+never holds an attack with a `TILE` entry, and no case reaches the arm. 16 survive, holes of `act.jsonl`
 reported to track game: no attack skill on a slot other than 0 with that slot's (or slot 0's)
 weapon-required bit alone; no negative `NEXT_SPELL_COST`; no spell counting for a quick-cast pair
 from a bar slot above 0; no `act` row landing an attack skill with passives or a held
