@@ -2459,7 +2459,7 @@ fn second_member(world: World, x: u8, y: u8, status: u8) {
 // chunk 15's pack member 0's, chunk 3's member 1's. Member 1 gone: member 0's alone (no batch loads
 // for a member not inside).
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 84317487)] // ceil(1.05 × 80302368 measured)
 fn test_view_goblins_two_members() {
     let world = setup();
     play_classes(world);
@@ -2499,7 +2499,7 @@ fn test_view_goblins_two_members() {
 // A goblin the registry cannot load (caste 99): `play` refuses the batch, the view answers with
 // the one `UNLOADABLE` marker and the rest of the instance, never a revert.
 #[test]
-#[available_gas(l2_gas: 59034127)] // ceil(1.05 × 56222978 measured)
+#[available_gas(l2_gas: 58817134)] // ceil(1.05 × 56016318 measured)
 fn test_view_unloadable_goblin_marker() {
     let world = setup();
     play_classes(world);
