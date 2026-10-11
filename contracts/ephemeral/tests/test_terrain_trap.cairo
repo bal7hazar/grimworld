@@ -301,3 +301,66 @@ fn test_terrain_trap_fires() {
     assert(trap_of(world).state == 1, 'the trap is used');
     assert(health(world) < before, 'the payload hurt the member');
 }
+
+// A terrain trap whose skill the registry lacks refuses the batch (`Stop::Invalid`, nothing ran),
+// as a goblin the registry cannot load does: never a silently inert trap.
+#[test]
+fn test_terrain_trap_skill_missing_refuses() {
+    let world = setup();
+    open_zone(world, 22, 22);
+    put_trap(world, 0, 71);
+    play(world).play(world.id, 7, 0, 0, batch(array![Action::Move(0)].span()));
+    let state: MemberState = StorePacking::unpack(read(world.instances, member_word()));
+    assert(state.x == 22 && state.y == 22, 'nothing ran');
+    assert(trap_of(world).state == 0, 'the trap is unused');
+}
+
+// A generated terrain trap has no skill (`param` 0, `reveal::placement`): it asks the registry for
+// nothing and stays inert, the member walking over it.
+#[test]
+fn test_terrain_trap_without_skill_is_inert() {
+    let world = setup();
+    open_zone(world, 22, 22);
+    put_trap(world, 0, 0);
+    play(world).play(world.id, 7, 0, 0, batch(array![Action::Move(0)].span()));
+    let state: MemberState = StorePacking::unpack(read(world.instances, member_word()));
+    assert(state.x == 21 && state.y == 22, 'moved');
+    assert(trap_of(world).state == 0, 'the trap is unused');
+}
+
+// The bound of the bundle: 9 chunks of the area, 3 objects each, 27 distinct skills (below
+// `MAX_READ` = 32, and `read_skills` reads 32 a call anyway). The trap under the member's step
+// fires.
+#[test]
+fn test_terrain_trap_widest_area() {
+    let world = setup();
+    open_zone(world, 22, 22);
+    let chunks: Array<u8> = array![0, 1, 2, 15, 16, 17, 30, 31, 32];
+    let mut id: u16 = 100;
+    for chunk in chunks {
+        let mut objects = array![];
+        let mut k: u8 = 0;
+        while k < 3 {
+            // Chunk 16's first trap is the one the Move enters: tile 111.
+            let tile = if chunk == 16 && k == 0 {
+                111
+            } else {
+                k
+            };
+            register_trap_skill(world, id.into());
+            objects.append(Object { tile, kind: object::TRAP, state: 0, param: id });
+            id += 1;
+            k += 1;
+        }
+        let features = Features {
+            packs: [Default::default(); 2],
+            objects: [*objects[0], *objects[1], *objects[2]],
+            touched: 0,
+        };
+        write(world.instances, chunk_key(chunk) + 1, StorePacking::pack(features));
+    }
+    let before = health(world);
+    play(world).play(world.id, 7, 0, 0, batch(array![Action::Move(0)].span()));
+    assert(trap_of(world).state == 1, 'the trap is used');
+    assert(health(world) < before, 'the payload hurt the member');
+}
