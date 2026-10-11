@@ -9,15 +9,17 @@
 //! 1. the admission (D-236): the caller controls the member, then the instance's checks, a refusal
 //!    a `BatchPlayed` that ran nothing;
 //! 2. the content (D-145): the location, its zone's chunk set, the pack templates of the area's
-//!    chunks, the member's skills and potions in one `bundle`; then, in `goblins`, the castes and
-//!    skills the area's goblins need. A content version that differs from the batch's stops it
-//!    before any action (`Stop::Version`);
+//!    chunks, the member's skills and potions in one `bundle`; then, in a content round
+//!    (`GoblinsLibrary.goblins`, FIX-02b, D-269), the castes and skills the area's goblins need and
+//!    the skills of its chunks' unused terrain traps (FIX-02, D-266; a trap's `param`, 0 none: such
+//!    a trap stays inert), `MAX_READ` records a `bundle`. A content version that differs from the
+//!    batch's stops it before any action (`Stop::Version`);
 //! 3. the area (`types::play::Area`): the 3 × 3 chunks around the adventurer's, their terrain and
 //!    features; the goblins of those chunks, stored (`touched`) or derived from their pack
-//!    placement (design/18, ENG-01 §3.2: castes by `PackTrait::caste`, at full health, their
-//!    pack's state), and the roster's. **A goblin the registry cannot load** (its caste, a caste
-//!    skill or its held effect's skill missing) **refuses the batch** (`Stop::Invalid`; the
-//!    orchestrator, t-0109 note 5);
+//!    placement (`GoblinsLibrary`'s loader; design/18, ENG-01 §3.2: castes by `PackTrait::caste`,
+//!    at full health, their pack's state), and the roster's. **A goblin the registry cannot load**
+//!    (its caste, a caste skill or its held effect's skill missing) **or a terrain trap's skill it
+//!    lacks refuses the batch** (`Stop::Invalid`; the orchestrator, t-0109 note 5);
 //! 4. the segments (`SegmentLibrary`, once a segment): the actions in order, a tick without a
 //!    goblin in the window in process, one with a fight in `TickLibrary` (D-235). **A segment ends
 //!    when a Move brings sight onto a chunk to reveal or the adventurer into another chunk**; then
@@ -25,8 +27,8 @@
 //!    `RevealLibrary`, as `create`'s `enter` does; CBT-05g: a zone's hosts from the stored bitmaps
 //!    of the quotas the generation still owes, a dungeon floor's from its stored outline, A7, A8),
 //!    **the area moves to the 3 × 3 around the adventurer's chunk, and the
-//!    goblins of its new chunks are read (the content they need with them) and merged by entity
-//!    id**; a goblin home with its spawn chunk outside the area, and not killed by the batch,
+//!    goblins of its new chunks are read (a content round: the content they need, and its terrain
+//!    traps' skills, with them) and merged by entity id**; a goblin home with its spawn chunk outside the area, and not killed by the batch,
 //!    leaves the batch's world, written back first if it changed (ENG-07b: re-read from its record,
 //!    or derived under its pack's `alert`, if the area comes back). So a batch holds what its
 //!    actions sent as single batches hold (t-0109, major 1, minor 4);
@@ -92,35 +94,34 @@ pub mod PlayLibrary {
     }
 }
 use grimworld_logic::actions::decode_batch;
-use grimworld_logic::content::{CASTE, ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
+use grimworld_logic::content::{ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
 use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
     IRegistryReadDispatcherTrait, ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher,
 };
 use grimworld_logic::models::chunk::{
-    Features, FeaturesStorePacking, PackPlacementTrait, Terrain, TerrainStorePacking,
+    Features, FeaturesStorePacking, Terrain, TerrainStorePacking,
 };
 use grimworld_logic::models::index::{GoblinWords, MemberWords};
 use grimworld_logic::models::location::{Location, LocationRecord};
 use grimworld_logic::models::member::{MemberTrait, MemberWordsTrait};
 use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
-use grimworld_logic::models::pack::{Pack, PackRecord, PackTrait};
-use grimworld_logic::packing::{Bitmap, LIVE, Lanes16};
+use grimworld_logic::models::pack::{Pack, PackRecord};
+use grimworld_logic::packing::{Bitmap, Lanes16};
 use grimworld_logic::types::play::{Area, Classes, SegmentTrait};
 use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
 use grimworld_logic::types::tick::{
-    CasteSheet, CasteSheetTrait, Content, PotionSheet, PotionSheetTrait, SkillSheet,
+    CasteSheet, Content, PotionSheet, PotionSheetTrait, SkillSheet,
     SkillSheetTrait, ai,
 };
 use grimworld_logic::types::world::Words;
-use grimworld_logic::types::{MAX_WEIGHT, Refusal, Stop, goblin_entity};
+use grimworld_logic::types::{MAX_WEIGHT, Refusal, Stop};
 use starknet::event::EventEmitter;
 use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
 use crate::helpers::stored::StoredTrait;
 use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
-use crate::models::member::{INSIDE, MemberState};
 use crate::store::InstancesStoreTrait;
 use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
 use crate::systems::goblins::{
@@ -130,16 +131,8 @@ use crate::systems::instances::play_class;
 
 /// The bits of a chunk's 225 tiles.
 const TILES: felt252 = 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-/// `2^n` for the goblin and member words' offsets.
-const P8: felt252 = 0x100;
-const P16: felt252 = 0x10000;
+/// `2^24`, a goblin's AI state's offset in its `GoblinState`.
 const P24: felt252 = 0x1000000;
-const P32: felt252 = 0x100000000;
-const P48: felt252 = 0x1000000000000;
-const P64: felt252 = 0x10000000000000000;
-const P80: felt252 = 0x100000000000000000000;
-/// A first record's timers (F-14): no activation (255), nothing held; stored, `LIVE + 255`.
-const EMPTY_TIMERS: felt252 = LIVE + 255;
 
 /// The content records a batch has read (D-145): the pack templates, the castes, the skills and
 /// the potions, extended when the area moves (t-0109).

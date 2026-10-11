@@ -2586,6 +2586,26 @@ mod tests {
             1,
             array![wait, Action::Skill((0, Target::Tile(WEST)))],
         );
+        // `trap`, appended (id 45, FIX-02, D-266): a terrain trap on (21, 22) whose skill, 10, no
+        // member and no goblin of the call holds (the adventurer's bar and Hob's caste hold
+        // others): on chain the content holds it only because `play` reads the unused terrain
+        // traps' skills (`GoblinsLibrary`, FIX-02b), and the client's content must too. The Move
+        // West enters the trap, the class fires it
+        segment2_row(
+            ref digest,
+            ref id,
+            "trap",
+            @classes,
+            @content,
+            words(40, array![standing(22, 22)], array![goblin(264, HOB, 40, 40, ai::ASLEEP)]),
+            open,
+            ground(
+                16, [trap_on(6, 7, object::TRAP, 0, 10), Default::default(), Default::default()], 0,
+            ),
+            0,
+            10,
+            array![Action::Move(0), wait],
+        );
         finish(digest, SEGMENT2_DIGEST_4);
     }
 

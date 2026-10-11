@@ -289,6 +289,7 @@ fn health(world: World) -> u16 {
 // The adventurer on (22, 22) walks West onto a live terrain trap on (21, 22) whose skill (70) is
 // held by nobody else: the trap fires (used, the earth payload hurts the member).
 #[test]
+#[available_gas(l2_gas: 54871651)] // ceil(1.05 × 52258715 measured)
 fn test_terrain_trap_fires() {
     let world = setup();
     open_zone(world, 22, 22);
@@ -305,6 +306,7 @@ fn test_terrain_trap_fires() {
 // A terrain trap whose skill the registry lacks refuses the batch (`Stop::Invalid`, nothing ran),
 // as a goblin the registry cannot load does: never a silently inert trap.
 #[test]
+#[available_gas(l2_gas: 44727755)] // ceil(1.05 × 42597861 measured)
 fn test_terrain_trap_skill_missing_refuses() {
     let world = setup();
     open_zone(world, 22, 22);
@@ -318,6 +320,7 @@ fn test_terrain_trap_skill_missing_refuses() {
 // A generated terrain trap has no skill (`param` 0, `reveal::placement`): it asks the registry for
 // nothing and stays inert, the member walking over it.
 #[test]
+#[available_gas(l2_gas: 51843986)] // ceil(1.05 × 49375224 measured)
 fn test_terrain_trap_without_skill_is_inert() {
     let world = setup();
     open_zone(world, 22, 22);
@@ -329,9 +332,10 @@ fn test_terrain_trap_without_skill_is_inert() {
 }
 
 // The bound of the bundle: 9 chunks of the area, 3 objects each, 27 distinct skills (below
-// `MAX_READ` = 32, and `read_skills` reads 32 a call anyway). The trap under the member's step
+// `MAX_READ` = 32; `GoblinsLibrary` reads 32 a call anyway). The trap under the member's step
 // fires.
 #[test]
+#[available_gas(l2_gas: 102869125)] // ceil(1.05 × 97970595 measured)
 fn test_terrain_trap_widest_area() {
     let world = setup();
     open_zone(world, 22, 22);

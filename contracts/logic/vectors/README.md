@@ -132,7 +132,7 @@ The cases (47):
 ## `segment2.jsonl`: a segment that calls the classes, `SegmentTrait::run` (RV-02, D-254)
 
 Printed by `types::play::tests::test_segment2_vectors_0` to `test_segment2_vectors_4` (ids 0–11, 12–22, 23–25,
-26–30, 31–44), split for snforge's step limit, each part with its digest. It covers what `segment.jsonl` cannot: the
+26–30, 31–45), split for snforge's step limit, each part with its digest. It covers what `segment.jsonl` cannot: the
 branches of `run` that call `TickLibrary`, `ActionLibrary` or `TrapLibrary`, and those that meet a goblin, a trap, a
 companion, a regeneration or a `MOVEMENT` effect. One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every
 value its Cairo `Serde` (as `segment.jsonl`).
@@ -209,7 +209,7 @@ on a 15 × 15-chunk location, every chunk revealed and walkable:
 
 The mirror keeps refusing it.
 
-The cases (45):
+The cases (46):
 
 | `fn` | ids | what |
 |---|---|---|
@@ -218,7 +218,7 @@ The cases (45):
 | `ticks` (4) | 12–15 | `Self::ticks` through `TickLibrary`: two Waits beside goblin 264 (12); 2 owed ticks, no action (13); a goblin awake outside the window, so not calm (14); an asleep one there, calm: the fast path, no call (15) |
 | `fits` (7) | 16–22 | the goblin records of a Wait beside goblin 264 with no record (`touched` bit clear, E-1: 1 more): `ran` and the weight 1, refused (16, `undo`); weight 2, taken (17, 0 left); the invocation's first action, unbound (18); with a record, taken (19); held by an earlier segment, nothing added (20); E-16's 17th record refused (21, `undo`); the untouched one engaged (22): goblin 248 asleep beside the adventurer notices it and engages its pack, 249, outside the window and not awake, changes only its AI state (1 to 3) and is not counted (`changed` holds 248 alone) |
 | `defeated` (3) | 23–25 | `world.defeated` breaks the loop: the adventurer at 0 health, defeated by the owed tick before the first action (23, `played` 0, no `illegal`); at 1 health with Bleeding, Poison and Burning, on the first Wait's tick, on the fast path (24) and through `TickLibrary` (25) |
-| `trap` (4) | 26–28, 43 | a Move West onto local (6, 7) of chunk 16, then a Wait: a terrain trap (26, `param` skill 2), a used one (27, no call), a placed trap of goblin 264, outside the window (28: its words go with the call); appended, 43: the terrain trap with goblin 265 dead and in the world's `killed`, the call's `killed` empty |
+| `trap` (5) | 26–28, 43, 45 | a Move West onto local (6, 7) of chunk 16, then a Wait: a terrain trap (26, `param` skill 2), a used one (27, no call), a placed trap of goblin 264, outside the window (28: its words go with the call); appended, 43: the terrain trap with goblin 265 dead and in the world's `killed`, the call's `killed` empty; appended, 45 (FIX-02, D-266): a terrain trap of skill 10, which no member or goblin of the call holds: on chain the content holds it only because `play` reads the unused terrain traps' skills (`GoblinsLibrary`, FIX-02b), and the client's content must too |
 | `occupied` (2) | 29–30 | a Wait, then a Move West onto goblin 264: `Blocked` from `TrapTrait::occupied` (29); dead, it does not block (30) |
 | `companions` (3) | 31–33 | a second member on (23, 22) blocks a Move East (31); down, it does not (32); on (25, 22), at 300 health with health regeneration, it regenerates on the fast path with an owed tick and two Waits (33) |
 | `regeneration` (3) | 34–36 | an owed tick, a Wait, a Move and a Wait on the fast path: health regeneration under the max (34), at it (35), Bleeding to tick 42 (36) |
@@ -226,7 +226,7 @@ The cases (45):
 | `turn` (2) | 39–40 | CV: Turn, Wait, Turn: the Wait's tick clears the turned flag, the second Turn is legal, `flags` 1 after it (39); a third Turn after it is `Turned` (40) |
 | `follow` (2) | 41–42 | CV: the window follows each Move that reveals nothing: seven Moves West from (22, 22), the seventh onto (15, 22), on the first window's ring (never open in it), then a Wait (41); from (29, 22), the eighth Move West is `Blocked` by a wall on (21, 22), outside the first window (42) |
 
-Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 7, `defeated` 3, `trap` 4, `occupied` 2, `companions` 3,
+Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 7, `defeated` 3, `trap` 5, `occupied` 2, `companions` 3,
 `regeneration` 3, `movement` 2, `turn` 2, `follow` 2.
 
 ## `trap.jsonl`: a trap's trigger, `TrapTrait::trigger` (RV-03a, D-257)
