@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { INSTANCE_ID, playedTrace, revertedTrace, view } from "./fixtures";
-import { Outcome, Stop, TraceError, extractOutcome, panicReason } from "./trace";
+import { Outcome, Stop, TraceError, eventSelector, extractOutcome, panicReason } from "./trace";
 import { decodeInstanceView, encodeInstanceView, unpackHeader } from "./view";
 
 describe("extractOutcome", () => {
@@ -63,6 +63,34 @@ describe("extractOutcome", () => {
       reason: "Instances: not controller",
       raw: (trace.execute_invocation as { revert_reason: string }).revert_reason,
     });
+  });
+
+  it("leaves out the events of a call that reverted and was caught, and of its subtree", () => {
+    const trace = playedTrace({ played: 1, stop: Stop.None, sequence: 4, clock: 13 });
+    const execute = trace.execute_invocation as Exclude<
+      typeof trace.execute_invocation,
+      { revert_reason: string }
+    >;
+    const [play, state] = execute.calls;
+    const killed = (entity: number) => ({
+      order: 90 + entity,
+      keys: [`0x${eventSelector.GoblinKilled.toString(16)}`, `0x${INSTANCE_ID.toString(16)}`],
+      data: [entity, 3, 7, 0].map((felt) => `0x${felt.toString(16)}`),
+    });
+    const caught = {
+      result: [],
+      is_reverted: true,
+      events: [killed(30)],
+      calls: [{ result: [], calls: [], events: [killed(31)] }],
+    };
+    const kept = { result: [], calls: [], events: [killed(32)] };
+    const outcome = extractOutcome({
+      execute_invocation: {
+        ...execute,
+        calls: [{ ...play!, calls: [...play!.calls, caught, kept] }, state!],
+      },
+    });
+    expect(outcome.kind === "played" && outcome.killed.map((k) => k.entity)).toEqual([32]);
   });
 
   it("refuses a trace without BatchPlayed or with a call missing", () => {

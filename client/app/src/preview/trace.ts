@@ -127,10 +127,15 @@ const index = (hex: string | undefined, variants: number): number => {
   return Number(value);
 };
 
-/** Every event of an invocation and of the calls under it, in the execution's order. */
+/**
+ * Every event of an invocation and of the calls under it, in the execution's order. A call that
+ * reverted and was caught (`is_reverted`) took its effects with it: its events and its subtree's are
+ * left out.
+ */
 function eventsOf(call: FunctionInvocation): TraceEvent[] {
   const all: TraceEvent[] = [];
   const walk = (at: FunctionInvocation) => {
+    if (at.is_reverted === true) return;
     all.push(...at.events);
     at.calls.forEach(walk);
   };

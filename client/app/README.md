@@ -22,7 +22,10 @@ is exact for `play`: it draws no Fate.
 - The chain wins. A field that differs from the mirror's is a parity bug, logged as one
   `grimworld.parity` record (the console for now). There is no prediction (`not-mirrored`), and
   never a mismatch, in these cases: the mirror reaches an unported class (`NotMirrored`), a Move
-  reveals a chunk, the batch is refused at admission, or the play reverts.
+  reveals a chunk in the mirror, the batch is refused at admission or before its first segment, or
+  the play reverts. Any other error of the mirror is no prediction either, logged as one
+  `grimworld.mirror-failure` record. The fields not compared, and why, are listed in
+  `reconcile.ts`.
 - `predict` is client/sim's `runSegment` on the same state. The app does not depend on
   `@grimworld/sim` yet. Its `Ran` and `Action` fit `Prediction` and `PlayAction` as they are.
 

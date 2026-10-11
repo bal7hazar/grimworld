@@ -127,12 +127,23 @@ describe("reconcile", () => {
     expect(log).not.toHaveBeenCalled();
   });
 
-  it("does not hide another failure of the mirror", () => {
-    expect(() =>
-      reconcile(chain(), actions, () => {
-        throw new RangeError("a bug");
-      }),
-    ).toThrow("a bug");
+  it("logs any other failure of the mirror and keeps the chain's outcome (review 2)", () => {
+    const log = vi.fn<(record: ParityRecord) => void>();
+    const onChain = chain();
+    const result = reconcile(
+      onChain,
+      actions,
+      () => {
+        throw new TypeError("a bug");
+      },
+      log,
+    );
+    expect(result).toEqual({
+      chain: onChain,
+      mirror: { kind: "not-mirrored", reason: "a bug" },
+      mismatches: [],
+    });
+    expect(log).toHaveBeenCalledWith({ kind: "grimworld.mirror-failure", actions, error: "a bug" });
   });
 
   it("has no prediction past a reveal, after an admission refusal, after a revert or unwired", () => {
@@ -172,5 +183,41 @@ describe("reconcile", () => {
     };
     const closed = chain({ stop: Stop.Defeated, defeated: true, closed: Outcome.Defeated });
     expect(reconcile(closed, actions, () => defeated).mismatches).toEqual([]);
+  });
+
+  it("has no prediction for a batch refused before its segment (review 1)", () => {
+    const log = vi.fn();
+    const refused = chain({ played: 0, stop: Stop.Invalid, sequence: 3, killed: [] });
+    expect(reconcile(refused, actions, () => agreeing(), log)).toMatchObject({
+      mirror: { kind: "not-mirrored", reason: "refused before the segment" },
+      mismatches: [],
+    });
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("keeps comparing when both sides stop on the first action (review 1)", () => {
+    const illegal = agreeing();
+    illegal.done = { ...illegal.done, played: 0, illegal: 14 };
+    illegal.words = { ...illegal.words, clock: 13, killed: [] };
+    const refused = chain({ played: 0, stop: Stop.Invalid, sequence: 3, killed: [] });
+    const result = reconcile(refused, actions, () => illegal, vi.fn());
+    expect(result.mirror).toMatchObject({ kind: "predicted", played: 0, stop: Stop.Invalid });
+    expect(result.mismatches).toEqual([{ field: "clock", chain: 14, mirror: 13 }]);
+  });
+
+  it("counts a reveal on the chain the mirror did not make as a mismatch (review 3)", () => {
+    const log = vi.fn();
+    const result = reconcile(chain({ revealed: [16] }), actions, () => agreeing(), log);
+    expect(result.mismatches).toEqual([{ field: "revealed", chain: true, mirror: false }]);
+    expect(log).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not compare a mirror goblin the view does not list (the module's comment)", () => {
+    const extra = agreeing();
+    extra.words = {
+      ...extra.words,
+      goblins: [...extra.words.goblins, { entity: 40, awake: false, state: 1n, timers: 2n }],
+    };
+    expect(reconcile(chain(), actions, () => extra, vi.fn()).mismatches).toEqual([]);
   });
 });
