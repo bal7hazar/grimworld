@@ -2616,6 +2616,46 @@ mod tests {
         finish(digest, SEGMENT2_DIGEST_4);
     }
 
+    // Appended (RV-03c, track CV's `fits` mutant: `before` kept from the segment's start): the
+    // same goblin changed by two actions of one segment. Goblin 248 (chunk 15's first, asleep
+    // beside the adventurer) notices it at the first Wait's tick and engages its pack; 249, of
+    // the same pack, in the window on (19, 22), knocked down to 41 (that tick), at its energy's
+    // max, changes only its AI state (Engaged, no record: E-1's exception); at the second Wait's
+    // tick it acts, a change against its words after the first Wait (its first record). Knocked
+    // down to 42, it changes nothing more.
+    #[test]
+    #[available_gas(l2_gas: 224194950)] // ceil(1.05 × 213519000 measured)
+    fn test_segment2_vectors_5() {
+        let classes = declared();
+        let content = segment2_content();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = SEGMENT2_PART_5;
+        let wait = Action::Wait;
+        for knocked in array![41_u32, 42] {
+            let mut late = goblin(249, HOB, 19, 22, ai::ASLEEP);
+            late.state += 30 * two(48);
+            late.timers += knocked.into() * two(184);
+            segment2_row(
+                ref digest,
+                ref id,
+                "fits",
+                @classes,
+                @content,
+                words(
+                    40,
+                    array![standing(22, 22)],
+                    array![goblin(248, HOB, 21, 22, ai::ASLEEP), late],
+                ),
+                region(everything(), array![], array![], true),
+                ground(15, [Default::default(); 3], 0),
+                0,
+                10,
+                array![wait, wait],
+            );
+        }
+        finish(digest, SEGMENT2_DIGEST_5);
+    }
+
     /// A `segment2` part's digest, against the one its constant holds.
     fn finish(digest: Array<felt252>, expected: felt252) {
         let digest = core::poseidon::poseidon_hash_span(digest.span());
@@ -2629,6 +2669,7 @@ mod tests {
     const SEGMENT2_PART_2: u32 = 23;
     const SEGMENT2_PART_3: u32 = 26;
     const SEGMENT2_PART_4: u32 = 31;
+    const SEGMENT2_PART_5: u32 = 46;
     const SEGMENT2_DIGEST_0: felt252 =
         2159690998004408617869981141494228029476836004454470863912130403154357710753;
     const SEGMENT2_DIGEST_1: felt252 =
@@ -2639,6 +2680,8 @@ mod tests {
         831158116844835342533304973083382111519011951117211419705514572410899617998;
     const SEGMENT2_DIGEST_4: felt252 =
         3164130820830328315832409943377935499862779783129669591231607615987355173121;
+    const SEGMENT2_DIGEST_5: felt252 =
+        1291600926751888054231234506757083835066910460304100689166175414883850062411;
 
     const DIGEST: felt252 =
         927113589772750725131747890767271916714351212897433227864916371620935306790;

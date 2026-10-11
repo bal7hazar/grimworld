@@ -149,20 +149,21 @@ holds that case, and that the class leaves its inputs as they were, run by `src/
 against each `trap` mutant, by `src/parity/mutants.test.ts`.
 
 Of the trap path's 65 mutants, 39 were killed by `trap.jsonl` and 3 by `trapcases.ts` (another
-goblin's kit, rank or level read for the placer's). Since `act.jsonl` (lot E), 10 of the 22
+goblin's kit, rank or level read for the placer's). Since `act.jsonl` (lot E), 10 of the 21
 survivors are killed by its rows: `strike`'s block spend (205), the knocked-down (209) and sleeping
 (211) target, a trap's damage of no type (`offence` 185), the cached and the expired defence (159,
-161, 173), an `ARMOR` effect below 0 (164), a `HEAL` and a holding entry (44, 215). 12 survive.
+161, 173), an `ARMOR` effect below 0 (164), a `HEAL` and a holding entry (44, 215). 11 survive.
 Nine are holes of `trap.jsonl`, reported to track game: a position, a chunk column or a chunk row
 past the location landing on a chunk no row's ground holds (rows 42, 47, 48); `locate`'s guard of a
 tile West of `ORIGIN`, which Cairo has too, not killed by any row (RV-03a2); no goblin placer's
 payload guarded; no entrant holding an `ARMOR` effect on a trap's hit; no payload's entry other than
-its hit guarded; no payload with a `CURE` entry; no dead goblin entering. The block's cap at 63
-cannot be reached through `act`: `act` strikes goblins only, whose charges are 6 bits (at most 63,
-rows 213 and 214); a member's (7 bits) passes 63 only under a goblin's hit, the ticks' (lot F). Two
+its hit guarded; no payload with a `CURE` entry; no dead goblin entering. Two
 are equivalent on the trap path: `trap`'s and `entries`' checks of a dead entrant mask each other.
-One is equivalent outright, marked `equivalent`: the same guard's South half, whose chunk is below
-0, which no ground holds.
+Two are equivalent outright, marked `equivalent`: the same guard's South half, whose chunk is below
+0, which no ground holds, and the block's cap at 63, which no state reaches: a member's charges are
+6 bits (`MemberEffects` 16–21, read modulo 64), a goblin's too (rows 213 and 214), a `BLOCK` grant
+is clamped to `MAX_BLOCK` (`tick.jsonl` rows 72, 73 and 80: 63, 62, and 64 clamped to 63), and the
+defence takes one slot's charges, not a sum.
 
 ## The action
 
