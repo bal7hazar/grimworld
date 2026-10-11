@@ -11,7 +11,7 @@ import {
   readPotionSheet,
   readSkillSheet,
 } from "./content";
-import { recordedBefore, recordedRecords } from "./recorded";
+import { recordedBefore, recordedRecords } from "./recorded-goblins";
 import { type GoblinView, type InstanceView, type MemberView, decodeInstanceView } from "./view";
 
 const LIVE = 1n << 250n;
@@ -24,7 +24,8 @@ const seed = JSON.parse(
 function rows(name: string, columns: number): Map<number, number[]> {
   const flat = seed[name]!;
   const out = new Map<number, number[]>();
-  for (let at = 0; at < flat.length; at += columns) out.set(flat[at]!, flat.slice(at, at + columns));
+  for (let at = 0; at < flat.length; at += columns)
+    out.set(flat[at]!, flat.slice(at, at + columns));
   return out;
 }
 
@@ -60,7 +61,9 @@ function member(bar: number[], kit: number[], effects: [number, boolean][]): Mem
     values.reduce((word, v, k) => word + (BigInt(v) << (width * BigInt(k))), 0n);
   const held = effects.map(([carrier, potion]) => BigInt(carrier) + (potion ? 1n << 23n : 0n));
   const effectsWord =
-    (held[0] ?? 0n) + ((held[1] ?? 0n) << 56n) + ((held[2] ?? 0n) + ((held[3] ?? 0n) << 56n)) * P128;
+    (held[0] ?? 0n) +
+    ((held[1] ?? 0n) << 56n) +
+    ((held[2] ?? 0n) + ((held[3] ?? 0n) << 56n)) * P128;
   return {
     ...base,
     bar: LIVE + lanes(bar, 16n),
@@ -166,7 +169,12 @@ describe("the content assembled as PlayLibrary assembles it", () => {
         ...base,
         members: [member([], [], [])],
         // Stored goblin 30 holds skill 1's effect; derived 8 and 9 share caste 2
-        goblins: [goblin(8, true, 2), goblin(9, true, 2), goblin(24, false, 3), goblin(30, false, 1, 1)],
+        goblins: [
+          goblin(8, true, 2),
+          goblin(9, true, 2),
+          goblin(24, false, 3),
+          goblin(30, false, 1, 1),
+        ],
       },
       registry(count),
     );
@@ -206,11 +214,22 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     expect(calls).toBe(3);
   });
 
-  it("reads nothing for the recorded deployment's adventurer: an empty build, no belt", async () => {
+  it("reads the recorded goblin's caste and its skill: the adventurer has an empty build, no belt", async () => {
     const recordedView = view();
-    const { content, calls } = await assembleContent(recordedView, registry());
-    expect(content.skills).toEqual([]);
-    expect(content.potions).toEqual([]);
-    expect(calls).toBe(content.castes.length + (content.castes.length > 0 ? 1 : 0));
+    expect(recordedView.goblins).toHaveLength(1);
+    const [listed] = recordedView.goblins;
+    const caste = Number((listed!.state >> 64n) & 0xffffn);
+    const count = { calls: [] as [number, number][] };
+    const { content, calls } = await assembleContent(recordedView, registry(count));
+    expect(content).toEqual({
+      skills: [readSkillSheet(1, partsOf(SKILL, 1))],
+      potions: [],
+      castes: [readCasteSheet(caste, partsOf(CASTE, caste))],
+    });
+    expect(count.calls).toEqual([
+      [CASTE, caste],
+      [SKILL, 1],
+    ]);
+    expect(calls).toBe(2);
   });
 });

@@ -72,16 +72,13 @@ export function readSkillSheet(id: number, parts: readonly bigint[]): SkillSheet
   let regen0 = 0;
   let regen12 = 0;
   for (const entry of [first, second, third]) {
-    let [entryKind, rest] = peel(entry, P8);
+    const [entryKind, above] = peel(entry, P8);
     if (entryKind === EMPTY) break;
     if (entryKind === REGENERATION) {
       // Bits 8–15, then `v0` and `v12`
-      [, rest] = peel(rest, P8);
-      let v: bigint;
-      [v, rest] = peel(rest, P16);
-      regen0 = from16(v);
-      [v] = peel(rest, P16);
-      regen12 = from16(v);
+      const [v0, rest] = peel(above / P8, P16);
+      regen0 = from16(v0);
+      regen12 = from16(peel(rest, P16)[0]);
       break;
     }
   }
@@ -137,8 +134,18 @@ export function readCasteSheet(id: number, parts: readonly bigint[]): CasteSheet
     [value, rest] = peel(rest, size);
     fields.push(value);
   }
-  const [health, healthRegen, armor, weapon, damage, damageType, ticks, range, energy, energyRegen] =
-    fields;
+  const [
+    health,
+    healthRegen,
+    armor,
+    weapon,
+    damage,
+    damageType,
+    ticks,
+    range,
+    energy,
+    energyRegen,
+  ] = fields;
   const rank = fields[11]!;
   const ids: number[] = [];
   rest = skills;

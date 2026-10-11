@@ -24,7 +24,8 @@ import { ChunkKind, type InstanceView, encodeInstanceView } from "./view";
 //   scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
 //     GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node:preview'
 // A script of its own: the burner's `test:node` restarts the node, which would drop the deployment.
-// `PREVIEW_RECORD=<file>` also writes the traces of `recorded.ts` there. Without a deployment (the
+// `PREVIEW_RECORD=<file>` also writes a recording there, in the form of `recorded.ts` (a quiet
+// world, CLI-10c) and `recorded-goblins.ts` (a world whose view lists a goblin, CLI-10d). Without a deployment (the
 // ordinary `pnpm test`), skipped.
 const env = import.meta.env as Record<string, string | undefined>;
 const deploymentPath = env.GRIMWORLD_DEPLOYMENT;
@@ -386,7 +387,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
       [
         "// Recorded by preview.node.test.ts (PREVIEW_RECORD) on starknet-devnet, OPS-01a's deployment:",
         "// a Wait of adventurer 1 at sequence 0, and the same batch for adventurer 2, which reverts.",
-        `// The world is the deployment's (its entropy): ${listed} goblins listed; the mirror on it: ${mirrored}.`,
+        `// The world is the deployment's (its entropy), goblins listed: ${listed}; the mirror on it: ${mirrored}.`,
         "// Trimmed to what extractOutcome reads; no key (the test checks). Do not edit by hand.",
         'import type { InvokeTrace } from "./trace";',
         "",

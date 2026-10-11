@@ -37,7 +37,7 @@ sent batch equals its preview.
   several members while goblins are listed, where no content is given and the segment reads a
   sheet (a goblin's caste or skill, a bar's skill: `... not in content`), and on any call to
   `TickLibrary`, `ActionLibrary` or `TrapLibrary`, which client/sim does not port yet: it predicts
-  the fast path (no goblin awake in the window, no combat, no trap). Given content that lacks a
+  the fast path (no living goblin in the window, no combat, no trap). Given content that lacks a
   sheet the segment reads is a `grimworld.mirror-failure`, not a silent `NotMirrored`. The
   reconciliation compares the goblin sets both ways.
 - `assembleContent(view, record)` (`content.ts`, CLI-10d) assembles that content as `PlayLibrary`
@@ -56,7 +56,8 @@ sent batch equals its preview.
 
 The unit tests fake the node with traces shaped by starknet-specs v0.8 (`src/preview/fixtures.ts`),
 and with traces recorded on starknet-devnet (`src/preview/recorded.ts`: a Wait, a revert, and the
-state before them; no key). No unit test touches the network.
+state before them, in a world with no goblin; `src/preview/recorded-goblins.ts`: the same in a world
+whose view lists one goblin, with the Registry records read; no key). No unit test touches the network.
 
 The node test (`src/preview/preview.node.test.ts`, its own script, never in `pnpm test`) runs on the
 game that OPS-01a's `scripts/devnet_deploy.py` deploys. From the repository root, after the classes
@@ -70,10 +71,11 @@ scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with
 It previews a Wait with the mirror, sends the same two calls, and checks that the real trace's
 outcome and the state after equal the preview. It also checks a revert (`not controller`), an
 admission refusal, the bounds and the account's two calls, and it times 10 simulations of a few
-batches, and 10 assemblies of the content (the number of `Registry.record` calls and the time).
-`PREVIEW_RECORD=<file>` rewrites `recorded.ts` (with the records read, and the seed's castes, skill
-and potion, which the decoders' unit test checks against `contracts/seed/test-region.json`). The world is drawn from the deployment's
-entropy, so it differs from run to run: the run prints one line saying whether the mirror predicted
-(`mirror: predicted ...` or `mirror: <reason> ...`, the reason as the mirror gives it), and the assertions that depend
-on the world (a Wait plays 1 with `Stop.None`, one Move direction is illegal) hold only where the
-world observed allows them. CI runs it as the `client-node` job.
+batches and 10 assemblies of the content (the number of `Registry.record` calls and the time).
+`PREVIEW_RECORD=<file>` writes a recording in their form, with the records read and the seed's
+castes, skill and potion, which the decoders' unit test checks against
+`contracts/seed/test-region.json`. The world is drawn from the deployment's entropy, so it
+differs from run to run: the run prints one line saying whether the mirror predicted
+(`mirror: predicted ...` or `mirror: <reason> ...`, the reason as the mirror gives it), and the
+assertions that depend on the world (a Wait plays 1 with `Stop.None`, one Move direction is
+illegal) hold only where the world observed allows them. CI runs it as the `client-node` job.

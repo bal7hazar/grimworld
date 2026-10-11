@@ -9,6 +9,8 @@ import {
   unportedClasses,
 } from "./mirror";
 import { recordedBefore, recordedPlayed } from "./recorded";
+import * as goblins from "./recorded-goblins";
+import { assembleContent } from "./content";
 import { reconcile } from "./reconcile";
 import { Stop, extractOutcome } from "./trace";
 import { type RegionChunk, decodeInstanceView, encodeInstanceView } from "./view";
@@ -171,7 +173,8 @@ describe("the mirror on the recorded state", () => {
   });
 
   it("is no prediction where no content is given and the segment reads a sheet", () => {
-    const { content: _, ...state } = recordedState();
+    const { view, member, region } = recordedState();
+    const state = { view, member, region };
     const goblin = { entity: 8, derived: true, state: LIVE + 5n, timers: LIVE + 6n };
     const predict = mirrorOf({ ...state, view: { ...state.view, goblins: [goblin] } });
     expect(() => predict([{ kind: "wait" }])).toThrow(NotMirrored);
@@ -213,5 +216,72 @@ describe("the mirror on the recorded state", () => {
   it("refuses a revealed chunk around the adventurer that the region does not give", () => {
     const state = recordedState();
     expect(() => segmentOf({ ...state, region: [] })).toThrow("revealed chunk 0 not in the region");
+  });
+});
+
+/** The state recorded on a deployment whose view lists one goblin (`recorded-goblins.ts`). */
+function goblinState(): Omit<MirrorState, "content"> {
+  return {
+    view: decodeInstanceView(goblins.recordedBefore.view.map(BigInt)),
+    member: goblins.recordedBefore.member,
+    region: goblins.recordedBefore.region.map((c): RegionChunk => ({
+      chunk: c.chunk,
+      kind: c.kind as RegionChunk["kind"],
+      terrain: BigInt(c.terrain),
+      features: BigInt(c.features),
+      goblins: [],
+    })),
+  };
+}
+/** Its content, assembled from the records read there (CLI-10d). */
+async function goblinContent() {
+  const records = new Map(goblins.recordedRecords.map(([k, id, parts]) => [`${k}:${id}`, parts]));
+  const { content } = await assembleContent(goblinState().view, (kind, id) =>
+    Promise.resolve((records.get(`${kind}:${id}`) ?? ["0x0", "0x0"]).map(BigInt)),
+  );
+  return content;
+}
+
+describe("the mirror on the recorded goblin world (CLI-10d)", () => {
+  const chain = extractOutcome(goblins.recordedPlayed);
+  const noLog = () => {
+    throw new Error("no parity record expected");
+  };
+
+  it("loads the listed goblin with the assembled content: only the unported TickLibrary stops it", async () => {
+    const state = { ...goblinState(), content: await goblinContent() };
+    expect(segmentOf(state).words.goblins).toHaveLength(1);
+    const predict = mirrorOf(state);
+    expect(() => predict([{ kind: "wait" }])).toThrow(
+      "not mirrored: TickLibrary::ticks (no port in client/sim yet)",
+    );
+    const result = reconcile(chain, [{ kind: "wait" }], predict, noLog);
+    expect(result.mirror).toEqual({
+      kind: "not-mirrored",
+      reason: "not mirrored: TickLibrary::ticks (no port in client/sim yet)",
+    });
+    expect(result.mismatches).toEqual([]);
+  });
+
+  it("is no prediction with no content given: the goblin's caste is read first", () => {
+    const predict = mirrorOf(goblinState());
+    const result = reconcile(chain, [{ kind: "wait" }], predict, noLog);
+    expect(result.mirror).toMatchObject({ kind: "not-mirrored" });
+    expect((result.mirror as { reason: string }).reason).toMatch(
+      /^not mirrored: no content given, the segment reads a sheet \(.*caste not in content/,
+    );
+  });
+
+  it("logs a mirror failure where the given content lacks the goblin's caste", async () => {
+    const content = { ...(await goblinContent()), castes: [] };
+    const logged: unknown[] = [];
+    const result = reconcile(
+      chain,
+      [{ kind: "wait" }],
+      mirrorOf({ ...goblinState(), content }),
+      (r) => logged.push(r),
+    );
+    expect(result.mirror).toMatchObject({ kind: "not-mirrored" });
+    expect(logged).toMatchObject([{ kind: "grimworld.mirror-failure" }]);
   });
 });
