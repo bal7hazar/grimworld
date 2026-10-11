@@ -1,6 +1,6 @@
 // TEST SCAFFOLDING (CLI-02g-B1): the refusals `GoblinTrait::load` and `WordsTrait::indexed` make,
 // as cases the unit tests run (`segment/goblin.test.ts`) and the mutation check runs against its
-// copies of `src/` (`mutants.test.ts`), so that one list of cases decides both. No row of
+// mutants (`mutants.test.ts`), so that one list of cases decides both. No row of
 // `segment2.jsonl` records a refusal, so the tables cannot kill a mutant that drops one; these
 // cases do. Never exported by `src/index.ts`.
 //

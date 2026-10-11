@@ -1,6 +1,6 @@
 // TEST SCAFFOLDING (CLI-02g-D): what the trap class (`trap.ts`'s `triggerClass`) must hold that
 // `trap.jsonl` cannot show, as cases the unit tests run (`trap.test.ts`) and the mutation check
-// runs against its copies of `src/` (`mutants.test.ts`), one list for both. Both goblins of the
+// runs against its mutants (`mutants.test.ts`), one list for both. Both goblins of the
 // table are Hobs of one caste, so a port that reads another goblin's caste than the placer's
 // passes every row (track game's known gap, until RV-03c's row with distinct castes); and no row
 // shows that the class leaves its inputs as they were. Never exported by `src/index.ts`.

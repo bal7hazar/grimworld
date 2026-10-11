@@ -145,10 +145,11 @@ placer's passes every row (until RV-03c's row with distinct castes): `src/parity
 holds that case, and that the class leaves its inputs as they were, run by `src/trap.test.ts` and,
 against each `trap` mutant, by `src/parity/mutants.test.ts`.
 
-Of the trap path's 63 mutants, 38 are killed by the tables and 3 by `trapcases.ts` (another
-goblin's kit, rank or level read for the placer's). 21 survive. Fifteen are holes of the table,
+Of the trap path's 65 mutants, 38 are killed by the tables and 3 by `trapcases.ts` (another
+goblin's kit, rank or level read for the placer's). 23 survive. Seventeen are holes of the table,
 reported to track game: a position, a chunk column or a chunk row past the location landing on a
-chunk no row's ground holds (rows 42, 47, 48); no goblin placer's payload guarded; no entrant with
+chunk no row's ground holds (rows 42, 47, 48); `locate`'s guard of a tile West or South of
+`ORIGIN`, which Cairo has too, not killed by any row (no row's board reaches there: RV-03a2); no goblin placer's payload guarded; no entrant with
 armor of its own, an `ARMOR_VS` of the payload's type, or an `ARMOR` effect (held, expired,
 negative); no payload's entry other than its hit guarded; no payload with a `HEAL`, `CURE` or
 holding entry; no dead goblin entering. Four read only a weapon hit (`strike`'s block, the
@@ -170,8 +171,13 @@ side fails until both agree.
   `ok` (or the panic); it fails with the case's id on any divergence, an unknown `fn`, a count under
   the table's floor.
 - `src/parity/mutants.test.ts`: the mutation check. Each mutant is one typical mistake applied to
-  a copy of `src/`; the vectors must kill it. A mutant that survives is listed with `survives` (what
-  the tables lack) and reported to track game: the tables are never edited from here.
+  the mirror; the vectors must kill it. A mutant that survives is listed with `survives` (what
+  the tables lack) and reported to track game: the tables are never edited from here. A kill by a
+  crash (a TypeError, a ReferenceError) must say with `crash` why the crash is the mutant's own
+  divergence; otherwise it fails, as a broken mutant. The mutants run in a pool of at most four
+  worker threads (`src/parity/mutate.ts`), each a few dozen mutants then a fresh one: no copy is
+  written, a module hook serves the mutated file and the modules that import it from memory, and
+  the modules the mutant does not reach are loaded once per worker and shared.
 
 ## How to add a table
 

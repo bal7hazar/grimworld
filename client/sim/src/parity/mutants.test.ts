@@ -1,18 +1,20 @@
 // How strong are the vectors? Each mutant is the mirror with one mistake a hand-written mirror
-// typically makes (SPK-4's `mutants.ts`), applied as a one-line text replacement to a copy of
-// `src/`; the copy replays every table and must diverge on at least one case, by its result or by
-// throwing where Cairo returned. A mutant the vectors do not kill is a hole in the vectors: it is
-// reported to track game, never closed by editing a table here: it is listed with `survives`
-// (what the tables lack), and this test then requires it to survive, so that the day the game's
-// cases kill it the mark must go. A mutant that drops a refusal (`refusal`, CLI-02g-B1) is another
-// kind: no row of any table records a panic of `GoblinTrait::load` or of `assert_awake`, so the
-// tables cannot kill it, and this test requires that they do not; the unit tests' cases
-// (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must. A mutant of the seam of the
-// classes (`seam`, CLI-02g-C) is the same: no row records an Illegal refusal whose call changed the
-// ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
+// typically makes (SPK-4's `mutants.ts`), applied as a one-line text replacement to the mirror
+// (FND-MUT: in a worker thread, from memory, `parity/mutate.ts`); the mutant replays every table
+// and must diverge on at least one case, by its result or by throwing where Cairo returned. A throw
+// that is a crash (a TypeError, a ReferenceError) kills only with a `crash` mark saying why it is
+// the mutant's own divergence, not a broken mutant. A mutant the vectors do not kill is a hole in
+// the vectors: it is reported to track game, never closed by editing a table here: it is listed
+// with `survives` (what the tables lack), and this test then requires it to survive, so that the
+// day the game's cases kill it the mark must go. A mutant that drops a refusal (`refusal`,
+// CLI-02g-B1) is another kind: no row of any table records a panic of `GoblinTrait::load` or of
+// `assert_awake`, so the tables cannot kill it, and this test requires that they do not; the unit
+// tests' cases (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must. A mutant of the
+// seam of the classes (`seam`, CLI-02g-C) is the same: no row records an Illegal refusal whose call
+// changed the ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
 // `segment/unported.test.ts` runs) must kill it. So is a mutant of the trap class (`trap`,
 // CLI-02g-D) that reads another goblin's caste than the placer's: the table's goblins share one
-// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it.
+// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it. 
 
 import { readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";

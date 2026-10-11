@@ -1,6 +1,6 @@
 // TEST SCAFFOLDING (CLI-02g-C): what `run` keeps at the seam of the classes (`segment/classes.ts`)
 // when ActionLibrary refuses an action, as cases the unit tests run (`segment/unported.test.ts`)
-// and the mutation check runs against its copies of `src/` (`mutants.test.ts`), so that one list
+// and the mutation check runs against its mutants (`mutants.test.ts`), so that one list
 // of cases decides both. A refusal, Heavy or Illegal, leaves the words and the ground as they were
 // (D-259), whatever the call returned and even if the class mutated its inputs in place: `run`
 // passes it copies. `segment2.jsonl` records the Heavy case (row 44); no row records an Illegal
