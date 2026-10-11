@@ -353,6 +353,10 @@ accepts; do chain and mirror compute the same chunk); the orchestrator decides a
    ENG-07, with a line in the code saying so.
    **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by the project manager or
    the owner.
+   **Updated by VIEW-01 (D-263, 2026-10-11):** `InstanceView.goblins` lists the goblins a batch
+   would load (the roster's and those of the revealed chunks of the 3 × 3 around each member),
+   built by `play`'s own code through `PlayLibrary.goblins`; `InstanceView.chunks` is removed (the
+   chunks are `instance_region`'s); `RegionChunk.goblins` stays empty (ENG-01 §4.1, *Views*).
 6. **The probe's streams.** The entry reveal adds two chunk keys (and, under Open question 3, up to
    four more) to `create`'s and `leave`'s writes; `ChunkRevealed` is not emitted there (ENG-01 §5
    lists the invocations: a batch, `open`, `mine`, `barter`; the client knows the entry from

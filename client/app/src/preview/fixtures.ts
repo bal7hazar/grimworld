@@ -24,7 +24,7 @@ export function headerWord(fields: { generation?: number; sequence?: number; clo
   );
 }
 
-/** A view of one member and two goblins, after a batch at `clock`. */
+/** A view of one member, two goblins and a 3 × 3 location, after a batch at `clock`. */
 export function view(clock = 12, sequence = 3): InstanceView {
   const word = headerWord({ generation: 7, sequence, clock });
   return {
@@ -52,16 +52,10 @@ export function view(clock = 12, sequence = 3): InstanceView {
       { entity: 24, derived: false, state: LIVE + 0x20n, timers: LIVE + 0x21n },
       { entity: 25, derived: true, state: 0x30n, timers: 0x31n },
     ],
-    chunks: [
-      { chunk: 0, kind: 2, terrain: 0x40n, features: 0x41n, goblins: [] },
-      {
-        chunk: 1,
-        kind: 2,
-        terrain: 0x42n,
-        features: 0x43n,
-        goblins: [{ entity: 24, derived: false, state: LIVE + 0x20n, timers: LIVE + 0x21n }],
-      },
-    ],
+    unloadable: false,
+    width: 3,
+    height: 3,
+    levelMin: 1,
   };
 }
 

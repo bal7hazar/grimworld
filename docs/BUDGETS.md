@@ -64,8 +64,8 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_create_sealed` | 36592080 | 38326974 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_lifecycle::test_create_without_tasks` | 35348674 | 36843476 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_lifecycle::test_entry_reveal_of_a_dungeon` | 73672502 | 77290398 | 2026-10-10 | d9633e1 |
-| grimworld_ephemeral | `test_lifecycle::test_entry_reveal_through_the_engine` | 52257304 | 54812808 | 2026-10-10 | d9633e1 |
-| grimworld_ephemeral | `test_lifecycle::test_generation_isolation` | 57125659 | 59848773 | 2026-10-10 | d9633e1 |
+| grimworld_ephemeral | `test_lifecycle::test_entry_reveal_through_the_engine` | 52624764 | 54812808 | 2026-10-11 | f8fba05 |
+| grimworld_ephemeral | `test_lifecycle::test_generation_isolation` | 57852429 | 59848773 | 2026-10-11 | f8fba05 |
 | grimworld_ephemeral | `test_lifecycle::test_leave_to_a_hub` | 40985584 | 42832151 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_lifecycle::test_leave_to_a_location` | 63055958 | 65659249 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_lifecycle::test_not_controller` | 35681452 | 37419903 | 2026-10-10 | d9633e1 |
@@ -100,6 +100,9 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_set_controller` | 40747400 | 42596054 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_lifecycle::test_set_play_class_key_refused` | 21111710 | 22145403 | 2026-10-10 | 1ac4f86 |
 | grimworld_ephemeral | `test_lifecycle::test_travel_back` | 39299737 | 41035604 | 2026-10-10 | d9633e1 |
+| grimworld_ephemeral | `test_lifecycle::test_view_goblins_are_plays` | 159194411 | 165369006 | 2026-10-11 | 3d73583 |
+| grimworld_ephemeral | `test_lifecycle::test_view_goblins_two_members` | 80302368 | 84317487 | 2026-10-11 | 3d73583 |
+| grimworld_ephemeral | `test_lifecycle::test_view_unloadable_goblin_marker` | 56016318 | 58817134 | 2026-10-11 | 3d73583 |
 | grimworld_ephemeral | `test_play_limits::test_play_changed_goblin_dropped` | 226324222 | 237366667 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_play_limits::test_play_first_records_and_alert` | 331104945 | 347616187 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_play_limits::test_play_records_cap` | 254904025 | 267185463 | 2026-10-10 | d9633e1 |

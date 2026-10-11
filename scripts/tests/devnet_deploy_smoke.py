@@ -49,6 +49,16 @@ def main():
     assert word % (1 << 32) == dep["adventurer_id"], hex(word)
     assert (word >> 56) % 256 == 0, f"status is not INSIDE: {hex(word)}"  # member::INSIDE
     assert ((word >> 32) % 256, (word >> 40) % 256) != (0, 0), hex(word)
+    # VIEW-01: then the roster's pages (a span), the goblins (a span, 4 felts each: entity, derived,
+    # state, timers), and the location's width, height and level_min, the last three felts
+    at = 6 + state[5] + 1 + words
+    at += 1 + state[at]
+    goblins = state[at]
+    at += 1 + 4 * goblins
+    assert len(state) == at + 3, f"the view's tail: {state[at:]}"
+    width, height = state[at], state[at + 1]
+    assert 1 <= width <= 15 and 1 <= height <= 15, (width, height)
+    assert all(state[at - 4 * goblins + 4 * g] >= 8 for g in range(goblins)), "an unloadable goblin"
     assert dep["adventurer_id"] == 1
     for k in ("node_url", "chain_id", "commit", "account", "classes", "contracts"):
         assert dep[k], k

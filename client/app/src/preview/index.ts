@@ -6,15 +6,8 @@ export type { BatchAction, FateAction, PlayAction, Target } from "./actions";
 export { MAX_ACTIONS, encodeAction, encodeBatch, isFate } from "./actions";
 export type { PlayTarget } from "./calls";
 export { executeCalldata, previewCalls, selector } from "./calls";
-export type { LocationExtent, MirrorState } from "./mirror";
-export {
-  mirrorOf,
-  segmentOf,
-  unpackFeatures,
-  unpackLocation,
-  unpackWalls,
-  unportedClasses,
-} from "./mirror";
+export type { MirrorState } from "./mirror";
+export { mirrorOf, segmentOf, unpackFeatures, unpackWalls, unportedClasses } from "./mirror";
 export type { Preview, PreviewDeps, PreviewInput, Refused } from "./preview";
 export { previewBatch, refusals } from "./preview";
 export type {
@@ -48,6 +41,7 @@ export { Outcome, Stop, TraceError, eventSelector, extractOutcome, panicReason }
 export type { GoblinView, Header, InstanceView, MemberView, RegionChunk } from "./view";
 export {
   ChunkKind,
+  UNLOADABLE,
   decodeInstanceView,
   decodeRegion,
   encodeInstanceView,

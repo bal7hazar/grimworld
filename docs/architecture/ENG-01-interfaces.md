@@ -1204,10 +1204,34 @@ cost 153,600, one felt 5,120.
 
 **Views** return the stored words in their layouts (the client decodes them with the same code):
 `InstanceView { instance_id, header, entropy, revealed, quotas, tasks, members (8 words each),
-roster, goblins (every goblin of the members' windows), chunks (the chunks the windows overlap) }`;
+roster, goblins, width, height, level_min }`;
 `RegionChunk { chunk, kind (Void, Unrevealed, Revealed), terrain, features, goblins }`, words only
-for a revealed chunk. A `GoblinView` says whether the goblin is **derived** (untouched, at its
-spawn, from its pack placement) or stored. `instance_region` finds remains lying away from their
+for a revealed chunk. A `GoblinView` (`entity`, `derived`, `state`, `timers`) says whether the
+goblin is **derived** (untouched, at its spawn, from its pack placement) or stored.
+
+**`InstanceView.goblins`, `width`, `height`, `level_min`** (VIEW-01, D-263). `goblins` are the
+goblins a batch would load first, built by `play`'s own code (D-263 condition 1): `Instances` calls
+`PlayLibrary.goblins` by `library_call`, which runs `PlayTrait::window`, the same `roster`, `ground`,
+`goblins` and `sorted` that `play`'s read of the goblins runs. They are the roster's (through the
+masked pages) and those of the revealed chunks of the 3 × 3 around the tile of **each member
+inside** (the area `play` loads for that member; the union for a party, each chunk once; a member
+down or gone adds nothing, since no batch loads for it), a touched one or a roster one as stored,
+an untouched one derived from its pack's placement at full health in its pack's state, in
+ascending entity id, in `GoblinWords`' layout. When the registry cannot load one of them (a caste, a
+caste skill or a held effect's skill missing), where `play` refuses the batch (`Stop::Invalid`), the
+list is the one marker `UNLOADABLE` (entity 0, which no goblin has, every word 0): the view never
+reverts for it, nor for the registry's bound: `PlayTrait::window` runs the shared `goblins` a chunk
+at a time, then on the roster 30 goblins at a time, with one `Book` carried between the calls, so
+each `bundle` stays within `MAX_READ` (32) however many chunks a party's windows span, and `play`'s
+own path is unchanged. While no `PlayLibrary` is set (before `set_play_class`), the list is empty. A
+goblin beyond those chunks (a chunk a batch enters after its first segment) is not listed: a client
+reads the view again once the batch has landed, or, for a chunk's packs, `instance_region` (its
+`RegionChunk.goblins` stay empty, ENG-05 Open question 5). `width`, `height` and `level_min` are the
+location's `Location` record's (the extent in chunks and the lowest level of its goblins), read
+from the registry by the view, 0 for an id that answers nothing. The always-empty `chunks` field is
+removed: the chunks are `instance_region`'s paged read. The view's cost is a read, not budgeted
+against the play path: `PlayLibrary`'s registry `bundle`s for the castes and skills the listed
+goblins need, as a batch makes them. `instance_region` finds remains lying away from their
 spawn chunk through the roster (§9.3, F-6). Both views are pure reads: callable at a block hash or
 at `pre_confirmed`.
 
@@ -1983,7 +2007,7 @@ eight member words unchanged).
 
 | View | Bound | Reads |
 |---|---|---:|
-| `Instances.instance_state` | 1 member in the MVP (8 with a party), its window's 4 chunks, the roster | header 1, entropy 1, revealed 1, quotas 1, task pages ≤ 4, member words 8, roster pages ≤ 4 (masked, F-13), roster records ≤ 60 × 2 (state and timers), window chunks 4 × 2, their touched records ≤ 40 × 2: **228**; plus the `touched` gate of each roster goblin whose spawn chunk lies outside the window, ≤ 60 `features` reads: **≤ 288** |
+| `Instances.instance_state` | 1 member in the MVP (8 with a party), the 3 × 3 chunks around it, the roster (VIEW-01: bound read from the code, not measured) | header 2, entropy 1, revealed 2, quotas 1, task pages ≤ 4, member words 8 × 2 (the view's and `PlayLibrary`'s), roster pages ≤ 4 × 2 (masked, F-13), the `PLAY` class 1, the 3 × 3's chunk words ≤ 9 × 2, roster records ≤ 60 × 2, the 3 × 3's touched goblin records ≤ 90 × 2 (10 a chunk): **≤ 353** for one member, + 18 chunk words a further member; plus the registry's: the location's record, then `PlayLibrary`'s `bundle`s (pack templates, castes, their skills, 32 records a call), as a batch reads them |
 | `Instances.instance_region` | ≤ 16 chunks | header 1 (generation, roster count), revealed 1, 16 chunks × 2 = 32, their touched records ≤ 160 × 2 = 320, roster pages ≤ 4 (masked), every roster goblin's state (its tile) ≤ 60, the timers of those lying in the range ≤ 60, the `touched` gate of their spawn chunks outside the range ≤ 60: **≤ 538** |
 | `Instances.placement` | | 1 |
 | `Hub.counters` | ≤ 32 ids a call | 32 |

@@ -88,7 +88,9 @@ pub impl InstancesAssert of InstancesAssertTrait {
     }
 }
 
-/// A goblin as stored, or as derived from its chunk when it has no record (`derived`).
+/// A goblin as stored, or as derived from its chunk when it has no record (`derived`). Entity 0,
+/// which no goblin has (they start at 8), is `instance_state`'s marker of a goblin the registry
+/// cannot load (`UNLOADABLE`).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct GoblinView {
     pub entity: u16,
@@ -128,12 +130,23 @@ pub struct InstanceView {
     /// (`models::instance::RosterTrait::mask`).
     /// Pages beyond `⌈roster_count / 15⌉` are not returned.
     pub roster: Span<felt252>,
-    /// Every goblin of the members' windows: the untouched ones derived, the touched ones and the
-    /// roster's (read through masked pages only) stored.
+    /// The goblins a batch would load first (VIEW-01, D-263; `PlayLibrary.goblins`, by `play`'s
+    /// own code): the roster's (read through masked pages only) and those of the revealed chunks
+    /// of the 3 × 3 around each member's tile, the touched ones stored, the untouched ones derived
+    /// from their pack's placement (at full health, in their pack's state), in ascending entity
+    /// id, in `GoblinWords`' layout. When the registry cannot load one of them (a caste, a caste
+    /// skill or a held effect's skill missing), where `play` refuses the batch (`Stop::Invalid`),
+    /// the one `UNLOADABLE` marker instead. The chunks themselves are `instance_region`'s.
     pub goblins: Span<GoblinView>,
-    /// The chunks the members' windows overlap (revealed ones with their words).
-    pub chunks: Span<RegionChunk>,
+    /// The location's extent in chunks and the lowest level of its goblins (its `Location`
+    /// record's `width`, `height`, `level_min`), 0 for an id that answers nothing.
+    pub width: u8,
+    pub height: u8,
+    pub level_min: u8,
 }
+
+/// `InstanceView.goblins`' marker of a goblin the registry cannot load: `play` refuses the batch.
+pub const UNLOADABLE: GoblinView = GoblinView { entity: 0, derived: false, state: 0, timers: 0 };
 
 /// The entrypoints of play. Every one takes the adventurer's entity id and the sequence the
 /// client played from; the caller must control that adventurer, and it must be in that instance
@@ -276,7 +289,8 @@ pub mod Instances {
     use crate::store::InstancesStoreTrait;
     use crate::systems::play::{IPlayLibraryDispatcherTrait, IPlayLibraryLibraryDispatcher};
     use super::{
-        InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors, play_class,
+        InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, UNLOADABLE, VERSION, errors,
+        play_class,
     };
 
 
@@ -539,9 +553,10 @@ pub mod Instances {
         /// The stored words of the instance (ENG-01 §4.1), read through the gates of §2.1: an id
         /// whose generation is not the slot's current one answers nothing (every word 0, every
         /// list empty); task pages up to `⌈tasks / 4⌉`; the members' eight words; roster pages
-        /// up to `⌈roster_count / 15⌉`, masked (F-13). The window's chunks and goblins are read
-        /// only through `revealed`: nothing is revealed until ENG-05's reveal, so they are empty;
-        /// ENG-05 and ENG-07 fill them.
+        /// up to `⌈roster_count / 15⌉`, masked (F-13); the goblins a batch would load first,
+        /// `PlayLibrary`'s by `library_call` (VIEW-01, D-263: `play`'s own code), or the
+        /// `UNLOADABLE` marker, none while no `PlayLibrary` is set; the location's extent and
+        /// `level_min` from its record.
         fn instance_state(self: @ContractState, instance_id: InstanceId) -> InstanceView {
             let (slot, generation) = instance_parts(instance_id);
             let stored = self.get_stored_header(slot);
@@ -557,7 +572,9 @@ pub mod Instances {
                     members: array![].span(),
                     roster: array![].span(),
                     goblins: array![].span(),
-                    chunks: array![].span(),
+                    width: 0,
+                    height: 0,
+                    level_min: 0,
                 };
             }
             let pages: u32 = (header.tasks.into() + TASKS_PER_PAGE - 1) / TASKS_PER_PAGE;
@@ -574,6 +591,22 @@ pub mod Instances {
                         StorePacking::pack(RosterTrait::mask(stored, page, header.roster_count)),
                     );
             }
+            // Before `set_play_class` (no batch can run), none: the view never reverts
+            let class_hash = self.get_play_class(play_class::PLAY);
+            let unset: felt252 = class_hash.into();
+            let goblins = if unset == 0 {
+                array![].span()
+            } else {
+                let library = IPlayLibraryLibraryDispatcher { class_hash };
+                match library.goblins(instance_id) {
+                    Some(goblins) => goblins,
+                    None => array![UNLOADABLE].span(),
+                }
+            };
+            let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
+            let location: Location = LocationRecord::unpack(
+                registry.record(LOCATION, header.location.into()),
+            );
             InstanceView {
                 instance_id,
                 header: stored.word,
@@ -583,8 +616,10 @@ pub mod Instances {
                 tasks,
                 members,
                 roster: roster.span(),
-                goblins: array![].span(),
-                chunks: array![].span(),
+                goblins,
+                width: location.width,
+                height: location.height,
+                level_min: location.level_min,
             }
         }
 
@@ -595,7 +630,8 @@ pub mod Instances {
         /// stored. A chunk not revealed is never read (§2.1). An id whose generation is not the
         /// slot's current one answers nothing. The location's record and a zone's chunk set, or a
         /// dungeon floor's outline (ENG-10b), are read once. Each chunk's goblins are ENG-07's (the
-        /// roster, `touched`): empty here (ENG-05 Open question 5).
+        /// roster, `touched`): empty here (ENG-05 Open question 5); `instance_state` lists the
+        /// goblins a batch would load (VIEW-01).
         fn instance_region(
             self: @ContractState, instance_id: InstanceId, first: u8, count: u8,
         ) -> Span<RegionChunk> {

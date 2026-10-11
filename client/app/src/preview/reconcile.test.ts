@@ -35,14 +35,12 @@ function agreeing(): Prediction {
         bar: m.bar,
         kit: m.kit,
       })),
-      goblins: [
-        {
-          entity: 24,
-          awake: false,
-          state: after.goblins[0]!.state,
-          timers: after.goblins[0]!.timers,
-        },
-      ],
+      goblins: after.goblins.map((g) => ({
+        entity: g.entity,
+        awake: false,
+        state: g.state,
+        timers: g.timers,
+      })),
       killed: [24],
       defeated: false,
     },
@@ -73,7 +71,7 @@ describe("reconcile", () => {
       ...wrong.words,
       clock: 15,
       members: [{ ...wrong.words.members[0]!, state: 1n }],
-      goblins: [{ ...wrong.words.goblins[0]!, timers: 2n }],
+      goblins: [{ ...wrong.words.goblins[0]!, timers: 2n }, wrong.words.goblins[1]!],
     };
     const onChain = chain();
     const result = reconcile(onChain, actions, () => wrong, log);
@@ -212,12 +210,70 @@ describe("reconcile", () => {
     expect(log).toHaveBeenCalledTimes(1);
   });
 
-  it("does not compare a mirror goblin the view does not list (the module's comment)", () => {
-    const extra = agreeing();
-    extra.words = {
-      ...extra.words,
-      goblins: [...extra.words.goblins, { entity: 40, awake: false, state: 1n, timers: 2n }],
+  describe("the goblin sets (VIEW-01)", () => {
+    const withGoblins = (goblins: Prediction["words"]["goblins"], moved?: boolean): Prediction => {
+      const prediction = agreeing();
+      return {
+        ...prediction,
+        words: { ...prediction.words, goblins },
+        ...(moved ? { moved } : {}),
+      };
     };
-    expect(reconcile(chain(), actions, () => extra, vi.fn()).mismatches).toEqual([]);
+    const [g24, g25] = agreeing().words.goblins as [
+      Prediction["words"]["goblins"][number],
+      Prediction["words"]["goblins"][number],
+    ];
+
+    it("finds nothing when both sides list the same goblins with the same words", () => {
+      expect(reconcile(chain(), actions, () => agreeing(), vi.fn()).mismatches).toEqual([]);
+    });
+
+    it("counts a goblin the chain lists and the mirror lacks", () => {
+      const result = reconcile(chain(), actions, () => withGoblins([g24]), vi.fn());
+      expect(result.mismatches).toEqual([
+        { field: "goblins[25]", chain: "listed", mirror: "not listed" },
+      ]);
+    });
+
+    it("counts a goblin the mirror lists and the chain lacks", () => {
+      const extra = { entity: 40, awake: false, state: 1n, timers: 2n };
+      const result = reconcile(chain(), actions, () => withGoblins([g24, g25, extra]), vi.fn());
+      expect(result.mismatches).toEqual([
+        { field: "goblins[40]", chain: "not listed", mirror: "listed" },
+      ]);
+    });
+
+    it("counts a differing state or timers word, entity by entity", () => {
+      const wrong = withGoblins([
+        { ...g24, state: 1n },
+        { ...g25, timers: 2n },
+      ]);
+      const after = view(14, 5);
+      expect(reconcile(chain(), actions, () => wrong, vi.fn()).mismatches).toEqual([
+        { field: "goblins[24].state", chain: after.goblins[0]!.state, mirror: 1n },
+        { field: "goblins[25].timers", chain: after.goblins[1]!.timers, mirror: 2n },
+      ]);
+    });
+
+    it("compares only the goblins both sides list when the member ended in another window", () => {
+      const moved = withGoblins([{ ...g24, state: 1n }], true);
+      expect(reconcile(chain(), actions, () => moved, vi.fn()).mismatches).toEqual([
+        { field: "goblins[24].state", chain: view(14, 5).goblins[0]!.state, mirror: 1n },
+      ]);
+    });
+
+    it("keeps the prediction's `moved` through an undo", () => {
+      const first = withGoblins([g24, g25]);
+      first.done = { ...first.done, played: 1, heavy: true, undo: true };
+      const again = withGoblins([g24], true);
+      const result = reconcile(
+        chain({ played: 1, stop: Stop.Weight }),
+        actions,
+        (batch) => (batch.length === 2 ? first : again),
+        vi.fn(),
+      );
+      expect(result.mirror).toMatchObject({ kind: "predicted", moved: true });
+      expect(result.mismatches).toEqual([]);
+    });
   });
 });

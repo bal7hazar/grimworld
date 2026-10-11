@@ -709,9 +709,10 @@ if OPTIONS.get("--play") == "on":
 
             def region_sets():
                 """The walkable tiles of the revealed chunks, the chunks not revealed and the packs
-                of the revealed ones as `(chunk, x, y, count, alert)`: `instance_state` lists no
-                goblin yet, so the packs are read from the chunks' features (`PackPlacement`: tile
-                0-7, count 32-35, alert 61-63; the pack at bit 0 and at bit 64)."""
+                of the revealed ones as `(chunk, x, y, count, alert)`: `instance_state` lists only
+                the goblins a batch would load (around the adventurer, and the roster's: VIEW-01), so
+                the packs of every revealed chunk are read from the chunks' features (`PackPlacement`: tile 0-7, count 32-35, alert 61-63;
+                the pack at bit 0 and at bit 64)."""
                 walkable, unrevealed, packs = set(), set(), []
                 for page in (0, 16, 32):
                     raw = view("instance_region", fifth, page, 16)

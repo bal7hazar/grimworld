@@ -65,12 +65,15 @@ pub trait IPlayLibrary<T> {
         version: u32,
         actions: felt252,
     ) -> bool;
+    /// `instance_state`'s goblins (VIEW-01, D-263), in `Instances`' context: `PlayTrait::window`.
+    /// `None` when the registry cannot load one of them.
+    fn goblins(self: @T, instance_id: InstanceId) -> Option<Span<GoblinView>>;
 }
 
 #[starknet::contract]
 pub mod PlayLibrary {
-    use grimworld_logic::types::InstanceId;
-    use crate::systems::instances::Instances;
+    use grimworld_logic::types::{InstanceId, instance_parts};
+    use crate::systems::instances::{GoblinView, Instances};
     use super::PlayTrait;
 
     #[storage]
@@ -88,6 +91,12 @@ pub mod PlayLibrary {
         ) -> bool {
             let mut instances = Instances::unsafe_new_contract_state();
             PlayTrait::play(ref instances, instance_id, adventurer_id, sequence, version, actions)
+        }
+
+        fn goblins(self: @ContractState, instance_id: InstanceId) -> Option<Span<GoblinView>> {
+            let mut instances = Instances::unsafe_new_contract_state();
+            let (slot, _) = instance_parts(instance_id);
+            Some(PlayTrait::window(ref instances, slot)?.span())
         }
     }
 }
@@ -120,9 +129,10 @@ use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
 use crate::helpers::stored::StoredTrait;
 use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
+use crate::models::member::{INSIDE, MemberState};
 use crate::store::InstancesStoreTrait;
 use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
-use crate::systems::instances::play_class;
+use crate::systems::instances::{GoblinView, play_class};
 
 /// The bits of a chunk's 225 tiles.
 const TILES: felt252 = 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
@@ -140,11 +150,11 @@ const EMPTY_TIMERS: felt252 = LIVE + 255;
 /// The content records a batch has read (D-145): the pack templates, the castes, the skills and
 /// the potions, extended when the area moves (t-0109).
 #[derive(Drop)]
-struct Book {
-    packs: Array<(u16, Pack)>,
-    castes: Array<CasteSheet>,
-    skills: Array<SkillSheet>,
-    potions: Array<PotionSheet>,
+pub struct Book {
+    pub packs: Array<(u16, Pack)>,
+    pub castes: Array<CasteSheet>,
+    pub skills: Array<SkillSheet>,
+    pub potions: Array<PotionSheet>,
 }
 
 /// What the batch read of the instance, kept for the write-back.
@@ -316,6 +326,70 @@ pub impl PlayImpl of PlayTrait {
                 actions.span(),
                 read,
             )
+    }
+
+    /// `instance_state`'s goblins (VIEW-01, D-263): those a batch would load first (its `[Read]`
+    /// of the goblins, by the same functions: `roster`, `ground`, `goblins`, `sorted`) for every
+    /// member inside at once (a member down or gone plays no batch), the roster's and those of the
+    /// revealed chunks of the 3 × 3 around each such member's tile, in ascending entity id, each
+    /// said derived (no record: not in the roster, its `touched` bit clear) or stored. `goblins`
+    /// runs a chunk at a time, then on the roster 30 goblins at a time, the content read carried
+    /// in one `Book`: each of its `bundle`s stays within the registry's 32 records (2 templates,
+    /// 10 castes a chunk), however many chunks the members' windows span; the goblins are the same
+    /// as one call's. `None` when the registry cannot load one of them, where `play` refuses the
+    /// batch (`Stop::Invalid`).
+    fn window(ref self: InstancesState, slot: u32) -> Option<Array<GoblinView>> {
+        let header = self.get_header(slot);
+        let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
+        let revealed = self.get_revealed(slot).model().bits;
+        let words = self.get_member_words(slot, header.members);
+        let mut ground: Array<(u8, Features)> = array![];
+        let mut m: u32 = 0;
+        while m < header.members.into() {
+            let member: MemberState = StorePacking::unpack(*words[8 * m]);
+            if member.status == INSIDE {
+                let more = Self::ground(@self, slot, revealed, member.x, member.y, ground.span());
+                ground.append_span(more.span());
+            }
+            m += 1;
+        }
+        let roster = Self::roster(@self, slot, header.roster_count);
+        let mut book = Book {
+            packs: array![], castes: array![], skills: array![], potions: array![],
+        };
+        let mut goblins: Array<GoblinWords> = array![];
+        for entry in ground.span() {
+            let chunk = Self::goblins(
+                ref self, slot, registry, ref book, array![*entry].span(), array![], roster.span(),
+            )?;
+            goblins.append_span(chunk.span());
+        }
+        let mut from: u32 = 0;
+        while from < roster.len() {
+            let count = if roster.len() - from > 30 {
+                30
+            } else {
+                roster.len() - from
+            };
+            let mut stored: Array<GoblinWords> = array![];
+            for entity in roster.span().slice(from, count) {
+                let (state, timers) = self.get_goblin_words(slot, *entity);
+                stored.append(GoblinWords { entity: *entity, awake: false, state, timers });
+            }
+            let listed = Self::goblins(
+                ref self, slot, registry, ref book, array![].span(), stored, roster.span(),
+            )?;
+            goblins.append_span(listed.span());
+            from += count;
+        }
+        let mut out: Array<GoblinView> = array![];
+        for goblin in Self::sorted(goblins.span()) {
+            let GoblinWords { entity, awake: _, state, timers } = goblin;
+            let derived = !Self::listed(roster.span(), entity)
+                && Self::untouched(ground.span(), Self::spawn_chunk(entity), Self::k_of(entity));
+            out.append(GoblinView { entity, derived, state, timers });
+        }
+        Some(out)
     }
 
     /// The goblins of `chunks` (their packs' goblins: a record when `touched`, else derived from

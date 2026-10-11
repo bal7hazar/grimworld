@@ -13,38 +13,45 @@ import type { Predict } from "./reconcile";
 import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
 
 /**
- * The mirror wired (CLI-10b, D-257): client/sim's `runSegment` on the segment `PlayLibrary` would
- * build before its first `SegmentLibrary` call (contracts/ephemeral/src/systems/play.cairo, `play`
- * and `run`): the words (the header's clock, the members' seven words, the goblins), the area (the
- * location's extent, its chunks not void, the revealed set, the walkable tiles of the revealed
- * chunks around the adventurer), the ground (their `Features`), the location's `level_min`, no
- * owed tick and the whole weight.
+ * The mirror wired (CLI-10b, D-257; CLI-10c, VIEW-01 / D-263): client/sim's `runSegment` on the
+ * segment `PlayLibrary` would build before its first `SegmentLibrary` call
+ * (contracts/ephemeral/src/systems/play.cairo, `play` and `run`): the words (the header's clock,
+ * the members' seven words, the goblins), the area (the location's extent, its chunks not void,
+ * the revealed set, the walkable tiles of the revealed chunks around the controlled member), the
+ * ground (their `Features`), the location's `level_min`, no owed tick and the whole weight.
  *
- * Its inputs are what the chain gives today: `InstanceView` (`instance_state`), the region's
- * chunks (`instance_region`: the view's `chunks` are empty on main, instances.cairo :586, and hold
- * the same `RegionChunk` once filled), the location's record from the Registry, and the content
- * (the sheets of the members' skills and potions and of the area goblins' castes and skills, as
- * `PlayLibrary`'s `bundle` reads them), which the caller passes decoded. Where these do not hold
- * what the segment needs, there is no prediction (`NotMirrored`), never a guess:
- * - a goblin of the area's packs, or of the roster, that the view does not list (it lists none on
- *   main, instances.cairo :585): `PlayLibrary` derives it from its pack's template and caste;
- * - a revealed chunk around the adventurer that the region does not give.
+ * Its inputs are what the chain gives: `InstanceView` (`instance_state`: the words, the goblins a
+ * batch loads first, instances.cairo :136-146, and the location's `width`, `height` and
+ * `level_min`, :142-145), the region's chunks (`instance_region`: the view's `chunks` are gone,
+ * the chunks are the region's), the controlled member (`Instances.placement`, `placement.member`,
+ * play.cairo :186-187) and the content (the sheets of the members' skills and potions and of the
+ * area goblins' castes and skills, as `PlayLibrary`'s `bundle` reads them), which the caller
+ * passes decoded (CLI-10d). Where these do not hold what the segment needs, there is no
+ * prediction (`NotMirrored`), never a guess:
+ * - a view whose goblins are the `UNLOADABLE` marker: `play` refuses the batch (`Stop::Invalid`
+ *   before any action, play.cairo :285-300), the mirror does not predict a refusal;
+ * - an empty goblin list where the roster or a pack of the area holds some: the view lists none
+ *   while no `PlayLibrary` is set (instances.cairo :598);
+ * - several members while the view lists goblins: it lists the goblins of every member's window at once
+ *   (play.cairo :338-349, `window`), `play` loads those of the controlled member's alone, and the
+ *   view cannot tell a window's goblins from a roster's;
+ * - a revealed chunk around the controlled member that the region does not give;
+ * - a sheet the content lacks (a goblin's caste or skill): the segment panics `... not in content`.
+ * The goblins are the view's as they are, derived ones included (at full health, in their pack's
+ * state): `PlayLibrary` loads them by the same functions.
  * The three classes behind the seam (`TickLibrary::ticks`, `ActionLibrary::act`,
  * `TrapLibrary::trigger`) have no port in client/sim yet: `unportedClasses` answers each call with
  * `NotMirrored`, so a segment predicts only on the fast path (no goblin in the window, no combat,
  * no trap).
  */
 
-/** What a segment reads of the location's record (`models::location::Location`). */
-export type LocationExtent = { width: number; height: number; levelMin: number };
-
 /** What the mirror runs from. */
 export interface MirrorState {
   /** The state the batch runs on (the view before it). */
   readonly view: InstanceView;
-  /** The location's record (`Registry.record(LOCATION, header.location)`), as `unpackLocation`. */
-  readonly location: LocationExtent;
-  /** The instance's chunks, as `instance_region` or a filled `InstanceView.chunks` gives them. */
+  /** The member the adventurer controls (`Instances.placement`), the area's centre. */
+  readonly member: number;
+  /** The instance's chunks, as `instance_region` gives them. */
   readonly region: readonly RegionChunk[];
   readonly content: Content;
 }
@@ -68,14 +75,6 @@ const unlive = (word: bigint): bigint => {
   const [low, high] = split(word);
   return low + high * P128;
 };
-
-/** `LocationRecord::unpack`, the fields a segment reads (part 0's low limb). */
-export function unpackLocation(parts: readonly bigint[]): LocationExtent {
-  const [first] = parts;
-  if (first === undefined) throw new RangeError("a location record has two parts");
-  const [low] = split(first);
-  return { levelMin: bitsOf(low, 32, 8), width: bitsOf(low, 56, 8), height: bitsOf(low, 64, 8) };
-}
 
 /** `TerrainStorePacking::unpack`'s walls. */
 export function unpackWalls(word: bigint): bigint {
@@ -123,7 +122,11 @@ function around(x: number, y: number): number[] {
 
 /** The segment's inputs but its actions; throws `NotMirrored` where the state lacks one. */
 export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
-  const { view, location, region } = state;
+  const { view, region } = state;
+  if (view.unloadable) throw new NotMirrored("a goblin cannot load");
+  if (view.members.length > 1 && view.goblins.length > 0) {
+    throw new NotMirrored("several members: the view's goblins are those of every window");
+  }
   const members = view.members.map(({ state, timers, effects, recharges, stats, bar, kit }) => ({
     state,
     timers,
@@ -133,8 +136,8 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
     bar,
     kit,
   }));
-  const first = view.members[0];
-  if (first === undefined) throw new NotMirrored("the view holds no member");
+  const first = view.members[state.member];
+  if (first === undefined) throw new NotMirrored(`the view holds no member ${state.member}`);
   // `PlayTrait::place`: x at bits 32–39, y at 40–47
   const [x, y] = [bitsOf(first.state, 32, 8), bitsOf(first.state, 40, 8)];
   const revealed = unlive(view.revealed);
@@ -155,17 +158,19 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
       for (let i = 0; i < pack.count; i++) {
         const entity = goblinEntity(chunk, 5 * p + i);
         if (!listed.has(entity)) {
-          throw new NotMirrored(`goblin ${entity} of chunk ${chunk}'s pack not in the view`);
+          throw new NotMirrored(
+            `goblin ${entity} of chunk ${chunk}'s pack not in the view (no PlayLibrary set)`,
+          );
         }
       }
     });
   }
   if (view.header.rosterCount > 0 && view.goblins.length === 0) {
-    throw new NotMirrored("the roster's goblins not in the view");
+    throw new NotMirrored("the roster's goblins not in the view (no PlayLibrary set)");
   }
   const area: Area = {
-    width: location.width,
-    height: location.height,
+    width: view.width,
+    height: view.height,
     known,
     revealed,
     chunks,
@@ -176,7 +181,7 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
     words: {
       clock: view.header.clock,
       members,
-      // `PlayTrait::sorted`: by entity
+      // `PlayTrait::sorted`: by entity (the view lists them so; kept as `sorted` does)
       goblins: view.goblins
         .map((g) => ({ entity: g.entity, awake: false, state: g.state, timers: g.timers }))
         .sort((a, b) => a.entity - b.entity),
@@ -185,7 +190,7 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
     },
     content: state.content,
     area,
-    level: location.levelMin,
+    level: view.levelMin,
     ground,
     owed: 0,
     weight: MAX_WEIGHT,
@@ -207,5 +212,25 @@ export const unportedClasses: Classes = {
 
 /** The preview's `predict`: the segment of `state` with the batch's actions. */
 export function mirrorOf(state: MirrorState, classes: Classes = unportedClasses): Predict {
-  return (actions) => runSegment({ ...segmentOf(state), actions: [...actions] }, classes);
+  const window = (x: number, y: number) => around(x, y).join(",");
+  const at = (word: bigint) => window(bitsOf(word, 32, 8), bitsOf(word, 40, 8));
+  return (actions) => {
+    // Built per call: a state the segment cannot be built from is `NotMirrored` there, in `reconcile`
+    const segment = segmentOf(state);
+    const start = at(state.view.members[state.member]!.state);
+    let ran: ReturnType<typeof runSegment>;
+    try {
+      ran = runSegment({ ...segment, actions: [...actions] }, classes);
+    } catch (error) {
+      // A sheet the caller's content lacks (a goblin's caste, a skill): the content is the caller's
+      // input (CLI-10d decodes it), so its gap is no prediction, not a parity bug
+      if (error instanceof Error && /not in content/.test(error.message)) {
+        throw new NotMirrored(`the content lacks a sheet the segment reads (${error.message})`);
+      }
+      throw error;
+    }
+    const member = ran.words.members[state.member];
+    // The chain's view after the batch lists the window around the member where it ended
+    return { ...ran, moved: member !== undefined && at(member.state) !== start };
+  };
 }
