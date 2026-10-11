@@ -112,7 +112,10 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
   let sheets = "";
   /** What the deployment's entropy drew, observed before the Wait. */
   let world = { quiet: false };
-  /** No goblin in the roster nor in the window, none unloadable: a Wait plays 1 and stops on nothing. */
+  /**
+   * No goblin in the roster nor in the window, none unloadable: a Wait plays 1 and stops on
+   * nothing.
+   */
   const quiet = (view: InstanceView) => ({
     quiet: view.goblins.length === 0 && view.header.rosterCount === 0 && !view.unloadable,
   });
