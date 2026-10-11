@@ -667,6 +667,73 @@ class Export(unittest.TestCase):
                 convert.convert(load("zone.json"), manifest)
             self.assertEqual(caught.exception.code, "export: location size")
 
+    def test_pack_bounds(self):
+        """E-52: a manifest pack's bounds are two whole numbers, 1 <= fewest <= most <= 5, each key a
+        pack of the manifest; refused before any record is built, named by a Heart quota or not."""
+        for good in ([1, 1], [5, 5], [1, 5], [2, 3]):
+            manifest = copy.deepcopy(MANIFEST)
+            manifest["pack_bounds"]["raiders"] = good
+            self.assertEqual(convert.build_zone(load("zone.json"), manifest)["hearts"][2],
+                             tuple(good))
+        bad = ([0, 5], [0, 0], [1, 0], [3, 2], [1, 6], [6, 6], [5, 6], [-1, 3], [3], [3, 2, 1], [],
+               [1.0, 2], [1, 2.5], ["1", 2], [True, 2], [1, True], [None, 2], "1-3", 3, None,
+               {"min": 1, "max": 3}, (1, 3)[0])
+        for entry in bad:
+            for name in ("raiders", "cubs"):
+                with self.subTest(entry=entry, name=name):
+                    manifest = copy.deepcopy(MANIFEST)
+                    manifest["pack_bounds"][name] = entry
+                    with self.assertRaises(R.Refused) as caught:
+                        convert.convert(load("zone.json"), manifest)
+                    self.assertEqual(caught.exception.code, "export: pack bounds")
+                    self.assertIn(name, caught.exception.detail)
+        # an entry no quota names is checked too, and its key must be a pack
+        manifest = copy.deepcopy(MANIFEST)
+        manifest["packs"]["wolves"] = 3
+        manifest["pack_bounds"]["wolves"] = [1, 6]
+        with self.assertRaises(R.Refused) as caught:
+            convert.convert(load("zone.json"), manifest)
+        self.assertEqual(caught.exception.code, "export: pack bounds")
+        for table in ({"dragons": [1, 2]}, [[1, 2]], "x", 5, None):
+            manifest = copy.deepcopy(MANIFEST)
+            manifest["pack_bounds"] = table
+            with self.assertRaises(R.Refused) as caught:
+                convert.convert(load("zone.json"), manifest)
+            self.assertEqual(caught.exception.code, "export: pack bounds")
+
+    def test_heart_pack_without_bounds(self):
+        """R-27 cannot be judged without the bounds: a Heart whose pack has no entry is refused as
+        `zone: heart template`, by the check the Registry's twin shares."""
+        manifest = copy.deepcopy(MANIFEST)
+        del manifest["pack_bounds"]["raiders"]
+        with self.assertRaises(R.Refused) as caught:
+            convert.convert(load("zone.json"), manifest)
+        self.assertEqual(caught.exception.code, "zone: heart template")
+
+    def test_trap_skill(self):
+        """E-53: an authored trap names a skill the manifest defines, its id not 0."""
+        def trapped(**feature):
+            export = load("zone.json")
+            export["features"].append({"feature": "trap", "x": 19, "y": -2, **feature})
+            return export
+
+        manifest = copy.deepcopy(MANIFEST)
+        manifest["skills"] = {"spikes": 1, "top": 65535}
+        for name, skill in (("spikes", 1), ("top", 65535)):
+            z = convert.build_zone(trapped(param=name), manifest)
+            self.assertIn(skill, [o["param"] for c in z["chunks"].values() for o in c["objects"]])
+        manifest["skills"]["inert"] = 0
+        bad = (dict(param="inert"), dict(param="fire"), dict(param=None), dict(param=""), dict())
+        for feature in bad:
+            with self.subTest(feature=feature):
+                with self.assertRaises(R.Refused) as caught:
+                    convert.convert(trapped(**feature), manifest)
+                self.assertEqual(caught.exception.code, "export: trap skill")
+        # the sample manifest defines no skill: any trap is refused
+        with self.assertRaises(R.Refused) as caught:
+            convert.convert(trapped(param="spikes"), MANIFEST)
+        self.assertEqual(caught.exception.code, "export: trap skill")
+
     def test_every_export_case_tested(self):
         names = {n[len("test_"):] for n in dir(self) if n.startswith("test_")}
         for case in TABLE["export"]:
