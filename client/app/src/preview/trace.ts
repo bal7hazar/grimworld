@@ -163,7 +163,11 @@ function decodeBatchPlayed(event: TraceEvent): BatchPlayed {
 export function extractOutcome(trace: InvokeTrace): ChainOutcome {
   const execute = trace.execute_invocation;
   if ("revert_reason" in execute) {
-    return { kind: "reverted", reason: panicReason(execute.revert_reason), raw: execute.revert_reason };
+    return {
+      kind: "reverted",
+      reason: panicReason(execute.revert_reason),
+      raw: execute.revert_reason,
+    };
   }
   const [play, state] = execute.calls;
   if (play === undefined || state === undefined || execute.calls.length !== 2) {

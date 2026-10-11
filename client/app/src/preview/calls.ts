@@ -27,7 +27,10 @@ export interface PlayTarget {
 }
 
 /** The two calls; `undefined` when the actions do not encode (count or an argument out of range). */
-export function previewCalls(target: PlayTarget, actions: readonly PlayAction[]): Call[] | undefined {
+export function previewCalls(
+  target: PlayTarget,
+  actions: readonly PlayAction[],
+): Call[] | undefined {
   const batch = encodeBatch(actions);
   if (batch === undefined) return undefined;
   return [

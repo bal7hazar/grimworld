@@ -38,7 +38,7 @@ vector or logic change (the client mirror reads those tables).
 | `contracts/` gas, generated files | `python3 scripts/gas_budgets.py --check`; `python3 contracts/tools/exp2_table.py --check`; `python3 contracts/logic/vectors/check.py` | 4.88 GB VmPeak, cap `--as=8589934592` (8 GiB); none recorded; 4.80 GB since FND-23 (CBT-05d; 4.03 GB VmPeak before), cap `--as=8589934592` (8 GiB) (same report for the first two) |
 | `indexer/emitter` (Cairo 2.19) | `cd indexer/emitter && snforge test --max-threads 2` | unknown, **measure first†** |
 | `client/sim` | `pnpm --filter @grimworld/sim test` | 880 MB (CV t-0177, under a 1024 MB heap), heap cap `--max-old-space-size=1024`; under a minute (orchestrators) |
-| `client/app` | `pnpm --filter @grimworld/app test`, plus `lint` and `typecheck` | none recorded; Node: heap cap at 1.5 × peak once measured; under a minute (orchestrators) |
+| `client/app` | `pnpm --filter @grimworld/app test`, plus `lint` and `typecheck` | 466 MB maximum RSS (CV t-0182, VPS, `/usr/bin/time -v`, under a 1536 MB heap), heap cap `--max-old-space-size=700`; 24 s |
 | `client/app` `verify-*.mjs` | by hand only, they need the built atlas: only the screens the lot touches (`pnpm --filter @grimworld/app verify:<name>`, or `node verify-<name>.mjs` from `client/app` for the editor ones; one browser at a time; on the VPS, the site's atlas, read-only) | none recorded |
 | `indexer` | `pnpm --filter @grimworld/indexer test` (`test:node` needs devnet: CI) | none recorded; Node: heap cap at 1.5 × peak once measured |
 | `services/funder` | `pnpm --filter @grimworld/funder test` | none recorded; Node: heap cap at 1.5 × peak once measured |

@@ -73,7 +73,10 @@ export function createRpcSimulator(config: RpcSimulatorConfig): Simulator {
     };
     if (body.error !== undefined) {
       const detail = body.error.data === undefined ? "" : `: ${JSON.stringify(body.error.data)}`;
-      throw new SimulationError(`${method}: ${body.error.message ?? "error"}${detail}`, body.error.code);
+      throw new SimulationError(
+        `${method}: ${body.error.message ?? "error"}${detail}`,
+        body.error.code,
+      );
     }
     if (body.result === undefined) throw new SimulationError(`${method}: no result`);
     return body.result;
