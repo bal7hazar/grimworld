@@ -35,7 +35,8 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  * - several members while the view lists goblins: it lists the goblins of every member's window at once
  *   (play.cairo :338-349, `window`), `play` loads those of the controlled member's alone, and the
  *   view cannot tell a window's goblins from a roster's;
- * - a revealed chunk around the controlled member that the region does not give.
+ * - a revealed chunk around the controlled member that the region does not give;
+ * - a sheet the content lacks (a goblin's caste or skill): the segment panics `... not in content`.
  * The goblins are the view's as they are, derived ones included (at full health, in their pack's
  * state): `PlayLibrary` loads them by the same functions.
  * The three classes behind the seam (`TickLibrary::ticks`, `ActionLibrary::act`,
@@ -217,7 +218,17 @@ export function mirrorOf(state: MirrorState, classes: Classes = unportedClasses)
     // Built per call: a state the segment cannot be built from is `NotMirrored` there, in `reconcile`
     const segment = segmentOf(state);
     const start = at(state.view.members[state.member]!.state);
-    const ran = runSegment({ ...segment, actions: [...actions] }, classes);
+    let ran: ReturnType<typeof runSegment>;
+    try {
+      ran = runSegment({ ...segment, actions: [...actions] }, classes);
+    } catch (error) {
+      // A sheet the caller's content lacks (a goblin's caste, a skill): the content is the caller's
+      // input (CLI-10d decodes it), so its gap is no prediction, not a parity bug
+      if (error instanceof Error && /not in content/.test(error.message)) {
+        throw new NotMirrored(`the content lacks a sheet the segment reads (${error.message})`);
+      }
+      throw error;
+    }
     const member = ran.words.members[state.member];
     // The chain's view after the batch lists the window around the member where it ended
     return { ...ran, moved: member !== undefined && at(member.state) !== start };

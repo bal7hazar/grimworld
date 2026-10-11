@@ -170,6 +170,13 @@ describe("the mirror on the recorded state", () => {
     expect(() => segmentOf({ ...state, view, member: 2 })).toThrow("no member 2");
   });
 
+  it("is no prediction where the content lacks a listed goblin's caste", () => {
+    const state = recordedState();
+    const goblin = { entity: 8, derived: true, state: LIVE + 5n, timers: LIVE + 6n };
+    const predict = mirrorOf({ ...state, view: { ...state.view, goblins: [goblin] } });
+    expect(() => predict([{ kind: "wait" }])).toThrow(NotMirrored);
+  });
+
   it("answers every class behind the seam with NotMirrored", () => {
     expect(() => unportedClasses.ticks({} as never)).toThrow(NotMirrored);
     expect(() => unportedClasses.act({} as never)).toThrow(NotMirrored);
