@@ -925,6 +925,111 @@ mod tests {
         assert(digest == DIGEST, 'vectors moved: regenerate');
     }
 
+    /// Whether `position` is the window's centre, local (7, 7) (112) or (7, 8) (127), with each
+    /// of its six neighbours in the window.
+    fn centred(position: u8) -> bool {
+        if position != 112 && position != 127 {
+            return false;
+        }
+        let mut d: u8 = 0;
+        while d < 6 {
+            if LayoutTrait::neighbor(WIDTH, HEIGHT, position, WindowAssert::direction(d))
+                .is_none() {
+                return false;
+            }
+            d += 1;
+        }
+        true
+    }
+
+    /// RV-02 (D-255): `LayoutTrait::neighbor` never returns `None` in `step`. The board a Move
+    /// starts from is `SegmentTrait::board` of the adventurer's tile (set when the segment starts
+    /// and after every Move that does not end it); on every tile of chunk 16 (every residue of `x`
+    /// and `y` modulo 15, so every window origin), the adventurer stands on the window's centre and
+    /// its six neighbours are in the window. Rows `from..to`; three tests for snforge's step limit.
+    fn centred_rows(from: u8, to: u8) {
+        let area = open_area();
+        for y in from..to {
+            for x in 15..30_u8 {
+                let mut member = Fixture::member(Fixture::spec());
+                member.words.state += x.into() * two(32) + y.into() * two(40);
+                let world = Fixture::world(40, array![member], array![]);
+                let board = SegmentTrait::board(@area, @world);
+                assert(centred(board.position(x, y)), 'the adventurer is centred');
+            }
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 505819188)] // ceil(1.05 × 481732560 measured)
+    fn test_board_centred_0() {
+        centred_rows(15, 20);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 508789481)] // ceil(1.05 × 484561410 measured)
+    fn test_board_centred_1() {
+        centred_rows(20, 25);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 513237438)] // ceil(1.05 × 488797560 measured)
+    fn test_board_centred_2() {
+        centred_rows(25, 30);
+    }
+
+    /// RV-02 (D-255): through `SegmentTrait::run`, after every Move that does not end the segment
+    /// the segment's board holds the adventurer on its centre: walks of 1 to 6 Moves from
+    /// (22, 22) in each direction, inside chunk 16, none ending the segment.
+    #[test]
+    #[available_gas(l2_gas: 457433880)] // ceil(1.05 × 435651314 measured)
+    fn test_move_keeps_board_centred() {
+        let area = open_area();
+        let content = Fixture::content();
+        let mut d: u8 = 0;
+        while d < 6 {
+            let mut actions: Array<Action> = array![];
+            let mut k: u8 = 1;
+            while k <= 6 {
+                actions.append(Action::Move(d));
+                let mut member = Fixture::member(Fixture::spec());
+                member.words.state += 22 * two(32) + 22 * two(40);
+                let mut world = Fixture::world(40, array![member], array![]);
+                let (sheets, index) = content.index();
+                let mut rules = Delegate {
+                    board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+                    cache: Default::default(),
+                    executor: Zero::zero(),
+                    content,
+                    index,
+                    placed: array![],
+                    ground: array![],
+                    ai: Zero::zero(),
+                    trap: Zero::zero(),
+                    level: 1,
+                    frozen: 0,
+                    listed: 0,
+                    memo: None,
+                };
+                let classes = Classes {
+                    executor: Zero::zero(),
+                    ai: Zero::zero(),
+                    trap: Zero::zero(),
+                    action: Zero::zero(),
+                    tick: Zero::zero(),
+                };
+                let done = SegmentTrait::run(
+                    ref world, @sheets, ref rules, @area, @classes, actions.span(), 0, 20,
+                );
+                assert(!done.reveal && done.played == k, 'every Move ran');
+                let (x, y, _) = world.member(0).place();
+                assert(centred(rules.board.position(x, y)), 'the board followed');
+                k += 1;
+            }
+            d += 1;
+        }
+    }
+
     /// ENG-07b, reading 8 (t-0115, minor 1): a Move of 2 ticks (Crippled) against the weight
     /// left. Nine Waits leave 1 of 10; the Move would take 2: the segment stops for weight before
     /// it writes, the member on its tile. ENG-07's `step`, checked against the segment's starting

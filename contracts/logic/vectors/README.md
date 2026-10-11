@@ -175,7 +175,11 @@ fixture's Hob (Engaged, awake, health 100).
 **Not reached:** `LayoutTrait::neighbor` → `None` (a Move off the window's edge). The window is assembled around the
 adventurer after every Move that does not end the segment, and nothing else moves it, so a Move always starts at
 the window's centre (`movement.jsonl`'s `origin`: position 112 or 127), and every neighbour of the centre exists.
-The mirror keeps refusing it.
+Held by tests in `contracts/logic/src/types/play.cairo` (D-255): `types::play::tests::test_board_centred_0` to `_2`
+(on every tile of a chunk, so every window origin, the board puts the adventurer on 112 or 127 with its six
+neighbours in the window) and `types::play::tests::test_move_keeps_board_centred` (through `run`, after every Move of
+walks of 1 to 6 Moves in each direction that do not end the segment, the segment's board is centred on the
+adventurer). The mirror keeps refusing it.
 
 The cases (43):
 
