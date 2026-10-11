@@ -52,9 +52,25 @@ describe("ENG-08's sample zone in the editor", () => {
     expect(readManifest(sizes({ floor_1: [15, 15] }))).toEqual(
       expect.objectContaining({ location_sizes: { floor_1: [15, 15] } }),
     );
-    for (const bad of [{ floor_1: 15 }, { floor_1: [15] }, { floor_1: [15, 1.5] }, [[15, 15]]]) {
+    // E-51, as the converter reads it: two whole numbers from 1 to 15, every entry
+    expect(readManifest(sizes({ a: [1, 1], b: [15, 15] }))).toEqual(
+      expect.objectContaining({ location_sizes: { a: [1, 1], b: [15, 15] } }),
+    );
+    for (const bad of [
+      { floor_1: 15 },
+      { floor_1: [15] },
+      { floor_1: [15, 1.5] },
+      { floor_1: [0, 5] },
+      { floor_1: [5, 16] },
+      { floor_1: ["3", 3] },
+      { floor_1: [true, 3] },
+      { floor_1: [3, 3, 3] },
+      { floor_1: [3, null] },
+      { ok: [3, 3], floor_1: [3] },
+      [[15, 15]],
+    ]) {
       expect(readManifest(sizes(bad)), JSON.stringify(bad)).toMatch(
-        /location_sizes is not a table of names/,
+        /location_sizes is not a table.*\(export: location size\)/,
       );
     }
     // A manifest built in code is held at the converter's port: refused, not packed.
