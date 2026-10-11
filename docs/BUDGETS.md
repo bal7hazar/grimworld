@@ -100,8 +100,9 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_set_controller` | 40747400 | 42596054 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_lifecycle::test_set_play_class_key_refused` | 21111710 | 22145403 | 2026-10-10 | 1ac4f86 |
 | grimworld_ephemeral | `test_lifecycle::test_travel_back` | 39299737 | 41035604 | 2026-10-10 | d9633e1 |
-| grimworld_ephemeral | `test_lifecycle::test_view_goblins_are_plays` | 157494291 | 165369006 | 2026-10-11 | f8fba05 |
-| grimworld_ephemeral | `test_lifecycle::test_view_unloadable_goblin_marker` | 56222978 | 59034127 | 2026-10-11 | f8fba05 |
+| grimworld_ephemeral | `test_lifecycle::test_view_goblins_are_plays` | 159194411 | 165369006 | 2026-10-11 | 3d73583 |
+| grimworld_ephemeral | `test_lifecycle::test_view_goblins_two_members` | 80302368 | 84317487 | 2026-10-11 | 3d73583 |
+| grimworld_ephemeral | `test_lifecycle::test_view_unloadable_goblin_marker` | 56016318 | 58817134 | 2026-10-11 | 3d73583 |
 | grimworld_ephemeral | `test_play_limits::test_play_changed_goblin_dropped` | 226324222 | 237366667 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_play_limits::test_play_first_records_and_alert` | 331104945 | 347616187 | 2026-10-10 | d9633e1 |
 | grimworld_ephemeral | `test_play_limits::test_play_records_cap` | 254904025 | 267185463 | 2026-10-10 | d9633e1 |

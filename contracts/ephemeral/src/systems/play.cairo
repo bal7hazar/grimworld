@@ -129,6 +129,7 @@ use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
 use crate::helpers::stored::StoredTrait;
 use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
+use crate::models::member::{INSIDE, MemberState};
 use crate::store::InstancesStoreTrait;
 use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
 use crate::systems::instances::{GoblinView, play_class};
@@ -329,10 +330,14 @@ pub impl PlayImpl of PlayTrait {
 
     /// `instance_state`'s goblins (VIEW-01, D-263): those a batch would load first (its `[Read]`
     /// of the goblins, by the same functions: `roster`, `ground`, `goblins`, `sorted`) for every
-    /// member at once, the roster's and those of the revealed chunks of the 3 × 3 around each
-    /// member's tile, in ascending entity id, each said derived (no record: not in the roster, its
-    /// `touched` bit clear) or stored. `None` when the registry cannot load one of them, where
-    /// `play` refuses the batch (`Stop::Invalid`).
+    /// member inside at once (a member down or gone plays no batch), the roster's and those of the
+    /// revealed chunks of the 3 × 3 around each such member's tile, in ascending entity id, each
+    /// said derived (no record: not in the roster, its `touched` bit clear) or stored. `goblins`
+    /// runs a chunk at a time, then on the roster 30 goblins at a time, the content read carried
+    /// in one `Book`: each of its `bundle`s stays within the registry's 32 records (2 templates,
+    /// 10 castes a chunk), however many chunks the members' windows span; the goblins are the same
+    /// as one call's. `None` when the registry cannot load one of them, where `play` refuses the
+    /// batch (`Stop::Invalid`).
     fn window(ref self: InstancesState, slot: u32) -> Option<Array<GoblinView>> {
         let header = self.get_header(slot);
         let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
@@ -341,23 +346,42 @@ pub impl PlayImpl of PlayTrait {
         let mut ground: Array<(u8, Features)> = array![];
         let mut m: u32 = 0;
         while m < header.members.into() {
-            let (x, y) = Self::place(*words[8 * m]);
-            let more = Self::ground(@self, slot, revealed, x, y, ground.span());
-            ground.append_span(more.span());
+            let member: MemberState = StorePacking::unpack(*words[8 * m]);
+            if member.status == INSIDE {
+                let more = Self::ground(@self, slot, revealed, member.x, member.y, ground.span());
+                ground.append_span(more.span());
+            }
             m += 1;
         }
         let roster = Self::roster(@self, slot, header.roster_count);
-        let mut stored: Array<GoblinWords> = array![];
-        for entity in roster.span() {
-            let (state, timers) = self.get_goblin_words(slot, *entity);
-            stored.append(GoblinWords { entity: *entity, awake: false, state, timers });
-        }
         let mut book = Book {
             packs: array![], castes: array![], skills: array![], potions: array![],
         };
-        let goblins = Self::goblins(
-            ref self, slot, registry, ref book, ground.span(), stored, roster.span(),
-        )?;
+        let mut goblins: Array<GoblinWords> = array![];
+        for entry in ground.span() {
+            let chunk = Self::goblins(
+                ref self, slot, registry, ref book, array![*entry].span(), array![], roster.span(),
+            )?;
+            goblins.append_span(chunk.span());
+        }
+        let mut from: u32 = 0;
+        while from < roster.len() {
+            let count = if roster.len() - from > 30 {
+                30
+            } else {
+                roster.len() - from
+            };
+            let mut stored: Array<GoblinWords> = array![];
+            for entity in roster.span().slice(from, count) {
+                let (state, timers) = self.get_goblin_words(slot, *entity);
+                stored.append(GoblinWords { entity: *entity, awake: false, state, timers });
+            }
+            let listed = Self::goblins(
+                ref self, slot, registry, ref book, array![].span(), stored, roster.span(),
+            )?;
+            goblins.append_span(listed.span());
+            from += count;
+        }
         let mut out: Array<GoblinView> = array![];
         for goblin in Self::sorted(goblins.span()) {
             let GoblinWords { entity, awake: _, state, timers } = goblin;
