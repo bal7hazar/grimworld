@@ -8,6 +8,7 @@ import {
   type Segment,
   runSegment,
   split,
+  trapTrigger,
 } from "@grimworld/sim";
 import type { Predict } from "./reconcile";
 import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
@@ -26,8 +27,8 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  * the chunks are the region's), the controlled member (`Instances.placement`, `placement.member`,
  * play.cairo :187-188) and the content (the sheets of the members' skills and potions and of the
  * area goblins' castes and skills, as `PlayLibrary`'s `bundle` reads them), which the caller
- * assembles from the Registry's records (`assembleContent`, CLI-10d). Where these do not hold what the segment needs, there is no
- * prediction (`NotMirrored`), never a guess:
+ * assembles from the Registry's records (`assembleContent`, CLI-10d). Where these do not hold what
+ * the segment needs, there is no prediction (`NotMirrored`), never a guess:
  * - a view whose goblins are the `UNLOADABLE` marker: `play` refuses the batch (`Stop::Invalid`
  *   before any action, play.cairo :286-301), the mirror does not predict a refusal;
  * - an empty goblin list where the roster or a pack of the area holds some: the view lists none
@@ -41,10 +42,12 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  *   case: the panic reaches `reconcile`'s `predict`, which logs it as a mirror failure.
  * The goblins are the view's as they are, derived ones included (at full health, in their pack's
  * state): `PlayLibrary` loads them by the same functions.
- * The three classes behind the seam (`TickLibrary::ticks`, `ActionLibrary::act`,
- * `TrapLibrary::trigger`) have no port in client/sim yet: `unportedClasses` answers each call with
- * `NotMirrored`, so a segment predicts only on the fast path (no goblin in the window, no combat,
- * no trap).
+ * Of the three classes behind the seam, `TrapLibrary::trigger` is client/sim's `trapTrigger`
+ * (CLI-02g-D, CLI-10e): a segment that enters a trap predicts. `TickLibrary::ticks` and
+ * `ActionLibrary::act` have no port yet: `unportedClasses` answers each call with `NotMirrored`,
+ * so a segment predicts on the fast path (no goblin in the window, no combat) and through a
+ * direct trap call. A trap reached through `TickLibrary`'s nested calls (a goblin's step onto
+ * one) stays `ticks`' and is still not mirrored.
  */
 
 /** What the mirror runs from. */
@@ -201,7 +204,7 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
   };
 }
 
-/** The classes client/sim does not port yet: each call is no prediction. */
+/** The classes client/sim does not port yet: each call is no prediction (`trigger` is ported). */
 export const unportedClasses: Classes = {
   ticks() {
     throw new NotMirrored("TickLibrary::ticks (no port in client/sim yet)");
@@ -214,8 +217,11 @@ export const unportedClasses: Classes = {
   },
 };
 
+/** The classes the preview runs: the unported ones, and the trap class client/sim computes. */
+export const nativeClasses: Classes = { ...unportedClasses, trigger: trapTrigger };
+
 /** The preview's `predict`: the segment of `state` with the batch's actions. */
-export function mirrorOf(state: MirrorState, classes: Classes = unportedClasses): Predict {
+export function mirrorOf(state: MirrorState, classes: Classes = nativeClasses): Predict {
   const window = (x: number, y: number) => around(x, y).join(",");
   const at = (word: bigint) => window(bitsOf(word, 32, 8), bitsOf(word, 40, 8));
   return (actions) => {
