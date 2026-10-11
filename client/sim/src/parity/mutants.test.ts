@@ -15,7 +15,8 @@
 // changed the ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
 // `segment/unported.test.ts` runs) must kill it. So is a mutant of the trap class (`trap`,
 // CLI-02g-D) that reads another goblin's caste than the placer's: the table's goblins share one
-// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it. 
+// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it.
+
 import { readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { Worker } from "node:worker_threads";
