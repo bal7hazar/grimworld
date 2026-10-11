@@ -5,14 +5,13 @@ import {
   mirrorOf,
   segmentOf,
   unpackFeatures,
-  unpackLocation,
   unpackWalls,
   unportedClasses,
 } from "./mirror";
 import { recordedBefore, recordedPlayed } from "./recorded";
 import { reconcile } from "./reconcile";
 import { Stop, extractOutcome } from "./trace";
-import { type RegionChunk, decodeInstanceView } from "./view";
+import { type RegionChunk, decodeInstanceView, encodeInstanceView } from "./view";
 
 const LIVE = 1n << 250n;
 const P128 = 1n << 128n;
@@ -27,7 +26,7 @@ const PACKED = 0x400000000000000000000000000000000000000000000000e91589501000125
 function recordedState(): MirrorState {
   return {
     view: decodeInstanceView(recordedBefore.view.map(BigInt)),
-    location: unpackLocation(recordedBefore.location.map(BigInt)),
+    member: recordedBefore.member,
     region: recordedBefore.region.map((c): RegionChunk => ({
       chunk: c.chunk,
       kind: c.kind as RegionChunk["kind"],
@@ -59,12 +58,9 @@ function packFeatures(f: ReturnType<typeof unpackFeatures>): bigint {
 }
 
 describe("the records the segment reads", () => {
-  it("unpacks the recorded location: the test region's zone, 3 × 3, level 1", () => {
-    expect(unpackLocation(recordedBefore.location.map(BigInt))).toEqual({
-      width: 3,
-      height: 3,
-      levelMin: 1,
-    });
+  it("reads the recorded location from the view: the test region's zone, 3 × 3, level 1", () => {
+    const view = decodeInstanceView(recordedBefore.view.map(BigInt));
+    expect([view.width, view.height, view.levelMin]).toEqual([3, 3, 1]);
   });
 
   it("unpacks a recorded pack, and round-trips every field of Features", () => {
@@ -121,13 +117,57 @@ describe("the mirror on the recorded state", () => {
     expect(result.mismatches).toEqual([]);
   });
 
-  it("stops where the view lacks the goblins of the area's packs", () => {
+  it("stops where the view lists no goblin for the area's packs (no PlayLibrary set)", () => {
     const state = recordedState();
     const region = state.region.map((c) => (c.chunk === 0 ? { ...c, features: PACKED } : c));
     expect(() => segmentOf({ ...state, region })).toThrow(NotMirrored);
     expect(() => segmentOf({ ...state, region })).toThrow(
-      "goblin 8 of chunk 0's pack not in the view",
+      "goblin 8 of chunk 0's pack not in the view (no PlayLibrary set)",
     );
+  });
+
+  it("stops on a roster the view lists no goblin for", () => {
+    const state = recordedState();
+    const view = { ...state.view, header: { ...state.view.header, rosterCount: 2 } };
+    expect(() => segmentOf({ ...state, view })).toThrow(
+      "the roster's goblins not in the view (no PlayLibrary set)",
+    );
+  });
+
+  it("refuses the UNLOADABLE marker as the chain does: a goblin cannot load", () => {
+    const state = recordedState();
+    const view = decodeInstanceView(
+      encodeInstanceView({ ...state.view, unloadable: true, goblins: [] }),
+    );
+    expect(view.unloadable).toBe(true);
+    expect(() => segmentOf({ ...state, view })).toThrow(NotMirrored);
+    expect(() => segmentOf({ ...state, view })).toThrow("a goblin cannot load");
+  });
+
+  it("takes the view's goblins as they are, derived ones included, and its location", () => {
+    const state = recordedState();
+    const goblins = [
+      { entity: 8, derived: true, state: LIVE + 5n, timers: LIVE + 6n },
+      { entity: 9, derived: false, state: LIVE + 7n, timers: LIVE + 8n },
+    ];
+    const view = { ...state.view, goblins, width: 5, height: 4, levelMin: 2 };
+    const segment = segmentOf({ ...state, view });
+    expect(segment.words.goblins).toEqual([
+      { entity: 8, awake: false, state: LIVE + 5n, timers: LIVE + 6n },
+      { entity: 9, awake: false, state: LIVE + 7n, timers: LIVE + 8n },
+    ]);
+    expect([segment.area.width, segment.area.height, segment.level]).toEqual([5, 4, 2]);
+  });
+
+  it("centres the area on the controlled member, not the first (review t-0190, note 3)", () => {
+    const state = recordedState();
+    const [first] = state.view.members;
+    // Member 1 stands at tile (60, 0), chunk column 4: chunk 0, the only one revealed, is not around it
+    const far = { ...first!, state: (first!.state & ~(0xffffn << 32n)) | (60n << 32n) };
+    const view = { ...state.view, members: [first!, far] };
+    expect(segmentOf({ ...state, view, member: 0 }).area.chunks.map(([c]) => c)).toEqual([0]);
+    expect(segmentOf({ ...state, view, member: 1 }).area.chunks.map(([c]) => c)).toEqual([]);
+    expect(() => segmentOf({ ...state, view, member: 2 })).toThrow("no member 2");
   });
 
   it("answers every class behind the seam with NotMirrored", () => {

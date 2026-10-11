@@ -177,6 +177,65 @@ describe("InstanceView", () => {
     expect(decodeInstanceView(encodeInstanceView(view()))).toEqual(view());
   });
 
+  it("decodes the goblins and the location's extent (VIEW-01, instances.cairo :136-146)", () => {
+    const felts = encodeInstanceView(view());
+    // ... roster (0 pages), goblins (2 × 4 felts), width, height, level_min
+    expect(felts.slice(-12)).toEqual([
+      2n,
+      24n,
+      0n,
+      view().goblins[0]!.state,
+      view().goblins[0]!.timers,
+      25n,
+      1n,
+      0x30n,
+      0x31n,
+      3n,
+      3n,
+      1n,
+    ]);
+    expect(decodeInstanceView(felts)).toMatchObject({
+      goblins: [
+        { entity: 24, derived: false },
+        { entity: 25, derived: true, state: 0x30n, timers: 0x31n },
+      ],
+      unloadable: false,
+      width: 3,
+      height: 3,
+      levelMin: 1,
+    });
+  });
+
+  it("reads the one UNLOADABLE marker as the unloadable flag, not as a goblin", () => {
+    const marker = { ...view(), goblins: [], unloadable: true };
+    const felts = encodeInstanceView(marker);
+    expect(felts.slice(-8)).toEqual([1n, 0n, 0n, 0n, 0n, 3n, 3n, 1n]);
+    expect(decodeInstanceView(felts)).toEqual(marker);
+  });
+
+  it("reads the empty list (no PlayLibrary set) and an id that answers nothing", () => {
+    const empty = { ...view(), goblins: [] };
+    expect(decodeInstanceView(encodeInstanceView(empty))).toEqual(empty);
+    expect(decodeInstanceView(encodeInstanceView(empty))).toMatchObject({ unloadable: false });
+    // The zeros `instance_state` answers for a stale id: no span has an item, the extent is 0
+    const nothing = decodeInstanceView([5n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]);
+    expect(nothing).toMatchObject({
+      goblins: [],
+      unloadable: false,
+      width: 0,
+      height: 0,
+      levelMin: 0,
+    });
+  });
+
+  it("refuses a goblin that is not a GoblinView, and a width beyond a u8", () => {
+    const felts = encodeInstanceView(view());
+    expect(() =>
+      decodeInstanceView(felts.map((f, i) => (i === felts.length - 6 ? 2n : f))),
+    ).toThrow(RangeError);
+    expect(() => decodeInstanceView([...felts.slice(0, -3), 256n, 3n, 1n])).toThrow(RangeError);
+  });
+
   it("refuses a felt left over or missing", () => {
     const felts = encodeInstanceView(view());
     expect(() => decodeInstanceView([...felts, 0n])).toThrow(RangeError);

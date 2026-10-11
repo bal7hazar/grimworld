@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchAction } from "./actions";
 import { INSTANCES, INSTANCE_ID, playedTrace, revertedTrace } from "./fixtures";
-import { mirrorOf, unpackLocation } from "./mirror";
+import { mirrorOf } from "./mirror";
 import { recordedBefore, recordedPlayed, recordedReverted } from "./recorded";
 import { previewBatch, refusals } from "./preview";
 import type { Simulator } from "./rpc";
@@ -88,7 +88,7 @@ describe("previewBatch", () => {
     const recorded = (trace: InvokeTrace): Simulator => ({ simulate: async () => trace });
     const predict = mirrorOf({
       view: decodeInstanceView(recordedBefore.view.map(BigInt)),
-      location: unpackLocation(recordedBefore.location.map(BigInt)),
+      member: 0,
       region: recordedBefore.region.map((c): RegionChunk => ({
         ...c,
         kind: c.kind as RegionChunk["kind"],

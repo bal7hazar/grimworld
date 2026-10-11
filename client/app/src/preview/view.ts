@@ -1,6 +1,7 @@
 /**
  * `InstanceView`, decoded from the felts `instance_state` returns: the Cairo `Serde` of the struct
- * (`contracts/ephemeral/src/systems/instances.cairo` :93-135), fields in their order, a `Span` as
+ * (`contracts/ephemeral/src/systems/instances.cairo` :95-146, VIEW-01 / D-263: `goblins`, then the
+ * location's `width`, `height` and `level_min`; the trailing `chunks` the view had are gone), fields in their order, a `Span` as
  * its length then its items, an enum of unit variants as its index. Words stay in their stored
  * layout (`LIVE` set), as the view returns them; only the header is unpacked, for the fields the
  * preview shows. The client had no decoder of the view before this one.
@@ -49,6 +50,14 @@ export class Felts {
 
 /** `GoblinView`: a goblin as stored, or derived from its chunk (`derived`). */
 export type GoblinView = { entity: number; derived: boolean; state: bigint; timers: bigint };
+
+/**
+ * `instances::UNLOADABLE` (instances.cairo :149): the one goblin, entity 0 (none has it: they
+ * start at 8), that stands for the whole list when the registry cannot load one of them.
+ */
+export const UNLOADABLE: GoblinView = { entity: 0, derived: false, state: 0n, timers: 0n };
+const isUnloadable = (g: GoblinView): boolean =>
+  g.entity === 0 && !g.derived && g.state === 0n && g.timers === 0n;
 
 /** `types::ChunkKind`. */
 export const ChunkKind = { Void: 0, Unrevealed: 1, Revealed: 2 } as const;
@@ -104,8 +113,18 @@ export type InstanceView = {
   tasks: bigint[];
   members: MemberView[];
   roster: bigint[];
+  /**
+   * The goblins a batch would load first (`PlayLibrary.goblins`: the roster's and those of the
+   * revealed chunks around each member), ascending by entity. Empty when the registry cannot load
+   * one (`unloadable`) and while no `PlayLibrary` is set.
+   */
   goblins: GoblinView[];
-  chunks: RegionChunk[];
+  /** The list was the `UNLOADABLE` marker: `play` refuses the batch (`Stop::Invalid`). */
+  unloadable: boolean;
+  /** The location's extent in chunks and its lowest goblin level; 0 for an id that answers nothing. */
+  width: number;
+  height: number;
+  levelMin: number;
 };
 
 const LIVE_HIGH = 1n << 122n;
@@ -176,9 +195,19 @@ export function decodeInstanceView(felts: readonly bigint[]): InstanceView {
     tasks: r.span(() => r.felt()),
     members: members(r.span(() => r.felt())),
     roster: r.span(() => r.felt()),
-    goblins: r.span(() => readGoblin(r)),
-    chunks: r.span(() => readChunk(r)),
+    goblins: [],
+    unloadable: false,
+    width: 0,
+    height: 0,
+    levelMin: 0,
   };
+  const listed = r.span(() => readGoblin(r));
+  // The marker replaces the list (instances.cairo :603), never joins it
+  view.unloadable = listed.length === 1 && isUnloadable(listed[0]!);
+  view.goblins = view.unloadable ? [] : listed;
+  view.width = r.uint(8);
+  view.height = r.uint(8);
+  view.levelMin = r.uint(8);
   r.end();
   return view;
 }
@@ -219,13 +248,9 @@ export function encodeInstanceView(view: InstanceView): bigint[] {
       (w) => [w],
     ),
     ...span(view.roster, (w) => [w]),
-    ...span(view.goblins, goblin),
-    ...span(view.chunks, (c) => [
-      BigInt(c.chunk),
-      BigInt(c.kind),
-      c.terrain,
-      c.features,
-      ...span(c.goblins, goblin),
-    ]),
+    ...span(view.unloadable ? [UNLOADABLE] : view.goblins, goblin),
+    BigInt(view.width),
+    BigInt(view.height),
+    BigInt(view.levelMin),
   ];
 }

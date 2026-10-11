@@ -10,10 +10,10 @@ export const recordedPlayed: InvokeTrace = {
     result: [
       "0x2",
       "0x0",
-      "0x12",
+      "0x14",
       "0x100000001",
       "0x400000000000000000169000000010001000002000000010000000100000001",
-      "0x2ff9997cb402b20935a63d3aacf351b76e66271a04f7b083fe8d0665890f6d8",
+      "0x46d1b26d253a281dfe22ac276d7dd8bf8fc846adfc48e3a85f0082b77890519",
       "0x400000000000000000000000000000000000000000000000000000000000001",
       "0x400000000000000000000000000000000000000000000000000000000000000",
       "0x0",
@@ -28,7 +28,9 @@ export const recordedPlayed: InvokeTrace = {
       "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691",
       "0x0",
       "0x0",
-      "0x0",
+      "0x3",
+      "0x3",
+      "0x1",
     ],
     calls: [
       {
@@ -125,7 +127,7 @@ export const recordedPlayed: InvokeTrace = {
         result: [
           "0x100000001",
           "0x400000000000000000169000000010001000002000000010000000100000001",
-          "0x2ff9997cb402b20935a63d3aacf351b76e66271a04f7b083fe8d0665890f6d8",
+          "0x46d1b26d253a281dfe22ac276d7dd8bf8fc846adfc48e3a85f0082b77890519",
           "0x400000000000000000000000000000000000000000000000000000000000001",
           "0x400000000000000000000000000000000000000000000000000000000000000",
           "0x0",
@@ -140,9 +142,28 @@ export const recordedPlayed: InvokeTrace = {
           "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691",
           "0x0",
           "0x0",
-          "0x0",
+          "0x3",
+          "0x3",
+          "0x1",
         ],
-        calls: [],
+        calls: [
+          {
+            result: ["0x0", "0x0"],
+            calls: [],
+            events: [],
+            is_reverted: false,
+          },
+          {
+            result: [
+              "0x2",
+              "0x400000000000000000000000000690000000100000000030300030101000103",
+              "0x400000000000000000000000000000000000000000000000000000000000000",
+            ],
+            calls: [],
+            events: [],
+            is_reverted: false,
+          },
+        ],
         events: [],
         is_reverted: false,
       },
@@ -156,16 +177,16 @@ export const recordedReverted: InvokeTrace = {
   type: "INVOKE",
   execute_invocation: {
     revert_reason:
-      "Transaction execution has failed:\n0: Error in the called contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nExecution failed. Failure reason:\nError in contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nError in contract (contract address: 0x04287f5d590513ec1f3709789361faedacc41d785a25e5de14a088bca20ab80c, class hash: 0x051c182824cb14d59748400640ba399a245fad14dd0f46dcb395587a16a1a652, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\nError in contract (contract address: 0x04287f5d590513ec1f3709789361faedacc41d785a25e5de14a088bca20ab80c, class hash: 0x03e59ccab84d1aad31cc47918a9f93c8eccd2a7a28ae7d70ea5f11f972fe0e23, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\n0x6e6f7420636f6e74726f6c6c6572 ('not controller').\n",
+      "Transaction execution has failed:\n0: Error in the called contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nExecution failed. Failure reason:\nError in contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nError in contract (contract address: 0x028362de5e04a44faf3158dbc007c5b9508a8c709792ca2ec5a8b93788f578d5, class hash: 0x06cf7a549eb7ae6eae2d1ea2f1516e29389fb01798daef0a353b3223ba3d5269, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\nError in contract (contract address: 0x028362de5e04a44faf3158dbc007c5b9508a8c709792ca2ec5a8b93788f578d5, class hash: 0x009f34d023ae268e3cd88c2822a85e1f55d04ff11ab25383c651904d822bc135, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\n0x6e6f7420636f6e74726f6c6c6572 ('not controller').\n",
   },
 };
 
-/** The mirror's inputs before the Wait: the view's felts, the location's record, the chunks not void. */
+/** The mirror's inputs before the Wait: the view's felts, the controlled member, the chunks not void. */
 export const recordedBefore = {
   view: [
     "0x100000001",
     "0x400000000000000000169000000010001000002000000000000000000000001",
-    "0x2ff9997cb402b20935a63d3aacf351b76e66271a04f7b083fe8d0665890f6d8",
+    "0x46d1b26d253a281dfe22ac276d7dd8bf8fc846adfc48e3a85f0082b77890519",
     "0x400000000000000000000000000000000000000000000000000000000000001",
     "0x400000000000000000000000000000000000000000000000000000000000000",
     "0x0",
@@ -180,17 +201,16 @@ export const recordedBefore = {
     "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691",
     "0x0",
     "0x0",
-    "0x0",
+    "0x3",
+    "0x3",
+    "0x1",
   ],
-  location: [
-    "0x400000000000000000000000000690000000100000000030300030101000103",
-    "0x400000000000000000000000000000000000000000000000000000000000000",
-  ],
+  member: 0,
   region: [
     {
       chunk: 0,
       kind: 2,
-      terrain: "0x40000017bfe300ce018c030006400d00180010c6c00fcc3f803f007fc27ffff",
+      terrain: "0x4000001efff09fc02fe00bc007902e20d80018007c00fc41dc03000c03fffff",
       features: "0x400000000000000000000000000000000000000000000000000000000000000",
       goblins: [],
     },

@@ -4,9 +4,9 @@ import { LOCAL_ACCOUNT_CLASS, createStarknetChain } from "../account/starknet";
 import type { Call, ExecutionStatus } from "../account/types";
 import type { PlayAction } from "./actions";
 import { previewCalls, selector } from "./calls";
-import { mirrorOf, unpackLocation } from "./mirror";
+import { mirrorOf } from "./mirror";
 import { previewBatch } from "./preview";
-import { LOCATION, createReader } from "./read";
+import { createReader } from "./read";
 import type { ParityRecord } from "./reconcile";
 import { type Rpc, createRpc, createRpcSimulator } from "./rpc";
 import {
@@ -16,7 +16,7 @@ import {
   Stop,
   extractOutcome,
 } from "./trace";
-import { ChunkKind, encodeInstanceView } from "./view";
+import { ChunkKind, type InstanceView, encodeInstanceView } from "./view";
 
 // Against the game deployed on the local node (OPS-01a), run through the script that starts and
 // stops the node, from the repository root, after the classes are built:
@@ -89,9 +89,15 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
   });
   const instanceId = () => BigInt(deployment.instance_id);
   const recorded: Record<string, InvokeTrace> = {};
-  /** The mirror's inputs before the Wait, as felts: the view, the location's record, the region. */
+  /** The mirror's inputs before the Wait, as felts: the view, the controlled member, the region. */
   let mirrored = "";
-  let inputs: { view: string[]; location: string[]; region: unknown[] } | undefined;
+  let inputs: { view: string[]; member: number; region: unknown[] } | undefined;
+  /** What the deployment's entropy drew, observed before the Wait. */
+  let world = { quiet: false };
+  /** No goblin in the roster nor in the window, none unloadable: a Wait plays 1 and stops on nothing. */
+  const quiet = (view: InstanceView) => ({
+    quiet: view.goblins.length === 0 && view.header.rosterCount === 0 && !view.unloadable,
+  });
 
   beforeAll(async () => {
     deployment = JSON.parse(readFileSync(deploymentPath!, "utf8")) as Deployment;
@@ -111,18 +117,19 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
   it("previews a Wait, then sends it: the real result equals the preview (D-257)", async () => {
     const read = reader();
     const before = await read.instanceState(deployment.contracts.instances, instanceId());
-    const locationParts = await read.record(
-      deployment.contracts.registry,
-      LOCATION,
-      before.header.location,
+    // The location's extent is the view's (VIEW-01); the member the adventurer controls is the
+    // chain's (`placement`, play.cairo :186-187), the area's centre
+    const { member } = await read.placement(
+      deployment.contracts.instances,
+      deployment.adventurer_id,
     );
-    const location = unpackLocation(locationParts);
     const region = await read.region(deployment.contracts.instances, instanceId());
     // Every chunk not void lies in the location's extent (`chunk_kind`)
     const used = region.filter((c) => c.kind !== ChunkKind.Void);
     expect(used.length).toBeGreaterThan(0);
+    expect([before.width, before.height, before.levelMin]).not.toEqual([0, 0, 0]);
     for (const { chunk } of used) {
-      expect([chunk % 15 < location.width, Math.floor(chunk / 15) < location.height]).toEqual([
+      expect([chunk % 15 < before.width, Math.floor(chunk / 15) < before.height]).toEqual([
         true,
         true,
       ]);
@@ -130,15 +137,16 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const hex = (felt: bigint) => `0x${felt.toString(16)}`;
     inputs = {
       view: encodeInstanceView(before).map(hex),
-      location: locationParts.map(hex),
+      member,
       region: used.map((c) => ({ ...c, terrain: hex(c.terrain), features: hex(c.features) })),
     };
+    world = quiet(before);
     const parity: ParityRecord[] = [];
     const input = { ...(await target()), actions: [WAIT] };
     // The deployed adventurer has an empty build and no belt: its content is empty
     const predict = mirrorOf({
       view: before,
-      location,
+      member,
       region,
       content: { skills: [], potions: [], castes: [] },
     });
@@ -156,12 +164,25 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     });
     expect(preview.kind).toBe("simulated");
     if (preview.kind !== "simulated" || preview.chain.kind !== "played") throw new Error("no play");
-    expect(preview.chain.batch).toMatchObject({ played: 1, stop: Stop.None, clock: 1 });
-    // Where the mirror predicts, no mismatch; where it does not, the reason
+    // What a Wait does depends on the world this deployment's entropy drew: with no goblin in the
+    // window it plays 1, stops on nothing and moves the clock; with goblins around the member it
+    // may stop earlier or kill it. The strict assertion holds on the quiet world only (review
+    // t-0190, note 2); the chain's result is checked against the real send below either way.
+    if (world.quiet) {
+      expect(preview.chain.batch).toMatchObject({ played: 1, stop: Stop.None, clock: 1 });
+    } else {
+      expect(preview.chain.batch.played).toBeLessThanOrEqual(1);
+    }
+    // Where the mirror predicts, no mismatch (the goblin sets too); where it does not, the reason
     expect(preview.mismatches).toEqual([]);
     expect(parity).toEqual([]);
-    mirrored = preview.mirror.kind === "predicted" ? "predicted" : preview.mirror.reason;
-    console.info("mirror:", mirrored);
+    // One line a run saying which it was (review t-0190, note 1)
+    mirrored =
+      preview.mirror.kind === "predicted" ? "predicted" : `not mirrored: ${preview.mirror.reason}`;
+    console.info(
+      `mirror: ${mirrored} (world: ${world.quiet ? "quiet" : "goblins"}, ${before.goblins.length} listed, ` +
+        `member ${member}, ${before.width}x${before.height})`,
+    );
     // The account's `__execute__` makes exactly the preview's two calls (review t-0186)
     const execute = simulated!.execute_invocation as FunctionInvocation;
     expect(execute.calls.map((c) => BigInt(c.entry_point_selector!))).toEqual([
@@ -251,7 +272,10 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const input = await target();
     const sim = simulator();
     // A Move off the location from the entry tile (column 0: one direction at least leads off
-    // it, whatever the deployment's entropy revealed); a count of 0 does not decode
+    // it, whatever the deployment's entropy revealed); a count of 0 does not decode. Whether a
+    // direction is illegal depends on the world this deployment drew: when none is, the
+    // comparison has no illegal outcome to hold the undecodable one to, and says so (review
+    // t-0190, note 2).
     let illegal: ChainOutcome | undefined;
     let calls: Call[] = [];
     for (let direction = 0; direction < 6 && illegal === undefined; direction++) {
@@ -263,8 +287,13 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const undecodable = extractOutcome(
       await sim.simulate([{ ...play!, calldata: [...play!.calldata.slice(0, 4), 0n] }, state!]),
     );
-    expect(illegal).toMatchObject({ kind: "played", batch: { played: 0, stop: Stop.Invalid } });
-    expect(undecodable).toEqual(illegal);
+    expect(undecodable).toMatchObject({ kind: "played", batch: { played: 0, stop: Stop.Invalid } });
+    if (illegal === undefined) {
+      console.info("illegal first move: none of the 6 directions is illegal in this world");
+    } else {
+      expect(illegal).toMatchObject({ kind: "played", batch: { played: 0, stop: Stop.Invalid } });
+      expect(undecodable).toEqual(illegal);
+    }
   }, 60_000);
 
   it("times the simulation: 10 runs of a Wait and of the heaviest 10-action batch", async () => {
@@ -322,7 +351,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
         "",
         `export const recordedReverted: InvokeTrace = ${JSON.stringify(recorded.reverted, null, 2)};`,
         "",
-        "/** The mirror's inputs before the Wait: the view's felts, the location's record, the chunks not void. */",
+        "/** The mirror's inputs before the Wait: the view's felts, the controlled member, the chunks not void. */",
         `export const recordedBefore = ${JSON.stringify(inputs, null, 2)};`,
         "",
       ].join("\n"),
