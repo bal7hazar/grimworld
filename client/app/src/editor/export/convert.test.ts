@@ -328,6 +328,12 @@ const EDITS: Record<string, () => unknown> = {
     e.size.width = 2;
     return e;
   },
+  // the sample manifest defines no skill: any authored trap is refused (test_convert.py)
+  trap_skill: () => {
+    const e = load("zone.json");
+    e.features!.push({ feature: "trap", param: "spikes", x: 19, y: -2 });
+    return e;
+  },
   set_piece_corner: () => {
     const e = load("set_piece.json");
     e.rows[0]!.terrain = `.${e.rows[0]!.terrain.slice(1)}`;
@@ -406,6 +412,8 @@ describe("the converter's port (ENG-08's samples)", () => {
 const ID_CASES = ["id_negative", "id_above_16_bits", "id_above_32_bits"];
 /** The case that edits the manifest's `location_sizes`: tested by its own test. */
 const SIZE_CASES = ["location_size"];
+/** The case that edits the manifest's `pack_bounds`: tested by its own test. */
+const BOUNDS_CASES = ["pack_bounds"];
 
 describe("every case of checks.json, refused with its code", () => {
   it("passes the sample through the Registry's checks and the pipeline", () => {
@@ -500,7 +508,7 @@ describe("every case of checks.json, refused with its code", () => {
 
   for (const c of [...TABLE.pipeline, ...TABLE.export]) {
     if (c.case === "seam" || c.case === "malformed" || ID_CASES.includes(c.case)) continue;
-    if (SIZE_CASES.includes(c.case)) continue;
+    if (SIZE_CASES.includes(c.case) || BOUNDS_CASES.includes(c.case)) continue;
     it(`${c.case} (${c.id}): ${c.code}`, () => {
       expect(EDITS[c.case], c.case).toBeDefined();
       expect(verdict(EDITS[c.case]!())).toBe(c.code);
@@ -668,6 +676,109 @@ describe("every case of checks.json, refused with its code", () => {
     );
   });
 
+  it("pack_bounds (E-52): [1, 1], [1, 5], [5, 5] pass; every other shape, and a key no pack names, is refused", () => {
+    const CODE52 = "export: pack bounds";
+    const withBounds = (pack_bounds: unknown, packs?: Record<string, number>): Manifest =>
+      ({
+        ...structuredClone(MANIFEST),
+        pack_bounds,
+        ...(packs === undefined ? {} : { packs }),
+      }) as Manifest;
+    const raw = load("zone.json");
+    for (const ok of [
+      [1, 1],
+      [1, 5],
+      [5, 5],
+      [2, 3],
+    ]) {
+      expect(refusedWith(raw, withBounds({ raiders: ok, cubs: [1, 3] })), JSON.stringify(ok)).toBe(
+        undefined,
+      );
+    }
+    const bad: unknown[] = [
+      [0, 1],
+      [0, 5],
+      [2, 1],
+      [1, 6],
+      [6, 6],
+      [-1, 3],
+      [1.5, 2],
+      [1, 2.5],
+      ["1", 2],
+      [true, 2],
+      [1, true],
+      [null, 2],
+      [3],
+      [],
+      [1, 2, 3],
+      "1-3",
+      3,
+      null,
+    ];
+    for (const entry of bad) {
+      // checked whether a Heart quota names the pack (raiders) or not (cubs)
+      for (const name of ["raiders", "cubs"]) {
+        const pack_bounds = { raiders: [2, 5], cubs: [1, 3], [name]: entry };
+        expect(
+          refusedWith(raw, withBounds(pack_bounds)),
+          `${name} ${JSON.stringify(entry)}`,
+        ).toContain(`${CODE52}|`);
+      }
+    }
+    // an entry no Heart names is checked too, and its key must be a pack
+    expect(
+      refusedWith(
+        raw,
+        withBounds(
+          { raiders: [2, 5], cubs: [1, 3], wolves: [1, 6] },
+          { raiders: 1, cubs: 2, wolves: 3 },
+        ),
+      ),
+    ).toContain(`${CODE52}|`);
+    expect(
+      refusedWith(raw, withBounds({ raiders: [2, 5], cubs: [1, 3], dragons: [1, 2] })),
+    ).toContain(`${CODE52}|`);
+    for (const table of [[[1, 2]], "x", 5, null]) {
+      expect(refusedWith(raw, withBounds(table)), JSON.stringify(table)).toContain(`${CODE52}|`);
+    }
+    // a Heart whose pack has no entry is R-27's verdict, not E-52's
+    const missing = withBounds({ cubs: [1, 3] });
+    expect(refusedWith(raw, missing)).toContain("zone: heart template|");
+  });
+
+  it("trap_skill (E-53): a skill of id >= 1 passes; a missing, null, empty, unknown or id 0 param is refused", () => {
+    const CODE53 = "export: trap skill";
+    const trapped = (feature: Record<string, unknown>) => {
+      const e = load("zone.json");
+      e.features!.push({ feature: "trap", x: 19, y: -2, ...feature } as never);
+      return e;
+    };
+    const withSkills = (skills: Record<string, number>): Manifest =>
+      ({ ...structuredClone(MANIFEST), skills }) as Manifest;
+    const skills = withSkills({ spikes: 1, top: 65535, inert: 0 });
+    for (const [name, id] of [
+      ["spikes", 1],
+      ["top", 65535],
+    ] as const) {
+      expect(refusedWith(trapped({ param: name }), skills), name).toBeUndefined();
+      const built = buildZone(trapped({ param: name }), skills);
+      const params = [...built.chunks.values()].flatMap((c) => c.objects.map((o) => o.param));
+      expect(params).toContain(id);
+    }
+    for (const feature of [
+      { param: "inert" },
+      { param: "fire" },
+      { param: null },
+      { param: "" },
+      {},
+    ]) {
+      expect(refusedWith(trapped(feature), skills), JSON.stringify(feature)).toContain(
+        `${CODE53}|`,
+      );
+    }
+    expect(refusedWith(trapped({ param: "spikes" }), MANIFEST)).toContain(`${CODE53}|`);
+  });
+
   it("malformed (E-40): an error no check names is a refusal, not a throw", () => {
     const broken = { ...load("zone.json"), entry: { x: 0, y: 0 } } as ExportFile;
     broken.rows = new Proxy(broken.rows, {
@@ -685,7 +796,8 @@ describe("every case of checks.json, refused with its code", () => {
         c.case !== "seam" &&
         c.case !== "malformed" &&
         !ID_CASES.includes(c.case) &&
-        !SIZE_CASES.includes(c.case)
+        !SIZE_CASES.includes(c.case) &&
+        !BOUNDS_CASES.includes(c.case)
       ) {
         expect(Object.keys(EDITS), c.case).toContain(c.case);
       }

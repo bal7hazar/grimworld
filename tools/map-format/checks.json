@@ -573,6 +573,18 @@
    "id": "E-51",
    "code": "export: location size",
    "rule": "A manifest location's size (location_sizes) is exactly two whole numbers [width, height], each from 1 to 15 chunks: a float, a string, a boolean, a missing or a third value, 0 and 16 are refused (R-41 compares the entry chunk with it)"
+  },
+  {
+   "case": "pack_bounds",
+   "id": "E-52",
+   "code": "export: pack bounds",
+   "rule": "A manifest pack's bounds (pack_bounds) are exactly two whole numbers [fewest, most] with 1 <= fewest <= most <= 5 (MAX_PACK_SIZE, which Pack::bounds caps at; R-27 and R-42 refuse a fewest of 0), each key a pack of the manifest's packs, checked for every entry whether or not a Heart quota names it: [5, 5] converts, [0, 5], [3, 2] and [1, 6] are refused; a float, a string, a boolean, a missing or a third value too"
+  },
+  {
+   "case": "trap_skill",
+   "id": "E-53",
+   "code": "export: trap skill",
+   "rule": "An authored trap names a skill the manifest defines, with an id other than 0 (play refuses the batch, Stop::Invalid, for a trap skill the registry lacks, FIX-02b; a param 0 trap is inert, meant for generated traps, D-268): a trap with no param, a null or empty param (a non-string one is the schema's), a name the manifest's skills lack or a skill of id 0 is refused; id 1 converts"
   }
  ]
 }

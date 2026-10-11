@@ -212,6 +212,10 @@ export interface BuiltZone extends R.Zone {
 export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
   const table = KIND_TABLE;
   const sizes = R.assertSizes(manifest.location_sizes === undefined ? {} : manifest.location_sizes);
+  const bounds = R.assertPackBounds(
+    manifest.pack_bounds === undefined ? {} : manifest.pack_bounds,
+    (manifest.packs ?? {}) as Readonly<Record<string, number>>,
+  );
   const plane = new Plane(e);
   const blocked = new Set<string>();
   const footprints: [kind: string, foot: Set<string>, door: G][] = [];
@@ -313,7 +317,23 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     const [c, t] = chunkOf(f.x, f.y, "feature");
     let param = 0;
     if (f.feature === "landmark") param = resolve(manifest, "landmarks", f.param, "landmark");
-    else if (f.feature === "trap") param = resolve(manifest, "skills", f.param, "trap skill");
+    else if (f.feature === "trap") {
+      // D-267: play refuses a trap skill the registry lacks, and a param 0 trap is inert (generated
+      // traps only, D-268): an authored trap names a skill the manifest defines, its id not 0 (E-53)
+      if (typeof f.param !== "string" || !Object.hasOwn(manifest.skills ?? {}, f.param)) {
+        throw new R.Refused(
+          "export: trap skill",
+          `trap at (${f.x}, ${f.y}): skill ${JSON.stringify(f.param)} is not in the manifest's skills`,
+        );
+      }
+      param = resolve(manifest, "skills", f.param, "trap skill");
+      if (param === 0) {
+        throw new R.Refused(
+          "export: trap skill",
+          `trap at (${f.x}, ${f.y}): skill ${JSON.stringify(f.param)} has id 0 (an inert trap)`,
+        );
+      }
+    }
     chunks.get(c)!.objects.push({ tile: t, kind: R.OBJECTS[f.feature], state: 0, param });
   }
   const quotas: R.Quota[] = [];
@@ -323,10 +343,8 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     let param = 0;
     if (q.kind === "heart") {
       param = resolve(manifest, "packs", q.param, "pack");
-      const bounds = manifest.pack_bounds ?? {};
-      const template =
-        typeof q.param === "string" && Object.hasOwn(bounds, q.param) ? bounds[q.param] : undefined;
-      hearts.set(i, template && template.length > 0 ? [template[0]!, template[1]!] : null);
+      // No entry: null, which R-27 (`assertQuotas`) refuses as `zone: heart template`
+      hearts.set(i, bounds.get(q.param as string) ?? null);
     } else if (q.kind === "collector") {
       param = resolve(manifest, "collectors", q.param, "collector");
     } else if (q.kind === "landmark") {

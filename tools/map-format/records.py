@@ -30,6 +30,7 @@ AUTHORED_OBJECTS = {1, 3, 4, 6, 7}
 GATE_KINDS = {"hub": 1, "link": 2, "floor": 3, "rift": 4}
 GENERATED, AUTHORED = 0, 1
 MAX_DRAWS = 640
+MAX_PACK_SIZE = 5  # `types.cairo:75`: a pack is at most 5 goblins (E-3)
 MIN_FLOOR = 6  # `models::location::MIN_FLOOR` (R-40, CM-9)
 
 
@@ -74,6 +75,34 @@ def assert_sizes(sizes):
     if not isinstance(sizes, dict):
         raise Refused("export: location size", f"location_sizes {sizes!r} is not a mapping")
     return {name: assert_size(f"location {name!r}", size) for name, size in sizes.items()}
+
+
+def assert_bounds(what, bounds):
+    """A manifest pack's `[fewest, most]` (`pack_bounds`): exactly two whole numbers with
+    1 <= fewest <= most <= `MAX_PACK_SIZE` (5, `contracts/logic/src/types.cairo:75`). `Pack::bounds`
+    (`pack.cairo:35`) is the template's summed minimums and maximums, the most capped at 5 and the
+    fewest at the most; R-27 (`assert_heart`, `quotas.cairo:150`) refuses a 0 at either end and
+    R-42 (`assert_legal`, `pack.cairo:103`) a template whose fewest is 0 or above 5. A pair that
+    `bounds` cannot return would only skew the converter's R-27 verdict, so it is refused."""
+    ok = (isinstance(bounds, list) and len(bounds) == 2
+          and all(isinstance(v, int) and not isinstance(v, bool) for v in bounds)
+          and 1 <= bounds[0] <= bounds[1] <= MAX_PACK_SIZE)
+    if not ok:
+        raise Refused("export: pack bounds",
+                      f"{what}: bounds {bounds!r} is not [fewest, most] with 1 <= fewest <= most <= "
+                      f"{MAX_PACK_SIZE}")
+    return tuple(bounds)
+
+
+def assert_pack_bounds(table, packs):
+    """Every entry of the manifest's `pack_bounds`, strictly (`assert_bounds`), whether or not a Heart
+    quota names the pack; the table is a mapping and each key a pack of the manifest's `packs`."""
+    if not isinstance(table, dict):
+        raise Refused("export: pack bounds", f"pack_bounds {table!r} is not a mapping")
+    for name in table:
+        if name not in packs:
+            raise Refused("export: pack bounds", f"pack {name!r} is not in the manifest's packs")
+    return {name: assert_bounds(f"pack {name!r}", b) for name, b in table.items()}
 
 
 def has(bits, i):

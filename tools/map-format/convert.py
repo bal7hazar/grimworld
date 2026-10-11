@@ -110,6 +110,7 @@ def build_zone(export, manifest):
     the pipeline's rules read."""
     table = kinds()
     sizes = R.assert_sizes(manifest.get("location_sizes", {}))
+    bounds = R.assert_pack_bounds(manifest.get("pack_bounds", {}), manifest.get("packs", {}))
     plane = Plane(export)
     blocked, footprints = set(), []
     # [Compute] What the client-only objects make unwalkable: a building's footprint but its door,
@@ -190,7 +191,17 @@ def build_zone(export, manifest):
         if f["feature"] == "landmark":
             param = resolve(manifest, "landmarks", f["param"], "landmark")
         elif f["feature"] == "trap":
-            param = resolve(manifest, "skills", f["param"], "trap skill")
+            # D-267: `play` refuses the batch (`Stop::Invalid`) for a trap skill the registry lacks, and
+            # a trap of param 0 is inert (generated traps only, D-268): an authored trap names a skill
+            # the manifest defines, and the manifest's id is not 0
+            name = f.get("param")
+            if not isinstance(name, str) or name not in manifest.get("skills", {}):
+                raise R.Refused("export: trap skill", f"trap at ({f['x']}, {f['y']}): skill {name!r} "
+                                "is not in the manifest's skills")
+            param = resolve(manifest, "skills", name, "trap skill")
+            if param == 0:
+                raise R.Refused("export: trap skill", f"trap at ({f['x']}, {f['y']}): skill {name!r} "
+                                "has id 0 (an inert trap)")
         chunks[c]["objects"].append({"tile": t, "kind": R.OBJECTS[f["feature"]], "state": 0,
                                      "param": param})
     quotas, hearts = [], {}
@@ -199,8 +210,8 @@ def build_zone(export, manifest):
         param = 0
         if q["kind"] == "heart":
             param = resolve(manifest, "packs", q["param"], "pack")
-            template = manifest.get("pack_bounds", {}).get(q["param"])
-            hearts[i] = tuple(template) if template else None
+            # No entry: `hearts[i]` None, which R-27 (`assert_quotas`) refuses as `zone: heart template`
+            hearts[i] = bounds.get(q["param"])
         elif q["kind"] == "collector":
             param = resolve(manifest, "collectors", q["param"], "collector")
         elif q["kind"] == "landmark":

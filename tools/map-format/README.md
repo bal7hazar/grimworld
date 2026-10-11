@@ -63,6 +63,13 @@ destination's.
 A size is exactly two whole numbers `[width, height]`, each from 1 to 15 chunks, checked for every entry
 whether or not a gate leads there (`export: location size`, E-51); anything else is refused before a
 record is built.
+A pack's bounds (`pack_bounds`) are exactly two whole numbers `[fewest, most]` with
+1 <= fewest <= most <= 5 (what `Pack::bounds` returns: R-27 and R-42 refuse a fewest of 0, E-3 caps a pack at 5),
+each key a pack of `packs`, checked for every entry whether or not a Heart quota names it
+(`export: pack bounds`, E-52). A Heart whose pack has no entry is refused by R-27 (`zone: heart template`).
+An authored trap names a skill the manifest defines, its id not 0 (`export: trap skill`, E-53): `play`
+refuses a trap skill the registry lacks, and a param 0 trap is inert (D-267, D-268). The manifest cannot say
+whether the skill is in the deployed content; that is the content pipeline's (OPS-01).
 
 **Rules the converter cannot meet** (ENG-R1c-1): a registry case with a `converter` field names a rule
 on records a converted export never writes (a generated zone's or a dungeon floor's quotas, chunk set
