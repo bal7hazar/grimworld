@@ -17,6 +17,9 @@ declare class URL {
 // the measurements alone.
 declare const console: { log(...data: unknown[]): void };
 declare const performance: { now(): number };
+// The pool's deadline of a batch (`mutants.test.ts`).
+declare function setTimeout(callback: () => void, ms: number): unknown;
+declare function clearTimeout(timer: unknown): void;
 
 declare module "node:fs" {
   export function existsSync(path: URL): boolean;
@@ -36,6 +39,7 @@ declare module "node:worker_threads" {
     postMessage(value: unknown): void;
     on(event: "message", listener: (value: never) => void): this;
     on(event: "error", listener: (error: Error) => void): this;
+    on(event: "exit", listener: (code: number) => void): this;
     terminate(): Promise<number>;
   }
   export const parentPort: {

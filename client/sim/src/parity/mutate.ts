@@ -20,8 +20,11 @@ export type Job = {
   file: string;
   from: string;
   to: string;
-  /** The unit tests' cases that must kill it, besides the tables that must not. */
-  kind?: "refusal" | "seam" | "trap";
+  /**
+   * The unit tests' cases that must kill it, besides the tables that must not; `equivalent`: every
+   * list of cases runs, and none may kill it.
+   */
+  kind?: "refusal" | "seam" | "trap" | "equivalent";
 };
 
 /** What killed a mutant: the case, and whether the copy crashed rather than diverged. */
@@ -61,12 +64,16 @@ function target(specifier: string, parent: string): string {
 
 /** The modules of `src/` each module imports (its `import … from` and `export … from`). */
 const IMPORTS = new Map<string, string[]>(
-  [...SOURCES].map(([path, text]) => [
-    path,
-    [...text.matchAll(/\bfrom\s+"(\.{1,2}\/[^"]*)"/g)].map((m) =>
-      pathOf(target(m[1]!, new URL(path, SRC).href)),
-    ),
-  ]),
+  [...SOURCES].map(([path, text]) => {
+    const found = [...text.matchAll(/\bfrom\s+"(\.{1,2}\/[^"]*)"/g)];
+    // Any other form of a relative import (a side effect's, a dynamic one, in single quotes) would
+    // be missed, and its module shared where it must be reloaded: refused, before any mutant runs
+    const any = text.match(/\b(?:from|import)\s*\(?\s*["'`]\.{1,2}\//g) ?? [];
+    if (any.length !== found.length) {
+      throw new Error(`mutate: ${path} imports a module of src/ in a form the scan does not read`);
+    }
+    return [path, found.map((m) => pathOf(target(m[1]!, new URL(path, SRC).href)))];
+  }),
 );
 
 /** The mutated file and every module that imports it, directly or not: what a mutant reloads. */
@@ -121,12 +128,17 @@ registerHooks({
 });
 
 /** The case a thrown error names, and whether it is a crash: a TypeError, a ReferenceError, a
- * SyntaxError, on its own or as the cause of the replay's report. A RangeError is the mirror's
- * own refusal of a value (`felt.ts`), a divergence like a Cairo panic. */
+ * SyntaxError, a stack overflow, on its own or as the cause of the replay's report. Any other
+ * RangeError is the mirror's own refusal of a value (`felt.ts`), a divergence like a Cairo panic. */
 function kill(by: string, error: unknown): Kill {
   let crash = false;
   for (let e: unknown = error; e instanceof Error; e = e.cause) {
-    if (e instanceof TypeError || e instanceof ReferenceError || e instanceof SyntaxError) {
+    if (
+      e instanceof TypeError ||
+      e instanceof ReferenceError ||
+      e instanceof SyntaxError ||
+      (e instanceof RangeError && e.message.startsWith("Maximum call stack size exceeded"))
+    ) {
       crash = true;
     }
   }
@@ -228,7 +240,11 @@ async function run(job: Job): Promise<Verdict> {
         ? checkKiller("seam", parity.seam)
         : job.kind === "refusal"
           ? refusalKiller(parity)
-          : null;
+          : job.kind === "equivalent"
+            ? (refusalKiller(parity) ??
+              checkKiller("seam", parity.seam) ??
+              checkKiller("trap", parity.trapcases))
+            : null;
   return { index: job.index, tables: killer(parity), unit };
 }
 

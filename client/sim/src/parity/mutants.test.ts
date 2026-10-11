@@ -3,10 +3,11 @@
 // (FND-MUT: in a worker thread, from memory, `parity/mutate.ts`); the mutant replays every table
 // and must diverge on at least one case, by its result or by throwing where Cairo returned. A throw
 // that is a crash (a TypeError, a ReferenceError) kills only with a `crash` mark saying why it is
-// the mutant's own divergence, not a broken mutant. A mutant the vectors do not kill is a hole in
-// the vectors: it is reported to track game, never closed by editing a table here: it is listed
-// with `survives` (what the tables lack), and this test then requires it to survive, so that the
-// day the game's cases kill it the mark must go. A mutant that drops a refusal (`refusal`,
+// the mutant's own divergence, not a broken mutant. A mutant no input tells from the mirror is
+// marked `equivalent`: nothing may kill it, and it is no hole. A mutant the vectors do not kill is
+// a hole in the vectors: it is reported to track game, never closed by editing a table here: it is
+// listed with `survives` (what the tables lack), and this test then requires it to survive, so that
+// the day the game's cases kill it the mark must go. A mutant that drops a refusal (`refusal`,
 // CLI-02g-B1) is another kind: no row of any table records a panic of `GoblinTrait::load` or of
 // `assert_awake`, so the tables cannot kill it, and this test requires that they do not; the unit
 // tests' cases (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must. A mutant of the
@@ -14,8 +15,7 @@
 // changed the ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
 // `segment/unported.test.ts` runs) must kill it. So is a mutant of the trap class (`trap`,
 // CLI-02g-D) that reads another goblin's caste than the placer's: the table's goblins share one
-// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it.
-
+// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it. 
 import { readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { Worker } from "node:worker_threads";
@@ -39,6 +39,11 @@ type Mutant = {
    * divergence: a crash of a mutant without it fails, as a broken copy, not a kill.
    */
   crash?: string;
+  /**
+   * Why no input tells it from the mirror: neither the tables nor any unit tests' cases may kill
+   * it; not a hole of the tables, never reported to track game.
+   */
+  equivalent?: string;
 };
 
 const MUTANTS: readonly Mutant[] = [
@@ -2004,8 +2009,8 @@ const MUTANTS: readonly Mutant[] = [
     survives:
       "chunk row 16 is chunk 240 and up, which no row's ground holds: row 48 with chunk 240 holding a trap on its tile",
   },
-  // Not equivalent, not killed by any row (RV-03a2): Cairo's same guard comes before its `x - ORIGIN`
-  // would underflow; TS without it goes on with a negative coordinate
+  // `locate`'s guard of a tile before the location's first, which Cairo has too, before its
+  // `x - ORIGIN` would underflow. West: not killed by any row (RV-03a2). South: equivalent
   {
     name: "a tile West of the location is in it (locate)",
     file: "trap.ts",
@@ -2019,8 +2024,8 @@ const MUTANTS: readonly Mutant[] = [
     file: "trap.ts",
     from: "if (x < ORIGIN || y < ORIGIN) return undefined;",
     to: "if (x < ORIGIN) return undefined;",
-    survives:
-      "no row's board reaches South of `ORIGIN`: with y < ORIGIN, TS looks up a chunk below 0 where Cairo returns none: a trigger row with such a board",
+    equivalent:
+      "with y < ORIGIN and x ≥ ORIGIN, the chunk is 15·cy + cx ≤ −1, which no ground holds: both callers (`trigger`, `armed`) find nothing, as for none",
   },
   {
     name: "the chunk's tile transposed (locate)",
@@ -2442,6 +2447,8 @@ const SRC = new URL("../", import.meta.url);
 const WORKERS = Math.max(1, Math.min(4, availableParallelism() - 1));
 /** A worker runs this many mutants, then exits: its memory grows with each, and is freed then. */
 const PER_WORKER = 24;
+/** A batch takes a few seconds; one not answered in this time is stopped and fails (a hang). */
+const DEADLINE = 60_000;
 
 const NONE = { tables: null, unit: null } as const;
 
@@ -2457,16 +2464,24 @@ function pool(jobs: readonly Job[]): Map<number, Promise<Verdict>> {
     if (batch.length === 0) return;
     const worker = new Worker(new URL("./mutate.ts", import.meta.url));
     const waiting = new Set(batch.map((job) => job.index));
-    // A worker that dies leaves its jobs unanswered: each is answered as not loaded
-    worker.on("error", (error) => {
-      for (const index of waiting) settle.get(index)!({ index, ...NONE, load: String(error) });
+    let ended = false;
+    // A worker that dies, exits or overruns its deadline leaves jobs unanswered: each is answered
+    // as not loaded, a failure; then the worker is stopped and the next batch starts
+    const end = (why: string) => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timer);
+      for (const index of waiting) settle.get(index)!({ index, ...NONE, load: why });
       waiting.clear();
-      start();
-    });
+      void worker.terminate().then(start);
+    };
+    const timer = setTimeout(() => end(`no answer within ${DEADLINE / 1000} s`), DEADLINE);
+    worker.on("error", (error) => end(String(error)));
+    worker.on("exit", (code) => end(`the worker exited (code ${code}) before answering`));
     worker.on("message", (verdict: Verdict) => {
       settle.get(verdict.index)!(verdict);
       waiting.delete(verdict.index);
-      if (waiting.size === 0) void worker.terminate().then(start);
+      if (waiting.size === 0) end("");
     });
     for (const job of batch) worker.postMessage(job);
   };
@@ -2488,7 +2503,15 @@ describe("the mutation check", () => {
         file: mutant.file,
         from: mutant.from,
         to: mutant.to,
-        kind: mutant.trap ? "trap" : mutant.seam ? "seam" : mutant.refusal ? "refusal" : undefined,
+        kind: mutant.trap
+          ? "trap"
+          : mutant.seam
+            ? "seam"
+            : mutant.refusal
+              ? "refusal"
+              : mutant.equivalent !== undefined
+                ? "equivalent"
+                : undefined,
       })),
     );
   });
@@ -2502,14 +2525,21 @@ describe("the mutation check", () => {
   });
 
   it("kills at least 12 of them", () => {
-    expect(MUTANTS.filter((mutant) => mutant.survives === undefined).length).toBeGreaterThanOrEqual(
-      12,
+    const killed = MUTANTS.filter(
+      (mutant) => mutant.survives === undefined && mutant.equivalent === undefined,
     );
+    expect(killed.length).toBeGreaterThanOrEqual(12);
   });
 
   MUTANTS.forEach((mutant, index) => {
     const known = mutant.survives;
-    it(`${known === undefined ? "kills" : "a known survivor"}: ${mutant.name}`, async () => {
+    const title =
+      mutant.equivalent !== undefined
+        ? "an equivalent"
+        : known === undefined
+          ? "kills"
+          : "a known survivor";
+    it(`${title}: ${mutant.name}`, async () => {
       const source = readFileSync(new URL(mutant.file, SRC), "utf8");
       expect(source.split(mutant.from).length - 1, `"${mutant.from}" once in ${mutant.file}`).toBe(
         1,
@@ -2537,6 +2567,14 @@ describe("the mutation check", () => {
           `${mutant.name}: the tables record no such case`,
         ).toBeUndefined();
         expect(found, `${mutant.name} survived the unit tests' cases`).toBeDefined();
+        return;
+      }
+      if (mutant.equivalent !== undefined) {
+        const found = text(verdict.tables) ?? text(verdict.unit);
+        results.push(
+          `| ${index + 1} | ${mutant.name} | ${found ?? `**equivalent**: ${mutant.equivalent}`} |`,
+        );
+        expect(found, `${mutant.name} is killed: it is not equivalent`).toBeUndefined();
         return;
       }
       const found = text(verdict.tables);
