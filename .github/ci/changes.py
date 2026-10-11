@@ -6,15 +6,15 @@ job of .github/workflows/tooling.yml. It lists the files that differ from the ba
 outputs that each test job's `if:` reads:
 
   ci:      cairo (JSON list of the discovered packages to run, [] when none), classes, client, indexer, art,
-           map_format
+           map_format, client_node
   tooling: tooling
 
 Every changed path is classified, never guessed: the paths a job depends on are the tables below; a
 document runs nothing; a path that no table claims is unclassified and runs every job (the fail-safe
 direction), and the log says which. A change to a workflow or to a CI helper (.github/) runs everything.
 A pull request is compared with its base; an unknown or malformed base, or a base that cannot be
-fetched, runs everything. A push to main keeps what it ran before FND-18: every job but `indexer-node`,
-which keeps its diff against the commit before the push.
+fetched, runs everything. A push to main keeps what it ran before FND-18: every job but `indexer-node`
+and `client-node`, which keep their diff against the commit before the push.
 
 The base and the packages reach this script as environment variables (EVENT, PR_BASE, PUSH_BEFORE,
 PACKAGES), never interpolated into a command. Outputs go to GITHUB_OUTPUT, else to stdout.
@@ -90,6 +90,12 @@ INDEXER_PREFIXES = ("indexer/", "contracts/persistent/", "contracts/logic/")
 # contracts/Scarb.toml is the workspace manifest the members inherit from; the emitter and the spikes are
 # outside the workspace and resolve through their own Scarb.lock, so contracts/Scarb.lock is not an input.
 INDEXER_FILES = (".tool-versions", "scripts/with-node.sh", "contracts/Scarb.toml")
+# The client-node job (CLI-10b): the preview's node test on the game deployed on starknet-devnet. It reads
+# the app and the mirror (client/sim), the game's classes and its seed records (all of contracts/: the
+# deployment builds and declares the classes and writes contracts/seed/ through contracts/tools/), the
+# deployment script and the node's script, and the workspace's root files (CLIENT_ROOT_FILES).
+CLIENT_NODE_PREFIXES = ("client/app/", "client/sim/", "contracts/")
+CLIENT_NODE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/devnet_deploy.py")
 # prettier checks client/ and indexer/ whatever the file type, markdown included (decided by the
 # orchestrator, 2026-10-03; reversed by a later lot that adds a .prettierignore for *.md).
 PRETTIER_PREFIXES = ("client/", "indexer/")
@@ -150,8 +156,8 @@ def under(path, folder):
 
 
 def classify(path, packages, closures, pins):
-    """The set of tags a changed path carries: ALL, 'classes', 'client', 'indexer', 'art', 'tooling'
-    and 'pkg:<dir>'. An empty set is a path that runs nothing; None is unclassified (runs everything)."""
+    """The set of tags a changed path carries: ALL, 'classes', 'client', 'indexer', 'art', 'map_format',
+    'client_node', 'tooling' and 'pkg:<dir>'. An empty set is a path that runs nothing; None is unclassified (runs everything)."""
     if path.startswith(".github/"):
         return {ALL}
     tags = set()
@@ -164,7 +170,7 @@ def classify(path, packages, closures, pins):
     if path == ".tool-versions":
         # every package whose Scarb or snforge pin is the root's, the pnpm jobs, the tooling checks
         tags |= {f"pkg:{p['dir']}" for p in packages if pins.get(p["dir"], True)}
-        tags |= {"classes", "client", "tooling", "indexer"}
+        tags |= {"classes", "client", "tooling", "indexer", "client_node"}
     if not is_markdown:
         for package in packages:
             root = package["dir"]
@@ -184,6 +190,8 @@ def classify(path, packages, closures, pins):
             tags.add("client")
         if path.startswith(INDEXER_PREFIXES) or path in INDEXER_FILES:
             tags.add("indexer")
+        if path.startswith(CLIENT_NODE_PREFIXES) or path in CLIENT_NODE_FILES or matches(path, CLIENT_ROOT_FILES):
+            tags.add("client_node")
     if tags:
         return tags
     if path.startswith(IGNORED_PREFIXES) or matches(path, IGNORED_FILES):
@@ -210,7 +218,7 @@ def decide(files, packages, closures, pins, workflow, event, base_known):
         run = event == "push" or everything or "tooling" in tags
         return {"tooling": str(run).lower()}, notes
     if event == "push":
-        # as before FND-18: only the indexer's job follows the diff
+        # as before FND-18: only the node jobs (indexer, client) follow the diff
         cairo = list(packages)
     else:
         cairo = [p for p in packages if everything or f"pkg:{p['dir']}" in tags]
@@ -221,6 +229,7 @@ def decide(files, packages, closures, pins, workflow, event, base_known):
         "indexer": str(everything or "indexer" in tags).lower(),
         "art": str(event == "push" or everything or "art" in tags).lower(),
         "map_format": str(event == "push" or everything or "map_format" in tags).lower(),
+        "client_node": str(everything or "client_node" in tags).lower(),
     }
     return outputs, notes
 
@@ -429,8 +438,23 @@ def self_test():
     assert run(["PLAN.md"], event="push") == (sorted(dirs), True, True, False)
     assert run(["indexer/src/db.ts"], event="push") == (sorted(dirs), True, True, True)
     assert run(["PLAN.md"], "tooling", "push") is True
+    # the client's node test (CLI-10b): the app, the mirror, the game's classes and seed, the deployment
+    def client_node(files, event="pull_request", base_known=True):
+        outputs, _ = decide(files, packages, closures, pins, "ci", event, base_known)
+        return outputs["client_node"] == "true"
+
+    for path in ("client/app/src/preview/mirror.ts", "client/sim/src/segment.ts",
+                 "contracts/ephemeral/src/systems/play.cairo", "contracts/seed/test-region.json",
+                 "contracts/tools/seed_records.py", "scripts/devnet_deploy.py", "scripts/with-node.sh",
+                 ".tool-versions", "pnpm-lock.yaml", "package.json"):
+        assert client_node([path]), path
+    for path in ("client/app/README.md", "contracts/logic/GAS.md", "services/funder/src/index.ts",
+                 "indexer/src/db.ts", "scripts/lock.sh", "tools/art/build.py", "docs/a.md", "PLAN.md"):
+        assert not client_node([path]), path
+    assert client_node([".github/workflows/ci.yml"]) and client_node([], base_known=False)
+    assert not client_node(["PLAN.md"], event="push") and client_node(["client/app/src/App.tsx"], event="push")
     # no change at all runs nothing
-    assert run([]) == nothing
+    assert run([]) == nothing and not client_node([])
     print("changes.py self-test: ok")
 
 

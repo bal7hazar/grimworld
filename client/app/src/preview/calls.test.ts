@@ -2,6 +2,7 @@ import { hash } from "starknet";
 import { describe, expect, it } from "vitest";
 import { encodeBatch } from "./actions";
 import { executeCalldata, previewCalls, selector } from "./calls";
+import { readSelector } from "./read";
 import { eventSelector } from "./trace";
 
 const target = {
@@ -14,7 +15,11 @@ const target = {
 
 describe("selectors", () => {
   it("are sn_keccak of the entrypoint and event names", () => {
-    for (const [name, value] of Object.entries({ ...selector, ...eventSelector })) {
+    for (const [name, value] of Object.entries({
+      ...selector,
+      ...readSelector,
+      ...eventSelector,
+    })) {
       expect(BigInt(hash.getSelectorFromName(name)), name).toBe(value);
     }
   });

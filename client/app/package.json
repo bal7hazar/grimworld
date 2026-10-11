@@ -9,6 +9,7 @@
     "dev": "vite",
     "test": "vitest run",
     "test:node": "vitest run src/account/burner.node.test.ts",
+    "test:node:preview": "vitest run --silent=false src/preview/preview.node.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "verify:hubs": "node verify-hubs.mjs",
@@ -21,6 +22,7 @@
   },
   "dependencies": {
     "@fontsource/pixelify-sans": "5.3.0",
+    "@grimworld/sim": "workspace:*",
     "pixi.js": "8.21.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
