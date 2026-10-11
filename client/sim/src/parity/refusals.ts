@@ -4,10 +4,11 @@
 // `segment2.jsonl` records a refusal, so the tables cannot kill a mutant that drops one; these
 // cases do. Never exported by `src/index.ts`.
 //
-// The fixtures are **hand copies** of `models/goblin.cairo`'s and `types/world/fixtures.cairo`'s:
-// `Fixture::content` (castes 1 and 2, skills `20 + 4 caste + slot`), `Fixture::goblin` (an awake,
-// Engaged goblin at level 10, health 100) and `Fixture::skill`/`caste`. They are not generated from
-// Cairo: a change to those fixtures does not reach here by itself.
+// The fixtures take the ids and castes of `Fixture::content` (`types/world/fixtures.cairo`: castes 1
+// and 2, skills `20 + 4 caste + slot`), with `Fixture::goblin`'s goblin (an awake, Engaged goblin
+// at level 10, health 100) and `Fixture::skill`/`caste`'s sheets, as `models/goblin.cairo`'s tests
+// use them. They are not generated from Cairo: a change to those fixtures does not reach here by
+// itself.
 
 import { CairoPanic } from "../felt";
 import { LIVE } from "../packing";

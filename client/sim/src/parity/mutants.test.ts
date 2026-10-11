@@ -7,7 +7,10 @@
 // cases kill it the mark must go. A mutant that drops a refusal (`refusal`, CLI-02g-B1) is another
 // kind: no row of any table records a panic of `GoblinTrait::load` or of `assert_awake`, so the
 // tables cannot kill it, and this test requires that they do not; the unit tests' cases
-// (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must.
+// (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must. A mutant of the seam of the
+// classes (`seam`, CLI-02g-C) is the same: no row records an Illegal refusal whose call changed the
+// ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
+// `segment/unported.test.ts` runs) must kill it.
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -20,6 +23,8 @@ type Mutant = {
   survives?: string;
   /** A refusal no row records: the tables must not kill it, `parity/refusals.ts` must. */
   refusal?: true;
+  /** A case of the seam no row records: the tables must not kill it, `parity/seam.ts` must. */
+  seam?: true;
 };
 
 const MUTANTS: readonly Mutant[] = [
@@ -1116,14 +1121,14 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "the ticks call is sent 1 tick whatever n (a digest)",
     file: "segment.ts",
-    from: "    ground: rules.ground,\n    n,\n",
-    to: "    ground: rules.ground,\n    n: 1,\n",
+    from: "    ground: copyGround(rules.ground),\n    n,\n",
+    to: "    ground: copyGround(rules.ground),\n    n: 1,\n",
   },
   {
     name: "the act call is sent a Wait (a digest)",
     file: "segment.ts",
-    from: "    ground: rules.ground,\n    action,\n",
-    to: '    ground: rules.ground,\n    action: { kind: "wait" },\n',
+    from: "    ground: copyGround(rules.ground),\n    action,\n",
+    to: '    ground: copyGround(rules.ground),\n    action: { kind: "wait" },\n',
   },
   {
     name: "an action's 0 ticks with no weight left run (combat)",
@@ -1191,6 +1196,773 @@ const MUTANTS: readonly Mutant[] = [
     to: "",
     refusal: true,
   },
+  {
+    name: "the line rounds down, not toward zero",
+    file: "effect.ts",
+    from: "return v0 + Math.trunc(((v12 - v0) * rank) / 12);",
+    to: "return v0 + Math.floor(((v12 - v0) * rank) / 12);",
+  },
+  {
+    name: "the line takes rank 15 as past MAX_RANK",
+    file: "effect.ts",
+    from: "  if (!(rank <= MAX_RANK)) panic(errors.RANK);\n  return v0",
+    to: "  if (!(rank < MAX_RANK)) panic(errors.RANK);\n  return v0",
+  },
+  {
+    name: "the duration's line rounds down, not toward zero",
+    file: "effect.ts",
+    from: "return entry.d0 + Math.trunc(((entry.d12 - entry.d0) * rank) / 12);",
+    to: "return entry.d0 + Math.floor(((entry.d12 - entry.d0) * rank) / 12);",
+  },
+  {
+    name: "value reads v12 as v0",
+    file: "effect.ts",
+    from: "line(entry.v0, entry.v12, rank)",
+    to: "line(entry.v12, entry.v0, rank)",
+  },
+  {
+    name: "DAMAGE classed Instant (KindClass Hit)",
+    file: "effect.ts",
+    from: "if (k === kind.DAMAGE) return KindClass.Hit;",
+    to: "if (k === kind.DAMAGE) return KindClass.Instant;",
+  },
+  {
+    name: "HIT_PENETRATION not a hit modifier (KindClass HitModifier)",
+    file: "effect.ts",
+    from: "if (k === kind.ATTACK_BONUS || k === kind.HIT_PENETRATION) return KindClass.HitModifier;",
+    to: "if (k === kind.ATTACK_BONUS) return KindClass.HitModifier;",
+  },
+  {
+    name: "MOVEMENT not holding (KindClass Holding, its last kind)",
+    file: "effect.ts",
+    from: "(k >= kind.BLOCK && k <= kind.MOVEMENT)",
+    to: "(k >= kind.BLOCK && k < kind.MOVEMENT)",
+  },
+  {
+    name: "NEXT_SPELL_COST not holding (KindClass Holding, its range's first kind)",
+    file: "effect.ts",
+    from: "(k >= kind.NEXT_SPELL_COST && k <= kind.PENETRATION)",
+    to: "(k > kind.NEXT_SPELL_COST && k <= kind.PENETRATION)",
+  },
+  {
+    name: "TRAP classed Instant (KindClass Placement)",
+    file: "effect.ts",
+    from: "if (k === kind.TRAP) return KindClass.Placement;",
+    to: "if (k === kind.TRAP) return KindClass.Instant;",
+  },
+  {
+    name: "the first kind after the MVP classed Instant (KindClass Instant's bound)",
+    file: "effect.ts",
+    from: "if (k === kind.EMPTY || k > kind.LAST_MVP) return undefined;",
+    to: "if (k === kind.EMPTY || k > kind.LAST_MVP + 1) return undefined;",
+  },
+  {
+    name: "Instant and Placement's Serde indices swapped",
+    file: "effect.ts",
+    from: "Instant: 3, Placement: 4 }",
+    to: "Instant: 4, Placement: 3 }",
+  },
+  {
+    name: "is_hit_modifier misses HIT_PENETRATION",
+    file: "effect.ts",
+    from: "entry.kind === kind.ATTACK_BONUS || entry.kind === kind.HIT_PENETRATION;",
+    to: "entry.kind === kind.ATTACK_BONUS;",
+  },
+  {
+    name: "pack puts the scope one bit low",
+    file: "effect.ts",
+    from: "BigInt(entry.scope) * two(95)",
+    to: "BigInt(entry.scope) * two(94)",
+  },
+  {
+    name: "pack writes v12 in v0's field",
+    file: "effect.ts",
+    from: "bits16(entry.v0) * two(16)",
+    to: "bits16(entry.v12) * two(16)",
+  },
+  {
+    name: "unpack reads the guard as 2 bits",
+    file: "effect.ts",
+    from: "const guard = small(take(8n));",
+    to: "const guard = small(take(4n));",
+  },
+  {
+    name: "the duration's percent bonus not capped at 50",
+    file: "body/infliction.ts",
+    from: "Math.min(bonus_percent, MAX_DURATION_BONUS_PERCENT)",
+    to: "bonus_percent",
+  },
+  {
+    name: "the duration's flat bonus not capped at 3",
+    file: "body/infliction.ts",
+    from: "Math.min(flat, MAX_DURATION_FLAT)",
+    to: "flat",
+  },
+  {
+    name: "the duration rounds, not truncates",
+    file: "body/infliction.ts",
+    from: "const scaled = u32op(div, u32op(mul, base, u32op(add, 100, percent)), 100);",
+    to: "const scaled = Math.round((base * (100 + percent)) / 100);",
+  },
+  {
+    name: "a value below 1 not clamped to 1",
+    file: "body/infliction.ts",
+    from: "v < 1 ? 1 :",
+    to: "v < 0 ? 1 :",
+  },
+  {
+    name: "a value above 32,767 not clamped",
+    file: "body/infliction.ts",
+    from: "v > MAX_VALUE_DURATION ? MAX_VALUE_DURATION : v",
+    to: "v",
+  },
+  {
+    name: "CONDITION_DURATION's percent applies to every condition",
+    file: "body/infliction.ts",
+    from: "c === source.condition ? source.percent : 0",
+    to: "source.percent",
+  },
+  {
+    name: "KNOCKDOWN_FLAT applies to every condition",
+    file: "body/infliction.ts",
+    from: "c === condition.KNOCKED_DOWN ? source.knockdown : 0",
+    to: "source.knockdown",
+  },
+  {
+    name: "refreshed's deadline is t0 + d",
+    file: "segment/tick.ts",
+    from: "const deadline = u32sub(u32add(t0, d), 1);",
+    to: "const deadline = u32add(t0, d);",
+  },
+  {
+    name: "refreshed takes the new deadline over a later one",
+    file: "segment/tick.ts",
+    from: "return deadline > old ? deadline : old;",
+    to: "return deadline;",
+  },
+  {
+    name: "cured's held is old > t0",
+    file: "segment/tick.ts",
+    from: "(old >= t0 ? u32sub(t0, 1) : old)",
+    to: "(old > t0 ? u32sub(t0, 1) : old)",
+  },
+  {
+    name: "cured ends at t0, not t0 − 1",
+    file: "segment/tick.ts",
+    from: "(old >= t0 ? u32sub(t0, 1) : old)",
+    to: "(old >= t0 ? t0 : old)",
+  },
+  {
+    name: "the recharge deadline is t0 + r",
+    file: "segment/tick.ts",
+    from: "=> u32sub(u32add(t0, r), 1);",
+    to: "=> u32add(t0, r);",
+  },
+  {
+    name: "a condition held until before its deadline (t0 < D)",
+    file: "segment/tick.ts",
+    from: "export const held = (deadline: number, t0: number): boolean => t0 <= deadline;",
+    to: "export const held = (deadline: number, t0: number): boolean => t0 < deadline;",
+  },
+  {
+    name: "a goblin Dead counts as alive (GoblinTrait::is_alive)",
+    file: "segment/goblin.ts",
+    from: "goblin.ai < DEAD;",
+    to: "goblin.ai <= DEAD;",
+  },
+  {
+    name: "halves ignores HALVED (spent)",
+    file: "body/member.ts",
+    from: "field(kitHigh(member), two(74), 2n) === 1n && (member.flags & flag.HALVED) === 0;",
+    to: "field(kitHigh(member), two(74), 2n) === 1n;",
+  },
+  {
+    name: "halves reads MemberKit bit 201",
+    file: "body/member.ts",
+    from: "two(74), 2n",
+    to: "two(73), 2n",
+  },
+  {
+    name: "a member's armor_vs refuses type 9 (the last)",
+    file: "body/member.ts",
+    from: "if (damage_type === 0 || damage_type > damage.LAST) return 0;",
+    to: "if (damage_type === 0 || damage_type >= damage.LAST) return 0;",
+  },
+  {
+    name: "a member's armor_vs reads type 2 in the high lanes",
+    file: "body/member.ts",
+    from: "if (damage_type <= 2) return",
+    to: "if (damage_type < 2) return",
+  },
+  {
+    name: "a member's armor_vs of types 3–9 one lane off",
+    file: "body/member.ts",
+    from: "two(72 + 6 * (damage_type - 3))",
+    to: "two(72 + 6 * (damage_type - 2))",
+  },
+  {
+    name: "infliction's percent one bit off",
+    file: "body/member.ts",
+    from: "percent: small(field(high, two(20), 0x40n)),",
+    to: "percent: small(field(high, two(21), 0x40n)),",
+  },
+  {
+    name: "infliction's knockdown one bit off",
+    file: "body/member.ts",
+    from: "knockdown: small(field(high, two(72), 4n)),",
+    to: "knockdown: small(field(high, two(73), 4n)),",
+  },
+  {
+    name: "infliction's condition one bit off",
+    file: "body/member.ts",
+    from: "condition: small(field(high, two(16), 0x10n)),",
+    to: "condition: small(field(high, two(17), 0x10n)),",
+  },
+  {
+    name: "enchant_percent one bit off",
+    file: "body/member.ts",
+    from: "small(field(kitHigh(member), two(26), 0x40n));",
+    to: "small(field(kitHigh(member), two(27), 0x40n));",
+  },
+  {
+    name: "Crippled written one bit off (a member)",
+    file: "body/member.ts",
+    from: "delta(crippled(member), deadline, two(160))",
+    to: "delta(crippled(member), deadline, two(161))",
+  },
+  {
+    name: "set_effect writes the deadline and pips of slot 0",
+    file: "body/member.ts",
+    from: "const lane = Math.min(slot, 3);",
+    to: "const lane = 0;",
+  },
+  {
+    name: "set_effect drops the potion tag",
+    file: "body/member.ts",
+    from: "delta(tag(old.potion), tag(held.potion), base * two(23)) +",
+    to: "",
+  },
+  {
+    name: "the recharge lanes of bar slots 4–7 not past the high limb's base",
+    file: "body/member.ts",
+    from: "base: two(28 * s + (s >= 4 ? 16 : 0))",
+    to: "base: two(28 * s)",
+    survives:
+      "no row interrupts a member activating bar slot 4–7 (`inflict` 153–159 use bar slot 1): `recharge_at`'s high-limb lanes are not vectored",
+  },
+  {
+    name: "a member's interrupt runs with no activation",
+    file: "body/member.ts",
+    from: "  if (member.act_slot === NO_SLOT) return;\n",
+    to: "",
+  },
+  {
+    name: "a member's interrupt counts the recharge from A, not t0",
+    file: "body/member.ts",
+    from: "set_recharge(member, member.act_slot, recharge_deadline(t0, r));",
+    to: "set_recharge(member, member.act_slot, recharge_deadline(member.act_deadline, r));",
+  },
+  {
+    name: "a member's interrupt keeps the activation",
+    file: "body/member.ts",
+    from: "  set_recharge(member, member.act_slot, recharge_deadline(t0, r));\n  clear(member);\n",
+    to: "  set_recharge(member, member.act_slot, recharge_deadline(t0, r));\n",
+  },
+  {
+    name: "a member's cure of Crippled writes Knocked down",
+    file: "body/member.ts",
+    from: "  else if (c === condition.CRIPPLED) set_crippled(member, deadline);\n  else member.knocked = deadline;",
+    to: "  else member.knocked = deadline;",
+  },
+  {
+    name: "a member's Crippled read as Knocked down (cure)",
+    file: "body/member.ts",
+    from: "  if (c === condition.CRIPPLED) return crippled(member);\n  return member.knocked;",
+    to: "  return member.knocked;",
+  },
+  {
+    name: "hold's step 1: a carrier held to t not held (deadline > t)",
+    file: "body/member.ts",
+    from: "    if (old.deadline >= t && old.potion === held.potion) {",
+    to: "    if (old.deadline > t && old.potion === held.potion) {",
+    survives:
+      "no row holds again a carrier held to exactly T (193–196 hold skill 5 over itself held to 60 or 49; 197 holds skill 6 beside skill 5 held to 50): step 1's `old.deadline ≥ t` is not vectored at `t`",
+  },
+  {
+    name: "hold's step 1: a skill and a potion of one carrier number are the same",
+    file: "body/member.ts",
+    from: "    if (old.deadline >= t && old.potion === held.potion) {",
+    to: "    if (old.deadline >= t) {",
+  },
+  {
+    name: "hold's step 1: a tie keeps the old application",
+    file: "body/member.ts",
+    from: "if (held.deadline >= old.deadline) put(",
+    to: "if (held.deadline > old.deadline) put(",
+  },
+  {
+    name: "hold's step 1: a potion is the same by its belt slot, not its item",
+    file: "body/member.ts",
+    from: "        ? belt_item(member, old.carrier) === item\n",
+    to: "        ? old.carrier === held.carrier\n",
+    survives:
+      "the table's belt holds four different items (100 to 103), so a belt slot and its item always agree (203, 204, 324): no row holds a potion whose item another belt slot also holds, so step 1's comparison of the items, not the slots, is not vectored",
+  },
+  {
+    name: "hold's step 2 skipped (a stance does not replace the stance)",
+    file: "body/member.ts",
+    from: "  if (stance) {",
+    to: "  if (false) {",
+  },
+  {
+    name: "hold's step 2: a potion's slot taken as a stance's",
+    file: "body/member.ts",
+    from: "      if (old.deadline >= t && !old.potion && old.carrier !== 0) {",
+    to: "      if (old.deadline >= t && old.carrier !== 0) {",
+  },
+  {
+    name: "hold's step 2: a lapsed stance replaced",
+    file: "body/member.ts",
+    from: "      if (old.deadline >= t && !old.potion && old.carrier !== 0) {",
+    to: "      if (!old.potion && old.carrier !== 0) {",
+  },
+  {
+    name: "hold's step 2: any skill's slot taken as a stance's",
+    file: "body/member.ts",
+    from: "at(sheets.skills, there).kind === skill_kind.STANCE",
+    to: "at(sheets.skills, there).kind !== 0",
+  },
+  {
+    name: "hold's step 3: a slot held to t taken as free",
+    file: "body/member.ts",
+    from: "    if (deadline < t) {",
+    to: "    if (deadline <= t) {",
+  },
+  {
+    name: "hold's step 4: a tie evicts the highest slot",
+    file: "body/member.ts",
+    from: "    if (deadline < earliest_deadline) {",
+    to: "    if (deadline <= earliest_deadline) {",
+  },
+  {
+    name: "put: a potion's pips 0",
+    file: "body/member.ts",
+    from: "    pips = at(sheets.potions, position).regen;",
+    to: "    pips = 0;",
+  },
+  {
+    name: "put: a skill's pips at rank 12",
+    file: "body/member.ts",
+    from: "    pips = line(skill.regen0, skill.regen12, held.rank);",
+    to: "    pips = line(skill.regen0, skill.regen12, 12);",
+  },
+  {
+    name: "put: the carrier's position not written",
+    file: "body/member.ts",
+    from: "  member.effect_at = member.effect_at.with(slot, position);\n",
+    to: "",
+  },
+  {
+    name: "a member above its adrenaline cap is brought down to it",
+    file: "body/member.ts",
+    from: "  if (member.adrenaline < member.adrenaline_cap) {\n    member.adrenaline = min16(",
+    to: "  {\n    member.adrenaline = min16(",
+  },
+  {
+    name: "a member's adrenaline not capped",
+    file: "body/member.ts",
+    from: "min16(u16add(member.adrenaline, quarters), member.adrenaline_cap)",
+    to: "u16add(member.adrenaline, quarters)",
+  },
+  {
+    name: "ADRENALINE_EVERY_N 0 counts hits",
+    file: "body/member.ts",
+    from: "  if (every > 0) {",
+    to: "  if (every >= 0) {",
+  },
+  {
+    name: "the N-th hit gives 4 quarters",
+    file: "body/member.ts",
+    from: "      quarters = 8;",
+    to: "      quarters = 4;",
+  },
+  {
+    name: "the hits counter not reset at N",
+    file: "body/member.ts",
+    from: "      set_hits(member, 0);",
+    to: "      set_hits(member, next);",
+  },
+  {
+    name: "the hits counter not written",
+    file: "body/member.ts",
+    from: "      set_hits(member, next);",
+    to: "",
+  },
+  {
+    name: "a member at 0 health gains adrenaline when struck",
+    file: "body/member.ts",
+    from: "  if (member.health > 0) gain_adrenaline(member, 1);",
+    to: "  gain_adrenaline(member, 1);",
+  },
+  {
+    name: "a member not alive takes a condition (apply)",
+    file: "body/member.ts",
+    from: "  if (!is_alive(member)) return;\n  const d = duration(source, c, v);",
+    to: "  const d = duration(source, c, v);",
+  },
+  {
+    name: "a member not alive is knocked down",
+    file: "body/member.ts",
+    from: "  if (!is_alive(member)) return;\n  const d = duration(source, condition.KNOCKED_DOWN, v);",
+    to: "  const d = duration(source, condition.KNOCKED_DOWN, v);",
+  },
+  {
+    name: "a member's Bleeding written as Poison (condition 1)",
+    file: "body/member.ts",
+    from: "  if (c === condition.BLEEDING) member.bleeding = refreshed(member.bleeding, t0, d);",
+    to: "  if (c === condition.BLEEDING) member.poison = refreshed(member.poison, t0, d);",
+  },
+  {
+    name: "a member's Poison written as Burning (condition 2)",
+    file: "body/member.ts",
+    from: "  else if (c === condition.POISON) member.poison = refreshed(member.poison, t0, d);",
+    to: "  else if (c === condition.POISON) member.burning = refreshed(member.burning, t0, d);",
+  },
+  {
+    name: "a member's Burning written as Bleeding (condition 3)",
+    file: "body/member.ts",
+    from: "  else if (c === condition.BURNING) member.burning = refreshed(member.burning, t0, d);",
+    to: "  else if (c === condition.BURNING) member.bleeding = refreshed(member.bleeding, t0, d);",
+  },
+  {
+    name: "a member's Crippled written as Knocked down (condition 4)",
+    file: "body/member.ts",
+    from: "    set_crippled(member, refreshed(crippled(member), t0, d));",
+    to: "    member.knocked = refreshed(member.knocked, t0, d);",
+  },
+  {
+    name: "a member's knock-down does not interrupt",
+    file: "body/member.ts",
+    from: "  member.knocked = refreshed(member.knocked, t0, d);\n  interrupt(member, t0, sheets);",
+    to: "  member.knocked = refreshed(member.knocked, t0, d);",
+  },
+  {
+    name: "energize in energy, not thirds",
+    file: "body/member.ts",
+    from: "mul(i32, BigInt(v), BigInt(ENERGY_THIRDS))",
+    to: "BigInt(v)",
+  },
+  {
+    name: "energize not floored at 0",
+    file: "body/member.ts",
+    from: "  if (v < low) return low;\n",
+    to: "",
+  },
+  {
+    name: "energize not capped at the max",
+    file: "body/member.ts",
+    from: "  if (v > high) return high;\n",
+    to: "",
+  },
+  {
+    name: "a goblin's armor_vs refuses type 9 (the last)",
+    file: "body/goblin.ts",
+    from: "if (damage_type === 0 || damage_type > 9) return 0;",
+    to: "if (damage_type === 0 || damage_type >= 9) return 0;",
+  },
+  {
+    name: "a goblin's armor_vs one lane off",
+    file: "body/goblin.ts",
+    from: "(1n << BigInt(6 * (damage_type - 1)))",
+    to: "(1n << BigInt(6 * damage_type))",
+  },
+  {
+    name: "a goblin's interrupt ignores caste slot 3 (LAST_SLOT)",
+    file: "body/goblin.ts",
+    from: "if (slot > activation.LAST_SLOT) return;",
+    to: "if (slot >= activation.LAST_SLOT) return;",
+    survives:
+      "no row knocks down a goblin activating caste slot 3 (153–159 use slot 2): `LAST_SLOT`'s bound is not vectored",
+  },
+  {
+    name: "a goblin recovering is interrupted",
+    file: "body/goblin.ts",
+    from: "  if (slot > activation.LAST_SLOT) return;\n",
+    to: "",
+  },
+  {
+    name: "a goblin's interrupt keeps the activation",
+    file: "body/goblin.ts",
+    from: "  set_recharge(goblin, slot, recharge_deadline(t0, r));\n  clear(goblin);\n",
+    to: "  set_recharge(goblin, slot, recharge_deadline(t0, r));\n",
+  },
+  {
+    name: "a goblin's interrupt writes no recharge",
+    file: "body/goblin.ts",
+    from: "  set_recharge(goblin, slot, recharge_deadline(t0, r));\n",
+    to: "",
+  },
+  {
+    name: "a dead goblin is cured",
+    file: "body/goblin.ts",
+    from: "  if (!is_alive(goblin)) return;\n  set_condition(",
+    to: "  set_condition(",
+  },
+  {
+    name: "a goblin's cure of Crippled writes Knocked down",
+    file: "body/goblin.ts",
+    from: "  else if (c === condition.CRIPPLED) set_crippled(goblin, deadline);\n",
+    to: "",
+  },
+  {
+    name: "a dead goblin holds an effect",
+    file: "body/goblin.ts",
+    from: "  if (!is_alive(goblin)) return;\n  const old = effect_of(goblin);",
+    to: "  const old = effect_of(goblin);",
+  },
+  {
+    name: "a goblin's hold: another carrier refreshes, not replaces",
+    file: "body/goblin.ts",
+    from: "old.deadline >= t && old.carrier === held.carrier && held.deadline < old.deadline",
+    to: "old.deadline >= t && held.deadline < old.deadline",
+  },
+  {
+    name: "a goblin's hold: a tie keeps the old application",
+    file: "body/goblin.ts",
+    from: "old.carrier === held.carrier && held.deadline < old.deadline",
+    to: "old.carrier === held.carrier && held.deadline <= old.deadline",
+  },
+  {
+    name: "a goblin's hold: an effect held to t lapsed",
+    file: "body/goblin.ts",
+    from: "if (old.deadline >= t && old.carrier",
+    to: "if (old.deadline > t && old.carrier",
+  },
+  {
+    name: "a goblin's hold: pips at rank 12",
+    file: "body/goblin.ts",
+    from: "  const pips = line(skill.regen0, skill.regen12, held.rank);",
+    to: "  const pips = line(skill.regen0, skill.regen12, 12);",
+  },
+  {
+    name: "a goblin's hold: the carrier's position not written",
+    file: "body/goblin.ts",
+    from: "  goblin.effect_at = position;\n",
+    to: "",
+  },
+  {
+    name: "a goblin above its cap is brought down to it",
+    file: "body/goblin.ts",
+    from: "if (goblin.adrenaline < cap) goblin.adrenaline",
+    to: "goblin.adrenaline",
+  },
+  {
+    name: "a goblin's weapon hit gives 3 quarters",
+    file: "body/goblin.ts",
+    from: "gain_adrenaline(goblin, 4, sheets);",
+    to: "gain_adrenaline(goblin, 3, sheets);",
+  },
+  {
+    name: "a dead goblin gains adrenaline when struck",
+    file: "body/goblin.ts",
+    from: "  if (is_alive(goblin) && goblin.health > 0) gain_adrenaline(goblin, 1, sheets);",
+    to: "  if (goblin.health > 0) gain_adrenaline(goblin, 1, sheets);",
+  },
+  {
+    name: "a goblin at 0 health gains adrenaline when struck",
+    file: "body/goblin.ts",
+    from: "  if (is_alive(goblin) && goblin.health > 0) gain_adrenaline(goblin, 1, sheets);",
+    to: "  if (is_alive(goblin)) gain_adrenaline(goblin, 1, sheets);",
+  },
+  {
+    name: "a dead goblin takes a condition (apply)",
+    file: "body/goblin.ts",
+    from: "  if (!is_alive(goblin)) return;\n  const d = duration(source, c, v);",
+    to: "  const d = duration(source, c, v);",
+  },
+  {
+    name: "a dead goblin is knocked down",
+    file: "body/goblin.ts",
+    from: "  if (!is_alive(goblin)) return;\n  const d = duration(source, condition.KNOCKED_DOWN, v);",
+    to: "  const d = duration(source, condition.KNOCKED_DOWN, v);",
+  },
+  {
+    name: "a goblin's Bleeding written as Poison (condition 1)",
+    file: "body/goblin.ts",
+    from: "  if (c === condition.BLEEDING) goblin.bleeding = refreshed(goblin.bleeding, t0, d);",
+    to: "  if (c === condition.BLEEDING) goblin.poison = refreshed(goblin.poison, t0, d);",
+  },
+  {
+    name: "a goblin's Poison written as Burning (condition 2)",
+    file: "body/goblin.ts",
+    from: "  else if (c === condition.POISON) goblin.poison = refreshed(goblin.poison, t0, d);",
+    to: "  else if (c === condition.POISON) goblin.burning = refreshed(goblin.burning, t0, d);",
+  },
+  {
+    name: "a goblin's Burning written as Bleeding (condition 3)",
+    file: "body/goblin.ts",
+    from: "  else if (c === condition.BURNING) goblin.burning = refreshed(goblin.burning, t0, d);",
+    to: "  else if (c === condition.BURNING) goblin.bleeding = refreshed(goblin.bleeding, t0, d);",
+  },
+  {
+    name: "a goblin's Crippled written as Knocked down (condition 4)",
+    file: "body/goblin.ts",
+    from: "    set_crippled(goblin, refreshed(crippled(goblin), t0, d));",
+    to: "    goblin.knocked = refreshed(goblin.knocked, t0, d);",
+  },
+  {
+    name: "a goblin's knock-down does not interrupt",
+    file: "body/goblin.ts",
+    from: "  goblin.knocked = refreshed(goblin.knocked, t0, d);\n  interrupt(goblin, t0, sheets);",
+    to: "  goblin.knocked = refreshed(goblin.knocked, t0, d);",
+  },
+  {
+    name: "a goblin at 0 health alive",
+    file: "body/index.ts",
+    from: "goblinModel.is_alive(x) && x.health > 0",
+    to: "goblinModel.is_alive(x)",
+  },
+  {
+    name: "a goblin on watch asleep",
+    file: "body/index.ts",
+    from: "(x) => x.ai === ai.ASLEEP,",
+    to: "(x) => x.ai <= ai.WATCH,",
+  },
+  {
+    name: "a goblin's slots 4",
+    file: "body/index.ts",
+    from: '(unit.kind === "M" ? 4 : 1)',
+    to: "4",
+  },
+  {
+    name: "an empty member slot's position kept as ABSENT_LANE",
+    file: "body/index.ts",
+    from: "at: position === ABSENT_LANE ? ABSENT : position,",
+    to: "at: position,",
+  },
+  {
+    name: "wound floors at 0 one point early (damage ≥ health − 1)",
+    file: "body/index.ts",
+    from: "actor.health = damage >= actor.health ? 0 : actor.health - damage;",
+    to: "actor.health = damage >= actor.health - 1 ? 0 : actor.health - damage;",
+  },
+  {
+    name: "heal not capped at the max",
+    file: "body/index.ts",
+    from: "actor.health = next > actor.max_health ? actor.max_health : next;",
+    to: "actor.health = next;",
+  },
+  {
+    name: "heal reaches a member not alive",
+    file: "body/index.ts",
+    from: "    if (!is_alive(unit.member)) return;\n  } else",
+    to: "  } else",
+  },
+  {
+    name: "heal reaches a goblin at 0 health",
+    file: "body/index.ts",
+    from: " || unit.goblin.health === 0) {",
+    to: ") {",
+  },
+  {
+    name: "energize caps a goblin at its energy, not its max",
+    file: "body/index.ts",
+    from: "const max = goblinModel.max_energy(goblin, sheets);",
+    to: "const max = goblin.energy;",
+  },
+  {
+    name: "struck sets no HIT flag",
+    file: "body/index.ts",
+    from: "    unit.member.flags |= flag.HIT;\n",
+    to: "",
+  },
+  {
+    name: "a goblin on watch does not engage when struck",
+    file: "body/index.ts",
+    from: "(goblin.ai === ai.ASLEEP || goblin.ai === ai.WATCH)",
+    to: "goblin.ai === ai.ASLEEP",
+  },
+  {
+    name: "a goblin at 0 health engages when struck",
+    file: "body/index.ts",
+    from: "if (goblin.health > 0 && (goblin.ai",
+    to: "if ((goblin.ai",
+  },
+  {
+    name: "halved sets no HALVED flag",
+    file: "body/index.ts",
+    from: '  if (unit.kind === "M") unit.member.flags |= flag.HALVED;\n',
+    to: "",
+  },
+  {
+    name: "a member's Knocked down applied as a condition (condition 5)",
+    file: "body/index.ts",
+    from: "    if (c === condition.KNOCKED_DOWN) m.knock(unit.member, v, source, t, sheets);",
+    to: "    if (c === 0) m.knock(unit.member, v, source, t, sheets);",
+  },
+  {
+    name: "a goblin's Knocked down applied as a condition (condition 5)",
+    file: "body/index.ts",
+    from: "  } else if (c === condition.KNOCKED_DOWN) {\n    g.knock(",
+    to: "  } else if (c === 0) {\n    g.knock(",
+  },
+  {
+    name: "a member not alive is cured",
+    file: "body/index.ts",
+    from: "    if (is_alive(unit.member)) m.cure(unit.member, c, t);",
+    to: "    m.cure(unit.member, c, t);",
+  },
+  {
+    name: "a member not alive holds an effect",
+    file: "body/index.ts",
+    from: "    if (is_alive(unit.member)) m.hold(",
+    to: "    m.hold(",
+  },
+  {
+    name: "a goblin holds a potion's effect",
+    file: "body/index.ts",
+    from: "  } else if (!held.potion) {\n    g.hold(",
+    to: "  } else {\n    g.hold(",
+  },
+  {
+    name: "spend runs with no charges",
+    file: "body/index.ts",
+    from: "  if (held.charges === 0) return;\n",
+    to: "",
+  },
+  {
+    name: "spend ends the effect at t, not t − 1",
+    file: "body/index.ts",
+    from: "next.deadline = Number(sub(u32, BigInt(t), 1n));",
+    to: "next.deadline = t;",
+  },
+  {
+    name: "spend writes slot 0's pips",
+    file: "body/index.ts",
+    from: "const pips = unit.member.effect_regen[slot];",
+    to: "const pips = unit.member.effect_regen[0];",
+  },
+  {
+    name: "an Illegal refusal keeps ActionLibrary's ground",
+    file: "segment.ts",
+    from: "    result = { halt: { illegal: out.outcome.illegal } };\n",
+    to: "    result = { halt: { illegal: out.outcome.illegal } };\n    rules.ground = out.ground;\n",
+    seam: true,
+  },
+  {
+    name: "ActionLibrary is passed the ground itself, not a copy",
+    file: "segment.ts",
+    from: "    ground: copyGround(rules.ground),\n    action,",
+    to: "    ground: rules.ground,\n    action,",
+    seam: true,
+  },
+  {
+    name: "ActionLibrary is passed the words themselves, not a copy",
+    file: "segment.ts",
+    from: "    words: copyWords(words),",
+    to: "    words,",
+    seam: true,
+  },
 ];
 
 const SRC = new URL("../", import.meta.url);
@@ -1206,6 +1978,7 @@ type Parity = {
   readTable: typeof import("./table").readTable;
   TABLES: typeof import("./tables").TABLES;
   refusals: typeof import("./refusals");
+  seam: typeof import("./seam");
 };
 
 /** A copy of `src/` with the mutant's one replacement, in `.mutants/<index>/`. */
@@ -1223,13 +1996,20 @@ async function copy(mutant: Mutant, index: number): Promise<Parity> {
     writeFileSync(target, source);
   }
   const load = (name: string) => import(/* @vite-ignore */ new URL(`parity/${name}.ts`, root).href);
-  const [replay, table, tables, refusals] = await Promise.all([
+  const [replay, table, tables, refusals, seam] = await Promise.all([
     load("replay"),
     load("table"),
     load("tables"),
     load("refusals"),
+    load("seam"),
   ]);
-  return { replay: replay.replay, readTable: table.readTable, TABLES: tables.TABLES, refusals };
+  return {
+    replay: replay.replay,
+    readTable: table.readTable,
+    TABLES: tables.TABLES,
+    refusals,
+    seam,
+  };
 }
 
 /** The first divergence the vectors find, or `undefined` when the mutant survives. */
@@ -1251,6 +2031,18 @@ function refusalKiller(parity: Parity): string | undefined {
       parity.refusals.refused(refusal);
     } catch (error) {
       return `refusals: ${(error as Error).message}`;
+    }
+  }
+  return undefined;
+}
+
+/** The first case of `parity/seam.ts` the copy no longer holds, or `undefined`. */
+function seamKiller(parity: Parity): string | undefined {
+  for (const check of parity.seam.CHECKS) {
+    try {
+      parity.seam.holds(check);
+    } catch {
+      return `seam: ${check.name}`;
     }
   }
   return undefined;
@@ -1283,11 +2075,11 @@ describe("the mutation check", () => {
     const known = mutant.survives;
     it(`${known === undefined ? "kills" : "a known survivor"}: ${mutant.name}`, async () => {
       const parity = await copy(mutant, index);
-      if (mutant.refusal) {
-        const found = refusalKiller(parity);
+      if (mutant.refusal || mutant.seam) {
+        const found = mutant.seam ? seamKiller(parity) : refusalKiller(parity);
         results.push(`| ${index + 1} | ${mutant.name} | ${found ?? "**survives**"} |`);
-        expect(killer(parity), `${mutant.name}: the tables record no refusal`).toBeUndefined();
-        expect(found, `${mutant.name} survived the refusals`).toBeDefined();
+        expect(killer(parity), `${mutant.name}: the tables record no such case`).toBeUndefined();
+        expect(found, `${mutant.name} survived the unit tests' cases`).toBeDefined();
         return;
       }
       const found = killer(parity);
@@ -1297,6 +2089,7 @@ describe("the mutation check", () => {
       } else {
         expect(found, `${mutant.name} is now killed: remove its \`survives\``).toBeUndefined();
       }
-    });
+      // A survivor replays every table, which may take longer than vitest's default 5 s
+    }, 30_000);
   });
 });

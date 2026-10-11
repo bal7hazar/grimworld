@@ -46,7 +46,7 @@ describe("the goblin's refusals, fail closed", () => {
     });
   }
 
-  it("loads eight awake goblins (test_defeat_in_step_1_with_eight_awake, hand copy: the boundary)", () => {
+  it("the boundary of test_world_assert_awake_loaded", () => {
     const goblins = Array.from({ length: 8 }, (_, k) => goblin(8 + k, HOB));
     const loaded = world({ clock: 0, members: [], goblins, killed: [], defeated: false }, sheets());
     expect(loaded.goblins).toHaveLength(8);
