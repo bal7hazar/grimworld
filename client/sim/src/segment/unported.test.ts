@@ -3,6 +3,7 @@
 // call changed the ground, game's fix pending), that `run` does not change what it is given, and
 // that the replayer of the parity tests stays out of the app's API.
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as sim from "../index";
 import { board as origin_board, position } from "../movement";
@@ -144,5 +145,29 @@ describe("the segment beyond its tables", () => {
   it("exports the seam of the classes, not the parity tests' replayer", () => {
     expect(Object.keys(sim)).toContain("callDigest");
     expect(Object.keys(sim).filter((name) => /replay/i.test(name))).toEqual([]);
+  });
+
+  it("reaches nothing under src/parity/ from index.ts, by any import (a static scan)", () => {
+    // A name check misses a replayer re-exported as `callDigest`: scan what the entry point imports,
+    // and what those import, for a module under `parity/` (the `import ... from`, `export ... from`
+    // and bare `import "..."` forms; a dynamic `import()` is refused outright)
+    const root = new URL("../", import.meta.url);
+    const seen = new Set<string>();
+    const queue = ["index.ts"];
+    while (queue.length > 0) {
+      const file = queue.pop()!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const text = readFileSync(new URL(file, root), "utf8");
+      expect(text, `${file} imports dynamically`).not.toMatch(/\bimport\s*\(/);
+      for (const [, specifier] of text.matchAll(/(?:from|import)\s+["']([^"']+)["']/g)) {
+        // A package (`@scure/starknet`) is not a module of `parity/`
+        if (!specifier!.startsWith(".")) continue;
+        const target = new URL(`${specifier}.ts`, new URL(file, root));
+        queue.push(target.pathname.slice(root.pathname.length));
+      }
+    }
+    expect(seen.has("segment/classes.ts")).toBe(true);
+    expect([...seen].filter((file) => file.startsWith("parity/"))).toEqual([]);
   });
 });
