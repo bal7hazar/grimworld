@@ -627,7 +627,7 @@ target (`Struck.knocked`, read at `t₀`) by 209 against 210; a sleeping target 
 block's cap at 63 (`resolve`'s `defence.block > MAX_BLOCK`) by 213 (on the bound: 63, blocked) and 214 (below it: 62).
 Above the bound no `act` row can go: `act` strikes goblins only (a weapon's or an attack skill's foe), and a goblin's
 charges are 6 bits (`GoblinWords` 240–245), at most 63; a member's (7 bits) can pass 63, but only a goblin's hit
-strikes a member (RV-03c's ticks).
+strikes a member, outside `act`.
 
 **How the rows are sized for mutants** (as `hit.jsonl`): for every comparison, a row on each side of its bound (the
 clock at `LAST_TICK` and past it; knocked down to `c` and `c + 1`; `R` at `c` and `c + 1`; adrenaline at 4 × cost − 1
