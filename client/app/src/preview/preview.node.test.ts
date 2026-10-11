@@ -367,11 +367,24 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const read = reader();
     const view = await read.instanceState(deployment.contracts.instances, instanceId());
     const registry = deployment.contracts.registry;
+    const { member } = await read.placement(
+      deployment.contracts.instances,
+      deployment.adventurer_id,
+    );
+    const ground = featuresAround({
+      view,
+      member,
+      region: await read.region(deployment.contracts.instances, instanceId()),
+    });
     const times: number[] = [];
     let calls = 0;
     for (let run = 0; run < 10; run++) {
       const start = performance.now();
-      ({ calls } = await assembleContent(view, (kind, id) => read.record(registry, kind, id)));
+      ({ calls } = await assembleContent(
+        view,
+        (kind, id) => read.record(registry, kind, id),
+        ground,
+      ));
       times.push(performance.now() - start);
     }
     console.info(

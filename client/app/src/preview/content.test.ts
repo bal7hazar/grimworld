@@ -148,6 +148,7 @@ describe("the sheets read from the recorded records", () => {
 });
 
 describe("the content assembled as PlayLibrary assembles it", () => {
+  // These cases have no terrain trap in their ground: `[]`.
   it("takes each member's bar, then each slot's belt item and held skill, 0 and repeats skipped", () => {
     const one = member(
       [0, 5, 3, 5],
@@ -179,6 +180,7 @@ describe("the content assembled as PlayLibrary assembles it", () => {
         ],
       },
       registry(count),
+      [],
     );
     expect(content.castes.map((c) => c.id)).toEqual([2, 3, 1]);
     expect(content.castes[0]).toEqual(readCasteSheet(2, partsOf(CASTE, 2)));
@@ -199,6 +201,7 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     const { content, calls } = await assembleContent(
       { ...base, members: [member([1], [1], [])], goblins: [goblin(8, true, 1)] },
       registry(),
+      [],
     );
     expect(content.skills.map((s) => s.id)).toEqual([1]);
     expect(content.potions.map((p) => p.id)).toEqual([1]);
@@ -211,6 +214,7 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     const { content, calls } = await assembleContent(
       { ...base, members: [member([40], [41], [])], goblins: [goblin(8, true, 42)] },
       registry(),
+      [],
     );
     expect(content).toEqual({ skills: [], potions: [], castes: [] });
     expect(calls).toBe(3);
@@ -222,7 +226,7 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     const [listed] = recordedView.goblins;
     const caste = Number((listed!.state >> 64n) & 0xffffn);
     const count = { calls: [] as [number, number][] };
-    const { content, calls } = await assembleContent(recordedView, registry(count));
+    const { content, calls } = await assembleContent(recordedView, registry(count), []);
     expect(content).toEqual({
       skills: [readSkillSheet(1, partsOf(SKILL, 1))],
       potions: [],

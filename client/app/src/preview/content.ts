@@ -32,10 +32,10 @@ import type { InstanceView, MemberView } from "./view";
  *    and the batch `Stop::Invalid`.
  *
  * The client needs neither the location (the view's, VIEW-01) nor the pack templates: the view's
- * goblins carry their caste, the derived ones' set from their template as `goblins` sets it
-. It reads the castes from the goblins' states, and each record by one
- * `Registry.record(kind, id)` (the records are the ones `bundle` concatenates). The chunks' terrain traps come from
- * the `Features` of the round's chunks (`ground`).
+ * goblins carry their caste, the derived ones' set from their template as `goblins` sets it. It
+ * reads the castes from the goblins' states, and each record by one `Registry.record(kind, id)`
+ * (the records are the ones `bundle` concatenates). The chunks' terrain traps come from the
+ * `Features` of the round's chunks (`ground`).
  *
  * The order: as `play`'s, but for the stored goblins, taken in entity order where `play` takes the
  * roster's order (`roster`, which the view does not give) and then the touched ones by chunk. The
@@ -253,7 +253,7 @@ export type Assembled = { content: Content; calls: number };
 export async function assembleContent(
   view: InstanceView,
   record: RecordRead,
-  ground: readonly Features[] = [],
+  ground: readonly Features[],
 ): Promise<Assembled> {
   let calls = 0;
   const read = (kind: number, id: number) => {
