@@ -5,16 +5,18 @@ import { type ChainOutcome, Stop } from "./trace";
  * The chain's result of a batch against the mirror's prediction (D-257): the chain wins, and every
  * field both produce that differs is a parity bug, logged.
  *
- * The prediction is client/sim's `runSegment` on the same state, passed in as `Predict` (the app
- * does not depend on client/sim yet): its `Ran` fits `Prediction` as it is, so the wiring is
- * `(actions) => runSegment({ ...segment, actions }, classes)`. A segment that reaches a class the
+ * The prediction is client/sim's `runSegment` on the same state, passed in as `Predict`: its `Ran`
+ * fits `Prediction` as it is, and `mirror.ts` builds the segment (`mirrorOf`). A segment that reaches a class the
  * mirror does not port throws `NotMirrored`: that is no prediction, never a mismatch. So are the
  * parts of a batch beyond one segment: a reveal (the chain reveals, then runs the next segment) and
  * a batch refused at admission (sequence, closed, version: nothing ran, the client's state is old).
  * So is a batch the chain refused before its first segment (`Stop::Invalid` with 0 played, where the
  * mirror predicts no illegal first action: a goblin that cannot load or a batch felt that does not
- * decode, play.cairo :285-300); and so is a mirror that fails (any error of `Predict`), logged as a
- * mirror failure.
+ * decode, play.cairo :285-300). On starknet-devnet the chain does not tell those from an illegal
+ * first action (CLI-10b, preview.node.test.ts: the same `BatchPlayed`, the same state, no other
+ * event, no revert), so a first action the chain finds illegal and the mirror accepts is hidden
+ * here too: a parity bug this check cannot see. And so is a mirror that fails (any error of
+ * `Predict`), logged as a mirror failure.
  *
  * Compared: the actions played, the stop, the clock (the header's), the defeat, the goblins killed,
  * whether a chunk was revealed; and, while the instance stays open, each member's seven words and
@@ -138,8 +140,8 @@ export function reconcile(
     mirror = notMirrored(`refused at admission (stop ${chain.batch.stop}): nothing ran`);
   } else if (run === undefined) mirror = notMirrored("no mirror wired");
   else mirror = predict(actions, run, log);
-  // Refused before the segment (play.cairo :285-300): the mirror cannot see why, unless it too
-  // stops on the first action
+  // Refused before the segment (play.cairo :285-300) or on its first action: the chain does not say
+  // which (the module's comment), the mirror is not compared unless it too stops there
   if (
     chain.kind === "played" &&
     mirror.kind === "predicted" &&

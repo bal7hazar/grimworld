@@ -23,8 +23,10 @@ export interface RpcSimulatorConfig {
   /** The block the batch runs on; `pre_confirmed` (RPC 0.9+) by default. */
   block?: string;
   /**
-   * The v3 bounds. Nothing is charged (`SKIP_FEE_CHARGE`) and every price is 0 by default; the L2
-   * gas amount bounds the execution. Part 2 checks these on starknet-devnet.
+   * The v3 bounds. Nothing is charged (`SKIP_FEE_CHARGE`) and every price is 0 by default, with an
+   * L2 gas amount. starknet-devnet 0.10.0 accepts them (CLI-10b, review t-0184 note 6), and accepts
+   * every amount 0 as well: under `SKIP_FEE_CHARGE` it neither charges nor bounds the execution by
+   * them (preview.node.test.ts). A public node may bound by the amount: the default keeps it.
    */
   bounds?: { l1Gas: ResourceBound; l2Gas: ResourceBound; l1DataGas: ResourceBound };
   /** Every request goes through it (tests answer offline). */

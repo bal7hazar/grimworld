@@ -21,7 +21,8 @@ import { ChunkKind, encodeInstanceView } from "./view";
 // Against the game deployed on the local node (OPS-01a), run through the script that starts and
 // stops the node, from the repository root, after the classes are built:
 //   scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
-//     GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node'
+//     GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node:preview'
+// A script of its own: the burner's `test:node` restarts the node, which would drop the deployment.
 // `PREVIEW_RECORD=<file>` also writes the traces of `recorded.ts` there. Without a deployment (the
 // ordinary `pnpm test`), skipped.
 const env = import.meta.env as Record<string, string | undefined>;
@@ -89,6 +90,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
   const instanceId = () => BigInt(deployment.instance_id);
   const recorded: Record<string, InvokeTrace> = {};
   /** The mirror's inputs before the Wait, as felts: the view, the location's record, the region. */
+  let mirrored = "";
   let inputs: { view: string[]; location: string[]; region: unknown[] } | undefined;
 
   beforeAll(async () => {
@@ -158,10 +160,8 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     // Where the mirror predicts, no mismatch; where it does not, the reason
     expect(preview.mismatches).toEqual([]);
     expect(parity).toEqual([]);
-    console.info(
-      "mirror:",
-      preview.mirror.kind === "predicted" ? "predicted" : preview.mirror.reason,
-    );
+    mirrored = preview.mirror.kind === "predicted" ? "predicted" : preview.mirror.reason;
+    console.info("mirror:", mirrored);
     // The account's `__execute__` makes exactly the preview's two calls (review t-0186)
     const execute = simulated!.execute_invocation as FunctionInvocation;
     expect(execute.calls.map((c) => BigInt(c.entry_point_selector!))).toEqual([
@@ -215,6 +215,24 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
       .catch((error: unknown) => error);
     expect(refused).toMatchObject({ code: "refused" });
     expect(String((refused as Error).cause)).toContain("not controller");
+  }, 60_000);
+
+  it("simulates under zero-price bounds, and under no bound at all (review t-0184, note 6)", async () => {
+    const input = await target();
+    const calls = previewCalls(input, [WAIT])!;
+    // The default: every price 0, the L2 amount 2^40 (test 1 already ran under it)
+    expect(extractOutcome(await simulator().simulate(calls))).toMatchObject({ kind: "played" });
+    // Every amount 0 too: under SKIP_FEE_CHARGE the node neither charges nor bounds by them
+    const zero = { maxAmount: 0n, maxPricePerUnit: 0n };
+    const unbounded = createRpcSimulator({
+      nodeUrl: deployment.node_url,
+      sender: deployment.account,
+      bounds: { l1Gas: zero, l2Gas: zero, l1DataGas: zero },
+    });
+    expect(extractOutcome(await unbounded.simulate(calls))).toMatchObject({
+      kind: "played",
+      batch: { played: 1, stop: Stop.None },
+    });
   }, 60_000);
 
   it("reads an admission refusal as a played outcome that ran nothing", async () => {
@@ -296,6 +314,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
       [
         "// Recorded by preview.node.test.ts (PREVIEW_RECORD) on starknet-devnet, OPS-01a's deployment:",
         "// a Wait of adventurer 1 at sequence 0, and the same batch for adventurer 2, which reverts.",
+        `// The world is the deployment's (its entropy); the mirror on it: ${mirrored}.`,
         "// Trimmed to what extractOutcome reads; no key (the test checks). Do not edit by hand.",
         'import type { InvokeTrace } from "./trace";',
         "",

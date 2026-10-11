@@ -6,6 +6,15 @@ export type { BatchAction, FateAction, PlayAction, Target } from "./actions";
 export { MAX_ACTIONS, encodeAction, encodeBatch, isFate } from "./actions";
 export type { PlayTarget } from "./calls";
 export { executeCalldata, previewCalls, selector } from "./calls";
+export type { LocationExtent, MirrorState } from "./mirror";
+export {
+  mirrorOf,
+  segmentOf,
+  unpackFeatures,
+  unpackLocation,
+  unpackWalls,
+  unportedClasses,
+} from "./mirror";
 export type { Preview, PreviewDeps, PreviewInput, Refused } from "./preview";
 export { previewBatch, refusals } from "./preview";
 export type {
@@ -21,8 +30,10 @@ export type {
   Reconciliation,
 } from "./reconcile";
 export { consoleParityLog, reconcile } from "./reconcile";
-export type { ResourceBound, RpcSimulatorConfig, Simulator } from "./rpc";
-export { SimulationError, createRpcSimulator } from "./rpc";
+export type { Reader, ReaderConfig } from "./read";
+export { LOCATION, createReader, readSelector } from "./read";
+export type { ResourceBound, Rpc, RpcSimulatorConfig, Simulator } from "./rpc";
+export { SimulationError, createRpc, createRpcSimulator } from "./rpc";
 export type {
   BatchPlayed,
   ChainOutcome,
@@ -35,4 +46,10 @@ export type {
 } from "./trace";
 export { Outcome, Stop, TraceError, eventSelector, extractOutcome, panicReason } from "./trace";
 export type { GoblinView, Header, InstanceView, MemberView, RegionChunk } from "./view";
-export { ChunkKind, decodeInstanceView, encodeInstanceView, unpackHeader } from "./view";
+export {
+  ChunkKind,
+  decodeInstanceView,
+  decodeRegion,
+  encodeInstanceView,
+  unpackHeader,
+} from "./view";

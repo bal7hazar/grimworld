@@ -17,6 +17,11 @@ import { type RegionChunk, decodeInstanceView } from "./view";
 const LIVE = 1n << 250n;
 const P128 = 1n << 128n;
 const EMPTY = { skills: [], potions: [], castes: [] };
+/**
+ * Chunk 0's `Features` on another deployment of the same seed (the reveal draws from the
+ * deployment's entropy): a pack of five goblins, template 1 at level 1, on tile 37.
+ */
+const PACKED = 0x400000000000000000000000000000000000000000000000e91589501000125n;
 
 /** The state recorded on starknet-devnet before the Wait (`recorded.ts`). */
 function recordedState(): MirrorState {
@@ -62,11 +67,19 @@ describe("the records the segment reads", () => {
     });
   });
 
-  it("unpacks the recorded chunk 0's pack, and round-trips every field of Features", () => {
+  it("unpacks a recorded pack, and round-trips every field of Features", () => {
+    const features = unpackFeatures(PACKED);
+    expect(features.packs[0]).toMatchObject({
+      tile: 37,
+      template: 1,
+      level: 1,
+      count: 5,
+      alert: 0,
+    });
+    expect(features.packs[1]!.count).toBe(0);
+    expect(packFeatures(features)).toBe(PACKED);
     const chunk0 = recordedBefore.region.find((c) => c.chunk === 0)!;
-    const features = unpackFeatures(BigInt(chunk0.features));
-    expect(features.packs[0]).toMatchObject({ template: 1, level: 1, count: 5, alert: 0 });
-    expect(packFeatures(features)).toBe(BigInt(chunk0.features));
+    expect(packFeatures(unpackFeatures(BigInt(chunk0.features)))).toBe(BigInt(chunk0.features));
     const every = {
       packs: [
         { tile: 224, template: 0xfffe, level: 250, count: 15, offsets: 0x1fffffe, alert: 7 },
@@ -92,30 +105,29 @@ describe("the records the segment reads", () => {
 });
 
 describe("the mirror on the recorded state", () => {
-  it("builds the segment as PlayLibrary does, and stops where the view lacks the goblins", () => {
+  it("builds the segment as PlayLibrary does and predicts the real Wait: no mismatch", () => {
     const state = recordedState();
-    expect(() => segmentOf(state)).toThrow(NotMirrored);
-    expect(() => segmentOf(state)).toThrow("goblin 8 of chunk 0's pack not in the view");
-  });
-
-  it("predicts a Wait on the fast path once the pack is left out (the wiring, not a parity claim)", () => {
-    const state = recordedState();
-    const region = state.region.map((c) =>
-      // The pack's 64 bits cleared, the objects kept
-      c.chunk === 0 ? { ...c, features: c.features - (c.features % (1n << 128n)) } : c,
-    );
-    const quiet = { ...state, region };
-    const segment = segmentOf(quiet);
+    const segment = segmentOf(state);
     expect(segment.area).toMatchObject({ width: 3, height: 3, known: 0x1c0038007n, ran: false });
     expect(segment.area.chunks.map(([chunk]) => chunk)).toEqual([0]);
     expect([segment.level, segment.owed, segment.weight]).toEqual([1, 0, 10]);
-    const predict = mirrorOf(quiet);
+    expect(segment.words).toMatchObject({ clock: 0, goblins: [], killed: [], defeated: false });
+    const predict = mirrorOf(state);
     const chain = extractOutcome(recordedPlayed);
     const result = reconcile(chain, [{ kind: "wait" }], predict, () => {
       throw new Error("no parity record expected");
     });
     expect(result.mirror).toMatchObject({ kind: "predicted", played: 1, stop: Stop.None });
     expect(result.mismatches).toEqual([]);
+  });
+
+  it("stops where the view lacks the goblins of the area's packs", () => {
+    const state = recordedState();
+    const region = state.region.map((c) => (c.chunk === 0 ? { ...c, features: PACKED } : c));
+    expect(() => segmentOf({ ...state, region })).toThrow(NotMirrored);
+    expect(() => segmentOf({ ...state, region })).toThrow(
+      "goblin 8 of chunk 0's pack not in the view",
+    );
   });
 
   it("answers every class behind the seam with NotMirrored", () => {

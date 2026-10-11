@@ -83,7 +83,7 @@ describe("previewBatch", () => {
     });
   });
 
-  it("previews a recorded devnet Wait, the mirror wired and stopped by the view's missing goblins", async () => {
+  it("previews a recorded devnet Wait with the mirror wired: predicted, no mismatch", async () => {
     const log = vi.fn();
     const recorded = (trace: InvokeTrace): Simulator => ({ simulate: async () => trace });
     const predict = mirrorOf({
@@ -107,10 +107,7 @@ describe("previewBatch", () => {
     ).toMatchObject({
       kind: "simulated",
       chain: { kind: "played", batch: { played: 1, stop: Stop.None, clock: 1 } },
-      mirror: {
-        kind: "not-mirrored",
-        reason: "not mirrored: goblin 8 of chunk 0's pack not in the view",
-      },
+      mirror: { kind: "predicted", played: 1, stop: Stop.None },
       mismatches: [],
     });
     expect(

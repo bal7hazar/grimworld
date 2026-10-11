@@ -42,6 +42,7 @@ jobs:
       indexer: ${{ steps.changes.outputs.indexer }}
       art: ${{ steps.changes.outputs.art }}
       map_format: ${{ steps.changes.outputs.map_format }}
+      client_node: ${{ steps.changes.outputs.client_node }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -454,6 +455,136 @@ jobs:
         if: always()
         run: cat indexer/.scenario-results.txt 2> /dev/null || echo "no scenario output"
 
+  # CLI-10b (D-257, D-253): the batch preview on the game deployed on starknet-devnet
+  # (`pnpm --filter @grimworld/app test:node:preview`): OPS-01a's scripts/devnet_deploy.py deploys and
+  # seeds the game, the test previews a batch, sends it and checks the real result equals the preview,
+  # and reads a revert's reason. Modelled on `indexer-node`: the classes are built here with the
+  # contracts' Scarb (`sncast declare` builds them again, single-threaded, D-176), starknet-devnet is
+  # the pinned release, its tarball and binary verified by sha256. It runs only when the change touches
+  # what the test reads (`client_node` of .github/ci/changes.py: client/app, client/sim, contracts/,
+  # scripts/devnet_deploy.py, scripts/with-node.sh, the root .tool-versions and the workspace's root
+  # files), or for a workflow or a CI helper. No secret; the node listens on 127.0.0.1 only, its
+  # predeployed keys are the node's own and never printed.
+  client-node:
+    needs: discover
+    if: needs.discover.outputs.client_node == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RAYON_NUM_THREADS: "1"
+      DEVNET_VERSION: 0.10.0
+      # The same pins as `indexer-node` (a devnet bump edits both jobs, setup-toolchain.sh and
+      # .tool-versions).
+      DEVNET_TARBALL_SHA256: 0d27863ec959dc74ec6de985c3ec8eb093d6670bacd7672b51dc71ec8528969b
+      DEVNET_BINARY_SHA256: 4e2e6479fa9502f2952ed26740d5cc8ebeb3695c16e752edcc560f6e736b167c
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Scarb and snforge (whose release carries sncast) of the contracts' job, validated by
+      # discover, and the devnet pins above against the repository's.
+      - name: pins
+        id: pins
+        env:
+          PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          set -euo pipefail
+          [ "$(uname -s) $(uname -m)" = "Linux x86_64" ] || { echo "not Linux x86_64" >&2; exit 1; }
+          read -r scarb snforge < <(python3 -c 'import json, os; p = next(p for p in json.loads(os.environ["PACKAGES"]) if p["dir"] == "contracts"); print(p["scarb"], p["snforge"])')
+          [[ $scarb =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "scarb $scarb" >&2; exit 1; }
+          [[ $snforge =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "snforge $snforge" >&2; exit 1; }
+          pinned=$(awk '$1 == "starknet-devnet" { print $2 }' .tool-versions)
+          [ "$pinned" = "$DEVNET_VERSION" ] || { echo ".tool-versions pins starknet-devnet $pinned, this job $DEVNET_VERSION" >&2; exit 1; }
+          grep -qF "starknet-devnet:$DEVNET_VERSION:amd64) echo $DEVNET_BINARY_SHA256 ;;" scripts/setup-toolchain.sh ||
+            { echo "scripts/setup-toolchain.sh pins another binary hash" >&2; exit 1; }
+          echo "scarb=$scarb" >> "$GITHUB_OUTPUT"
+          echo "snforge=$snforge" >> "$GITHUB_OUTPUT"
+
+      # A registry or release download that fails (HTTP 5xx) is tried once more (FND-13).
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        id: scarb_try1
+        continue-on-error: true
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        if: steps.scarb_try1.outcome == 'failure'
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+
+      # sncast, from snforge's release archive, SHA-256 pinned (the `cairo` job's installer).
+      - name: sncast
+        env:
+          SNFORGE: ${{ steps.pins.outputs.snforge }}
+        run: bash .github/ci/install-snforge.sh
+
+      # A registry or release download that fails (HTTP 5xx) is tried once more (FND-13).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        id: pnpm_try1
+        continue-on-error: true
+        with:
+          version: ${{ needs.discover.outputs.pnpm }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pnpm_try1.outcome == 'failure'
+        with:
+          version: ${{ needs.discover.outputs.pnpm }}
+
+      # A registry or release download that fails (HTTP 5xx) is tried once more (FND-13).
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        id: node_try1
+        continue-on-error: true
+        with:
+          node-version: ${{ needs.discover.outputs.node }}
+          cache: pnpm
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.node_try1.outcome == 'failure'
+        with:
+          node-version: ${{ needs.discover.outputs.node }}
+          cache: pnpm
+
+      - name: toolchain is the one of .tool-versions
+        env:
+          node_pin: ${{ needs.discover.outputs.node }}
+          pnpm_pin: ${{ needs.discover.outputs.pnpm }}
+          scarb_pin: ${{ steps.pins.outputs.scarb }}
+          snforge_pin: ${{ steps.pins.outputs.snforge }}
+        run: |
+          set -euo pipefail
+          echo "node $(node --version), pnpm $(pnpm --version), $(scarb --version | head -n 1), $(sncast --version)"
+          [ "$(node --version)" = "v$node_pin" ] || { echo "node is not $node_pin" >&2; exit 1; }
+          [ "$(pnpm --version)" = "$pnpm_pin" ] || { echo "pnpm is not $pnpm_pin" >&2; exit 1; }
+          scarb --version | grep -q "^scarb $scarb_pin " || { echo "scarb is not $scarb_pin" >&2; exit 1; }
+          sncast --version | grep -qF "$snforge_pin" || { echo "sncast is not $snforge_pin" >&2; exit 1; }
+
+      - name: starknet-devnet
+        run: |
+          set -euo pipefail
+          dir=$RUNNER_TEMP/starknet-devnet
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 --retry-delay 5 --proto '=https' --tlsv1.2 -o "$dir/devnet.tar.gz" \
+            "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v${DEVNET_VERSION}/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$DEVNET_TARBALL_SHA256  $dir/devnet.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/devnet.tar.gz" -C "$dir" starknet-devnet
+          echo "$DEVNET_BINARY_SHA256  $dir/starknet-devnet" | sha256sum -c -
+          [ "$("$dir/starknet-devnet" --version)" = "starknet-devnet $DEVNET_VERSION" ] ||
+            { echo "starknet-devnet is not $DEVNET_VERSION" >&2; exit 1; }
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: classes
+        run: scarb --manifest-path contracts/Scarb.toml build
+
+      # The deployment and the test run on one node, which lives as long as the command
+      # (scripts/with-node.sh); the JSON names no key.
+      - name: test:node:preview
+        run: |
+          scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$RUNNER_TEMP/deployment.json" &&
+            GRIMWORLD_DEPLOYMENT="$RUNNER_TEMP/deployment.json" pnpm --filter @grimworld/app test:node:preview'
+
   # The art pipeline's tests (`python -m unittest discover -s tools/art/tests`), only when a path under
   # tools/art/ changed (`art` of .github/ci/changes.py). The `assets` submodule is private and never
   # checked out (D-73), and no test reads it: they build from synthetic images (D-73). The
@@ -517,7 +648,7 @@ jobs:
   # succeeded or was skipped (a job its paths did not concern).
   result:
     name: ci result
-    needs: [discover, cairo, class-artefacts, client, indexer-node, art, map-format]
+    needs: [discover, cairo, class-artefacts, client, indexer-node, client-node, art, map-format]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
