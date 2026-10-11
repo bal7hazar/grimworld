@@ -804,7 +804,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::test_facing_first_step` | 10790532 | 11316399 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `types::action::tests::test_instant_and_attack_skill` | 13637141 | 14293085 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `types::action::tests::test_item_bomb` | 12202795 | 12812935 | 2026-10-07 | faa262c |
-| grimworld_logic | `types::action::tests::test_no_carry_before_a_refusal` | 31599420 | 33179391 | 2026-10-11 | 731ada5 |
+| grimworld_logic | `types::action::tests::test_no_carry_before_a_refusal` | 33324820 | 34991061 | 2026-10-11 | 8c5e62b |
 | grimworld_logic | `types::action::tests::test_quick_cast_counters` | 23884 | 25079 | 2026-10-07 | 44961f2 |
 | grimworld_logic | `types::action::tests::test_spell_activation` | 11766275 | 12336834 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `types::action::tests::test_trap_tile` | 11852982 | 12440172 | 2026-10-10 | 0bf80ab |
@@ -812,6 +812,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_0` | 910727697 | 956264082 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_1` | 749679518 | 787163494 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_10` | 376325231 | 395141493 | 2026-10-11 | 731ada5 |
+| grimworld_logic | `types::action::tests::vectors::test_act_vectors_11` | 274928792 | 288675232 | 2026-10-11 | 8c5e62b |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_2` | 917175573 | 963034352 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_3` | 895078369 | 939832288 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_4` | 345222427 | 362483549 | 2026-10-11 | 731ada5 |
