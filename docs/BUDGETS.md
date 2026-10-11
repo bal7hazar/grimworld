@@ -805,11 +805,12 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::test_spell_activation` | 11766275 | 12336834 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `types::action::tests::test_trap_tile` | 11852982 | 12440172 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `types::action::tests::test_wait_turn_knocked` | 10061092 | 10564147 | 2026-10-07 | faa262c |
-| grimworld_logic | `types::executor::tests::body::test_body_vectors_0` | 445844940 | 468137187 | 2026-10-11 | 3d73583 |
-| grimworld_logic | `types::executor::tests::body::test_body_vectors_1` | 1080662275 | 1134695389 | 2026-10-11 | 3d73583 |
-| grimworld_logic | `types::executor::tests::body::test_body_vectors_2` | 720588683 | 756618118 | 2026-10-11 | 3d73583 |
-| grimworld_logic | `types::executor::tests::body::test_body_vectors_3` | 729473997 | 765947697 | 2026-10-11 | 3d73583 |
+| grimworld_logic | `types::executor::tests::body::test_body_vectors_0` | 445893620 | 468137187 | 2026-10-11 | 3d86a31 |
+| grimworld_logic | `types::executor::tests::body::test_body_vectors_1` | 1080698825 | 1134695389 | 2026-10-11 | 3d86a31 |
+| grimworld_logic | `types::executor::tests::body::test_body_vectors_2` | 720625233 | 756618118 | 2026-10-11 | 3d86a31 |
+| grimworld_logic | `types::executor::tests::body::test_body_vectors_3` | 729510547 | 765947697 | 2026-10-11 | 3d86a31 |
 | grimworld_logic | `types::executor::tests::body::test_body_vectors_4` | 101402968 | 106473117 | 2026-10-11 | 3d73583 |
+| grimworld_logic | `types::executor::tests::body::test_body_vectors_5` | 148803663 | 156243847 | 2026-10-11 | 3d86a31 |
 | grimworld_logic | `types::executor::tests::test_adrenaline_every_n` | 11725370 | 12311639 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::executor::tests::test_asleep_first_hit` | 10239007 | 10750958 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::executor::tests::test_carrier_without_actor` | 9452529 | 9925156 | 2026-10-07 | faa262c |
@@ -990,6 +991,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_1` | 370080889 | 388584934 | 2026-10-11 | 3d73583 |
 | grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_2` | 448911915 | 471357511 | 2026-10-11 | 3d73583 |
 | grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_3` | 513332191 | 538998801 | 2026-10-11 | 3d73583 |
+| grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_4` | 150781700 | 158320785 | 2026-10-11 | 3d86a31 |
 | grimworld_logic | `types::window::tests::test_arc_facing_invalid` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::window::tests::test_arc_melee` | 2198880 | 2308824 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::window::tests::test_arc_ranged` | 6010 | 6311 | 2026-10-02 | f55176c |
