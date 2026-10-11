@@ -46,6 +46,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The CI's own trigger logic is gated here, because `ci result` needs `discover` (FND-CI2,
+      # D-264): the tooling workflow is not a required check. It runs on every pull request and
+      # push (under a second), before the outputs below are computed, so a broken rule fails the
+      # job instead of silently steering the others.
+      - name: changed-paths self-test
+        run: |
+          python3 .github/ci/changes.py --self-test
+          python3 -m unittest discover -s .github/ci -p 'test_*.py'
+
       - id: find
         run: python3 .github/ci/discover.py
 
