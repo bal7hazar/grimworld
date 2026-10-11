@@ -28,10 +28,11 @@
 //!    of the quotas the generation still owes, a dungeon floor's from its stored outline, A7, A8),
 //!    **the area moves to the 3 × 3 around the adventurer's chunk, and the
 //!    goblins of its new chunks are read (a content round: the content they need, and its terrain
-//!    traps' skills, with them) and merged by entity id**; a goblin home with its spawn chunk outside the area, and not killed by the batch,
-//!    leaves the batch's world, written back first if it changed (ENG-07b: re-read from its record,
-//!    or derived under its pack's `alert`, if the area comes back). So a batch holds what its
-//!    actions sent as single batches hold (t-0109, major 1, minor 4);
+//!    traps' skills, with them) and merged by entity id**; a goblin home with its spawn chunk
+//!    outside the area, and not killed by the batch, leaves the batch's world, written back first
+//!    if it changed (ENG-07b: re-read from its record, or derived under its pack's `alert`, if the
+//!    area comes back). So a batch holds what its actions sent as single batches hold (t-0109,
+//!    major 1, minor 4);
 //! 5. the words written back: the member's four, each goblin whose words changed (`record`), each
 //!    chunk whose objects or packs changed, the roster, the header (sequence, clock, counts); then
 //!    `GoblinKilled`, `ChunkRevealed`, `BatchPlayed` and, on a defeat, `Defeated`; the closing path
@@ -99,9 +100,7 @@ use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
     IRegistryReadDispatcherTrait, ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher,
 };
-use grimworld_logic::models::chunk::{
-    Features, FeaturesStorePacking, Terrain, TerrainStorePacking,
-};
+use grimworld_logic::models::chunk::{Features, FeaturesStorePacking, Terrain, TerrainStorePacking};
 use grimworld_logic::models::index::{GoblinWords, MemberWords};
 use grimworld_logic::models::location::{Location, LocationRecord};
 use grimworld_logic::models::member::{MemberTrait, MemberWordsTrait};
@@ -112,8 +111,7 @@ use grimworld_logic::types::play::{Area, Classes, SegmentTrait};
 use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
 use grimworld_logic::types::tick::{
-    CasteSheet, Content, PotionSheet, PotionSheetTrait, SkillSheet,
-    SkillSheetTrait, ai,
+    CasteSheet, Content, PotionSheet, PotionSheetTrait, SkillSheet, SkillSheetTrait, ai,
 };
 use grimworld_logic::types::world::Words;
 use grimworld_logic::types::{MAX_WEIGHT, Refusal, Stop};
@@ -123,10 +121,10 @@ use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
 use crate::helpers::stored::StoredTrait;
 use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
 use crate::store::InstancesStoreTrait;
-use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
 use crate::systems::goblins::{
     IGoblinsLibraryDispatcherTrait, IGoblinsLibraryLibraryDispatcher, Loaded,
 };
+use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
 use crate::systems::instances::play_class;
 
 /// The bits of a chunk's 225 tiles.
@@ -325,18 +323,21 @@ pub impl PlayImpl of PlayTrait {
         stored: Array<GoblinWords>,
         skip: Span<u16>,
     ) -> Option<Array<GoblinWords>> {
-        let Loaded { goblins, packs, castes, skills } = IGoblinsLibraryLibraryDispatcher {
-            class_hash: self.get_play_class(play_class::GOBLINS),
-        }
-            .goblins(
-                slot,
-                book.packs.span(),
-                book.castes.span(),
-                book.skills.span(),
-                chunks,
-                stored,
-                skip,
-            )?;
+        let Loaded {
+            goblins, packs, castes, skills,
+        } =
+            IGoblinsLibraryLibraryDispatcher {
+                class_hash: self.get_play_class(play_class::GOBLINS),
+            }
+                .goblins(
+                    slot,
+                    book.packs.span(),
+                    book.castes.span(),
+                    book.skills.span(),
+                    chunks,
+                    stored,
+                    skip,
+                )?;
         book.packs.append_span(packs.span());
         book.castes.append_span(castes.span());
         book.skills.append_span(skills.span());

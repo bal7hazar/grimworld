@@ -13,12 +13,12 @@
 //! skill or its held effect's skill missing) **or a trap skill it lacks refuses the batch**
 //! (`None`, `Stop::Invalid` in `play`).
 
+use grimworld_logic::models::chunk::Features;
 use grimworld_logic::models::index::GoblinWords;
 use grimworld_logic::models::pack::Pack;
 use grimworld_logic::types::InstanceId;
 use grimworld_logic::types::tick::{CasteSheet, SkillSheet};
 use crate::systems::instances::GoblinView;
-use grimworld_logic::models::chunk::Features;
 
 #[starknet::interface]
 pub trait IGoblinsLibrary<T> {
@@ -36,7 +36,8 @@ pub trait IGoblinsLibrary<T> {
         stored: Array<GoblinWords>,
         skip: Span<u16>,
     ) -> Option<Loaded>;
-    /// `instance_state`'s goblins (VIEW-01, D-263), in `Instances`' context: `GoblinsTrait::window`.
+    /// `instance_state`'s goblins (VIEW-01, D-263), in `Instances`' context:
+    /// `GoblinsTrait::window`.
     /// `None` when the registry cannot load one of them.
     fn window(self: @T, instance_id: InstanceId) -> Option<Span<GoblinView>>;
 }
@@ -53,13 +54,13 @@ pub struct Loaded {
 #[starknet::contract]
 pub mod GoblinsLibrary {
     use grimworld_logic::interface::IRegistryReadDispatcher;
+    use grimworld_logic::models::chunk::Features;
     use grimworld_logic::models::index::GoblinWords;
     use grimworld_logic::models::pack::Pack;
     use grimworld_logic::types::tick::{CasteSheet, SkillSheet};
     use grimworld_logic::types::{InstanceId, instance_parts};
     use crate::store::InstancesStoreTrait;
     use crate::systems::instances::{GoblinView, Instances};
-    use grimworld_logic::models::chunk::Features;
     use crate::systems::play::Book;
     use super::{GoblinsTrait, Loaded};
 
@@ -89,11 +90,13 @@ pub mod GoblinsLibrary {
             let goblins = GoblinsTrait::goblins(
                 ref instances, slot, registry, ref book, chunks, stored, skip, true,
             )?;
-            let Book { packs: all_packs, castes: all_castes, skills: all_skills, potions: _ } = book;
-            let mut out = Loaded {
-                goblins, packs: array![], castes: array![], skills: array![],
-            };
-            out.packs.append_span(all_packs.span().slice(packs.len(), all_packs.len() - packs.len()));
+            let Book {
+                packs: all_packs, castes: all_castes, skills: all_skills, potions: _,
+            } = book;
+            let mut out = Loaded { goblins, packs: array![], castes: array![], skills: array![] };
+            out
+                .packs
+                .append_span(all_packs.span().slice(packs.len(), all_packs.len() - packs.len()));
             out
                 .castes
                 .append_span(
@@ -114,7 +117,6 @@ pub mod GoblinsLibrary {
         }
     }
 }
-
 use grimworld_logic::content::{CASTE, MAX_READ, PACK, SKILL, exists};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::chunk::{PackPlacementTrait, object};

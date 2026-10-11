@@ -349,7 +349,8 @@ pub mod Instances {
         /// West seams, 2 its open North seams (`Outline`); never read in a zone.
         pub outline: Map<(u32, u8), felt252>,
         /// The classes `play` calls (ENG-07, D-233 to D-235): `PLAY` (`PlayLibrary`, called by
-        /// `library_call` with `play`'s body), `TICK`, `AI`, `ACTION`, `EXECUTOR`, `SEGMENT`, `GOBLINS`
+        /// `library_call` with `play`'s body), `TICK`, `AI`, `ACTION`, `EXECUTOR`, `SEGMENT`,
+        /// `GOBLINS`
         /// (`GoblinsLibrary`, called by `library_call` from `PlayLibrary` and `instance_state`)
         /// (`play_classes`).
         pub play_classes: Map<u8, ClassHash>,
@@ -561,8 +562,8 @@ pub mod Instances {
         /// list empty); task pages up to `⌈tasks / 4⌉`; the members' eight words; roster pages
         /// up to `⌈roster_count / 15⌉`, masked (F-13); the goblins a batch would load first,
         /// `GoblinsLibrary`'s by `library_call` (VIEW-01, D-263: `play`'s own loader, FIX-02b), or
-        /// the `UNLOADABLE` marker, none while no `GoblinsLibrary` is set; the location's extent and
-        /// `level_min` from its record.
+        /// the `UNLOADABLE` marker, none while no `GoblinsLibrary` is set; the location's extent
+        /// and `level_min` from its record.
         fn instance_state(self: @ContractState, instance_id: InstanceId) -> InstanceView {
             let (slot, generation) = instance_parts(instance_id);
             let stored = self.get_stored_header(slot);

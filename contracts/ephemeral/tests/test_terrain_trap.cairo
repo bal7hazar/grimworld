@@ -8,18 +8,17 @@ use grimworld_logic::actions::Action;
 use grimworld_logic::content::{CASTE, GATE, LOCATION, PACK, REGION, SKILL};
 use grimworld_logic::interface::{IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
-use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking};
+use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking, object};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
-use grimworld_logic::models::chunk::object;
 use grimworld_logic::models::index::{Features, Object, PackPlacement};
-use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::types::combat::{damage, skill_kind};
-use grimworld_logic::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry};
+use grimworld_logic::types::combat::{damage, skill_kind};
+use grimworld_logic::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, load, map_entry_address,
     start_cheat_caller_address, store,
@@ -274,9 +273,22 @@ fn register_trap_skill(world: World, id: u32) {
     let none: Entry = Default::default();
     let trap = EntryTrait::new(kind::TRAP, 0, 0, 0, 0, 0, 0, target::TILE, shape::SINGLE, 0, 0, 0);
     let earth = EntryTrait::new(
-        kind::DAMAGE, damage::EARTH, 10, 40, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+        kind::DAMAGE,
+        damage::EARTH,
+        10,
+        40,
+        0,
+        0,
+        0,
+        target::FOE,
+        shape::SINGLE,
+        filter::FOES,
+        0,
+        0,
     );
-    let skill = SkillTrait::new(1, 1, skill_kind::TRAP, 0, 0, 0, 0, 3, 1, false, [trap, earth, none]);
+    let skill = SkillTrait::new(
+        1, 1, skill_kind::TRAP, 0, 0, 0, 0, 3, 1, false, [trap, earth, none],
+    );
     IRecordsDispatcher { contract_address: world.registry }
         .set(SKILL, id, SkillRecord::pack(@skill));
 }

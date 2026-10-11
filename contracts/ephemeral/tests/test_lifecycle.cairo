@@ -18,12 +18,12 @@ use grimworld_ephemeral::models::member::{
     Recharges,
 };
 use grimworld_ephemeral::store::InstancesStoreTrait;
+use grimworld_ephemeral::systems::goblins::GoblinsTrait;
 use grimworld_ephemeral::systems::instances::Instances::Event;
 use grimworld_ephemeral::systems::instances::{
     IInstancesDispatcher, IInstancesDispatcherTrait, IInstancesSafeDispatcher,
     IInstancesSafeDispatcherTrait, InstanceView, UNLOADABLE,
 };
-use grimworld_ephemeral::systems::goblins::GoblinsTrait;
 use grimworld_ephemeral::systems::play::{Book, PlayTrait};
 use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
 use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
