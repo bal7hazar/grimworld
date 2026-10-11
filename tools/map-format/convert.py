@@ -109,6 +109,7 @@ def build_zone(export, manifest):
     """The records of an authored zone, as a dict `records.check_zone` reads, and the walkable plane
     the pipeline's rules read."""
     table = kinds()
+    sizes = R.assert_sizes(manifest.get("location_sizes", {}))
     plane = Plane(export)
     blocked, footprints = set(), []
     # [Compute] What the client-only objects make unwalkable: a building's footprint but its door,
@@ -240,9 +241,9 @@ def build_zone(export, manifest):
                                            GATE_QUEST_BITS)}
         # R-41: the destination's rectangle, when the manifest gives it (`location_sizes`) and
         # the destination has a map (a hub has none)
-        size = manifest.get("location_sizes", {}).get(gt["to"])
+        size = sizes.get(gt["to"])
         if size is not None and destination not in ("town", "outpost"):
-            destinations[gates[gid]["destination"]] = tuple(size)
+            destinations[gates[gid]["destination"]] = size
     bridges = {}
     for b in export.get("bridges", []):
         deck = [plane.chunk_tile(plane.glob(*h)) for h in b["deck"]]

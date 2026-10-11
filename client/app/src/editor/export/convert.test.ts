@@ -404,6 +404,8 @@ describe("the converter's port (ENG-08's samples)", () => {
 
 /** The cases that edit the manifest, not the export: tested below by their own tests. */
 const ID_CASES = ["id_negative", "id_above_16_bits", "id_above_32_bits"];
+/** The case that edits the manifest's `location_sizes`: tested by its own test. */
+const SIZE_CASES = ["location_size"];
 
 describe("every case of checks.json, refused with its code", () => {
   it("passes the sample through the Registry's checks and the pipeline", () => {
@@ -428,6 +430,8 @@ describe("every case of checks.json, refused with its code", () => {
         "generated_pack_rewrite_heart",
         "generated_quota_draws",
         "generated_set_outside",
+        "gate_entry_chunk",
+        "pack_fewest_zero",
       ].sort(),
     );
     expect(TWINNED.length + alone.length).toBe(TABLE.registry.length);
@@ -496,6 +500,7 @@ describe("every case of checks.json, refused with its code", () => {
 
   for (const c of [...TABLE.pipeline, ...TABLE.export]) {
     if (c.case === "seam" || c.case === "malformed" || ID_CASES.includes(c.case)) continue;
+    if (SIZE_CASES.includes(c.case)) continue;
     it(`${c.case} (${c.id}): ${c.code}`, () => {
       expect(EDITS[c.case], c.case).toBeDefined();
       expect(verdict(EDITS[c.case]!())).toBe(c.code);
@@ -544,16 +549,82 @@ describe("every case of checks.json, refused with its code", () => {
   // `buildZone` bypasses the schema (which refuses a negative quest too): the converter's own check
   it("id_negative (E-48): a negative id is refused, in a manifest and in a gate's quest", () => {
     for (const [table, name] of SAMPLE_IDS) {
+      expect(refusedWith(load("zone.json"), withId(table, name, -1)), table).toContain(`${CODE}|`);
       expect(refusedWith(load("zone.json"), withId(table, name, -1)), table).toContain(
         `"${name}": id -1`,
       );
     }
+    expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", -1))).toContain(`${CODE}|`);
     expect(refusedWith(setPiece(), withId("set_pieces", "boss_arena", -1))).toContain(
       '"boss_arena": id -1',
     );
     const z = load("zone.json");
     z.gates![0]!.quest = -1;
     expect(() => buildZone(z, MANIFEST)).toThrow(expect.objectContaining({ code: CODE }));
+  });
+
+  it("R-43: a gate's entry chunk 224 is accepted, 225 refused by the schema (export: schema)", () => {
+    const withEntry = (entry_chunk: number) => {
+      const raw = load("zone.json");
+      raw.gates![0]!.entry_chunk = entry_chunk;
+      return raw;
+    };
+    expect(() => validate(withEntry(224))).not.toThrow();
+    expect(() => validate(withEntry(225))).toThrow();
+    expect(verdict(withEntry(224))).toBe("accepted");
+    expect(verdict(withEntry(225))).toBe("export: schema");
+    // R-42 has no editor surface: the converter writes no PACK record
+    expect(TABLE.registry.find((c) => c.case === "pack_fewest_zero")!.converter).toContain(
+      "no PACK record",
+    );
+  });
+
+  it('location_size (E-51): [1, 1] and [15, 15] pass; 0, 16, 1.5, "3", true, missing, a third value are refused', () => {
+    const CODE51 = "export: location size";
+    const withSizes = (location_sizes: unknown): Manifest =>
+      ({ ...structuredClone(MANIFEST), location_sizes }) as Manifest;
+    const raw = load("zone.json");
+    for (const ok of [
+      [1, 1],
+      [15, 15],
+      [8, 7],
+    ]) {
+      expect(refusedWith(raw, withSizes({ test_town: ok })), JSON.stringify(ok)).toBeUndefined();
+    }
+    for (const bad of [
+      [0, 5],
+      [5, 0],
+      [16, 5],
+      [5, 16],
+      [1.5, 5],
+      ["3", 3],
+      [true, 3],
+      [3],
+      [],
+      [3, 3, 3],
+      [3, null],
+      [-1, 3],
+      { w: 3, h: 2 },
+      15,
+      null,
+      "3x3",
+    ]) {
+      expect(refusedWith(raw, withSizes({ test_town: bad })), JSON.stringify(bad)).toContain(
+        `${CODE51}|`,
+      );
+    }
+    // every entry is checked, whether or not a gate of the export leads there
+    expect(refusedWith(raw, withSizes({ nowhere: [16, 1] }))).toContain(`${CODE51}|`);
+    expect(refusedWith(raw, withSizes({ test_town: [3, 3], nowhere: [3] }))).toContain(
+      `${CODE51}|`,
+    );
+    for (const table of [[[3, 3]], "3", 7, null]) {
+      expect(refusedWith(raw, withSizes(table)), JSON.stringify(table)).toContain(`${CODE51}|`);
+    }
+    expect(refusedWith(raw, withSizes({ x: [0, 0] }))).toContain(
+      "size [0,0] is not [width, height] in 1..15",
+    );
+    expect(TABLE.export.filter((c) => c.code === CODE51).map((c) => c.case)).toEqual(SIZE_CASES);
   });
 
   it("id_above_16_bits (E-49): 65535 converts, 65536 is refused", () => {
@@ -610,7 +681,12 @@ describe("every case of checks.json, refused with its code", () => {
 
   it("has an edit for every export and pipeline case", () => {
     for (const c of [...TABLE.pipeline, ...TABLE.export]) {
-      if (c.case !== "seam" && c.case !== "malformed" && !ID_CASES.includes(c.case)) {
+      if (
+        c.case !== "seam" &&
+        c.case !== "malformed" &&
+        !ID_CASES.includes(c.case) &&
+        !SIZE_CASES.includes(c.case)
+      ) {
         expect(Object.keys(EDITS), c.case).toContain(c.case);
       }
     }

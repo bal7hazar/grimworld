@@ -210,6 +210,12 @@ lot's head; no class of the expedition's path moved (`Instances`, `PlayLibrary`,
 | `ZoneChecks` | 23,659 (28.88 %) | 26,298 (32.10 %) | 50 % | +2,639: the shared bounds for generated zones and floors, R-41 both ways, the gates' entry index |
 `SegmentLibrary` and `TickLibrary` are unchanged.
 
+**BND-01** (the registry's deployment guard, R-42), measured with `class_sizes.py` on the lot's head: `Registry`
+33,179 → 33,244 CASM felts (40.50 % → 40.58 %, +65: the refusal of a `GATE`, a `QUOTAS` and a chunk set before the
+class is set, and the pack's fewest of 0); `ZoneChecks` 26,298 → 26,410 (32.10 % → 32.24 %, +112: R-43, `GateAssert::assert_valid` run first on a `GATE` write). No source of the expedition's
+path moved; at the lot's head `Instances` is at 37.76 %, `PlayLibrary` 67.76 %, `SegmentLibrary` 58.11 %,
+`TickLibrary` 78.09 % and `RevealLibrary` 49.85 %, each under its threshold.
+
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
 every other at 50 %.
 
@@ -1039,8 +1045,15 @@ floor's `LOCATION` (`N` > 0, whatever the kind: the engine's `SiteTrait::emergin
 `Registry` keeps `heart_packs` (how many Heart quotas name each `PACK` template, every location's
 since ENG-R1c-1, as `caste_skills`) for R-27's reverse check, and `gate_entries` (per location, the
 entry chunks of the gates that lead to it, one bit each) with `gate_entry_counts` (the gates per
-location and chunk) for R-41's. A count is lowered only while above 0: `set_zone_checks` comes before
-any record (`lifecycle_probe.py`), and a record written before it is left out of the indexes. **The checks run in `ZoneChecks`**
+location and chunk) for R-41's. A count is lowered only while above 0, so `set_zone_checks` comes before
+any record those checks govern: **`Registry` refuses until it is set** (`'registry: no zone checks'`, BND-01;
+`lifecycle_probe.py` already sets it first) (1) a `GATE` and a `QUOTAS`, the two kinds `index` counts, so no gate
+or quota set is left out of the indexes (a count then cannot miss a record; the guards on a lowered count stay
+defensive), (2) a chunk set (an `OUTLINE` of chunk 255), which R-11 and R-12 check against the `LOCATION` and the
+`QUOTAS`: a `LOCATION` and a chunk set written before the class would never meet R-11 (review t-0153), and (3) the
+authored zone's own kinds (ENG-09). The other kinds are not refused, and are safe to write first: a `LOCATION`, a
+border mask and the like have no rule an unchecked write can hide, since each rule between one of them and a
+refused kind runs at that kind's write, once the class is set. **The checks run in `ZoneChecks`**
 (`contracts/persistent/src/systems/zone.cairo`), `Registry`'s library class, by `library_call` in
 `Registry`'s context (it reads `records` and writes `heart_packs`, `gate_entries` and
 `gate_entry_counts` under the same names): built into
@@ -1085,6 +1098,8 @@ same code; CI's `map-format` job holds that every registry case has its Cairo tw
 | R-39 | An authored zone's level band at most 255 levels (0 to 255 refused): a chunk's level is drawn with a byte's bound (audit t-0131, minor 1; D-140) | `LOCATION` with the marker | — (one record) | `zone: level band` |
 | R-40 | A dungeon floor of at least 6 chunks (CM-9: `N` from 6 to 12, the most `registry: floor over 12 chunks`; ENG-R1c bound 5, review t-0099 note 5: below, its exit and its Heart may find no layer beyond the entry; ENG-R1c-1, in `Registry`'s `LOCATION` check, without the zone checks) | `LOCATION` (`N` > 0) | — (one record) | `location: floor under 6 chunks` |
 | R-41 | A gate's entry chunk within its destination's `width × height` rectangle, when the destination has a map (ENG-R1c bound 6, review t-0099 note 5: outside, a floor's outline grows outside its rectangle and its frontier can come out empty, a draw of 0; ENG-R1c-1) | `GATE` (its destination's `LOCATION`, when written) | a `LOCATION` write, against the entries of the gates that lead to it (`gate_entries`, kept by `ZoneChecks` at each `GATE` write) | `gate: entry outside rectangle` |
+| R-42 | A pack template whose castes' minimums sum to at least 1: its fewest is not 0 (BND-01; the reveal reads a fewest of 0 as 1 when it draws the size, so 0 would say a fewest no pack has) | `PACK` | — (one record) | `pack: fewest is 0` |
+| R-43 | A gate's anchor and entry chunks and tiles on the board (below 225), whatever its destination: R-41 reads the entry only against a destination with a map (D-258, BND-01; `GateAssert::assert_valid`, run first in `ZoneChecks::assert_gate`, so after `set_zone_checks`, which every `GATE` now needs) | `GATE` | — (one record) | `gate: entry chunk` (`gate: anchor chunk`, `gate: anchor tile`, `gate: entry tile`) |
 
 **R-30, sized from the measure** (D-220): ENG-05's worst legal plan (six passes of 112, 98,153,254 in
 `test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,
