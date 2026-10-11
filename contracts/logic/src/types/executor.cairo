@@ -2909,6 +2909,9 @@ pub mod tests {
         Naive,
     };
 
+    /// `vectors/body.jsonl` (RV-03a, D-257).
+    pub mod body;
+
     // ---- Fixtures ------------------------------------------------------------------------------
 
     /// The member's tile: (7, 7), position 112, in the open window at the origin.
