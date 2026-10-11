@@ -54,14 +54,13 @@ const ZERO: ResourceBound = { maxAmount: 0n, maxPricePerUnit: 0n };
  */
 const DEFAULT_L2: ResourceBound = { maxAmount: 1n << 40n, maxPricePerUnit: 0n };
 
-export function createRpcSimulator(config: RpcSimulatorConfig): Simulator {
-  const nodeUrl = String(config.nodeUrl);
-  const sender = hex(BigInt(config.sender));
-  const block = config.block ?? "pre_confirmed";
-  const bounds = config.bounds ?? { l1Gas: ZERO, l2Gas: DEFAULT_L2, l1DataGas: ZERO };
-  const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
+/** A JSON-RPC client of one node: a method and its params in, the result out. */
+export type Rpc = (method: string, params: unknown) => Promise<unknown>;
+
+/** The node's JSON-RPC; an error it answers is a `SimulationError` with its code. */
+export function createRpc(nodeUrl: string, fetchImpl: typeof fetch): Rpc {
   let id = 0;
-  const rpc = async (method: string, params: unknown): Promise<unknown> => {
+  return async (method, params) => {
     const response = await fetchImpl(nodeUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -81,6 +80,13 @@ export function createRpcSimulator(config: RpcSimulatorConfig): Simulator {
     if (body.result === undefined) throw new SimulationError(`${method}: no result`);
     return body.result;
   };
+}
+
+export function createRpcSimulator(config: RpcSimulatorConfig): Simulator {
+  const sender = hex(BigInt(config.sender));
+  const block = config.block ?? "pre_confirmed";
+  const bounds = config.bounds ?? { l1Gas: ZERO, l2Gas: DEFAULT_L2, l1DataGas: ZERO };
+  const rpc = createRpc(String(config.nodeUrl), config.fetch ?? globalThis.fetch.bind(globalThis));
   return {
     async simulate(calls) {
       const nonce = await rpc("starknet_getNonce", { block_id: block, contract_address: sender });

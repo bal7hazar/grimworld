@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchAction } from "./actions";
 import { INSTANCES, INSTANCE_ID, playedTrace, revertedTrace } from "./fixtures";
+import { mirrorOf, unpackLocation } from "./mirror";
+import { recordedBefore, recordedPlayed, recordedReverted } from "./recorded";
 import { previewBatch, refusals } from "./preview";
 import type { Simulator } from "./rpc";
-import { Stop } from "./trace";
+import { type InvokeTrace, Stop } from "./trace";
+import { type RegionChunk, decodeInstanceView } from "./view";
 
 const target = {
   instances: INSTANCES,
@@ -78,5 +81,44 @@ describe("previewBatch", () => {
       chain: { kind: "reverted", reason: "Play: not in this instance" },
       mismatches: [],
     });
+  });
+
+  it("previews a recorded devnet Wait, the mirror wired and stopped by the view's missing goblins", async () => {
+    const log = vi.fn();
+    const recorded = (trace: InvokeTrace): Simulator => ({ simulate: async () => trace });
+    const predict = mirrorOf({
+      view: decodeInstanceView(recordedBefore.view.map(BigInt)),
+      location: unpackLocation(recordedBefore.location.map(BigInt)),
+      region: recordedBefore.region.map((c): RegionChunk => ({
+        ...c,
+        kind: c.kind as RegionChunk["kind"],
+        terrain: BigInt(c.terrain),
+        features: BigInt(c.features),
+        goblins: [],
+      })),
+      content: { skills: [], potions: [], castes: [] },
+    });
+    const input = { ...target, instanceId: (1n << 32n) | 1n, adventurerId: 1, sequence: 0 };
+    expect(
+      await previewBatch(
+        { ...input, actions: [{ kind: "wait" }] },
+        { simulator: recorded(recordedPlayed), predict, log },
+      ),
+    ).toMatchObject({
+      kind: "simulated",
+      chain: { kind: "played", batch: { played: 1, stop: Stop.None, clock: 1 } },
+      mirror: {
+        kind: "not-mirrored",
+        reason: "not mirrored: goblin 8 of chunk 0's pack not in the view",
+      },
+      mismatches: [],
+    });
+    expect(
+      await previewBatch(
+        { ...input, adventurerId: 2, actions: [{ kind: "wait" }] },
+        { simulator: recorded(recordedReverted), predict, log },
+      ),
+    ).toMatchObject({ chain: { kind: "reverted", reason: "not controller" }, mismatches: [] });
+    expect(log).not.toHaveBeenCalled();
   });
 });

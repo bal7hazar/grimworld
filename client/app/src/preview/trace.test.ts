@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { INSTANCE_ID, playedTrace, revertedTrace, view } from "./fixtures";
-import { Outcome, Stop, TraceError, eventSelector, extractOutcome, panicReason } from "./trace";
+import { recordedBefore, recordedPlayed, recordedReverted } from "./recorded";
+import {
+  type FunctionInvocation,
+  Outcome,
+  Stop,
+  TraceError,
+  eventSelector,
+  extractOutcome,
+  panicReason,
+} from "./trace";
 import { decodeInstanceView, encodeInstanceView, unpackHeader } from "./view";
 
 describe("extractOutcome", () => {
@@ -108,6 +117,44 @@ describe("extractOutcome", () => {
         execute_invocation: { ...execute, calls: [{ ...play!, calls: [] }, state!] },
       }),
     ).toThrow(/no BatchPlayed/);
+  });
+});
+
+// Traces recorded on starknet-devnet (`recorded.ts`, preview.node.test.ts), beside the spec-shaped ones
+describe("extractOutcome on recorded traces", () => {
+  it("decodes a real Wait: BatchPlayed from PlayLibrary's frame, the view after", () => {
+    const outcome = extractOutcome(recordedPlayed);
+    if (outcome.kind !== "played") throw new Error("not played");
+    expect(outcome.batch).toEqual({
+      instanceId: (1n << 32n) | 1n,
+      adventurerId: 1,
+      from: 0,
+      played: 1,
+      stop: Stop.None,
+      sequence: 1,
+      clock: 1,
+      version: outcome.batch.version,
+    });
+    expect([outcome.killed, outcome.revealed, outcome.defeated, outcome.closed]).toEqual([
+      [],
+      [],
+      false,
+      undefined,
+    ]);
+    expect([outcome.view.header.sequence, outcome.view.header.clock]).toEqual([1, 1]);
+    // The Wait changed the header alone: the member's words are those before it
+    const before = decodeInstanceView(recordedBefore.view.map(BigInt));
+    expect(outcome.view.members).toEqual(before.members);
+    expect(encodeInstanceView(outcome.view)).toEqual(
+      (recordedPlayed.execute_invocation as FunctionInvocation).calls[1]!.result.map(BigInt),
+    );
+  });
+
+  it("reads a real revert's reason out of the node's call stack", () => {
+    expect(extractOutcome(recordedReverted)).toMatchObject({
+      kind: "reverted",
+      reason: "not controller",
+    });
   });
 });
 

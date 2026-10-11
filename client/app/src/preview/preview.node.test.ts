@@ -1,0 +1,312 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import { beforeAll, describe, expect, it } from "vitest";
+import { LOCAL_ACCOUNT_CLASS, createStarknetChain } from "../account/starknet";
+import type { Call, ExecutionStatus } from "../account/types";
+import type { PlayAction } from "./actions";
+import { previewCalls, selector } from "./calls";
+import { mirrorOf, unpackLocation } from "./mirror";
+import { previewBatch } from "./preview";
+import { LOCATION, createReader } from "./read";
+import type { ParityRecord } from "./reconcile";
+import { type Rpc, createRpc, createRpcSimulator } from "./rpc";
+import {
+  type ChainOutcome,
+  type FunctionInvocation,
+  type InvokeTrace,
+  Stop,
+  extractOutcome,
+} from "./trace";
+import { ChunkKind, encodeInstanceView } from "./view";
+
+// Against the game deployed on the local node (OPS-01a), run through the script that starts and
+// stops the node, from the repository root, after the classes are built:
+//   scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
+//     GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node'
+// `PREVIEW_RECORD=<file>` also writes the traces of `recorded.ts` there. Without a deployment (the
+// ordinary `pnpm test`), skipped.
+const env = import.meta.env as Record<string, string | undefined>;
+const deploymentPath = env.GRIMWORLD_DEPLOYMENT;
+
+/** `scripts/devnet_deploy.py`'s JSON, the keys read. */
+type Deployment = {
+  node_url: string;
+  account: string;
+  contracts: { registry: string; instances: string };
+  adventurer_id: number;
+  instance_id: number;
+};
+
+const WAIT: PlayAction = { kind: "wait" };
+
+async function settled(status: () => Promise<ExecutionStatus>): Promise<ExecutionStatus> {
+  for (let i = 0; i < 200; i++) {
+    const current = await status();
+    if (current !== "pending") return current;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return "pending";
+}
+
+const median = (values: number[]): number => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+};
+
+/** A trace cut to what `extractOutcome` reads: no calldata, no addresses, no resources. */
+function trim(trace: InvokeTrace): InvokeTrace {
+  const invocation = (call: FunctionInvocation): FunctionInvocation => ({
+    result: call.result,
+    calls: call.calls.map(invocation),
+    events: call.events.map(({ order, keys, data }) => ({ order, keys, data })),
+    ...(call.is_reverted === undefined ? {} : { is_reverted: call.is_reverted }),
+  });
+  const execute = trace.execute_invocation;
+  return {
+    type: "INVOKE",
+    execute_invocation:
+      "revert_reason" in execute ? { revert_reason: execute.revert_reason } : invocation(execute),
+  };
+}
+
+describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
+  let deployment: Deployment;
+  let rpc: Rpc;
+  let key: string;
+  let keys: bigint[];
+  let version: number;
+  const reader = () => createReader({ nodeUrl: deployment.node_url });
+  const simulator = () =>
+    createRpcSimulator({ nodeUrl: deployment.node_url, sender: deployment.account });
+  const target = async (adventurerId = deployment.adventurer_id) => ({
+    instances: deployment.contracts.instances,
+    instanceId: BigInt(deployment.instance_id),
+    adventurerId,
+    sequence: (await reader().instanceState(deployment.contracts.instances, instanceId())).header
+      .sequence,
+    version,
+  });
+  const instanceId = () => BigInt(deployment.instance_id);
+  const recorded: Record<string, InvokeTrace> = {};
+  /** The mirror's inputs before the Wait, as felts: the view, the location's record, the region. */
+  let inputs: { view: string[]; location: string[]; region: unknown[] } | undefined;
+
+  beforeAll(async () => {
+    deployment = JSON.parse(readFileSync(deploymentPath!, "utf8")) as Deployment;
+    rpc = createRpc(deployment.node_url, globalThis.fetch.bind(globalThis));
+    // The deployer's key, from the node that publishes it (never printed)
+    const accounts = (await rpc("devnet_getPredeployedAccounts", {})) as {
+      address: string;
+      private_key: string;
+    }[];
+    keys = accounts.map((a) => BigInt(a.private_key));
+    const own = accounts.find((a) => BigInt(a.address) === BigInt(deployment.account));
+    if (own === undefined) throw new Error("the deployment's account is not a predeployed one");
+    key = own.private_key;
+    version = await reader().contentVersion(deployment.contracts.registry);
+  });
+
+  it("previews a Wait, then sends it: the real result equals the preview (D-257)", async () => {
+    const read = reader();
+    const before = await read.instanceState(deployment.contracts.instances, instanceId());
+    const locationParts = await read.record(
+      deployment.contracts.registry,
+      LOCATION,
+      before.header.location,
+    );
+    const location = unpackLocation(locationParts);
+    const region = await read.region(deployment.contracts.instances, instanceId());
+    // Every chunk not void lies in the location's extent (`chunk_kind`)
+    const used = region.filter((c) => c.kind !== ChunkKind.Void);
+    expect(used.length).toBeGreaterThan(0);
+    for (const { chunk } of used) {
+      expect([chunk % 15 < location.width, Math.floor(chunk / 15) < location.height]).toEqual([
+        true,
+        true,
+      ]);
+    }
+    const hex = (felt: bigint) => `0x${felt.toString(16)}`;
+    inputs = {
+      view: encodeInstanceView(before).map(hex),
+      location: locationParts.map(hex),
+      region: used.map((c) => ({ ...c, terrain: hex(c.terrain), features: hex(c.features) })),
+    };
+    const parity: ParityRecord[] = [];
+    const input = { ...(await target()), actions: [WAIT] };
+    // The deployed adventurer has an empty build and no belt: its content is empty
+    const predict = mirrorOf({
+      view: before,
+      location,
+      region,
+      content: { skills: [], potions: [], castes: [] },
+    });
+    const sim = simulator();
+    let simulated: InvokeTrace | undefined;
+    const preview = await previewBatch(input, {
+      simulator: {
+        async simulate(calls) {
+          simulated = await sim.simulate(calls);
+          return simulated;
+        },
+      },
+      predict,
+      log: (record) => parity.push(record),
+    });
+    expect(preview.kind).toBe("simulated");
+    if (preview.kind !== "simulated" || preview.chain.kind !== "played") throw new Error("no play");
+    expect(preview.chain.batch).toMatchObject({ played: 1, stop: Stop.None, clock: 1 });
+    // Where the mirror predicts, no mismatch; where it does not, the reason
+    expect(preview.mismatches).toEqual([]);
+    expect(parity).toEqual([]);
+    console.info(
+      "mirror:",
+      preview.mirror.kind === "predicted" ? "predicted" : preview.mirror.reason,
+    );
+    // The account's `__execute__` makes exactly the preview's two calls (review t-0186)
+    const execute = simulated!.execute_invocation as FunctionInvocation;
+    expect(execute.calls.map((c) => BigInt(c.entry_point_selector!))).toEqual([
+      selector.play,
+      selector.instance_state,
+    ]);
+    recorded.played = trim(simulated!);
+
+    // The same two calls, signed and sent
+    const chain = createStarknetChain({
+      nodeUrl: deployment.node_url,
+      accountClass: LOCAL_ACCOUNT_CLASS,
+    });
+    const hash = await chain.send(key, deployment.account, previewCalls(input, [WAIT])!);
+    expect(await settled(() => chain.status(hash))).toBe("succeeded");
+    const real = extractOutcome(
+      (await rpc("starknet_traceTransaction", { transaction_hash: hash })) as InvokeTrace,
+    );
+    expect(real).toEqual(preview.chain);
+    // And the state a read sees afterwards
+    expect(await read.instanceState(deployment.contracts.instances, instanceId())).toEqual(
+      preview.chain.view,
+    );
+  }, 120_000);
+
+  it("surfaces a reverted batch with the chain's own reason, and the real send is refused", async () => {
+    // Adventurer 2 does not exist: the admission's controller check panics
+    const input = { ...(await target(2)), actions: [WAIT] };
+    const sim = simulator();
+    let simulated: InvokeTrace | undefined;
+    const preview = await previewBatch(input, {
+      simulator: {
+        async simulate(calls) {
+          simulated = await sim.simulate(calls);
+          return simulated;
+        },
+      },
+    });
+    expect(preview).toMatchObject({
+      kind: "simulated",
+      chain: { kind: "reverted", reason: "not controller" },
+      mismatches: [],
+    });
+    recorded.reverted = trim(simulated!);
+    const chain = createStarknetChain({
+      nodeUrl: deployment.node_url,
+      accountClass: LOCAL_ACCOUNT_CLASS,
+    });
+    const refused = await chain
+      .send(key, deployment.account, previewCalls(input, [WAIT])!)
+      .catch((error: unknown) => error);
+    expect(refused).toMatchObject({ code: "refused" });
+    expect(String((refused as Error).cause)).toContain("not controller");
+  }, 60_000);
+
+  it("reads an admission refusal as a played outcome that ran nothing", async () => {
+    const input = { ...(await target()), actions: [WAIT] };
+    const preview = await previewBatch(
+      { ...input, sequence: input.sequence + 5 },
+      { simulator: simulator() },
+    );
+    expect(preview).toMatchObject({
+      chain: { kind: "played", batch: { played: 0, stop: Stop.Sequence } },
+      mirror: { kind: "not-mirrored" },
+    });
+  }, 60_000);
+
+  it("cannot tell an illegal first action from an undecodable batch (review t-0186)", async () => {
+    const input = await target();
+    const sim = simulator();
+    // A Move off the location from the entry tile (column 0: one direction at least leads off
+    // it, whatever the deployment's entropy revealed); a count of 0 does not decode
+    let illegal: ChainOutcome | undefined;
+    let calls: Call[] = [];
+    for (let direction = 0; direction < 6 && illegal === undefined; direction++) {
+      calls = previewCalls(input, [{ kind: "move", direction }])!;
+      const outcome = extractOutcome(await sim.simulate(calls));
+      if (outcome.kind === "played" && outcome.batch.stop === Stop.Invalid) illegal = outcome;
+    }
+    const [play, state] = calls;
+    const undecodable = extractOutcome(
+      await sim.simulate([{ ...play!, calldata: [...play!.calldata.slice(0, 4), 0n] }, state!]),
+    );
+    expect(illegal).toMatchObject({ kind: "played", batch: { played: 0, stop: Stop.Invalid } });
+    expect(undecodable).toEqual(illegal);
+  }, 60_000);
+
+  it("times the simulation: 10 runs of a Wait and of the heaviest 10-action batch", async () => {
+    const input = await target();
+    const sim = simulator();
+    const batches: [string, PlayAction[]][] = [
+      ["1 wait", [WAIT]],
+      ["10 waits", Array.from({ length: 10 }, () => WAIT)],
+      ["10 moves (3)", Array.from({ length: 10 }, () => ({ kind: "move", direction: 3 }))],
+      ["10 moves (4)", Array.from({ length: 10 }, () => ({ kind: "move", direction: 4 }))],
+      [
+        "10 moves (3, 4)",
+        Array.from({ length: 10 }, (_, i) => ({ kind: "move", direction: i % 2 === 0 ? 3 : 4 })),
+      ],
+    ];
+    for (const [name, actions] of batches) {
+      const calls = previewCalls(input, actions)!;
+      const times: number[] = [];
+      let trace: InvokeTrace | undefined;
+      for (let run = 0; run < 10; run++) {
+        const start = performance.now();
+        trace = await sim.simulate(calls);
+        times.push(performance.now() - start);
+      }
+      const outcome = extractOutcome(trace!);
+      const gas = (trace as { execution_resources?: { l2_gas?: number } }).execution_resources
+        ?.l2_gas;
+      console.info(
+        `latency ${name}: median ${median(times).toFixed(1)} ms, max ${Math.max(...times).toFixed(1)} ms,` +
+          ` l2_gas ${gas}, ${outcome.kind === "played" ? `played ${outcome.batch.played} stop ${outcome.batch.stop} revealed ${outcome.revealed.length}` : outcome.reason}`,
+      );
+    }
+  }, 120_000);
+
+  it("writes the recorded traces when asked, with no key in them", () => {
+    expect(Object.keys(recorded).sort()).toEqual(["played", "reverted"]);
+    expect(inputs).toBeDefined();
+    const text = JSON.stringify({ recorded, inputs });
+    for (const k of keys) {
+      expect(text.toLowerCase()).not.toContain(k.toString(16));
+      expect(text).not.toContain(k.toString());
+    }
+    const out = env.PREVIEW_RECORD;
+    if (out === undefined) return;
+    writeFileSync(
+      out,
+      [
+        "// Recorded by preview.node.test.ts (PREVIEW_RECORD) on starknet-devnet, OPS-01a's deployment:",
+        "// a Wait of adventurer 1 at sequence 0, and the same batch for adventurer 2, which reverts.",
+        "// Trimmed to what extractOutcome reads; no key (the test checks). Do not edit by hand.",
+        'import type { InvokeTrace } from "./trace";',
+        "",
+        `export const recordedPlayed: InvokeTrace = ${JSON.stringify(recorded.played, null, 2)};`,
+        "",
+        `export const recordedReverted: InvokeTrace = ${JSON.stringify(recorded.reverted, null, 2)};`,
+        "",
+        "/** The mirror's inputs before the Wait: the view's felts, the location's record, the chunks not void. */",
+        `export const recordedBefore = ${JSON.stringify(inputs, null, 2)};`,
+        "",
+      ].join("\n"),
+    );
+  });
+});
