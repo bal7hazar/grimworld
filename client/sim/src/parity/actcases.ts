@@ -150,6 +150,16 @@ export const CHECKS: readonly Check[] = [
     },
   },
   {
+    name: "a TILE hit then an ALLY condition, cast at tile 8, is not mirrored (ALLY is an entity set)",
+    run: () => {
+      const tile = { ...DAMAGE, target: target.TILE };
+      const ally = { ...CONDITION, target: target.ALLY, filter: ALLIES };
+      if (!unmirrored(spell([tile, ally], onTile(8)))) {
+        throw new Error("the TILE then ALLY carrier ran on the whole world");
+      }
+    },
+  },
+  {
     // Not legal content: `assert_carrier` puts a hit first (`HIT_NOT_FIRST`); the guard holds anyway
     name: "a FOE condition then a TILE hit, cast at goblin 8, is not mirrored (scenario B, an illegal order)",
     run: () => {

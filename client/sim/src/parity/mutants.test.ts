@@ -3415,6 +3415,13 @@ const MUTANTS: readonly Mutant[] = [
     act: true,
   },
   {
+    name: "an ALLY entry beside a TILE one is not an entity set: TILE then ALLY runs on the whole world (mixed)",
+    file: "action.ts",
+    from: "else if (e.target === target.FOE || e.target === target.ALLY) entity = true;",
+    to: "else if (e.target === target.FOE) entity = true;",
+    act: true,
+  },
+  {
     name: "a SELF-first carrier with a TILE entry runs on the whole world (mixed's SELF arm)",
     file: "action.ts",
     from: "return tile && (entity || (!attack && first === target.SELF));",

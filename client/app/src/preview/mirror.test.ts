@@ -1,4 +1,23 @@
-import { type Ground, NotMirrored, type TriggerCall, trapTrigger } from "@grimworld/sim";
+import { readFileSync } from "node:fs";
+import {
+  type Call,
+  Felts,
+  type Ground,
+  NotMirrored,
+  type TriggerCall,
+  actionAct,
+  readAction,
+  readArea,
+  readCall,
+  readContent,
+  readGround,
+  readWords,
+  runSegment,
+  trapTrigger,
+  writeDone,
+  writeGround,
+  writeWords,
+} from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import {
   type MirrorState,
@@ -214,12 +233,21 @@ describe("the mirror on the recorded state", () => {
     expect(() => unportedClasses.trigger({} as never)).toThrow(NotMirrored);
   });
 
-  it("keeps ticks and act unported: the native classes change trigger alone", () => {
+  it("is no prediction for an Item action with no content given (review t-0215)", () => {
+    const noContent: MirrorState = { ...recordedState(), content: undefined };
+    expect(() => mirrorOf(noContent)([{ kind: "item", slot: 0, entity: 0 }])).toThrow(NotMirrored);
+    expect(() => mirrorOf(noContent)([{ kind: "item", slot: 0, entity: 0 }])).toThrow(
+      "no content given",
+    );
+  });
+
+  it("runs the trap and action classes natively: ticks alone stays unported", () => {
     expect(nativeClasses.trigger).toBe(trapTrigger);
+    expect(nativeClasses.act).toBe(actionAct);
     expect(() => nativeClasses.ticks({} as never)).toThrow("TickLibrary::ticks");
-    expect(() => nativeClasses.act({} as never)).toThrow("ActionLibrary::act");
     expect(() => nativeClasses.ticks({} as never)).toThrow(NotMirrored);
-    expect(() => nativeClasses.act({} as never)).toThrow(NotMirrored);
+    // The action class is computed: it reads its call, it does not refuse it as unported
+    expect(() => nativeClasses.act({} as never)).not.toThrow(NotMirrored);
   });
 
   it("predicts a Move onto a trap: the trap used, the member struck (CLI-10e)", () => {
@@ -352,5 +380,74 @@ describe("the mirror on the recorded goblin world (CLI-10d)", () => {
     );
     expect(result.mirror).toMatchObject({ kind: "not-mirrored" });
     expect(logged).toMatchObject([{ kind: "grimworld.mirror-failure" }]);
+  });
+});
+
+/** `segment2.jsonl`'s `combat` rows that call `ActionLibrary::act` (CLI-02g-E, CLI-10g). */
+const SEGMENT2 = new URL("../../../../contracts/logic/vectors/segment2.jsonl", import.meta.url);
+const ACT_ROWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 44];
+
+/** The segment of `segment2.jsonl`'s row `id`, the calls it recorded, and the recording. */
+function segment2Row(id: number) {
+  const rows = readFileSync(SEGMENT2, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as { id: number; case: string[]; ok: string[] });
+  const felts = (row: { case?: string[]; ok?: string[] }, key: "case" | "ok") =>
+    new Felts((row[key] ?? []).map(BigInt));
+  const head = felts(rows[0]!, "ok");
+  const content = readContent(head);
+  head.end();
+  const read = felts(rows[id]!, "case");
+  const words = readWords(read);
+  const area = readArea(read);
+  const level = read.u8();
+  const ground = readGround(read);
+  const [owed, weight] = [read.u8(), read.u8()];
+  const actions = read.span(() => readAction(read));
+  const calls: Call[] = read.span(() => readCall(read));
+  read.end();
+  return {
+    segment: { words, content, area, level, ground, owed, weight, actions },
+    calls,
+    recorded: rows[id]!.ok.map(BigInt),
+  };
+}
+
+describe("the native action class on segment2.jsonl's act rows (CLI-10g)", () => {
+  it("predicts the rows whose combat needs no ticks, as the contracts recorded them", () => {
+    let predicted = 0;
+    for (const id of ACT_ROWS) {
+      const { segment, calls, recorded } = segment2Row(id);
+      expect(
+        calls.some((c) => c.kind === "act"),
+        `row ${id} calls act`,
+      ).toBe(true);
+      if (calls.some((c) => c.kind === "ticks")) continue;
+      const out = runSegment(segment, nativeClasses);
+      expect([
+        ...writeWords(out.words),
+        ...writeGround(out.ground),
+        ...writeDone(out.done),
+      ]).toEqual(recorded);
+      predicted += 1;
+    }
+    // The other five (rows with ticks after the action) are the next test's
+    expect(predicted).toBe(7);
+  });
+
+  it("stays not mirrored where the combat action is followed by ticks", () => {
+    const withTicks = ACT_ROWS.filter((id) =>
+      segment2Row(id).calls.some((c) => c.kind === "ticks"),
+    );
+    expect(withTicks).toHaveLength(5);
+    for (const id of withTicks) {
+      expect(() => runSegment(segment2Row(id).segment, nativeClasses), `row ${id}`).toThrow(
+        "TickLibrary::ticks",
+      );
+      expect(() => runSegment(segment2Row(id).segment, unportedClasses), `row ${id}`).toThrow(
+        NotMirrored,
+      );
+    }
   });
 });
