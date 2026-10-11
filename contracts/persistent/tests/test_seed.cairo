@@ -592,6 +592,8 @@ pub impl WrittenImpl of WrittenTrait {
     fn write(self: @Written, registry: ContractAddress) {
         let admin = IRegistryAdminDispatcher { contract_address: registry };
         start_cheat_caller_address(registry, ADMIN.try_into().unwrap());
+        // BND-01: the quotas are refused until the registry's zone checks are set
+        admin.set_zone_checks(*declare("ZoneChecks").unwrap().contract_class().class_hash);
         let mut felts = self.felts.span();
         for request in self.requests.span() {
             let (kind, id) = *request;
@@ -614,8 +616,8 @@ impl SeedFixture of Fixture {
 // The test region, written and read back in one `bundle` (AC-4): 18 records, 22 slots (ENG-05: two
 // pack templates, a spawn table, the zone's and floor 1's quotas).
 #[test]
-// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
-#[available_gas(l2_gas: 49491939)] // ceil(1.05 × 47135180 measured)
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+#[available_gas(l2_gas: 63206204)] // ceil(1.05 × 60196384 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
@@ -709,8 +711,8 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 18 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
-#[available_gas(l2_gas: 45014099)] // ceil(1.05 × 42870570 measured)
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+#[available_gas(l2_gas: 58719753)] // ceil(1.05 × 55923574 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -718,8 +720,8 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
-#[available_gas(l2_gas: 68656077)] // ceil(1.05 × 65386740 measured)
+// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates indexed
+#[available_gas(l2_gas: 91340954)] // ceil(1.05 × 86991384 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);

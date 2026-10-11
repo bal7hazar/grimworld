@@ -340,7 +340,8 @@ fn test_heart_index_binds_every_location() {
     assert(heart.kind == quota_kind::HEART && heart.param == 1, 'quota 2 the raiders');
     let without = QuotaSet { quotas: [q0, q1, Default::default(), q3, q4, q5] };
     r.admin.set_record(QUOTAS, ZONE, without.pack());
-    r.admin.set_record(PACK, 1, empty.pack());
+    // Freed, the raiders are bound by R-42 alone (BND-01): another code, not R-27's
+    r.refused(PACK, 1, empty.pack(), 'pack: fewest is 0');
     r.admin.set_record(PACK, 1, raiders().pack());
     r.admin.set_record(QUOTAS, ZONE, quotas.pack());
     r.refused(PACK, 1, empty.pack(), 'zone: heart template');
@@ -830,6 +831,22 @@ fn test_refuse_heart_template() {
     r.rewrite_quota(2, Quota { param: 9, ..q2 });
 }
 
+// R-42 (BND-01): a pack template whose castes' minimums sum to 0, new, is refused at registration.
+#[test]
+#[available_gas(l2_gas: 12000000)]
+#[should_panic(expected: 'pack: fewest is 0')]
+fn test_refuse_pack_fewest_zero() {
+    let r = ZoneFixture::bare();
+    let none = Pack {
+        castes: [
+            PackCaste { caste: 3, min: 0, max: 1 }, PackCaste { caste: 1, min: 0, max: 2 },
+            Default::default(), Default::default(), Default::default(),
+        ],
+        level: 1,
+    };
+    r.refuse(PACK, 3, none.pack());
+}
+
 // R-28, a dungeon floor's bound (ENG-R1c's bound 4, built by ENG-09, applied by ENG-R1c-1 in
 // `Registry`'s `LOCATION` check): the sample made a floor of `N` 6 in its 3 × 2 rectangle. The
 // boundary, and the 4 × 3 sweep, are `test_registry::test_set_record_floor_bounds`.
@@ -1286,4 +1303,82 @@ fn test_gate_entry_bounds() {
         );
     r.admin.set_record(GATE, 4, gate_to(2, 0));
     r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 7, 1, 6).pack());
+}
+
+/// `gate_to(destination, 224)` with its entry chunk raised to `entry`: a record `GateRecord::pack`
+/// refuses (an entry chunk is below 225) but the Registry reads as it is written.
+fn gate_entering_chunk(destination: u16, entry: u8) -> Span<felt252> {
+    let raw: felt252 = *gate_to(destination, 224).at(0) + (entry - 224).into() * 0x1000000000000;
+    array![raw].span()
+}
+
+// R-41 at the board's edge (review t-0150 note 2): into a map destination, the entry chunk 225, the
+// first past the board, and 255, the last a byte holds, are outside its rectangle, a full 15 × 15
+// one included; 224, the last chunk, is inside.
+#[test]
+#[available_gas(l2_gas: 31714653)]
+fn test_gate_entry_past_the_board() {
+    let r = ZoneFixture::bare();
+    r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 15, 15, 6).pack());
+    r.admin.set_record(GATE, 1, gate_entering_chunk(2, 224));
+    r.refused(GATE, 2, gate_entering_chunk(2, 225), 'gate: entry outside rectangle');
+    r.refused(GATE, 2, gate_entering_chunk(2, 255), 'gate: entry outside rectangle');
+    let small = plain(location_kind::DUNGEON, 8, 8, 6);
+    r.admin.set_record(LOCATION, 3, small.pack());
+    r.refused(GATE, 2, gate_entering_chunk(3, 225), 'gate: entry outside rectangle');
+    r.refused(GATE, 2, gate_entering_chunk(3, 255), 'gate: entry outside rectangle');
+}
+
+/// A registry with no zone checks yet: the town only, as `bare` less its class and its packs.
+fn unchecked() -> Registry {
+    let contract = declare("Registry").unwrap().contract_class();
+    let (address, _) = contract.deploy(@array![ADMIN]).unwrap();
+    start_cheat_caller_address(address, ADMIN.try_into().unwrap());
+    let r = Registry {
+        address,
+        admin: IRegistryAdminDispatcher { contract_address: address },
+        safe: IRegistryAdminSafeDispatcher { contract_address: address },
+        read: IRegistryReadDispatcher { contract_address: address },
+    };
+    r.admin.set_record(LOCATION, 1, plain(location_kind::TOWN, 0, 0, 0).pack());
+    r
+}
+
+// BND-01: a `GATE` is refused until `set_zone_checks`: `index` could not count it.
+#[test]
+#[available_gas(l2_gas: 12000000)]
+#[should_panic(expected: 'registry: no zone checks')]
+fn test_refuse_gate_without_zone_checks() {
+    let r = unchecked();
+    r.refuse(GATE, 1, gate_to(1, 0));
+}
+
+// BND-01: and so is a `QUOTAS` (`heart_packs`).
+#[test]
+#[available_gas(l2_gas: 12000000)]
+#[should_panic(expected: 'registry: no zone checks')]
+fn test_refuse_quotas_without_zone_checks() {
+    let r = unchecked();
+    r.refuse(QUOTAS, 1, one(Quota { kind: quota_kind::VEIN, param: 0, count: 1 }).pack());
+}
+
+// BND-01: the order the review of #422 found (a gate written before the class, so unindexed, then a
+// rewrite of another gate clearing the bit, then a LOCATION shrink passing R-41) cannot be
+// produced: the first gate is refused, the other kinds are not, and once the class is set both
+// gates enter the chunk, the shrink is refused after either is rewritten away.
+#[test]
+#[available_gas(l2_gas: 60000000)]
+fn test_unindexed_gate_cannot_hide_an_entry() {
+    let r = unchecked();
+    r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 8, 8, 6).pack());
+    r.refused(GATE, 1, gate_to(2, 112), 'registry: no zone checks');
+    assert(r.admin.last_id(GATE) == 0, 'no gate written');
+    r.admin.set_zone_checks(class("ZoneChecks"));
+    // Gate A, then gate B, enter the same chunk; A is rewritten to enter elsewhere
+    r.admin.set_record(GATE, 1, gate_to(2, 112));
+    r.admin.set_record(GATE, 2, gate_to(2, 112));
+    r.admin.set_record(GATE, 1, gate_to(2, 0));
+    r.refused(LOCATION, 2, plain(location_kind::DUNGEON, 7, 8, 6).pack(), 'gate: entry outside rectangle');
+    r.admin.set_record(GATE, 2, gate_to(2, 0));
+    r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 7, 8, 6).pack());
 }

@@ -20,6 +20,8 @@ pub mod errors {
     pub const NO_CASTE: felt252 = 'pack: no caste';
     /// More goblins than a pack holds at its fewest (E-3: 5).
     pub const SIZE: felt252 = 'pack: min above 5';
+    /// A template whose castes' minimums sum to 0 (R-42, BND-01): a pack of no goblin at its fewest.
+    pub const NO_FEWEST: felt252 = 'pack: fewest is 0';
 }
 
 #[generate_trait]
@@ -92,8 +94,10 @@ pub impl PackAssert of PackAssertTrait {
 
     /// `Registry`'s content check (ENG-05, after CBT-05a): `min ≤ max` for each caste, an entry
     /// without a caste has no bounds, the template names a caste, and its castes' minimums sum to
-    /// at most 5 (E-3: a pack is at most 5 goblins; its maximum is held at 5 by `bounds`). That a
-    /// caste exists is the content pipeline's (OPS-01).
+    /// at most 5 (E-3: a pack is at most 5 goblins; its maximum is held at 5 by `bounds`), and at
+    /// least 1 (R-42, BND-01: the reveal reads a fewest of 0 as 1 when it draws the pack's size,
+    /// so a template of 0 would say a fewest that no pack ever has). That a caste exists is the
+    /// content pipeline's (OPS-01).
     fn assert_legal(self: @Pack) {
         self.assert_valid();
         let mut castes: u8 = 0;
@@ -108,6 +112,7 @@ pub impl PackAssert of PackAssertTrait {
         }
         assert(castes != 0, errors::NO_CASTE);
         assert(low <= MAX_PACK_SIZE.into(), errors::SIZE);
+        assert(low != 0, errors::NO_FEWEST);
     }
 }
 
@@ -244,6 +249,21 @@ mod tests {
     #[available_gas(l2_gas: 36110)] // ceil(1.05 × 34390 measured)
     fn test_pack_no_caste_refused() {
         template(Default::default(), Default::default()).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'pack: fewest is 0')]
+    #[available_gas(l2_gas: 34703)]
+    fn test_pack_fewest_zero_refused() {
+        template(PackCaste { caste: 1, min: 0, max: 3 }, PackCaste { caste: 2, min: 0, max: 9 })
+            .assert_legal();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 34703)]
+    fn test_pack_fewest_one_legal() {
+        template(PackCaste { caste: 1, min: 0, max: 3 }, PackCaste { caste: 2, min: 1, max: 9 })
+            .assert_legal();
     }
 
     #[test]

@@ -90,6 +90,14 @@ impl RegistryFixture of Fixture {
         }
     }
 
+    /// The same, with the zone checks' class set: a `GATE` and a `QUOTAS` are refused without it
+    /// (BND-01).
+    fn deploy_checked() -> Registry {
+        let r = Self::deploy();
+        r.admin.set_zone_checks(*declare("ZoneChecks").unwrap().contract_class().class_hash);
+        r
+    }
+
     fn version(self: Registry) -> u32 {
         self.read.content_version()
     }
@@ -205,11 +213,14 @@ fn test_set_record_composite_needs_parent() {
 #[available_gas(l2_gas: 7371021)] // ceil(1.05 × 7020020 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
-    let r = Fixture::deploy();
+    let r = Fixture::deploy_checked();
     let refused = r.safe.set_record(QUOTAS, 1, quotas_of(1));
-    assert(*refused.unwrap_err().at(0) == NO_PARENT, 'no such location');
-    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
-    r.admin.set_record(LOCATION, 2, Felts::two(0, 0));
+    // With the zone checks set (a quota set is refused without them), `ZoneChecks` answers before
+    // the parent check: a location that does not exist has no members
+    let code = *refused.unwrap_err().at(0);
+    assert(code == 'zone: count above members', code);
+    r.admin.set_record(LOCATION, 1, floor(4, 4, 6));
+    r.admin.set_record(LOCATION, 2, floor(4, 4, 6));
     // Location 2's quotas first: ids are not in order, they are the locations'.
     r.admin.set_record(QUOTAS, 2, quotas_of(7));
     r.admin.set_record(QUOTAS, 1, quotas_of(8));
@@ -217,7 +228,7 @@ fn test_set_record_quotas_keyed_by_location() {
     assert(r.read.record(QUOTAS, 1) == quotas_of(8), 'quotas of location 1');
     assert(r.admin.last_id(QUOTAS) == 0, 'composite: last id 0');
     let refused = r.safe.set_record(QUOTAS, 3, quotas_of(1));
-    assert(*refused.unwrap_err().at(0) == NO_PARENT, 'location 3');
+    assert(*refused.unwrap_err().at(0) == 'zone: count above members', 'location 3');
 }
 
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
@@ -331,14 +342,14 @@ fn test_set_record_id_zero_refused() {
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = Fixture::deploy();
-    let refused = r.safe.set_record(GATE, 2, Felts::one(1));
+    let refused = r.safe.set_record(REGION, 2, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_NEXT, 'first is 1');
-    r.admin.set_record(GATE, 1, Felts::one(1));
-    let refused = r.safe.set_record(GATE, 3, Felts::one(1));
+    r.admin.set_record(REGION, 1, Felts::one(1));
+    let refused = r.safe.set_record(REGION, 3, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_NEXT, 'a gap');
-    let refused = r.safe.set_record(GATE, 0xFFFFFFFF, Felts::one(1));
+    let refused = r.safe.set_record(REGION, 0xFFFFFFFF, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_NEXT, 'far');
-    assert(r.admin.last_id(GATE) == 1 && r.version() == 1, 'only gate 1');
+    assert(r.admin.last_id(REGION) == 1 && r.version() == 1, 'only region 1');
 }
 
 // --- the content version (AC-2) -----------------------------------------------------------------
@@ -527,8 +538,8 @@ fn test_inputs_version_per_kind() {
     // Other kinds, new and rewritten, sequential and composite: the inputs version stays.
     r.admin.set_record(LOCATION, 1, Felts::two(1, 2));
     r.admin.set_record(LOCATION, 1, Felts::two(3, 4));
-    r.admin.set_record(GATE, 1, Felts::one(1));
-    r.admin.set_record(GATE, 1, Felts::one(2));
+    r.admin.set_record(REGION, 1, Felts::one(1));
+    r.admin.set_record(REGION, 1, Felts::one(2));
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
     r.admin.set_record(BOOK, 1, Felts::three(4, 5, 6));
     r.admin.set_record(QUEST, 9, Felts::two(1, 2));
@@ -710,6 +721,12 @@ fn plain_of(kind: u8, value: felt252) -> Span<felt252> {
     if kind == SET_PIECE {
         return piece_of(value.try_into().unwrap(), 112, 100);
     }
+    // A template of at least one goblin at its fewest (R-42, BND-01)
+    if kind == PACK {
+        return pack_of(
+            PackCaste { caste: 1, min: 1, max: value.try_into().unwrap() }, Default::default(),
+        );
+    }
     let mut out = array![LIVE + value];
     for _ in 1..parts(kind) {
         out.append(value);
@@ -770,14 +787,16 @@ fn test_inputs_version_every_other_kind() {
     let r = Fixture::deploy();
     let mut others: u32 = 0;
     for kind in 1..LAST_KIND + 1 {
-        // The authored zone's own kinds (ENG-09) need an authored zone and its checks: their
-        // writes are `test_zone`'s
+        // The authored zone's own kinds (ENG-09) need an authored zone and its checks, and a gate
+        // and a quota set the checks' class (BND-01): their writes are `test_zone`'s
         if kind == SKILL
             || kind == ITEM
             || kind == MODIFIER
             || kind == ZONE_CHUNK
             || kind == BRIDGE
-            || kind == CANDIDATES {
+            || kind == CANDIDATES
+            || kind == GATE
+            || kind == QUOTAS {
             continue;
         }
         let id = next_id(r, kind);
@@ -788,7 +807,7 @@ fn test_inputs_version_every_other_kind() {
         assert(r.inputs() == 0, 'inputs version unchanged');
         others += 1;
     }
-    assert(others == 22, 'the 22 other kinds');
+    assert(others == 20, 'the 20 other kinds');
 }
 
 // --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1)
@@ -1225,11 +1244,12 @@ fn pack_of(a: PackCaste, b: PackCaste) -> Span<felt252> {
 }
 
 #[test]
-#[available_gas(l2_gas: 18372152)] // ceil(1.05 × 17497287 measured)
+// gas: raised, BND-01: the quotas written with the zone checks set
+#[available_gas(l2_gas: 23081853)] // ceil(1.05 × 21982717 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_reveal_records() {
-    let r = Fixture::deploy();
-    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
+    let r = Fixture::deploy_checked();
+    r.admin.set_record(LOCATION, 1, floor(4, 4, 6));
     // QUOTAS
     r.admin.set_record(QUOTAS, 1, quotas_of(5));
     assert_refused(
@@ -1276,6 +1296,22 @@ fn test_set_record_reveal_records() {
         pack_errors::EMPTY,
     );
     assert_refused(try_write(r, PACK, pack_of(none, none)), pack_errors::NO_CASTE);
+    // R-42: a fewest of 0 (BND-01); one caste at 0 is legal while another holds a minimum
+    assert_refused(
+        try_write(
+            r,
+            PACK,
+            pack_of(PackCaste { caste: 1, min: 0, max: 3 }, PackCaste { caste: 2, min: 0, max: 2 }),
+        ),
+        pack_errors::NO_FEWEST,
+    );
+    assert_accepted(
+        try_write(
+            r,
+            PACK,
+            pack_of(PackCaste { caste: 1, min: 0, max: 3 }, PackCaste { caste: 2, min: 1, max: 2 }),
+        ),
+    );
     assert_refused(
         try_write(
             r,
@@ -1284,7 +1320,7 @@ fn test_set_record_reveal_records() {
         ),
         pack_errors::SIZE,
     );
-    assert(r.admin.last_id(PACK) == 1, 'one template');
+    assert(r.admin.last_id(PACK) == 2, 'two templates');
     // SET_PIECE: legal; a pack on the ring; an object on the ring; a corner open
     assert_accepted(try_write(r, SET_PIECE, piece_of(1, 112, 100)));
     assert_refused(try_write(r, SET_PIECE, piece_of(1, 105, 100)), set_piece_errors::TILE);

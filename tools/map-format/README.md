@@ -60,6 +60,9 @@ location to its kind (`location_kinds`) and, where it knows it, each location wi
 size it gives enters within that rectangle (R-41, `gate: entry outside rectangle`; ENG-R1c-1); a
 destination it gives no size for is checked by the Registry alone, at the gate's write or at the
 destination's.
+A size is exactly two whole numbers `[width, height]`, each from 1 to 15 chunks, checked for every entry
+whether or not a gate leads there (`export: location size`, E-51); anything else is refused before a
+record is built.
 
 **Rules the converter cannot meet** (ENG-R1c-1): a registry case with a `converter` field names a rule
 on records a converted export never writes (a generated zone's or a dungeon floor's quotas, chunk set

@@ -26,7 +26,7 @@ pub mod errors {
     pub const OUTLINE_CHUNK: felt252 = 'registry: outline chunk';
     /// A `ZONE_CHUNK` or `BRIDGE` id whose chunk is not below 225 (ENG-09).
     pub const CHUNK: felt252 = 'registry: chunk';
-    /// An authored zone's record before `set_zone_checks` (ENG-09).
+    /// An authored zone's record, a `GATE` or a `QUOTAS` before `set_zone_checks` (ENG-09, BND-01).
     pub const NO_ZONE_CHECKS: felt252 = 'registry: no zone checks';
     /// `set_zone_checks` with the zero class hash.
     pub const ZONE_CHECKS_ZERO: felt252 = 'registry: zone checks zero';
@@ -52,8 +52,8 @@ pub trait IRegistryAdmin<T> {
     fn set_admin(ref self: T, admin: ContractAddress);
     /// The class of an authored zone's checks (`ZoneChecks`, ENG-09; administrator only, never 0):
     /// `set_record` runs them by `library_call` on the records of an authored zone and on the
-    /// rules they share with other records. Until it is set, an authored zone's records are
-    /// refused (`'registry: no zone checks'`).
+    /// rules they share with other records. Until it is set, an authored zone's records, every
+    /// `GATE` and every `QUOTAS` are refused (`'registry: no zone checks'`).
     fn set_zone_checks(ref self: T, class_hash: ClassHash);
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
@@ -296,7 +296,12 @@ pub mod Registry {
         /// - an authored zone's records (ENG-01 §3.5's R-table, ENG-09), and the rules a generated
         ///   zone, a dungeon floor or a gate shares with other records (R-11, R-12, R-27, R-30,
         ///   R-41; ENG-R1c-1): every rule between two records at the write of either, against the
-        ///   other when it exists (`ZoneAssert`), once the zone checks' class is set.
+        ///   other when it exists (`ZoneAssert`), once the zone checks' class is set. A `GATE` and
+        ///   a `QUOTAS` are refused until it is (BND-01): they are the two kinds `index` counts
+        ///   (`gate_entries`, `gate_entry_counts`, `heart_packs`) and R-41, R-27 and R-30's reverse
+        ///   checks read those counts, so a record written unindexed would escape them for good.
+        ///   Every other rule reads the stored records themselves, and runs at the next write of
+        ///   either record of the pair.
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == LOCATION {
@@ -309,7 +314,8 @@ pub mod Registry {
                 if kind == QUOTAS {
                     QuotaSetRecord::unpack(record).assert_legal();
                 }
-                self.assert_zone(kind, id, record, false);
+                // BND-01: the two indexed kinds (`index`) are refused before the class is set.
+                self.assert_zone(kind, id, record, kind != OUTLINE);
             } else if kind == ZONE_CHUNK || kind == CANDIDATES || kind == BRIDGE {
                 self.assert_zone(kind, id, record, true);
             } else if kind == MODIFIER {
@@ -328,10 +334,11 @@ pub mod Registry {
                 SpawnTableRecord::unpack(record).assert_legal();
             } else if kind == PACK {
                 let pack = PackRecord::unpack(record);
-                pack.assert_legal();
+                // A template a Heart names answers R-27 first (its code), then R-42's fewest of 0
                 if self.get_heart_count(id) != 0 {
                     QuotaBoundsAssert::assert_heart(@pack);
                 }
+                pack.assert_legal();
             } else if kind == SET_PIECE {
                 SetPieceRecord::unpack(record).assert_legal();
             } else if kind == CASTE {
