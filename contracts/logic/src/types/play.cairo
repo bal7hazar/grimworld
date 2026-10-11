@@ -638,16 +638,25 @@ mod tests {
     use hexx::board::layout::LayoutTrait;
     use hexx::finders::bfs::Bfs;
     use hexx::finders::flood::FloodTrait;
+    use snforge_std::{DeclareResultTrait, declare};
+    use starknet::ClassHash;
     use crate::actions::Action;
     use crate::helpers::tick::TickMathTrait;
-    use crate::models::member::{MemberSnapshotTrait, MemberWordsTrait};
-    use crate::types::LAST_TICK;
+    use crate::models::chunk::{Features, FeaturesTrait, object};
+    use crate::models::goblin::GoblinTrait;
+    use crate::models::index::{GoblinWords, Object};
+    use crate::models::member::{MemberSnapshotTrait, MemberWords, MemberWordsTrait};
+    use crate::types::combat::{Placer, PlacerTrait, skill_kind};
+    use crate::types::effect::{Entry, EntryTrait, kind, shape, target};
     use crate::types::executor::{BoardTrait, Delegate};
-    use crate::types::tick::{ContentTrait, ai, status};
+    use crate::types::tick::{Content, ContentTrait, SkillSheet, ai, status};
     use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
-    use crate::types::world::fixtures::{Fixture, HOB, two};
-    use crate::types::world::{TickTrait, WorldTrait};
+    use crate::types::world::fixtures::{Fixture, HOB, MemberSpec, two};
+    use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait, WorldTrait};
+    use crate::types::{LAST_TICK, Target};
     use super::{Area, Classes, SegmentTrait};
+
+    mod recorder;
 
     /// The area of every chunk of a 15 × 15 location, revealed and walkable.
     fn open_area() -> Area {
@@ -914,6 +923,198 @@ mod tests {
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == DIGEST, 'vectors moved: regenerate');
+    }
+
+    /// Whether `position` is the window's centre, local (7, 7) (112) or (7, 8) (127), with each
+    /// of its six neighbours in the window.
+    fn centred(position: u8) -> bool {
+        if position != 112 && position != 127 {
+            return false;
+        }
+        let mut d: u8 = 0;
+        while d < 6 {
+            if LayoutTrait::neighbor(WIDTH, HEIGHT, position, WindowAssert::direction(d))
+                .is_none() {
+                return false;
+            }
+            d += 1;
+        }
+        true
+    }
+
+    /// RV-02 (D-255): `LayoutTrait::neighbor` never returns `None` in `step`. The board a Move
+    /// starts from is `SegmentTrait::board` of the adventurer's tile (set when the segment starts
+    /// and after every Move that does not end it), its origin hexx's `AssemblyTrait::origin`
+    /// (`board/assembly.cairo`, hexx 0.2.0): `(x − 7, y − 7)` on an odd row, `(x − 7, y −
+    /// 8)` on an even one, Euclidean. On every tile of the chunk at `(x0, y0)`, rows `from..to` of
+    /// it, the adventurer stands on the window's centre and its six neighbours are in the window.
+    /// Each chunk is three tests, for snforge's step limit.
+    fn centred_rows(x0: u8, y0: u8, from: u8, to: u8) {
+        let area = open_area();
+        for dy in from..to {
+            for dx in 0..15_u8 {
+                let (x, y) = (x0 + dx, y0 + dy);
+                let mut member = Fixture::member(Fixture::spec());
+                member.words.state += x.into() * two(32) + y.into() * two(40);
+                let world = Fixture::world(40, array![member], array![]);
+                let board = SegmentTrait::board(@area, @world);
+                assert(centred(board.position(x, y)), 'the adventurer is centred');
+            }
+        }
+    }
+
+    // Chunk 16, (15..30, 15..30): every residue of `x` and `y` modulo 15.
+    #[test]
+    #[available_gas(l2_gas: 505928178)] // ceil(1.05 × 481836360 measured)
+    fn test_board_centred_0() {
+        centred_rows(15, 15, 0, 5);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 508898471)] // ceil(1.05 × 484665210 measured)
+    fn test_board_centred_1() {
+        centred_rows(15, 15, 5, 10);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 513346428)] // ceil(1.05 × 488901360 measured)
+    fn test_board_centred_2() {
+        centred_rows(15, 15, 10, 15);
+    }
+
+    // Chunk 31, (15..30, 30..45): each residue of `y` on the other row parity (15 is odd).
+    #[test]
+    #[available_gas(l2_gas: 513349421)] // ceil(1.05 × 488904210 measured)
+    fn test_board_centred_3() {
+        centred_rows(15, 30, 0, 5);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 517797378)] // ceil(1.05 × 493140360 measured)
+    fn test_board_centred_4() {
+        centred_rows(15, 30, 5, 10);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 520767671)] // ceil(1.05 × 495969210 measured)
+    fn test_board_centred_5() {
+        centred_rows(15, 30, 10, 15);
+    }
+
+    // Chunk 0, (0..15, 0..15): `x` or `y` below 7, the origin negative (D-134).
+    #[test]
+    #[available_gas(l2_gas: 495362490)] // ceil(1.05 × 471773800 measured)
+    fn test_board_centred_6() {
+        centred_rows(0, 0, 0, 5);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 499482054)] // ceil(1.05 × 475697194 measured)
+    fn test_board_centred_7() {
+        centred_rows(0, 0, 5, 10);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 502233417)] // ceil(1.05 × 478317540 measured)
+    fn test_board_centred_8() {
+        centred_rows(0, 0, 10, 15);
+    }
+
+    // Chunk 224, (210..225, 210..225): the last chunk of a 15 × 15-chunk location.
+    #[test]
+    #[available_gas(l2_gas: 577380647)] // ceil(1.05 × 549886330 measured)
+    fn test_board_centred_9() {
+        centred_rows(210, 210, 0, 5);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 552464550)] // ceil(1.05 × 526156714 measured)
+    fn test_board_centred_10() {
+        centred_rows(210, 210, 5, 10);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 535855488)] // ceil(1.05 × 510338560 measured)
+    fn test_board_centred_11() {
+        centred_rows(210, 210, 10, 15);
+    }
+
+    /// RV-02 (D-255): through `SegmentTrait::run`, after every Move that does not end the segment
+    /// the segment's board holds the adventurer on its centre: walks of 1 to 6 Moves from `(x, y)`
+    /// in each direction, inside its chunk, none ending the segment.
+    fn walks(x: u8, y: u8) {
+        let area = open_area();
+        let content = Fixture::content();
+        let mut d: u8 = 0;
+        while d < 6 {
+            let mut actions: Array<Action> = array![];
+            let mut k: u8 = 1;
+            while k <= 6 {
+                actions.append(Action::Move(d));
+                let mut member = Fixture::member(Fixture::spec());
+                member.words.state += x.into() * two(32) + y.into() * two(40);
+                let mut world = Fixture::world(40, array![member], array![]);
+                let (sheets, index) = content.index();
+                let mut rules = Delegate {
+                    board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+                    cache: Default::default(),
+                    executor: Zero::zero(),
+                    content,
+                    index,
+                    placed: array![],
+                    ground: array![],
+                    ai: Zero::zero(),
+                    trap: Zero::zero(),
+                    level: 1,
+                    frozen: 0,
+                    listed: 0,
+                    memo: None,
+                };
+                let classes = Classes {
+                    executor: Zero::zero(),
+                    ai: Zero::zero(),
+                    trap: Zero::zero(),
+                    action: Zero::zero(),
+                    tick: Zero::zero(),
+                };
+                let done = SegmentTrait::run(
+                    ref world, @sheets, ref rules, @area, @classes, actions.span(), 0, 20,
+                );
+                assert(!done.reveal && done.played == k, 'every Move ran');
+                let (x, y, _) = world.member(0).place();
+                assert(centred(rules.board.position(x, y)), 'the board followed');
+                k += 1;
+            }
+            d += 1;
+        }
+    }
+
+    // From (22, 22), chunk 16.
+    #[test]
+    #[available_gas(l2_gas: 457436610)] // ceil(1.05 × 435653914 measured)
+    fn test_move_keeps_board_centred_0() {
+        walks(22, 22);
+    }
+
+    // From (22, 37), chunk 31, the other row parity.
+    #[test]
+    #[available_gas(l2_gas: 481251744)] // ceil(1.05 × 458334994 measured)
+    fn test_move_keeps_board_centred_1() {
+        walks(22, 37);
+    }
+
+    // From (7, 7), chunk 0, the origin negative.
+    #[test]
+    #[available_gas(l2_gas: 439526680)] // ceil(1.05 × 418596838 measured)
+    fn test_move_keeps_board_centred_2() {
+        walks(7, 7);
+    }
+
+    // From (217, 217), chunk 224, the location's last.
+    #[test]
+    #[available_gas(l2_gas: 525057664)] // ceil(1.05 × 500054918 measured)
+    fn test_move_keeps_board_centred_3() {
+        walks(217, 217);
     }
 
     /// ENG-07b, reading 8 (t-0115, minor 1): a Move of 2 ticks (Crippled) against the weight
@@ -1225,7 +1426,8 @@ mod tests {
     // goblin (the ticks of the fast path; the goblin records of a fight are `TickLibrary`'s, held
     // by the ephemeral tests). One family a branch of `run`, listed in `vectors/README.md`.
     #[test]
-    #[available_gas(l2_gas: 1026515158)] // ceil(1.05 × 977633484 measured)
+    // gas: raised, RV-02: by 1, to ceil(1.05 × measured) (#420's review; it was rounded down)
+    #[available_gas(l2_gas: 1026515159)] // ceil(1.05 × 977633484 measured)
     fn test_segment_vectors() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
@@ -1624,6 +1826,666 @@ mod tests {
         println!("digest {}", digest);
         assert(digest == SEGMENT_DIGEST, 'vectors moved: regenerate');
     }
+
+    /// The classes of a `segment2` table: the real ones, and the recorders standing in for
+    /// `TickLibrary`, `ActionLibrary` and `TrapLibrary` (`recorder`).
+    #[derive(Copy, Drop)]
+    struct Declared {
+        executor: ClassHash,
+        ai: ClassHash,
+        tick: ClassHash,
+        action: ClassHash,
+        trap: ClassHash,
+        tick_recorder: ClassHash,
+        action_recorder: ClassHash,
+        trap_recorder: ClassHash,
+    }
+
+    fn class(name: ByteArray) -> ClassHash {
+        *declare(name).unwrap().contract_class().class_hash
+    }
+
+    fn declared() -> Declared {
+        Declared {
+            executor: class("ExecutorLibrary"),
+            ai: class("AiLibrary"),
+            tick: class("TickLibrary"),
+            action: class("ActionLibrary"),
+            trap: class("TrapLibrary"),
+            tick_recorder: class("TickRecorder"),
+            action_recorder: class("ActionRecorder"),
+            trap_recorder: class("TrapRecorder"),
+        }
+    }
+
+    /// One `segment2` row: `SegmentTrait::run` as `SegmentLibrary::segment` runs it (the words
+    /// loaded through the table's content), the real executor and AI, the recorders for the
+    /// classes the segment calls. The case: the words, `Area`, the level, the ground, `owed`,
+    /// `weight`, the actions, then the calls the segment made (`recorder::Call`, in order), all as
+    /// Cairo `Serde`; the outcome: the words, the ground and `Done`.
+    fn segment2_row(
+        ref digest: Array<felt252>,
+        ref id: u32,
+        name: ByteArray,
+        classes: @Declared,
+        content: @Content,
+        words: Words,
+        area: Area,
+        ground: Array<(u8, Features)>,
+        owed: u8,
+        weight: u8,
+        actions: Array<Action>,
+    ) {
+        recorder::reset(*classes.tick, *classes.action, *classes.trap);
+        let level: u8 = 1;
+        let mut case: Array<felt252> = array![];
+        Serde::serialize(@words, ref case);
+        Serde::serialize(@area, ref case);
+        case.append(level.into());
+        Serde::serialize(@ground, ref case);
+        case.append(owed.into());
+        case.append(weight.into());
+        Serde::serialize(@actions.span(), ref case);
+        let (mut world, sheets, index) = words.indexed(content);
+        let mut rules = Delegate {
+            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+            cache: Default::default(),
+            executor: *classes.executor,
+            content: *content,
+            index,
+            placed: array![],
+            ground,
+            ai: *classes.ai,
+            trap: *classes.trap_recorder,
+            level,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        let segment = Classes {
+            executor: *classes.executor,
+            ai: *classes.ai,
+            trap: *classes.trap_recorder,
+            action: *classes.action_recorder,
+            tick: *classes.tick_recorder,
+        };
+        let done = SegmentTrait::run(
+            ref world, @sheets, ref rules, @area, @segment, actions.span(), owed, weight,
+        );
+        case.append_span(recorder::calls().span());
+        let mut ok: Array<felt252> = array![];
+        Serde::serialize(@world.store(), ref ok);
+        Serde::serialize(@rules.ground, ref ok);
+        Serde::serialize(@done, ref ok);
+        emit(ref digest, ref id, name, case.span(), ok.span());
+    }
+
+    /// The words of the adventurer of `spec` on `(x, y)` facing `facing`, Crippled until
+    /// `crippled` (0: none), two potions 101 in belt slot 1.
+    fn adventurer(spec: MemberSpec, x: u8, y: u8, facing: u8, crippled: u32) -> MemberWords {
+        let mut member = Fixture::member(spec);
+        member.words.state += x.into() * two(32) + y.into() * two(40) + facing.into() * two(48);
+        if crippled != 0 {
+            member.set_crippled(crippled);
+        }
+        member.set_belt_count(1, 2);
+        member.words
+    }
+
+    /// The fixture's adventurer on `(x, y)`.
+    fn standing(x: u8, y: u8) -> MemberWords {
+        adventurer(Fixture::spec(), x, y, 0, 0)
+    }
+
+    /// The words of a goblin of `caste` (the fixture's: Engaged, awake, health 100) on `(x, y)`,
+    /// in AI state `state`.
+    fn goblin(entity: u16, caste: u16, x: u8, y: u8, state: u8) -> GoblinWords {
+        let mut words = Fixture::goblin(entity, caste).store();
+        let engaged: felt252 = ai::ENGAGED.into();
+        words.state += x.into() + y.into() * two(8) + (state.into() - engaged) * two(24);
+        words.awake = state != ai::ASLEEP && state != ai::WATCH && state < ai::DEAD;
+        words
+    }
+
+    fn words(clock: u32, members: Array<MemberWords>, goblins: Array<GoblinWords>) -> Words {
+        Words { clock, members, goblins, killed: array![], defeated: false }
+    }
+
+    /// The table's content: the fixture's, skill 8 instant (0 ticks), and skill 9, an enchantment
+    /// holding `MOVEMENT` (FX-18).
+    fn segment2_content() -> Content {
+        let base = Fixture::content();
+        let mut skills: Array<SkillSheet> = array![];
+        for sheet in base.skills {
+            let mut sheet = *sheet;
+            if sheet.id == 8 {
+                sheet.activation = 0;
+            }
+            skills.append(sheet);
+        }
+        let mut haste = Fixture::skill(9, skill_kind::ENCHANTMENT, 1, 10);
+        haste
+            .entry1 =
+                Entry {
+                    kind: kind::MOVEMENT,
+                    target: target::SELF,
+                    shape: shape::SINGLE,
+                    d0: 5,
+                    d12: 5,
+                    ..Default::default(),
+                }
+            .pack();
+        skills.append(haste);
+        Content { skills: skills.span(), ..base }
+    }
+
+    /// The ground of chunk `chunk`: no pack, `objects`, the goblins of `touched` with a record.
+    fn ground(chunk: u8, objects: [Object; 3], touched: u16) -> Array<(u8, Features)> {
+        array![(chunk, Features { objects, touched, ..FeaturesTrait::empty() })]
+    }
+
+    /// An object of `kind` on the chunk's tile `(lx, ly)`.
+    fn trap_on(lx: u8, ly: u8, kind: u8, state: u8, param: u16) -> Object {
+        Object { tile: 15 * ly + lx, kind, state, param }
+    }
+
+    /// The location's tile `(x, y)` walled in chunk 16 (`region`'s walls).
+    fn walled(x: u8, y: u8) -> (u8, felt252) {
+        (16, two(225) - 1 - two(15 * (y.into() - 15) + (x.into() - 15)))
+    }
+
+    // `vectors/segment2.jsonl` (RV-02, D-254): `SegmentTrait::run` where it calls a class, or meets
+    // a goblin, a trap, a companion, a regeneration or a `MOVEMENT` effect, for the client's
+    // mirror; each class's result is in the row (`recorder`), so the mirror replays `run` around
+    // it. Row 0 is the table's content; then one family a branch, listed in `vectors/README.md`.
+    // The adventurer is the fixture's member on (22, 22) of chunk 16 of `region`, every chunk
+    // revealed, at clock 40, unless a row says otherwise; goblin 264 is chunk 16's first.
+    #[test]
+    #[available_gas(l2_gas: 763239800)] // ceil(1.05 × 726895047 measured)
+    fn test_segment2_vectors_0() {
+        let classes = declared();
+        let content = segment2_content();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = 0;
+        let open = region(everything(), array![], array![], false);
+        let wait = Action::Wait;
+        let none: Array<(u8, Features)> = array![];
+        let east = goblin(264, HOB, 23, 22, ai::ENGAGED);
+        let mut ok: Array<felt252> = array![];
+        Serde::serialize(@content, ref ok);
+        emit(ref digest, ref id, "content", array![].span(), ok.span());
+        // `combat`: the `_` arm, through `ActionLibrary`: an Attack, Skills, an Item, an illegal
+        // target (the words kept), its `Heavy` (ticks past the weight, or 0 ticks with none
+        // left), and an action with no goblin near (its ticks on the fast path)
+        let combats: Array<(Action, u8)> = array![
+            (Action::Attack(264), 10), (Action::Skill((2, Target::Entity(264))), 10),
+            (Action::Skill((1, Target::Entity(0))), 10), (Action::Item((1, 0)), 10),
+            (Action::Attack(999), 10), (Action::Skill((7, Target::Entity(264))), 10),
+            (Action::Skill((7, Target::Entity(264))), 0),
+            (Action::Skill((1, Target::Entity(0))), 1), (Action::Item((1, 0)), 0),
+        ];
+        for (action, weight) in combats {
+            segment2_row(
+                ref digest,
+                ref id,
+                "combat",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22)], array![east]),
+                open,
+                none.clone(),
+                0,
+                weight,
+                array![action, wait],
+            );
+        }
+        for action in array![Action::Skill((2, Target::Entity(0))), Action::Item((1, 0))] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "combat",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22)], array![]),
+                open,
+                none.clone(),
+                0,
+                10,
+                array![wait, action, wait],
+            );
+        }
+        finish(digest, SEGMENT2_DIGEST_0);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 709107244)] // ceil(1.05 × 675340232 measured)
+    fn test_segment2_vectors_1() {
+        let classes = declared();
+        let content = segment2_content();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = SEGMENT2_PART_1;
+        let open = region(everything(), array![], array![], false);
+        let wait = Action::Wait;
+        let none: Array<(u8, Features)> = array![];
+        let east = goblin(264, HOB, 23, 22, ai::ENGAGED);
+        // `ticks`: `Self::ticks` through `TickLibrary`: a goblin in the window; the owed ticks
+        // with one; a world not calm (a goblin awake outside the window); one asleep outside it
+        // (calm: the fast path, no call)
+        segment2_row(
+            ref digest,
+            ref id,
+            "ticks",
+            @classes,
+            @content,
+            words(40, array![standing(22, 22)], array![east]),
+            open,
+            none.clone(),
+            0,
+            10,
+            array![wait, wait],
+        );
+        segment2_row(
+            ref digest,
+            ref id,
+            "ticks",
+            @classes,
+            @content,
+            words(40, array![standing(22, 22)], array![east]),
+            open,
+            none.clone(),
+            2,
+            10,
+            array![],
+        );
+        for state in array![ai::ENGAGED, ai::ASLEEP] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "ticks",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22)], array![goblin(520, HOB, 40, 40, state)]),
+                open,
+                none.clone(),
+                0,
+                10,
+                array![wait, wait],
+            );
+        }
+        // `fits`: the goblin records through `TickLibrary`. Goblin 264 without a record (chunk
+        // 16's `touched` bit 0 clear) weighs 1 more (E-1): refused when the weight left is short
+        // and an action ran (`undo`), taken when it fits, unbound on the invocation's first
+        // action; with a record, it weighs nothing more
+        for (touched, ran, weight) in array![
+            (0_u16, true, 1_u8), (0, true, 2), (0, false, 1), (1, true, 1),
+        ] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "fits",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22)], array![east]),
+                region(everything(), array![], array![], ran),
+                ground(16, [Default::default(); 3], touched),
+                0,
+                weight,
+                array![wait],
+            );
+        }
+        // one an earlier segment of the invocation changed: already held, it adds nothing
+        segment2_row(
+            ref digest,
+            ref id,
+            "fits",
+            @classes,
+            @content,
+            words(40, array![standing(22, 22)], array![east]),
+            region(everything(), array![], array![264], true),
+            ground(16, [Default::default(); 3], 0),
+            0,
+            1,
+            array![wait],
+        );
+        // E-16's cap: 16 records already, the goblin's would be the 17th
+        segment2_row(
+            ref digest,
+            ref id,
+            "fits",
+            @classes,
+            @content,
+            words(40, array![standing(22, 22)], array![east]),
+            region(everything(), array![], records(16), true),
+            ground(16, [Default::default(); 3], 1),
+            0,
+            10,
+            array![wait],
+        );
+        // the untouched one engaged: goblin 248 (chunk 15's first, asleep beside the adventurer)
+        // notices it and engages its pack; 249, of the same pack, outside the window and not
+        // awake, changes only its AI state to Engaged: no record (its pack's `alert` holds it)
+        segment2_row(
+            ref digest,
+            ref id,
+            "fits",
+            @classes,
+            @content,
+            words(
+                40,
+                array![standing(22, 22)],
+                array![goblin(248, HOB, 21, 22, ai::ASLEEP), goblin(249, HOB, 2, 22, ai::WATCH)],
+            ),
+            region(everything(), array![], array![], true),
+            ground(15, [Default::default(); 3], 0),
+            0,
+            10,
+            array![wait],
+        );
+        finish(digest, SEGMENT2_DIGEST_1);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 132104920)] // ceil(1.05 × 125814209 measured)
+    fn test_segment2_vectors_2() {
+        let classes = declared();
+        let content = segment2_content();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = SEGMENT2_PART_2;
+        let open = region(everything(), array![], array![], false);
+        let wait = Action::Wait;
+        let none: Array<(u8, Features)> = array![];
+        let east = goblin(264, HOB, 23, 22, ai::ENGAGED);
+        // `defeated`: `world.defeated` breaks the loop before the next action. The adventurer at
+        // 0 health is defeated by the owed tick (step 5), before the first action; at 1 health,
+        // Bleeding, Poison and Burning take it on an action's tick, on the fast path, and through
+        // `TickLibrary` (goblin 264 beside it)
+        let mut down = Fixture::spec();
+        down.health = 0;
+        segment2_row(
+            ref digest,
+            ref id,
+            "defeated",
+            @classes,
+            @content,
+            words(40, array![adventurer(down, 22, 22, 0, 0)], array![]),
+            open,
+            none.clone(),
+            1,
+            10,
+            array![wait],
+        );
+        let mut weak = Fixture::spec();
+        weak.health = 1;
+        weak.conditions = [100, 100, 100, 0];
+        for goblins in array![array![], array![east]] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "defeated",
+                @classes,
+                @content,
+                words(40, array![adventurer(weak, 22, 22, 0, 0)], goblins),
+                open,
+                none.clone(),
+                0,
+                10,
+                array![wait, wait, wait, wait],
+            );
+        }
+        finish(digest, SEGMENT2_DIGEST_2);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 271171845)] // ceil(1.05 × 258258900 measured)
+    fn test_segment2_vectors_3() {
+        let classes = declared();
+        let content = segment2_content();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = SEGMENT2_PART_3;
+        let open = region(everything(), array![], array![], false);
+        let wait = Action::Wait;
+        let none: Array<(u8, Features)> = array![];
+        // `trap`: `Self::trap` in `step`, a trap on the tile entered (21, 22), local (6, 7) of
+        // chunk 16: a terrain trap (its `param` a skill); one used (no call); a goblin's placed
+        // trap (its placer's words go with the call)
+        let placer = PlacerTrait::param(@Placer::Goblin((264, 0)));
+        for trap in array![
+            trap_on(6, 7, object::TRAP, 0, 2), trap_on(6, 7, object::TRAP, 1, 2),
+            trap_on(6, 7, object::PLACED_TRAP, 0, placer),
+        ] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "trap",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22)], array![goblin(264, HOB, 40, 40, ai::ASLEEP)]),
+                open,
+                ground(16, [trap, Default::default(), Default::default()], 0),
+                0,
+                10,
+                array![Action::Move(0), wait],
+            );
+        }
+        // `occupied`: `Blocked` from `TrapTrait::occupied`, a living goblin on the tile (after a
+        // Wait that ran); a dead one does not block
+        for state in array![ai::ENGAGED, ai::DEAD] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "occupied",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22)], array![goblin(264, HOB, 21, 22, state)]),
+                open,
+                none.clone(),
+                0,
+                10,
+                array![wait, Action::Move(0), wait],
+            );
+        }
+        finish(digest, SEGMENT2_DIGEST_3);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 546403311)] // ceil(1.05 × 520384105 measured)
+    fn test_segment2_vectors_4() {
+        let classes = declared();
+        let content = segment2_content();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = SEGMENT2_PART_4;
+        let open = region(everything(), array![], array![], false);
+        let wait = Action::Wait;
+        let none: Array<(u8, Features)> = array![];
+        // `companions`: a second member on (23, 22) blocks a Move East; down, it does not; it
+        // regenerates with the adventurer on the fast path
+        let mut hurt = Fixture::spec();
+        hurt.health = 300;
+        hurt.health_regen = 2;
+        let mut fallen = Fixture::spec();
+        fallen.health = 0;
+        fallen.status = status::DOWN;
+        for companion in array![standing(23, 22), adventurer(fallen, 23, 22, 0, 0)] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "companions",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22), companion], array![]),
+                open,
+                none.clone(),
+                0,
+                10,
+                array![Action::Move(3), wait],
+            );
+        }
+        segment2_row(
+            ref digest,
+            ref id,
+            "companions",
+            @classes,
+            @content,
+            words(40, array![standing(22, 22), adventurer(hurt, 25, 22, 0, 0)], array![]),
+            open,
+            none.clone(),
+            1,
+            10,
+            array![wait, wait],
+        );
+        // `regeneration`: the fast path's ticks regenerate: health under its max, at it, a
+        // condition held (Bleeding to 42)
+        let mut regen = Fixture::spec();
+        regen.health_regen = 3;
+        let mut full = regen;
+        full.health = 480;
+        let mut bleeding = Fixture::spec();
+        bleeding.conditions = [42, 0, 0, 0];
+        for spec in array![regen, full, bleeding] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "regeneration",
+                @classes,
+                @content,
+                words(40, array![adventurer(spec, 22, 22, 0, 0)], array![]),
+                open,
+                none.clone(),
+                1,
+                10,
+                array![wait, Action::Move(0), wait],
+            );
+        }
+        // `movement`: Crippled to 100, a `MOVEMENT` effect (skill 9) held to 100: a Move takes 1
+        // tick, not 2; the effect ended (its deadline 40, the clock 40) does not count
+        for deadline in array![100_u32, 40] {
+            let mut hasted = Fixture::spec();
+            hasted
+                .effects =
+                    [(9, false, deadline, 1), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
+            segment2_row(
+                ref digest,
+                ref id,
+                "movement",
+                @classes,
+                @content,
+                words(40, array![adventurer(hasted, 22, 22, 0, 100)], array![]),
+                open,
+                none.clone(),
+                0,
+                10,
+                array![Action::Move(0), Action::Move(0)],
+            );
+        }
+        // `turn` (CV): Turn, Wait, Turn: the tick between clears the turned flag, the second
+        // Turn is legal and the flags are 1 after it; a third Turn after it is not
+        for actions in array![
+            array![Action::Turn(1), wait, Action::Turn(2)],
+            array![Action::Turn(1), wait, Action::Turn(2), Action::Turn(3)],
+        ] {
+            segment2_row(
+                ref digest,
+                ref id,
+                "turn",
+                @classes,
+                @content,
+                words(40, array![standing(22, 22)], array![]),
+                open,
+                none.clone(),
+                0,
+                10,
+                actions,
+            );
+        }
+        // `follow` (CV): the window follows each Move that reveals nothing. Seven Moves West
+        // from (22, 22): the seventh enters (15, 22), the first window's ring (never open);
+        // from (29, 22), the eighth Move West is refused by the wall on (21, 22), outside the
+        // first window
+        let mut west: Array<Action> = array![];
+        for _ in 0..7_u8 {
+            west.append(Action::Move(0));
+        }
+        let mut further = west.clone();
+        further.append(Action::Move(0));
+        further.append(wait);
+        west.append(wait);
+        segment2_row(
+            ref digest,
+            ref id,
+            "follow",
+            @classes,
+            @content,
+            words(40, array![standing(22, 22)], array![]),
+            open,
+            none.clone(),
+            0,
+            20,
+            west,
+        );
+        segment2_row(
+            ref digest,
+            ref id,
+            "follow",
+            @classes,
+            @content,
+            words(40, array![standing(29, 22)], array![]),
+            region(everything(), array![walled(21, 22)], array![], false),
+            none.clone(),
+            0,
+            20,
+            further,
+        );
+        // `trap`, appended (id 43): the call sends `killed` empty and `defeated` false whatever the
+        // world holds. Goblin 265 was killed earlier in the invocation (dead, in `killed`); the
+        // Move West enters the terrain trap of (21, 22): the call's digest is over `killed` empty
+        let dead = goblin(265, HOB, 40, 41, ai::DEAD);
+        segment2_row(
+            ref digest,
+            ref id,
+            "trap",
+            @classes,
+            @content,
+            Words {
+                clock: 40,
+                members: array![standing(22, 22)],
+                goblins: array![goblin(264, HOB, 40, 40, ai::ASLEEP), dead],
+                killed: array![265],
+                defeated: false,
+            },
+            open,
+            ground(
+                16, [trap_on(6, 7, object::TRAP, 0, 2), Default::default(), Default::default()], 0,
+            ),
+            0,
+            10,
+            array![Action::Move(0), wait],
+        );
+        finish(digest, SEGMENT2_DIGEST_4);
+    }
+
+    /// A `segment2` part's digest, against the one its constant holds.
+    fn finish(digest: Array<felt252>, expected: felt252) {
+        let digest = core::poseidon::poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
+        assert(digest == expected, 'vectors moved: regenerate');
+    }
+
+    /// The first id of each `segment2` part (a table too long for snforge's step limit is printed
+    /// in parts, `check.py`).
+    const SEGMENT2_PART_1: u32 = 12;
+    const SEGMENT2_PART_2: u32 = 23;
+    const SEGMENT2_PART_3: u32 = 26;
+    const SEGMENT2_PART_4: u32 = 31;
+    const SEGMENT2_DIGEST_0: felt252 =
+        3479814075578699059359382331441625144490388763310038192844783950654332315345;
+    const SEGMENT2_DIGEST_1: felt252 =
+        154546367570478968348918423565440791434883414546497143718351671423613017282;
+    const SEGMENT2_DIGEST_2: felt252 =
+        2437058418207945555930773129558968286714795539987964171608652368981672637918;
+    const SEGMENT2_DIGEST_3: felt252 =
+        831158116844835342533304973083382111519011951117211419705514572410899617998;
+    const SEGMENT2_DIGEST_4: felt252 =
+        1681155497502350912411802618499527019840495848545915870103445535116834279411;
 
     const DIGEST: felt252 =
         927113589772750725131747890767271916714351212897433227864916371620935306790;
