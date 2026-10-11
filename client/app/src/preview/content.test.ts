@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import type { Features } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import {
   CASTE,
@@ -10,6 +11,7 @@ import {
   readCasteSheet,
   readPotionSheet,
   readSkillSheet,
+  trapSkills,
 } from "./content";
 import { recordedBefore, recordedRecords } from "./recorded-goblins";
 import { type GoblinView, type InstanceView, type MemberView, decodeInstanceView } from "./view";
@@ -231,5 +233,98 @@ describe("the content assembled as PlayLibrary assembles it", () => {
       [SKILL, 1],
     ]);
     expect(calls).toBe(2);
+  });
+});
+
+/** The ground of a round: one chunk's three objects, each `[kind, state, param]`. */
+function ground(...chunks: [number, number, number][][]): Features[] {
+  const none = { tile: 0, kind: 0, state: 0, param: 0 };
+  const pack = { tile: 0, template: 0, level: 0, count: 0, offsets: 0, alert: 0 };
+  return chunks.map((objects) => ({
+    packs: [pack, pack],
+    objects: [0, 1, 2].map((i) => {
+      const o = objects[i];
+      return o === undefined ? none : { tile: i, kind: o[0], state: o[1], param: o[2] };
+    }),
+    touched: 0,
+  }));
+}
+const TRAP = 4;
+/** A registry that holds every skill (a header of profession 1), recording what it is asked. */
+function holding(count: { calls: [number, number][] }): RecordRead {
+  return (kind, id) => {
+    count.calls.push([kind, id]);
+    return Promise.resolve([LIVE + 1n, LIVE]);
+  };
+}
+const bare = (): InstanceView => ({ ...view(), members: [member([], [], [])], goblins: [] });
+
+describe("the terrain traps' skills (FIX-02b, GoblinsLibrary)", () => {
+  it("reads each unused trap's skill once, in the chunks' order, and puts it in the content", async () => {
+    const count = { calls: [] as [number, number][] };
+    const traps = ground(
+      [
+        [TRAP, 0, 2],
+        [TRAP, 0, 1],
+      ],
+      [[TRAP, 0, 2]],
+    );
+    expect(trapSkills(traps)).toEqual([2, 1]);
+    const { content, calls } = await assembleContent(bare(), holding(count), traps);
+    expect(count.calls).toEqual([
+      [SKILL, 2],
+      [SKILL, 1],
+    ]);
+    expect(calls).toBe(2);
+    expect(content.skills.map((s) => s.id)).toEqual([2, 1]);
+  });
+
+  it("does not read a skill the members' content holds again", async () => {
+    const count = { calls: [] as [number, number][] };
+    const base = { ...bare(), members: [member([1], [], [])] };
+    const { content } = await assembleContent(base, registry(count), ground([[TRAP, 0, 1]]));
+    expect(count.calls).toEqual([[SKILL, 1]]);
+    expect(content.skills.map((s) => s.id)).toEqual([1]);
+  });
+
+  it("reads nothing for a trap of param 0, a used one, or another kind of object", async () => {
+    const count = { calls: [] as [number, number][] };
+    const none = ground([
+      [TRAP, 0, 0],
+      [TRAP, 1, 1],
+      [9, 0, 1],
+    ]);
+    expect(trapSkills(none)).toEqual([]);
+    const { content, calls } = await assembleContent(bare(), registry(count), none);
+    expect(count.calls).toEqual([]);
+    expect(calls).toBe(0);
+    expect(content.skills).toEqual([]);
+  });
+
+  it("reads 35 skills one record each (calls counts records, not MAX_READ bundles)", async () => {
+    const count = { calls: [] as [number, number][] };
+    const ids = Array.from({ length: 35 }, (_, k) => 100 + k);
+    const chunks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((k) =>
+      ids.slice(3 * k, 3 * k + 3).map((id): [number, number, number] => [TRAP, 0, id]),
+    );
+    const traps = ground(...chunks);
+    expect(trapSkills(traps)).toEqual(ids);
+    const { content, calls } = await assembleContent(bare(), holding(count), traps);
+    expect(count.calls).toEqual(ids.map((id) => [SKILL, id]));
+    expect(calls).toBe(35);
+    expect(content.skills.map((s) => s.id)).toEqual(ids);
+  });
+
+  it("raises NotMirrored naming a trap skill the registry lacks", async () => {
+    await expect(
+      assembleContent(
+        bare(),
+        registry(),
+        ground([
+          [TRAP, 0, 1],
+          [TRAP, 0, 77],
+        ]),
+      ),
+    ).rejects.toThrow(/terrain trap skill 77 not in the registry/);
   });
 });

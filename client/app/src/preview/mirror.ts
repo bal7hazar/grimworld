@@ -127,6 +127,35 @@ function around(x: number, y: number): number[] {
   return out;
 }
 
+/**
+ * The revealed chunks of the 3 × 3 around the controlled member, in the area's order
+ * (`PlayTrait::around`), as the region gives them; `NotMirrored` where one is missing.
+ */
+function revealedAround({
+  view,
+  region,
+  member,
+}: Pick<MirrorState, "view" | "member" | "region">): RegionChunk[] {
+  const first = view.members[member];
+  if (first === undefined) throw new NotMirrored(`the view holds no member ${member}`);
+  // `PlayTrait::place`: x at bits 32–39, y at 40–47
+  const [x, y] = [bitsOf(first.state, 32, 8), bitsOf(first.state, 40, 8)];
+  const revealed = unlive(view.revealed);
+  const out: RegionChunk[] = [];
+  for (const chunk of around(x, y)) {
+    if (!has(revealed, chunk)) continue;
+    const read = region.find((c) => c.chunk === chunk && c.kind === ChunkKind.Revealed);
+    if (read === undefined) throw new NotMirrored(`revealed chunk ${chunk} not in the region`);
+    out.push(read);
+  }
+  return out;
+}
+
+/** The features of the chunks `revealedAround` gives: the ground of the batch's first content round. */
+export function featuresAround(state: Pick<MirrorState, "view" | "member" | "region">): Features[] {
+  return revealedAround(state).map((read) => unpackFeatures(read.features));
+}
+
 /** The segment's inputs but its actions; throws `NotMirrored` where the state lacks one. */
 export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
   const { view, region } = state;
@@ -143,21 +172,14 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
     bar,
     kit,
   }));
-  const first = view.members[state.member];
-  if (first === undefined) throw new NotMirrored(`the view holds no member ${state.member}`);
-  // `PlayTrait::place`: x at bits 32–39, y at 40–47
-  const [x, y] = [bitsOf(first.state, 32, 8), bitsOf(first.state, 40, 8)];
   const revealed = unlive(view.revealed);
   let known = 0n;
   for (const chunk of region) if (chunk.kind !== ChunkKind.Void) known |= 1n << BigInt(chunk.chunk);
   const ground: Ground = [];
   const chunks: [number, bigint][] = [];
-  for (const chunk of around(x, y)) {
-    if (!has(revealed, chunk)) continue;
-    const read = region.find((c) => c.chunk === chunk && c.kind === ChunkKind.Revealed);
-    if (read === undefined) throw new NotMirrored(`revealed chunk ${chunk} not in the region`);
-    ground.push([chunk, unpackFeatures(read.features)]);
-    chunks.push([chunk, TILES - unpackWalls(read.terrain)]);
+  for (const read of revealedAround(state)) {
+    ground.push([read.chunk, unpackFeatures(read.features)]);
+    chunks.push([read.chunk, TILES - unpackWalls(read.terrain)]);
   }
   const listed = new Set(view.goblins.map((g) => g.entity));
   for (const [chunk, features] of ground) {

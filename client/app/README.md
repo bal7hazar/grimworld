@@ -43,10 +43,13 @@ sent batch equals its preview.
   mirrored. Given content that lacks a
   sheet the segment reads is a `grimworld.mirror-failure`, not a silent `NotMirrored`. The
   reconciliation compares the goblin sets both ways.
-- `assembleContent(view, record)` (`content.ts`, CLI-10d) assembles that content as `PlayLibrary`
-  does (`play`'s first `bundle` and `goblins`, play.cairo): the members' bar skills, belt items and
+- `assembleContent(view, record, ground?)` (`content.ts`, CLI-10d, CLI-10f) assembles that content as `PlayLibrary`
+  does (`play`'s first `bundle` and `GoblinsTrait::goblins`, goblins.cairo): the members' bar skills, belt items and
   held effects' skills, the castes of the view's goblins (the derived ones first) and the skills
-  of those castes and of the stored goblins' effects it does not hold yet, each read by one
+  of those castes and of the stored goblins' effects it does not hold yet, then the skills of the
+  unused terrain traps (`object::TRAP`, `param` ≠ 0) of `ground`, the features of the area's chunks
+  (`featuresAround`), as `GoblinsLibrary` reads them (FIX-02b); a trap skill the registry lacks
+  stops the real batch `Invalid`, and the mirror raises `NotMirrored`. Each read by one
   `Registry.record(kind, id)` and decoded as the Cairo `SkillSheet`, `PotionSheet` and
   `CasteSheet` `read` do. A record the registry lacks is skipped, as `exists` skips it. It needs no
   pack template: the view's goblins carry their caste. Two rounds of reads, each at once.

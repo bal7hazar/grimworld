@@ -82,7 +82,7 @@ describe("parity with the Cairo code", () => {
       ticks: 4,
       fits: 7,
       defeated: 3,
-      trap: 4,
+      trap: 5,
       occupied: 2,
       companions: 3,
       regeneration: 3,
@@ -150,7 +150,7 @@ describe("parity with the Cairo code", () => {
       read.end();
       return calls.filter((call) => call.kind === "trigger").map(() => vector.id);
     });
-    expect(recorded).toEqual([26, 28, 43]);
+    expect(recorded).toEqual([26, 28, 43, 45]);
     const before = native.triggers;
     replay(table("segment2.jsonl"), vectors);
     expect(native.triggers - before).toBe(recorded.length);
