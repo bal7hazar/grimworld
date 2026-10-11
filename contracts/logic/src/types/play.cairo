@@ -965,76 +965,76 @@ mod tests {
 
     // Chunk 16, (15..30, 15..30): every residue of `x` and `y` modulo 15.
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 505928178)] // ceil(1.05 × 481836360 measured)
     fn test_board_centred_0() {
         centred_rows(15, 15, 0, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 508898471)] // ceil(1.05 × 484665210 measured)
     fn test_board_centred_1() {
         centred_rows(15, 15, 5, 10);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 513346428)] // ceil(1.05 × 488901360 measured)
     fn test_board_centred_2() {
         centred_rows(15, 15, 10, 15);
     }
 
     // Chunk 31, (15..30, 30..45): each residue of `y` on the other row parity (15 is odd).
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 513349421)] // ceil(1.05 × 488904210 measured)
     fn test_board_centred_3() {
         centred_rows(15, 30, 0, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 517797378)] // ceil(1.05 × 493140360 measured)
     fn test_board_centred_4() {
         centred_rows(15, 30, 5, 10);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 520767671)] // ceil(1.05 × 495969210 measured)
     fn test_board_centred_5() {
         centred_rows(15, 30, 10, 15);
     }
 
     // Chunk 0, (0..15, 0..15): `x` or `y` below 7, the origin negative (D-134).
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 495362490)] // ceil(1.05 × 471773800 measured)
     fn test_board_centred_6() {
         centred_rows(0, 0, 0, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 499482054)] // ceil(1.05 × 475697194 measured)
     fn test_board_centred_7() {
         centred_rows(0, 0, 5, 10);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 502233417)] // ceil(1.05 × 478317540 measured)
     fn test_board_centred_8() {
         centred_rows(0, 0, 10, 15);
     }
 
     // Chunk 224, (210..225, 210..225): the last chunk of a 15 × 15-chunk location.
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 577380647)] // ceil(1.05 × 549886330 measured)
     fn test_board_centred_9() {
         centred_rows(210, 210, 0, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 552464550)] // ceil(1.05 × 526156714 measured)
     fn test_board_centred_10() {
         centred_rows(210, 210, 5, 10);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 535855488)] // ceil(1.05 × 510338560 measured)
     fn test_board_centred_11() {
         centred_rows(210, 210, 10, 15);
     }
@@ -1091,28 +1091,28 @@ mod tests {
 
     // From (22, 22), chunk 16.
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 457436610)] // ceil(1.05 × 435653914 measured)
     fn test_move_keeps_board_centred_0() {
         walks(22, 22);
     }
 
     // From (22, 37), chunk 31, the other row parity.
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 481251744)] // ceil(1.05 × 458334994 measured)
     fn test_move_keeps_board_centred_1() {
         walks(22, 37);
     }
 
     // From (7, 7), chunk 0, the origin negative.
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 439526680)] // ceil(1.05 × 418596838 measured)
     fn test_move_keeps_board_centred_2() {
         walks(7, 7);
     }
 
     // From (217, 217), chunk 224, the location's last.
     #[test]
-    #[available_gas(l2_gas: 20000000000)]
+    #[available_gas(l2_gas: 525057664)] // ceil(1.05 × 500054918 measured)
     fn test_move_keeps_board_centred_3() {
         walks(217, 217);
     }
@@ -2288,7 +2288,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 473725953)] // ceil(1.05 × 451167574 measured)
+    #[available_gas(l2_gas: 546403311)] // ceil(1.05 × 520384105 measured)
     fn test_segment2_vectors_4() {
         let classes = declared();
         let content = segment2_content();
