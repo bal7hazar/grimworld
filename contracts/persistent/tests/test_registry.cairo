@@ -209,8 +209,8 @@ fn test_set_record_composite_needs_parent() {
 // `QUOTAS` is keyed by its location's id (D-145): one record per location, refused while that
 // location does not exist; `last_id` stays 0.
 #[test]
-// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 7371021)] // ceil(1.05 × 7020020 measured)
+// gas: raised, BND-01: the quotas written with the zone checks set
+#[available_gas(l2_gas: 12801294)] // ceil(1.05 × 12191708 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy_checked();
