@@ -1,21 +1,27 @@
 // How strong are the vectors? Each mutant is the mirror with one mistake a hand-written mirror
-// typically makes (SPK-4's `mutants.ts`), applied as a one-line text replacement to a copy of
-// `src/`; the copy replays every table and must diverge on at least one case, by its result or by
-// throwing where Cairo returned. A mutant the vectors do not kill is a hole in the vectors: it is
-// reported to track game, never closed by editing a table here: it is listed with `survives`
-// (what the tables lack), and this test then requires it to survive, so that the day the game's
-// cases kill it the mark must go. A mutant that drops a refusal (`refusal`, CLI-02g-B1) is another
-// kind: no row of any table records a panic of `GoblinTrait::load` or of `assert_awake`, so the
-// tables cannot kill it, and this test requires that they do not; the unit tests' cases
-// (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must. A mutant of the seam of the
-// classes (`seam`, CLI-02g-C) is the same: no row records an Illegal refusal whose call changed the
-// ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
+// typically makes (SPK-4's `mutants.ts`), applied as a one-line text replacement to the mirror
+// (FND-MUT: in a worker thread, from memory, `parity/mutate.ts`); the mutant replays every table
+// and must diverge on at least one case, by its result or by throwing where Cairo returned. A throw
+// that is a crash (a TypeError, a ReferenceError) kills only with a `crash` mark saying why it is
+// the mutant's own divergence, not a broken mutant. A mutant no input tells from the mirror is
+// marked `equivalent`: nothing may kill it, and it is no hole. A mutant the vectors do not kill is
+// a hole in the vectors: it is reported to track game, never closed by editing a table here: it is
+// listed with `survives` (what the tables lack), and this test then requires it to survive, so that
+// the day the game's cases kill it the mark must go. A mutant that drops a refusal (`refusal`,
+// CLI-02g-B1) is another kind: no row of any table records a panic of `GoblinTrait::load` or of
+// `assert_awake`, so the tables cannot kill it, and this test requires that they do not; the unit
+// tests' cases (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must. A mutant of the
+// seam of the classes (`seam`, CLI-02g-C) is the same: no row records an Illegal refusal whose call
+// changed the ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
 // `segment/unported.test.ts` runs) must kill it. So is a mutant of the trap class (`trap`,
 // CLI-02g-D) that reads another goblin's caste than the placer's: the table's goblins share one
 // caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it.
 
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { availableParallelism } from "node:os";
+import { Worker } from "node:worker_threads";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Job, Kill, Verdict } from "./mutate";
 
 type Mutant = {
   name: string;
@@ -29,6 +35,16 @@ type Mutant = {
   seam?: true;
   /** A case of the trap class no row records: the tables must not kill it, `parity/trapcases.ts` must. */
   trap?: true;
+  /**
+   * Why its kill is a crash (a TypeError, a ReferenceError, a SyntaxError) and still the mutant's own
+   * divergence: a crash of a mutant without it fails, as a broken copy, not a kill.
+   */
+  crash?: string;
+  /**
+   * Why no input tells it from the mirror: neither the tables nor any unit tests' cases may kill
+   * it; not a hole of the tables, never reported to track game.
+   */
+  equivalent?: string;
 };
 
 const MUTANTS: readonly Mutant[] = [
@@ -777,6 +793,7 @@ const MUTANTS: readonly Mutant[] = [
     file: "exp2.ts",
     from: "const clamped = Math.min(Math.max(x, EXP2_LOW), EXP2_HIGH);",
     to: "const clamped = x;",
+    crash: "an exponent outside the table reads past it: a TypeError where Cairo clamps",
   },
   {
     name: "E-16's cap of 17 records",
@@ -1177,6 +1194,7 @@ const MUTANTS: readonly Mutant[] = [
     file: "segment/words.ts",
     from: "  if (at === undefined) panic(errors.NO_CASTE);\n",
     to: "",
+    crash: "the missing caste is read all the same: a TypeError where Cairo refuses",
     refusal: true,
   },
   {
@@ -1992,6 +2010,24 @@ const MUTANTS: readonly Mutant[] = [
     survives:
       "chunk row 16 is chunk 240 and up, which no row's ground holds: row 48 with chunk 240 holding a trap on its tile",
   },
+  // `locate`'s guard of a tile before the location's first, which Cairo has too, before its
+  // `x - ORIGIN` would underflow. West: not killed by any row (RV-03a2). South: equivalent
+  {
+    name: "a tile West of the location is in it (locate)",
+    file: "trap.ts",
+    from: "if (x < ORIGIN || y < ORIGIN) return undefined;",
+    to: "if (y < ORIGIN) return undefined;",
+    survives:
+      "no row's board reaches West of `ORIGIN`: with x < ORIGIN and y ≥ ORIGIN + 15, TS finds a real tile of chunk 15·cy − 1 where Cairo returns none: a trigger row with such a board, its ground holding a trap on that tile",
+  },
+  {
+    name: "a tile South of the location is in it (locate)",
+    file: "trap.ts",
+    from: "if (x < ORIGIN || y < ORIGIN) return undefined;",
+    to: "if (x < ORIGIN) return undefined;",
+    equivalent:
+      "with y < ORIGIN and x ≥ ORIGIN, the chunk is 15·cy + cx ≤ −1, which no ground holds: both callers (`trigger`, `armed`) find nothing, as for none",
+  },
   {
     name: "the chunk's tile transposed (locate)",
     file: "trap.ts",
@@ -2113,6 +2149,7 @@ const MUTANTS: readonly Mutant[] = [
     file: "trap.ts",
     from: "if (i >= world.members.length) return undefined;",
     to: "if (i > world.members.length) return undefined;",
+    crash: "the member past the count is read all the same: a TypeError where Cairo finds none",
   },
   {
     name: "an empty bar slot is a payload (by_member)",
@@ -2145,6 +2182,7 @@ const MUTANTS: readonly Mutant[] = [
     from: `  if (i === undefined) return undefined;
   const goblin`,
     to: "  const goblin",
+    crash: "the goblin not carried is read all the same: a TypeError where Cairo finds none",
   },
   {
     name: "the kit of another goblin's caste, not the placer's (by_goblin)",
@@ -2405,113 +2443,81 @@ const MUTANTS: readonly Mutant[] = [
 ];
 
 const SRC = new URL("../", import.meta.url);
-const COPIES = new URL("../.mutants/", SRC);
-// The copies sit beside `src/`, not in it; `.mutants` is filtered all the same, so that copies left
-// by a killed run could never be copied again if they ever moved under `src/`.
-const SOURCES = readdirSync(SRC, { recursive: true }).filter(
-  (path) => path.endsWith(".ts") && !path.endsWith(".test.ts") && !path.startsWith(".mutants"),
-);
 
-type Parity = {
-  replay: typeof import("./replay").replay;
-  readTable: typeof import("./table").readTable;
-  TABLES: typeof import("./tables").TABLES;
-  refusals: typeof import("./refusals");
-  seam: typeof import("./seam");
-  trapcases: typeof import("./trapcases");
-};
+/** At most this many mutants run at once, each worker its own thread (`parity/mutate.ts`). */
+const WORKERS = Math.max(1, Math.min(4, availableParallelism() - 1));
+/** A worker runs this many mutants, then exits: its memory grows with each, and is freed then. */
+const PER_WORKER = 24;
+/** A batch takes a few seconds; one not answered in this time is stopped and fails (a hang). */
+const DEADLINE = 60_000;
 
-/** A copy of `src/` with the mutant's one replacement, in `.mutants/<index>/`. */
-async function copy(mutant: Mutant, index: number): Promise<Parity> {
-  const text = readFileSync(new URL(mutant.file, SRC), "utf8");
-  expect(text.split(mutant.from).length - 1, `"${mutant.from}" once in ${mutant.file}`).toBe(1);
-  const root = new URL(`${index}/`, COPIES);
-  for (const path of SOURCES) {
-    const target = new URL(path, root);
-    mkdirSync(new URL(".", target), { recursive: true });
-    const source =
-      path === mutant.file
-        ? text.replace(mutant.from, mutant.to)
-        : readFileSync(new URL(path, SRC), "utf8");
-    writeFileSync(target, source);
-  }
-  const load = (name: string) => import(/* @vite-ignore */ new URL(`parity/${name}.ts`, root).href);
-  const [replay, table, tables, refusals, seam, trapcases] = await Promise.all([
-    load("replay"),
-    load("table"),
-    load("tables"),
-    load("refusals"),
-    load("seam"),
-    load("trapcases"),
-  ]);
-  return {
-    replay: replay.replay,
-    readTable: table.readTable,
-    TABLES: tables.TABLES,
-    refusals,
-    seam,
-    trapcases,
+const NONE = { tables: null, unit: null } as const;
+
+/** Runs every job on a bounded pool of workers; the verdict of each, by its index. */
+function pool(jobs: readonly Job[]): Map<number, Promise<Verdict>> {
+  const settle = new Map<number, (verdict: Verdict) => void>();
+  const verdicts = new Map(
+    jobs.map((job) => [job.index, new Promise<Verdict>((done) => settle.set(job.index, done))]),
+  );
+  const queue = [...jobs];
+  const start = () => {
+    const batch = queue.splice(0, PER_WORKER);
+    if (batch.length === 0) return;
+    const worker = new Worker(new URL("./mutate.ts", import.meta.url));
+    const waiting = new Set(batch.map((job) => job.index));
+    let ended = false;
+    // A worker that dies, exits or overruns its deadline leaves jobs unanswered: each is answered
+    // as not loaded, a failure; then the worker is stopped and the next batch starts
+    const end = (why: string) => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timer);
+      for (const index of waiting) settle.get(index)!({ index, ...NONE, load: why });
+      waiting.clear();
+      void worker.terminate().then(start);
+    };
+    const timer = setTimeout(() => end(`no answer within ${DEADLINE / 1000} s`), DEADLINE);
+    worker.on("error", (error) => end(String(error)));
+    worker.on("exit", (code) => end(`the worker exited (code ${code}) before answering`));
+    worker.on("message", (verdict: Verdict) => {
+      settle.get(verdict.index)!(verdict);
+      waiting.delete(verdict.index);
+      if (waiting.size === 0) end("");
+    });
+    for (const job of batch) worker.postMessage(job);
   };
+  for (let i = 0; i < WORKERS; i++) start();
+  return verdicts;
 }
 
-/** The first divergence the vectors find, or `undefined` when the mutant survives. */
-function killer(parity: Parity): string | undefined {
-  for (const entry of parity.TABLES) {
-    try {
-      parity.replay(entry, parity.readTable(entry.file));
-    } catch (error) {
-      return (error as Error).message.split(": case")[0]!.split(": threw")[0];
-    }
-  }
-  return undefined;
-}
-
-/** The first refusal of `parity/refusals.ts` the copy no longer makes, or `undefined`. */
-function refusalKiller(parity: Parity): string | undefined {
-  for (const refusal of parity.refusals.REFUSALS) {
-    try {
-      parity.refusals.refused(refusal);
-    } catch (error) {
-      return `refusals: ${(error as Error).message}`;
-    }
-  }
-  return undefined;
-}
-
-/** The first case of `parity/seam.ts` the copy no longer holds, or `undefined`. */
-function seamKiller(parity: Parity): string | undefined {
-  for (const check of parity.seam.CHECKS) {
-    try {
-      parity.seam.holds(check);
-    } catch {
-      return `seam: ${check.name}`;
-    }
-  }
-  return undefined;
-}
-
-/** The first case of `parity/trapcases.ts` the copy no longer holds, or `undefined`. */
-function trapKiller(parity: Parity): string | undefined {
-  for (const check of parity.trapcases.CHECKS) {
-    try {
-      parity.trapcases.holds(check);
-    } catch {
-      return `trap: ${check.name}`;
-    }
-  }
-  return undefined;
-}
+const text = (kill: Kill | null): string | undefined =>
+  kill === null ? undefined : kill.crash ? `${kill.by} (**crash**)` : kill.by;
 
 describe("the mutation check", () => {
   const results: string[] = [];
+  let verdicts: Map<number, Promise<Verdict>>;
 
-  // A run that was interrupted or killed leaves its copies behind: start from none.
   beforeAll(() => {
-    rmSync(COPIES, { recursive: true, force: true });
+    verdicts = pool(
+      MUTANTS.map((mutant, index) => ({
+        index,
+        file: mutant.file,
+        from: mutant.from,
+        to: mutant.to,
+        kind: mutant.trap
+          ? "trap"
+          : mutant.seam
+            ? "seam"
+            : mutant.refusal
+              ? "refusal"
+              : mutant.equivalent !== undefined
+                ? "equivalent"
+                : undefined,
+      })),
+    );
   });
 
   afterAll(() => {
-    rmSync(COPIES, { recursive: true, force: true });
     console.log(["| # | Mutant | Killed by |", "|---|---|---|", ...results].join("\n"));
   });
 
@@ -2520,34 +2526,66 @@ describe("the mutation check", () => {
   });
 
   it("kills at least 12 of them", () => {
-    expect(MUTANTS.filter((mutant) => mutant.survives === undefined).length).toBeGreaterThanOrEqual(
-      12,
+    const killed = MUTANTS.filter(
+      (mutant) => mutant.survives === undefined && mutant.equivalent === undefined,
     );
+    expect(killed.length).toBeGreaterThanOrEqual(12);
   });
 
   MUTANTS.forEach((mutant, index) => {
     const known = mutant.survives;
-    it(`${known === undefined ? "kills" : "a known survivor"}: ${mutant.name}`, async () => {
-      const parity = await copy(mutant, index);
-      if (mutant.refusal || mutant.seam || mutant.trap) {
-        const found = mutant.trap
-          ? trapKiller(parity)
-          : mutant.seam
-            ? seamKiller(parity)
-            : refusalKiller(parity);
+    const title =
+      mutant.equivalent !== undefined
+        ? "an equivalent"
+        : known === undefined
+          ? "kills"
+          : "a known survivor";
+    it(`${title}: ${mutant.name}`, async () => {
+      const source = readFileSync(new URL(mutant.file, SRC), "utf8");
+      expect(source.split(mutant.from).length - 1, `"${mutant.from}" once in ${mutant.file}`).toBe(
+        1,
+      );
+      const verdict = await verdicts.get(index)!;
+      expect(verdict.load, `${mutant.name}: the mutant does not load`).toBeUndefined();
+      const unit = mutant.refusal || mutant.seam || mutant.trap;
+      const kill = unit ? verdict.unit : verdict.tables;
+      if (kill?.crash) {
+        expect(
+          mutant.crash,
+          `${mutant.name} crashed (${kill.by}): a broken copy, or mark its \`crash\``,
+        ).toBeDefined();
+      } else {
+        expect(
+          mutant.crash,
+          `${mutant.name} no longer crashes: remove its \`crash\``,
+        ).toBeUndefined();
+      }
+      if (unit) {
+        const found = text(verdict.unit);
         results.push(`| ${index + 1} | ${mutant.name} | ${found ?? "**survives**"} |`);
-        expect(killer(parity), `${mutant.name}: the tables record no such case`).toBeUndefined();
+        expect(
+          text(verdict.tables),
+          `${mutant.name}: the tables record no such case`,
+        ).toBeUndefined();
         expect(found, `${mutant.name} survived the unit tests' cases`).toBeDefined();
         return;
       }
-      const found = killer(parity);
+      if (mutant.equivalent !== undefined) {
+        const found = text(verdict.tables) ?? text(verdict.unit);
+        results.push(
+          `| ${index + 1} | ${mutant.name} | ${found ?? `**equivalent**: ${mutant.equivalent}`} |`,
+        );
+        expect(found, `${mutant.name} is killed: it is not equivalent`).toBeUndefined();
+        return;
+      }
+      const found = text(verdict.tables);
       results.push(`| ${index + 1} | ${mutant.name} | ${found ?? `**survives**: ${known}`} |`);
       if (known === undefined) {
         expect(found, `${mutant.name} survived the vectors`).toBeDefined();
       } else {
         expect(found, `${mutant.name} is now killed: remove its \`survives\``).toBeUndefined();
       }
-      // A survivor replays every table, which may take longer than vitest's default 5 s
-    }, 30_000);
+      // The pool runs ahead of the tests; a test waits for its mutant at most this long
+    }, 120_000);
   });
 });
