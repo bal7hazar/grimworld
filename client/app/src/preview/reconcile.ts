@@ -6,7 +6,7 @@ import { type ChainOutcome, Stop } from "./trace";
  * field both produce that differs is a parity bug, logged.
  *
  * The prediction is client/sim's `runSegment` on the same state, passed in as `Predict`: its `Ran`
- * fits `Prediction` as it is, and `mirror.ts` builds the segment (`mirrorOf`). A segment that reaches a class the
+ * fits `Prediction` as it is, and `mirror.ts` builds the segment (`mirroredBy`). A segment that reaches a class the
  * mirror does not port throws `NotMirrored`: that is no prediction, never a mismatch. So are the
  * parts of a batch beyond one segment: a reveal (the chain reveals, then runs the next segment) and
  * a batch refused at admission (sequence, closed, version: nothing ran, the client's state is old).
@@ -20,7 +20,7 @@ import { type ChainOutcome, Stop } from "./trace";
  *
  * Compared: the actions played, the stop, the clock (the header's), the defeat, the goblins killed,
  * whether a chunk was revealed; and, while the instance stays open, each member's seven words and
- * the state and timers of each goblin both sides list. Deliberately not compared:
+ * the goblin sets and their words (below). Deliberately not compared:
  * - `header.sequence`: the chain's admission sets it; the mirror never holds one.
  * - `header.status`: written by the closing, which is not mirrored (and the words are skipped then).
  * - `header.revealedCount`, `revealed`: the reveal is not mirrored; the batch only checks that
@@ -29,9 +29,17 @@ import { type ChainOutcome, Stop } from "./trace";
  *   after the segment; the mirror's world has no roster.
  * - `quotas`, `tasks`: written by no segment (entry and results).
  * - `controller`: no segment writes it.
- * - A mirror goblin the view does not list: the view lists the members' windows' goblins (and on
- *   main returns none, instances.cairo :586), the batch's world the area's chunks, so the sets
- *   differ by design; such a goblin is not a parity bug.
+ *
+ * The goblins are compared as sets, both ways, entity by entity, state and timers (VIEW-01, D-263).
+ * The chain's side is the view after the batch: `instance_state`'s goblins, the roster's and those
+ * of the revealed chunks of the 3 × 3 around each member's tile (instances.cairo :136-146, by
+ * `PlayLibrary.goblins`, play's own code, play.cairo :338-349), derived ones included. The
+ * mirror's is the world its segment ran on: the same window, taken before the batch. A goblin
+ * listed on one side only is a mismatch, except when the controlled member ended in another window
+ * (`Prediction.moved`): the view after lists the window it ended in, the mirror's world is the one
+ * it started in, so only the goblins on both sides are compared. Not compared either: the view's
+ * `derived` flag (a derived goblin is stored once a segment touches it), and a view that is the
+ * `UNLOADABLE` marker (`unloadable`: no list to compare).
  */
 
 /** client/sim's `MemberWords`, as `Words` holds them (stored layout). */
@@ -64,13 +72,18 @@ export type MirrorDone = {
 };
 
 /** client/sim's `Ran`, the fields read. */
-export type Prediction = { words: MirrorWords; done: MirrorDone };
+export type Prediction = {
+  words: MirrorWords;
+  done: MirrorDone;
+  /** The controlled member ended in another 3 × 3 window of chunks than it started in. */
+  moved?: boolean;
+};
 
 /** The mirror run on the batch's state with these actions; may throw `NotMirrored`. */
 export type Predict = (actions: readonly PlayAction[]) => Prediction;
 
 export type MirrorResult =
-  | { kind: "predicted"; played: number; stop: Stop; words: MirrorWords }
+  | { kind: "predicted"; played: number; stop: Stop; words: MirrorWords; moved: boolean }
   | { kind: "not-mirrored"; reason: string };
 
 export type Mismatch = { field: string; chain: unknown; mirror: unknown };
@@ -102,12 +115,15 @@ const notMirrored = (reason: string): MirrorResult => ({ kind: "not-mirrored", r
 function predict(actions: readonly PlayAction[], run: Predict, log: ParityLog): MirrorResult {
   let first: Prediction;
   let words: MirrorWords;
+  let moved: boolean;
   try {
     first = run(actions);
     if (first.done.reveal) {
       return notMirrored("a Move revealed a chunk: the reveal and what follows are not mirrored");
     }
-    words = first.done.undo ? run(actions.slice(0, first.done.played)).words : first.words;
+    const kept = first.done.undo ? run(actions.slice(0, first.done.played)) : first;
+    words = kept.words;
+    moved = kept.moved ?? false;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (!(error instanceof Error && error.name === "NotMirrored")) {
@@ -124,7 +140,42 @@ function predict(actions: readonly PlayAction[], run: Predict, log: ParityLog): 
         : words.defeated
           ? Stop.Defeated
           : Stop.None;
-  return { kind: "predicted", played: done.played, stop, words };
+  return { kind: "predicted", played: done.played, stop, words, moved };
+}
+
+/**
+ * The goblin sets, both ways (the module's comment): the chain's view listing, the mirror's world.
+ * `moved` relaxes the sets to the goblins both list.
+ */
+export function compareGoblins(
+  onChain: readonly { entity: number; state: bigint; timers: bigint }[],
+  mirrored: readonly { entity: number; state: bigint; timers: bigint }[],
+  moved: boolean,
+  mismatches: Mismatch[],
+): void {
+  const chainOf = new Map(onChain.map((g) => [g.entity, g]));
+  const mirroredBy = new Map(mirrored.map((g) => [g.entity, g]));
+  const entities = [...new Set([...chainOf.keys(), ...mirroredBy.keys()])].sort((a, b) => a - b);
+  for (const entity of entities) {
+    const c = chainOf.get(entity);
+    const m = mirroredBy.get(entity);
+    if (c === undefined || m === undefined) {
+      if (!moved) {
+        mismatches.push({
+          field: `goblins[${entity}]`,
+          chain: c === undefined ? "not listed" : "listed",
+          mirror: m === undefined ? "not listed" : "listed",
+        });
+      }
+      continue;
+    }
+    if (c.state !== m.state) {
+      mismatches.push({ field: `goblins[${entity}].state`, chain: c.state, mirror: m.state });
+    }
+    if (c.timers !== m.timers) {
+      mismatches.push({ field: `goblins[${entity}].timers`, chain: c.timers, mirror: m.timers });
+    }
+  }
 }
 
 /** Compares the chain's outcome with the mirror's on the fields the module's comment lists. */
@@ -176,12 +227,8 @@ export function reconcile(
       }
       for (const key of MEMBER_KEYS) check(`members[${i}].${key}`, onChain[key], member[key]);
     });
-    for (const goblin of words.goblins) {
-      // Not listed by the view: not compared (the module's comment)
-      const onChain = chain.view.goblins.find((g) => g.entity === goblin.entity);
-      if (onChain === undefined) continue;
-      check(`goblins[${goblin.entity}].state`, onChain.state, goblin.state);
-      check(`goblins[${goblin.entity}].timers`, onChain.timers, goblin.timers);
+    if (!chain.view.unloadable) {
+      compareGoblins(chain.view.goblins, words.goblins, mirror.moved, mismatches);
     }
   }
   if (mismatches.length > 0) log({ kind: "grimworld.parity", actions, mismatches });

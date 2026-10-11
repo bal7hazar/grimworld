@@ -29,11 +29,14 @@ sent batch equals its preview.
   `reconcile.ts`.
 - `predict` is client/sim's `runSegment` on the same state: `mirrorOf(state)` (`mirror.ts`) builds
   the segment as `PlayLibrary` does before its first `SegmentLibrary` call, from the view
-  (`instance_state`), the region's chunks (`instance_region`: the view's own `chunks` are empty on
-  main), the location's record and the content. It gives no prediction where the view lacks the
-  goblins of the area's packs (the view lists none on main), and on any call to `TickLibrary`,
-  `ActionLibrary` or `TrapLibrary`, which client/sim does not port yet: it predicts the fast path
-  (no goblin in the window, no combat, no trap).
+  (`instance_state`: the words, the goblins a batch loads first, derived ones included, and the
+  location's `width`, `height` and `level_min`, VIEW-01 / D-263), the region's chunks
+  (`instance_region`), the controlled member (`placement`) and the content. It gives no prediction
+  for the view's `UNLOADABLE` marker (a goblin cannot load: the chain refuses the batch), for an
+  empty goblin list where the roster or a pack of the area holds some (no `PlayLibrary` set), for
+  several members while goblins are listed, and on any call to `TickLibrary`, `ActionLibrary` or
+  `TrapLibrary`, which client/sim does not port yet: it predicts the fast path (no goblin in the
+  window, no combat, no trap). The reconciliation compares the goblin sets both ways.
 - `createReader({ nodeUrl })` (`read.ts`) reads those views over `starknet_call`.
 - The default bounds (every price 0, an L2 gas amount) are accepted by starknet-devnet 0.10.0, and so
   are bounds all 0: under `SKIP_FEE_CHARGE` it does not bound the execution by them.
@@ -58,4 +61,7 @@ It previews a Wait with the mirror, sends the same two calls, and checks that th
 outcome and the state after equal the preview. It also checks a revert (`not controller`), an
 admission refusal, the bounds and the account's two calls, and it times 10 simulations of a few
 batches. `PREVIEW_RECORD=<file>` rewrites `recorded.ts`. The world is drawn from the deployment's
-entropy, so it differs from run to run. CI runs it as the `client-node` job.
+entropy, so it differs from run to run: the run prints one line saying whether the mirror predicted
+(`mirror: predicted ...` or `mirror: not mirrored: <reason> ...`), and the assertions that depend
+on the world (a Wait plays 1 with `Stop.None`, one Move direction is illegal) hold only where the
+world observed allows them. CI runs it as the `client-node` job.
