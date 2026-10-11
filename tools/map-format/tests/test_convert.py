@@ -640,6 +640,33 @@ class Export(unittest.TestCase):
                             buffer.getvalue())
             self.assertFalse(os.path.exists(out))
 
+    def test_location_size(self):
+        """E-51: a manifest location's size is two whole numbers from 1 to 15; anything else is
+        refused before any record is built, used by a gate of the export or not."""
+        for good in ([1, 1], [15, 15], [3, 2]):
+            manifest = copy.deepcopy(MANIFEST)
+            manifest["location_sizes"]["floor_1"] = good
+            self.assertEqual(convert.build_zone(load("zone.json"), manifest)["destinations"],
+                             {3: tuple(good)})
+        bad = ([0, 15], [15, 0], [16, 15], [15, 16], [-1, 3], [3], [3, 2, 1], [], [3.0, 2],
+               [3, 2.5], ["3", 2], [True, 2], [3, False], [None, 2], "15x15", 15, None,
+               {"w": 3, "h": 2}, (3, 2)[0])
+        for entry in bad:
+            for name in ("floor_1", "meadow_edge", "test_town"):
+                with self.subTest(entry=entry, name=name):
+                    manifest = copy.deepcopy(MANIFEST)
+                    manifest["location_sizes"][name] = entry
+                    with self.assertRaises(R.Refused) as caught:
+                        convert.convert(load("zone.json"), manifest)
+                    self.assertEqual(caught.exception.code, "export: location size")
+                    self.assertIn(name, caught.exception.detail)
+        for table in ([[3, 2]], "x", 5, None):
+            manifest = copy.deepcopy(MANIFEST)
+            manifest["location_sizes"] = table
+            with self.assertRaises(R.Refused) as caught:
+                convert.convert(load("zone.json"), manifest)
+            self.assertEqual(caught.exception.code, "export: location size")
+
     def test_every_export_case_tested(self):
         names = {n[len("test_"):] for n in dir(self) if n.startswith("test_")}
         for case in TABLE["export"]:

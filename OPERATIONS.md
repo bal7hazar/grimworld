@@ -292,7 +292,7 @@ verdict, findings table, coverage).
 
 #### Deployment order
 
-`IRegistryAdmin.set_zone_checks` is the first admin call of every deployment, before any record. Registry's cross-record bounds and their storage index count only records written after it, so an earlier record escapes R-41 and R-30's reverse checks (ENG-R1c-1, #422). A contract guard that refuses records while the class is unset is queued (BND-01).
+`IRegistryAdmin.set_zone_checks` is the first admin call of every deployment, before any record. Registry's cross-record bounds and their storage index count only records written after it, so an earlier record escapes R-41 and R-30's reverse checks (ENG-R1c-1, #422). `set_zone_checks` is called right after the Registry is deployed. While it is unset, the Registry refuses GATE, QUOTAS and chunk-set OUTLINE records (id % 256 == 255), as well as the authored kinds (BND-01, #426, merged 59f80ee). A replacement ZoneChecks class must keep the Registry's index storage names and run the same `index`.
 
 ## 8. Phase gates and the definition of done
 

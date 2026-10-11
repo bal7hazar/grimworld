@@ -56,6 +56,26 @@ def assert_id(what, value, bits):
     return value
 
 
+def assert_size(what, size):
+    """A manifest location's `[width, height]` in chunks (`location_sizes`): exactly two whole numbers,
+    each from 1 to 15 (`Location`'s width and height are 4 bits, 1-15 chunks). Anything else would
+    make R-41's rectangle test lie: a float, a string, a boolean or a third value is refused rather
+    than compared."""
+    ok = (isinstance(size, list) and len(size) == 2
+          and all(isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 15 for v in size))
+    if not ok:
+        raise Refused("export: location size", f"{what}: size {size!r} is not [width, height] in 1..15")
+    return tuple(size)
+
+
+def assert_sizes(sizes):
+    """Every entry of the manifest's `location_sizes`, strictly (`assert_size`), whether or not a
+    gate of the export leads there; the table itself is a mapping."""
+    if not isinstance(sizes, dict):
+        raise Refused("export: location size", f"location_sizes {sizes!r} is not a mapping")
+    return {name: assert_size(f"location {name!r}", size) for name, size in sizes.items()}
+
+
 def has(bits, i):
     return (bits >> i) & 1 == 1
 

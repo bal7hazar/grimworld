@@ -6,13 +6,14 @@
 //! `OUTLINE`.
 
 use grimworld_logic::content::{
-    BOOK, CRITERION_REACH_LANDMARK, GATE, LOCATION, OUTLINE, QUOTAS, SET_PIECE,
+    BOOK, CRITERION_REACH_LANDMARK, GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE,
 };
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::gate::GateRecord;
 use grimworld_logic::models::location::LocationRecord;
 use grimworld_logic::models::outline::{Outline, OutlineRecord};
+use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota};
 use grimworld_logic::models::set_piece::{SetPack, SetPiece, SetPieceRecord};
 use grimworld_logic::models::spawn_table::SpawnTable;
@@ -51,9 +52,11 @@ fn registry() -> Registry {
     let (address, _) = class.deploy(@array![ADMIN]).unwrap();
     let admin: ContractAddress = ADMIN.try_into().unwrap();
     start_cheat_caller_address(address, admin);
+    let admin_dispatcher = IRegistryAdminDispatcher { contract_address: address };
+    // BND-01: a `GATE` and a `QUOTAS` are refused until the registry's zone checks are set
+    admin_dispatcher.set_zone_checks(*declare("ZoneChecks").unwrap().contract_class().class_hash);
     Registry {
-        admin: IRegistryAdminDispatcher { contract_address: address },
-        read: IRegistryReadDispatcher { contract_address: address },
+        admin: admin_dispatcher, read: IRegistryReadDispatcher { contract_address: address },
     }
 }
 
@@ -179,6 +182,17 @@ fn test_pair_registry_sample_zone() {
             OUTLINE, 255 + 256, OutlineRecord::pack(@Outline { low: set.low, high: set.high }),
         );
     r.admin.set_record(BOOK, 1, book(7));
+    // The two templates its Hearts name (R-27: a Heart's template exists, BND-01 sets the checks)
+    for id_pack in 0..2_u32 {
+        let template = Pack {
+            castes: [
+                PackCaste { caste: 1, min: 1, max: 2 }, Default::default(), Default::default(),
+                Default::default(), Default::default(),
+            ],
+            level: 0,
+        };
+        r.admin.set_record(PACK, id_pack + 1, PackRecord::pack(@template));
+    }
     r.admin.set_record(QUOTAS, 1, QuotaSetRecord::pack(@z.quotas));
     for entry in z.masks.span() {
         let (chunk, mask) = *entry;

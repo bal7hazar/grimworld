@@ -4,12 +4,23 @@
 // throwing where Cairo returned. A mutant the vectors do not kill is a hole in the vectors: it is
 // reported to track game, never closed by editing a table here: it is listed with `survives`
 // (what the tables lack), and this test then requires it to survive, so that the day the game's
-// cases kill it the mark must go.
+// cases kill it the mark must go. A mutant that drops a refusal (`refusal`, CLI-02g-B1) is another
+// kind: no row of any table records a panic of `GoblinTrait::load` or of `assert_awake`, so the
+// tables cannot kill it, and this test requires that they do not; the unit tests' cases
+// (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must.
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-type Mutant = { name: string; file: string; from: string; to: string; survives?: string };
+type Mutant = {
+  name: string;
+  file: string;
+  from: string;
+  to: string;
+  survives?: string;
+  /** A refusal no row records: the tables must not kill it, `parity/refusals.ts` must. */
+  refusal?: true;
+};
 
 const MUTANTS: readonly Mutant[] = [
   {
@@ -815,34 +826,32 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "the owed ticks of the last Move are not run first",
     file: "segment.ts",
-    from: "  ticks(out, on, owed);\n",
+    from: "  ticks(world, rules, segment.owed);\n",
     to: "",
   },
   {
     name: "a reveal Move's ticks run in this segment",
     file: "segment.ts",
-    from: "    if (!reveal) ticks(out, on, n);",
-    to: "    ticks(out, on, n);",
+    from: "    if (!reveal) ticks(world, rules, n);",
+    to: "    ticks(world, rules, n);",
   },
   {
     name: "the window does not follow a Move that reveals nothing",
     file: "segment.ts",
-    from: "      if (!reveal) on = board(area, out.adventurer.x, out.adventurer.y);\n",
+    from: "        rules.board = board(area, at.x, at.y);\n",
     to: "",
-    survives:
-      "no row needs the followed window: after a Move that reveals nothing, every next Move stays inside the first window on open tiles (a wall or the ring that only the followed window shows, e.g. seven Moves one way, is missing)",
   },
   {
     name: "a Move into another chunk does not end the segment",
     file: "segment.ts",
-    from: "to_reveal(area, out.adventurer) || chunk(out.adventurer) !== start",
-    to: "to_reveal(area, out.adventurer)",
+    from: "reveal = to_reveal(area, world) || chunk(world) !== start;",
+    to: "reveal = to_reveal(area, world);",
   },
   {
     name: "sight onto an unrevealed chunk does not end the segment",
     file: "segment.ts",
-    from: "to_reveal(area, out.adventurer) || chunk(out.adventurer) !== start",
-    to: "chunk(out.adventurer) !== start",
+    from: "reveal = to_reveal(area, world) || chunk(world) !== start;",
+    to: "reveal = chunk(world) !== start;",
   },
   {
     name: "the actions after a reveal Move run",
@@ -895,8 +904,8 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "fits ignores the records of the earlier segments",
     file: "segment.ts",
-    from: "admit(changed.length, 0, 0, cost, ran, done.weight)",
-    to: "admit(0, 0, 0, cost, ran, done.weight)",
+    from: "admit(changed.length, fresh.length, firsts, cost, ran, weight)",
+    to: "admit(0, fresh.length, firsts, cost, ran, weight)",
   },
   {
     name: "fits' refusal does not ask to undo",
@@ -930,65 +939,251 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     name: "an adventurer at 0 health is alive (Absent)",
-    file: "segment.ts",
-    from: "at.status === status.INSIDE && at.health > 0;",
-    to: "at.status === status.INSIDE;",
+    file: "segment/words.ts",
+    from: "member.status === 0 && member.health > 0;",
+    to: "member.status === 0;",
   },
   {
     name: "an adventurer down is alive (Absent)",
-    file: "segment.ts",
-    from: "at.status === status.INSIDE && at.health > 0;",
-    to: "at.health > 0;",
+    file: "segment/words.ts",
+    from: "member.status === 0 && member.health > 0;",
+    to: "member.health > 0;",
   },
   {
     name: "a knocked-down Move is legal (Knocked)",
     file: "segment.ts",
-    from: "  if (!can_act(at, t0)) return { halt: { illegal: Illegal.Knocked } };\n",
+    from: "  if (!can_act(member, t0)) return { halt: { illegal: Illegal.Knocked } };\n",
     to: "",
   },
   {
     name: "a knocked-down Turn is legal (Knocked)",
     file: "segment.ts",
-    from: "  if (!can_act(at, u32add(world.clock, 1))) return { halt: { illegal: Illegal.Knocked } };\n",
+    from: "  if (!can_act(member, u32add(world.clock, 1))) return { halt: { illegal: Illegal.Knocked } };\n",
     to: "",
   },
   {
     name: "a knocked-down Wait is refused (Knocked)",
     file: "segment.ts",
-    from: "  if (!alive(world.adventurer)) return { halt: { illegal: Illegal.Absent } };\n  return { ticks: 1 };",
-    to: "  if (!alive(world.adventurer)) return { halt: { illegal: Illegal.Absent } };\n  if (!can_act(world.adventurer, u32add(world.clock, 1))) return { halt: { illegal: Illegal.Knocked } };\n  return { ticks: 1 };",
+    from: "  if (!is_alive(adventurer(world))) return { halt: { illegal: Illegal.Absent } };\n  return { ticks: 1 };",
+    to: "  if (!is_alive(adventurer(world))) return { halt: { illegal: Illegal.Absent } };\n  if (!can_act(adventurer(world), u32add(world.clock, 1))) return { halt: { illegal: Illegal.Knocked } };\n  return { ticks: 1 };",
   },
   {
     name: "a Move onto a wall is legal (Blocked)",
     file: "segment.ts",
-    from: "  if (shape(on.open, shapes.SINGLE, to) === 0n) return { halt: { illegal: Illegal.Blocked } };\n",
-    to: "",
+    from: "shape(on.open, shapes.SINGLE, to) === 0n || occupied(world, on, to)",
+    to: "occupied(world, on, to)",
   },
   {
     name: "a second Turn between two ticks is legal (Turned)",
     file: "segment.ts",
-    from: "  if ((at.flags & flag.TURNED) !== 0) return { halt: { illegal: Illegal.Turned } };\n",
+    from: "  if ((member.flags & flag.TURNED) !== 0) return { halt: { illegal: Illegal.Turned } };\n",
     to: "",
   },
   {
     name: "a tick does not clear the turned flag",
     file: "segment.ts",
-    from: "    world.adventurer.flags &= KEPT;\n",
+    from: "      for (const member of world.members) member.flags &= KEPT;\n",
     to: "",
-    survives:
-      "no row turns again after a tick (Turn, Wait, Turn: the second Turn legal, flags 1 after it)",
   },
   {
     name: "Interact runs as a Wait (Kind)",
     file: "segment.ts",
     from: "        result = { halt: { illegal: Illegal.Kind } };",
-    to: "        result = wait(out);",
+    to: "        result = wait(world);",
   },
   {
     name: "Illegal's Serde index of Blocked off by one",
-    file: "segment.ts",
+    file: "segment/serde.ts",
     from: "  Blocked: 14,",
     to: "  Blocked: 15,",
+  },
+  {
+    name: "a defeated world runs the next action (defeated)",
+    file: "segment.ts",
+    from: "    if (world.defeated) break;\n",
+    to: "",
+  },
+  {
+    name: "a member down is not defeated (defeated)",
+    file: "segment.ts",
+    from: "  world.defeated = true;\n}",
+    to: "  world.defeated = false;\n}",
+  },
+  {
+    name: "a Move onto a living actor is legal (occupied)",
+    file: "segment.ts",
+    from: "shape(on.open, shapes.SINGLE, to) === 0n || occupied(world, on, to)",
+    to: "shape(on.open, shapes.SINGLE, to) === 0n",
+  },
+  {
+    name: "a dead goblin is alive (occupied, idle)",
+    file: "segment.ts",
+    from: "world.goblins.filter(is_goblin_alive)",
+    to: "world.goblins.filter(() => true)",
+  },
+  {
+    name: "a companion does not block a Move (companions)",
+    file: "segment.ts",
+    from: "    if (is_alive(member) && position(on, x, y) === at) return true;",
+    to: "    if (member === world.members[0] && position(on, x, y) === at) return true;",
+  },
+  {
+    name: "a companion down blocks a Move (companions)",
+    file: "segment.ts",
+    from: "    if (is_alive(member) && position(on, x, y) === at) return true;",
+    to: "    if (position(on, x, y) === at) return true;",
+  },
+  {
+    name: "only the adventurer regenerates on the fast path (companions)",
+    file: "segment.ts",
+    from: "      for (const member of world.members) {\n        if (member.status === status.INSIDE",
+    to: "      for (const member of world.members.slice(0, 1)) {\n        if (member.status === status.INSIDE",
+  },
+  {
+    name: "health regeneration ignored on the fast path (regeneration)",
+    file: "segment/tick.ts",
+    from: "let pips = member.health_regen + degeneration(",
+    to: "let pips = 0 + degeneration(",
+  },
+  {
+    name: "health regenerates past its max (regeneration)",
+    file: "segment/tick.ts",
+    from: "  return Math.min(health + change, max);",
+    to: "  return health + change;",
+  },
+  {
+    name: "Bleeding ends a tick early (regeneration)",
+    file: "segment/tick.ts",
+    from: "  if (t <= bleeding) pips -= 3;",
+    to: "  if (t < bleeding) pips -= 3;",
+  },
+  {
+    name: "energy does not regenerate on the fast path (regeneration)",
+    file: "segment/tick.ts",
+    from: "  member.energy = Math.min(u16add(member.energy, member.energy_regen), member.max_energy);\n",
+    to: "",
+  },
+  {
+    name: "adrenaline does not decay on the fast path (regeneration)",
+    file: "segment/tick.ts",
+    from: "  if (!engaged) member.adrenaline = decay(member.adrenaline);\n",
+    to: "",
+    survives:
+      "no row ticks the fast path with a member's adrenaline above 0 (the fixture's member holds none, and no class call leaves one before a fast-path tick)",
+  },
+  {
+    name: "a held MOVEMENT effect is ignored (movement)",
+    file: "segment.ts",
+    from: "move_ticks(crippled(member), t0, movement(member, rules.sheets, c))",
+    to: "move_ticks(crippled(member), t0, false)",
+  },
+  {
+    name: "a MOVEMENT effect held through its deadline (movement)",
+    file: "segment.ts",
+    from: "c < effect.deadline",
+    to: "c <= effect.deadline",
+  },
+  {
+    name: "the trap of the tile entered is not triggered (trap)",
+    file: "segment.ts",
+    from: "  trap(world, rules, to);\n",
+    to: "",
+  },
+  {
+    name: "a used trap triggers (trap)",
+    file: "segment.ts",
+    from: "object.state === 0 && object.tile === tile",
+    to: "object.tile === tile",
+  },
+  {
+    name: "a placed trap's goblin is not sent with the call (trap)",
+    file: "segment.ts",
+    from: "const goblins = index < 0 ? [] : [storeGoblin(world.goblins[index]!)];",
+    to: "const goblins: never[] = [];",
+  },
+  {
+    name: "a goblin in the window keeps the fast path (ticks)",
+    file: "segment.ts",
+    from: "    return position(on, x, y) >= FAR;",
+    to: "    return true;",
+  },
+  {
+    name: "a goblin awake outside the window keeps the fast path (ticks)",
+    file: "segment.ts",
+    from: "  world.goblins.every((goblin) => !goblin.awake) &&\n",
+    to: "",
+  },
+  {
+    name: "the ticks call is sent 1 tick whatever n (a digest)",
+    file: "segment.ts",
+    from: "    ground: rules.ground,\n    n,\n",
+    to: "    ground: rules.ground,\n    n: 1,\n",
+  },
+  {
+    name: "the act call is sent a Wait (a digest)",
+    file: "segment.ts",
+    from: "    ground: rules.ground,\n    action,\n",
+    to: '    ground: rules.ground,\n    action: { kind: "wait" },\n',
+  },
+  {
+    name: "an action's 0 ticks with no weight left run (combat)",
+    file: "segment.ts",
+    from: " || (out.outcome.ticks === 0 && weight === 0)",
+    to: "",
+  },
+  {
+    name: "a combat action over the weight is kept (combat)",
+    file: "segment.ts",
+    from: "  } else if (out.outcome.ticks > weight ||",
+    to: "  } else if (false ||",
+  },
+  {
+    name: "an untouched goblin engaged and nothing else is counted (fits)",
+    file: "segment.ts",
+    from: "    if (untouched && engaged) return;\n",
+    to: "",
+  },
+  {
+    name: "a first record weighs nothing more (fits)",
+    file: "segment.ts",
+    from: "    if (untouched) firsts = u8add(firsts, 1);\n",
+    to: "",
+  },
+  {
+    name: "fits compares with the goblins before the segment (fits)",
+    file: "segment.ts",
+    from: "    before = fit.after;\n",
+    to: "",
+    survives:
+      "no row changes a goblin twice in a segment that one action left unrecorded (an untouched goblin engaged and nothing else, row 22's 249, which no later action changes): every other goblin changed is in `changed` already",
+  },
+  {
+    name: "a caste missing from the content is not refused (NO_CASTE)",
+    file: "segment/words.ts",
+    from: "  if (at === undefined) panic(errors.NO_CASTE);\n",
+    to: "",
+    refusal: true,
+  },
+  {
+    name: "a caste skill missing from the content is not refused (assert_kit)",
+    file: "segment/goblin.ts",
+    from: "  assert_kit(sheets.kits[caste_at]!);\n",
+    to: "",
+    refusal: true,
+  },
+  {
+    name: "more than 8 awake goblins are not refused (assert_awake)",
+    file: "segment/world.ts",
+    from: "  assert_awake(goblins.flatMap((goblin, at) => (goblin.awake ? [at] : [])));\n",
+    to: "",
+    refusal: true,
+  },
+  {
+    name: "a regeneration above an i8 is not refused (assert_pips)",
+    file: "segment/goblin.ts",
+    from: "  assert_pips(effect_regen);\n",
+    to: "",
+    refusal: true,
   },
 ];
 
@@ -1004,6 +1199,7 @@ type Parity = {
   replay: typeof import("./replay").replay;
   readTable: typeof import("./table").readTable;
   TABLES: typeof import("./tables").TABLES;
+  refusals: typeof import("./refusals");
 };
 
 /** A copy of `src/` with the mutant's one replacement, in `.mutants/<index>/`. */
@@ -1021,12 +1217,13 @@ async function copy(mutant: Mutant, index: number): Promise<Parity> {
     writeFileSync(target, source);
   }
   const load = (name: string) => import(/* @vite-ignore */ new URL(`parity/${name}.ts`, root).href);
-  const [replay, table, tables] = await Promise.all([
+  const [replay, table, tables, refusals] = await Promise.all([
     load("replay"),
     load("table"),
     load("tables"),
+    load("refusals"),
   ]);
-  return { replay: replay.replay, readTable: table.readTable, TABLES: tables.TABLES };
+  return { replay: replay.replay, readTable: table.readTable, TABLES: tables.TABLES, refusals };
 }
 
 /** The first divergence the vectors find, or `undefined` when the mutant survives. */
@@ -1036,6 +1233,18 @@ function killer(parity: Parity): string | undefined {
       parity.replay(entry, parity.readTable(entry.file));
     } catch (error) {
       return (error as Error).message.split(": case")[0]!.split(": threw")[0];
+    }
+  }
+  return undefined;
+}
+
+/** The first refusal of `parity/refusals.ts` the copy no longer makes, or `undefined`. */
+function refusalKiller(parity: Parity): string | undefined {
+  for (const refusal of parity.refusals.REFUSALS) {
+    try {
+      parity.refusals.refused(refusal);
+    } catch (error) {
+      return `refusals: ${(error as Error).message}`;
     }
   }
   return undefined;
@@ -1067,7 +1276,15 @@ describe("the mutation check", () => {
   MUTANTS.forEach((mutant, index) => {
     const known = mutant.survives;
     it(`${known === undefined ? "kills" : "a known survivor"}: ${mutant.name}`, async () => {
-      const found = killer(await copy(mutant, index));
+      const parity = await copy(mutant, index);
+      if (mutant.refusal) {
+        const found = refusalKiller(parity);
+        results.push(`| ${index + 1} | ${mutant.name} | ${found ?? "**survives**"} |`);
+        expect(killer(parity), `${mutant.name}: the tables record no refusal`).toBeUndefined();
+        expect(found, `${mutant.name} survived the refusals`).toBeDefined();
+        return;
+      }
+      const found = killer(parity);
       results.push(`| ${index + 1} | ${mutant.name} | ${found ?? `**survives**: ${known}`} |`);
       if (known === undefined) {
         expect(found, `${mutant.name} survived the vectors`).toBeDefined();

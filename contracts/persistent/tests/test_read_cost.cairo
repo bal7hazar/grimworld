@@ -84,6 +84,8 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
     let (registry, _) = class.deploy(@array![ADMIN]).unwrap();
     start_cheat_caller_address(registry, ADMIN.try_into().unwrap());
     let admin = IRegistryAdminDispatcher { contract_address: registry };
+    // BND-01: a gate is refused until the registry's zone checks are set
+    admin.set_zone_checks(*declare("ZoneChecks").unwrap().contract_class().class_hash);
     for id in 1..9_u32 {
         let record = GateTrait::new(1, 2, 0, 0, 0, id.try_into().unwrap(), kind::HUB, 0, 0);
         admin.set_record(GATE, id, record.pack());
@@ -94,8 +96,8 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 9815684)] // ceil(1.05 × 9348270 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16262816)] // ceil(1.05 × 15488396 measured)
 fn test_read_cost_baseline() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -104,8 +106,8 @@ fn test_read_cost_baseline() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 9966453)] // ceil(1.05 × 9491860 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16413586)] // ceil(1.05 × 15631986 measured)
 fn test_read_cost_one_call_one_read() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -114,8 +116,8 @@ fn test_read_cost_one_call_one_read() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 10043597)] // ceil(1.05 × 9565330 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16490729)] // ceil(1.05 × 15705456 measured)
 fn test_read_cost_bundle_1() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -124,8 +126,8 @@ fn test_read_cost_bundle_1() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 10106618)] // ceil(1.05 × 9625350 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16553750)] // ceil(1.05 × 15765476 measured)
 fn test_read_cost_bundle_2() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -134,8 +136,8 @@ fn test_read_cost_bundle_2() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 10484744)] // ceil(1.05 × 9985470 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16931876)] // ceil(1.05 × 16125596 measured)
 fn test_read_cost_bundle_8() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -144,8 +146,8 @@ fn test_read_cost_bundle_8() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 10172106)] // ceil(1.05 × 9687720 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16619239)] // ceil(1.05 × 15827846 measured)
 fn test_read_cost_two_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -154,8 +156,8 @@ fn test_read_cost_two_calls() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 11176011)] // ceil(1.05 × 10643820 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 17623144)] // ceil(1.05 × 16783946 measured)
 fn test_read_cost_eight_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -164,8 +166,8 @@ fn test_read_cost_eight_calls() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 9862829)] // ceil(1.05 × 9393170 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16309961)] // ceil(1.05 × 15533296 measured)
 fn test_read_cost_local_1() {
     let (probe, _) = setup();
     let gas = get_available_gas();
@@ -174,8 +176,8 @@ fn test_read_cost_local_1() {
 }
 
 #[test]
-// gas: raised, ENG-R1c-1: the setup's 8 GATE writes read the zone checks' class (R-41's index)
-#[available_gas(l2_gas: 10103625)] // ceil(1.05 × 9622500 measured)
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
+#[available_gas(l2_gas: 16550758)] // ceil(1.05 × 15762626 measured)
 fn test_read_cost_local_8() {
     let (probe, _) = setup();
     let gas = get_available_gas();
