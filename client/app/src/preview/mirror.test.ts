@@ -170,11 +170,38 @@ describe("the mirror on the recorded state", () => {
     expect(() => segmentOf({ ...state, view, member: 2 })).toThrow("no member 2");
   });
 
-  it("is no prediction where the content lacks a listed goblin's caste", () => {
-    const state = recordedState();
+  it("is no prediction where no content is given and the segment reads a sheet", () => {
+    const { content: _, ...state } = recordedState();
     const goblin = { entity: 8, derived: true, state: LIVE + 5n, timers: LIVE + 6n };
     const predict = mirrorOf({ ...state, view: { ...state.view, goblins: [goblin] } });
     expect(() => predict([{ kind: "wait" }])).toThrow(NotMirrored);
+    expect(() => predict([{ kind: "wait" }])).toThrow(
+      "not mirrored: no content given, the segment reads a sheet",
+    );
+    const result = reconcile(extractOutcome(recordedPlayed), [{ kind: "wait" }], predict, () => {
+      throw new Error("no parity record expected");
+    });
+    expect(result.mirror).toMatchObject({ kind: "not-mirrored" });
+  });
+
+  it("logs a mirror failure where the given content lacks a sheet (review t-0194 of #439)", () => {
+    const state = recordedState();
+    const goblin = { entity: 8, derived: true, state: LIVE + 5n, timers: LIVE + 6n };
+    const predict = mirrorOf({ ...state, view: { ...state.view, goblins: [goblin] } });
+    expect(() => predict([{ kind: "wait" }])).not.toThrow(NotMirrored);
+    expect(() => predict([{ kind: "wait" }])).toThrow("not in content");
+    const logged: unknown[] = [];
+    const result = reconcile(extractOutcome(recordedPlayed), [{ kind: "wait" }], predict, (r) =>
+      logged.push(r),
+    );
+    expect(result.mirror).toMatchObject({ kind: "not-mirrored" });
+    expect(logged).toEqual([
+      {
+        kind: "grimworld.mirror-failure",
+        actions: [{ kind: "wait" }],
+        error: expect.stringContaining("not in content") as unknown,
+      },
+    ]);
   });
 
   it("answers every class behind the seam with NotMirrored", () => {

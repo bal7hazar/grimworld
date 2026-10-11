@@ -6,6 +6,17 @@ export type { BatchAction, FateAction, PlayAction, Target } from "./actions";
 export { MAX_ACTIONS, encodeAction, encodeBatch, isFate } from "./actions";
 export type { PlayTarget } from "./calls";
 export { executeCalldata, previewCalls, selector } from "./calls";
+export type { Assembled, RecordRead } from "./content";
+export {
+  CASTE,
+  ITEM,
+  SKILL,
+  assembleContent,
+  memberContent,
+  readCasteSheet,
+  readPotionSheet,
+  readSkillSheet,
+} from "./content";
 export type { MirrorState } from "./mirror";
 export { mirrorOf, segmentOf, unpackFeatures, unpackWalls, unportedClasses } from "./mirror";
 export type { Preview, PreviewDeps, PreviewInput, Refused } from "./preview";
