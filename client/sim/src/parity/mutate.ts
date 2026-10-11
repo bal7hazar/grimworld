@@ -24,7 +24,7 @@ export type Job = {
    * The unit tests' cases that must kill it, besides the tables that must not; `equivalent`: every
    * list of cases runs, and none may kill it.
    */
-  kind?: "refusal" | "seam" | "trap" | "equivalent";
+  kind?: "refusal" | "seam" | "trap" | "act" | "equivalent";
 };
 
 /** What killed a mutant: the case, and whether the copy crashed rather than diverged. */
@@ -159,6 +159,7 @@ type Parity = {
   refusals: { REFUSALS: readonly unknown[]; refused: (refusal: unknown) => void };
   seam: { CHECKS: readonly Check[]; holds: (check: Check) => void };
   trapcases: { CHECKS: readonly Check[]; holds: (check: Check) => void };
+  actcases: { CHECKS: readonly Check[]; holds: (check: Check) => void };
 };
 
 async function load(job: Job): Promise<Parity> {
@@ -172,8 +173,8 @@ async function load(job: Job): Promise<Parity> {
     const path = `parity/${name}.ts`;
     return import(new URL(path, SRC).href + (jobs.get(query)!.reloads.has(path) ? query : ""));
   };
-  const [replay, table, tables, refusals, seam, trapcases] = await Promise.all(
-    ["replay", "table", "tables", "refusals", "seam", "trapcases"].map(entry),
+  const [replay, table, tables, refusals, seam, trapcases, actcases] = await Promise.all(
+    ["replay", "table", "tables", "refusals", "seam", "trapcases", "actcases"].map(entry),
   );
   return {
     replay: replay.replay,
@@ -182,6 +183,7 @@ async function load(job: Job): Promise<Parity> {
     refusals,
     seam,
     trapcases,
+    actcases,
   };
 }
 
@@ -209,7 +211,7 @@ function refusalKiller(parity: Parity): Kill | null {
   return null;
 }
 
-/** The first case of a list of checks (`parity/seam.ts`, `parity/trapcases.ts`) the copy no longer
+/** The first case of a list of checks (`parity/seam.ts`, `trapcases.ts`, `actcases.ts`) the copy no longer
  * holds, or `null`: its name, then what failed, as the check reports it. */
 function checkKiller(kind: string, list: Parity["seam"]): Kill | null {
   for (const check of list.CHECKS) {
@@ -234,17 +236,20 @@ async function run(job: Job): Promise<Verdict> {
     return { index: job.index, tables: null, unit: null, load: String(error) };
   }
   const unit =
-    job.kind === "trap"
-      ? checkKiller("trap", parity.trapcases)
-      : job.kind === "seam"
-        ? checkKiller("seam", parity.seam)
-        : job.kind === "refusal"
-          ? refusalKiller(parity)
-          : job.kind === "equivalent"
-            ? (refusalKiller(parity) ??
-              checkKiller("seam", parity.seam) ??
-              checkKiller("trap", parity.trapcases))
-            : null;
+    job.kind === "act"
+      ? checkKiller("act", parity.actcases)
+      : job.kind === "trap"
+        ? checkKiller("trap", parity.trapcases)
+        : job.kind === "seam"
+          ? checkKiller("seam", parity.seam)
+          : job.kind === "refusal"
+            ? refusalKiller(parity)
+            : job.kind === "equivalent"
+              ? (refusalKiller(parity) ??
+                checkKiller("seam", parity.seam) ??
+                checkKiller("trap", parity.trapcases) ??
+                checkKiller("act", parity.actcases))
+              : null;
   return { index: job.index, tables: killer(parity), unit };
 }
 

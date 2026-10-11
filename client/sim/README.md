@@ -65,12 +65,14 @@ takes each recorded trap or action call (its kind, its digest, its place in the 
 port's result, felt for felt, must equal it; the port's is what `run` loads. `ticks` stays
 replayed (lot F).
 
-**Not mirrored**: one branch, which throws `NotMirrored` (`unported`,
-`src/segment/unported.test.ts`):
+**Not mirrored**: two branches, which throw `NotMirrored` (`unported`,
+`src/segment/unported.test.ts`, `src/action.test.ts`):
 
 - `EDGE`: a Move whose neighbour is missing (`LayoutTrait::neighbor` → `None`, the window's edge).
   `run` never reaches it: the adventurer stands at the window's column 7, and every direction has a
   neighbour.
+- `MIXED`: an action's carrier whose entries mix a `TILE` target with an entity one (below, _The
+  action_). No content of the tables holds one.
 
 **A refusal leaves the ground as it was** (D-259, FIX-01): an Attack, a Skill or an Item refused as
 Illegal or Heavy restores the words and the ground; `SegmentTrait::combat` takes `ActionLibrary`'s
@@ -174,8 +176,17 @@ carrier now (`carry`) or an activation started (`A = c + n`), with its tick cost
 
 `carry` is `Delegate`'s: a `TRAP` carrier is placed in the ground (`trap.ts`'s `spot`, `place`,
 `placer`) if its guard holds, before any sub-world; any other runs through `executor.ts`'s
-`execute`, on the whole world. `Delegate`'s sub-world (the goblins the carrier can reach, `wide`,
-`subcontent`) is the call's cost, not its result, and is not ported. `execute` is §5.14: the
+`execute`, on the whole world. That is equal to the sub-world for carriers whose entries share a
+target kind; a mixed-target carrier is not mirrored. `Delegate` picks the sub-world's goblins (the
+addressed one, those within one tile of the source and the address) by the carrier's first entry,
+where `actors` centres each entry's set by its own target: a `TILE` set beside an entity one
+(`FOE`, `ALLY`, an attack's hit), or beside a carrier addressing `SELF`, reads the address as the
+other kind and may reach a goblin the sub-world does not hold (review t-0209). `action.ts`'s
+`mixed` refuses those with `NotMirrored` (`unported.MIXED`); `SELF` with `FOE` or `ALLY`, `FOE`
+with `ALLY`, and `TILE` first with `SELF` later stay mirrored. `src/parity/actcases.ts` holds a
+`TILE`-then-`FOE` and a `FOE`-then-`TILE` carrier (each not mirrored) and a same-kind one (it runs),
+run by `src/action.test.ts` and, against the `act` mutant on the guard, by
+`src/parity/mutants.test.ts`. `execute` is §5.14: the
 carrier's entries (`read`), their guards, each entry's `Op`, the hit modifiers (`modifiers`), the
 target sets (`actors`: every set's shape on its centre, the actors its filter takes, ascending
 position; a carrier of `SINGLE` entries reads its source and the addressed entity alone), the
@@ -193,7 +204,8 @@ a refusal the words and the ground are the case's, felt for felt. `segment2.json
 state and health, `TrapTrait::occupied` and a wide carrier's candidates its AI state alone (rows
 217 to 222 hold goblins dead by one field only).
 
-Of the action's 148 mutants, 129 are killed by the tables. 16 survive, holes of `act.jsonl`
+Of the action's 149 mutants, 129 are killed by the tables and 1 by `actcases.ts` (the guard of a
+mixed-target carrier). 16 survive, holes of `act.jsonl`
 reported to track game: no attack skill on a slot other than 0 with that slot's (or slot 0's)
 weapon-required bit alone; no negative `NEXT_SPELL_COST`; no spell counting for a quick-cast pair
 from a bar slot above 0; no `act` row landing an attack skill with passives or a held

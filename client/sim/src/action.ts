@@ -6,7 +6,8 @@
 //
 // The class runs `act` with `Delegate` rules: a `TRAP` carrier placed in the ground before any
 // sub-world, any other carrier through `ExecutorLibrary`, which the port runs on the whole world
-// (`executor.ts`'s `execute`: the sub-world is the call's cost, not its result). On a refusal the
+// (`executor.ts`'s `execute`). That is equal to the sub-world for carriers whose entries share a
+// target kind; a mixed-target carrier is not mirrored (`mixed`, `NotMirrored`). On a refusal the
 // class returns the words as they came; only a carrier writes the ground, and every refusal comes
 // before its arm's carrier (`types::action::tests::test_no_carry_before_a_refusal`).
 
@@ -22,12 +23,12 @@ import {
   rank,
   target,
 } from "./executor";
-import { kind, line } from "./effect";
+import { is_hit_modifier, kind, line } from "./effect";
 import { P, add, panic, u32 } from "./felt";
 import { position as boardPosition } from "./movement";
 import { field, limbs } from "./packing";
 import * as m from "./body/member";
-import { LAST_TICK } from "./segment";
+import { LAST_TICK, NotMirrored, unported } from "./segment";
 import type { ActCall, Classes } from "./segment/classes";
 import { type Action, type Ground, Illegal, type Outcome, type Target } from "./segment/serde";
 import { can_act, flag, recharge_deadline } from "./segment/tick";
@@ -175,6 +176,38 @@ export function count(
 export type Rules = { board: Board; cache: Cache; ground: Ground };
 
 /**
+ * Whether `Delegate`'s sub-world can differ from the whole world for `carrier`: it picks the goblins
+ * by the carrier's addressing (its first entry's target, an attack's foe) around the address read
+ * as that kind, where `ExecutorTrait::actors` centres each entry's set by the entry's own target.
+ * An entry of the other kind reads the address as a tile where it is an entity id, or the reverse,
+ * and reaches goblins the sub-world does not hold (review t-0209: `[DAMAGE TILE, CONDITION FOE]`
+ * at tile 8 conditions goblin 8 wherever it stands). Mixed: a `TILE` set with an entity one (`FOE`,
+ * `ALLY`, an attack's implicit hit), or with a carrier addressing `SELF` (`aim` gives it the
+ * source's id, which a `TILE` set reads as tile `(id, 0)`). Safe, so wider than "one kind": `SELF`
+ * with `FOE` or `ALLY` in either order (a `SELF`-first carrier's address is the source, by `aim`;
+ * an entity-first one's `SELF` sets centre on the source, which the sub-world picks around),
+ * `ALLY` and `FOE` together (both centre on the addressed actor), `TILE` first with `SELF` later
+ * (the sub-world picks around the source and the tile). Only the
+ * entries that build a set count (not `TRAP`, not a hit modifier); a weapon or a potion (one entry)
+ * is never mixed.
+ */
+export function mixed(sheets: Sheets, carrier: Carrier): boolean {
+  if (carrier.kind !== "Skill") return false;
+  const attack = at(sheets.skills, carrier.at).kind === skill_kind.ATTACK;
+  const first = entry(sheets, carrier.at, 0).target;
+  let tile = false;
+  let entity = attack;
+  for (let k = 0; k < 3; k++) {
+    const e = entry(sheets, carrier.at, k);
+    if (e.kind === kind.EMPTY) break;
+    if (e.kind === kind.TRAP || is_hit_modifier(e)) continue;
+    if (e.target === target.TILE) tile = true;
+    else if (e.target === target.FOE || e.target === target.ALLY) entity = true;
+  }
+  return tile && (entity || (!attack && first === target.SELF));
+}
+
+/**
  * `DelegateCarry::carry`: a `TRAP` carrier placed if its guard holds and the tile can take one,
  * nothing else run; any other through the executor's class (here, on the whole world).
  */
@@ -206,6 +239,7 @@ export function carry(
       return "Place";
     }
   }
+  if (mixed(sheets, carrier)) throw new NotMirrored(unported.MIXED);
   return executor.execute(rules.cache, world, sheets, rules.board, source, carrier, address, t);
 }
 

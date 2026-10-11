@@ -9,8 +9,9 @@
 // and `ExecutorLibrary` run `Levered`); a carrier's awake goblins are gathered into one write of
 // the awake set (`pending`, `flush`), a trap's one entrant is written at once (`Naive`'s).
 //
-// Not here: `Delegate`'s sub-world (the goblins a carrier can reach, `wide`, `subcontent`) is the
-// call's cost, not its result: the port runs the carrier on the whole world. `conclude` and
+// Not here: `Delegate`'s sub-world (the goblins a carrier can reach, `wide`, `subcontent`): the
+// port runs the carrier on the whole world, equal to the sub-world for carriers whose entries share
+// a target kind; a mixed-target carrier is not mirrored (`action.ts`'s `mixed`). `conclude` and
 // `legal` (an activation's end) are the ticks' (lot F). The fields keep the Cairo names; the
 // reasons of each rule are the Cairo module's.
 

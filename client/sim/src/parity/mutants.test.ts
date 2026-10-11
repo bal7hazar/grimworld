@@ -15,7 +15,9 @@
 // changed the ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
 // `segment/unported.test.ts` runs) must kill it. So is a mutant of the trap class (`trap`,
 // CLI-02g-D) that reads another goblin's caste than the placer's: the table's goblins share one
-// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it.
+// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it. So is a mutant of
+// the action class (`act`, CLI-02g-E) that runs a mixed-target carrier: no table holds one;
+// `parity/actcases.ts`' cases (the list `action.test.ts` runs) must kill it.
 
 import { readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
@@ -35,6 +37,8 @@ type Mutant = {
   seam?: true;
   /** A case of the trap class no row records: the tables must not kill it, `parity/trapcases.ts` must. */
   trap?: true;
+  /** A case of the action class no row records: the tables must not kill it, `parity/actcases.ts` must. */
+  act?: true;
   /**
    * Why its kill is a crash (a TypeError, a ReferenceError, a SyntaxError) and still the mutant's own
    * divergence: a crash of a mutant without it fails, as a broken copy, not a kill.
@@ -3403,6 +3407,13 @@ const MUTANTS: readonly Mutant[] = [
     from: "kind: object.PLACED_TRAP, state: 0,",
     to: "kind: object.PLACED_TRAP, state: 1,",
   },
+  {
+    name: "a carrier mixing a TILE target with an entity one runs on the whole world (mixed)",
+    file: "action.ts",
+    from: "return tile && (entity || (!attack && first === target.SELF));",
+    to: "return false;",
+    act: true,
+  },
 ];
 
 const SRC = new URL("../", import.meta.url);
@@ -3467,15 +3478,17 @@ describe("the mutation check", () => {
         file: mutant.file,
         from: mutant.from,
         to: mutant.to,
-        kind: mutant.trap
-          ? "trap"
-          : mutant.seam
-            ? "seam"
-            : mutant.refusal
-              ? "refusal"
-              : mutant.equivalent !== undefined
-                ? "equivalent"
-                : undefined,
+        kind: mutant.act
+          ? "act"
+          : mutant.trap
+            ? "trap"
+            : mutant.seam
+              ? "seam"
+              : mutant.refusal
+                ? "refusal"
+                : mutant.equivalent !== undefined
+                  ? "equivalent"
+                  : undefined,
       })),
     );
   });
@@ -3510,7 +3523,7 @@ describe("the mutation check", () => {
       );
       const verdict = await verdicts.get(index)!;
       expect(verdict.load, `${mutant.name}: the mutant does not load`).toBeUndefined();
-      const unit = mutant.refusal || mutant.seam || mutant.trap;
+      const unit = mutant.refusal || mutant.seam || mutant.trap || mutant.act;
       const kill = unit ? verdict.unit : verdict.tables;
       if (kill?.crash) {
         expect(
