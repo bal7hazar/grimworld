@@ -632,7 +632,6 @@ pub impl SheetsImpl of SheetsTrait {
 mod tests {
     /// `vectors/tick.jsonl` (RV-03c, D-257).
     mod vectors;
-
     use crate::content::Record;
     use crate::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
     use crate::models::index::{Caste, Item, Skill};

@@ -300,6 +300,7 @@ fn walls(positions: Array<u8>) -> Board {
 // Row 0, the content; the member's steps alone: regeneration and its clamps, energy, the
 // conditions, adrenaline's decay, the held `REGENERATION` effects, the flags.
 #[test]
+#[available_gas(l2_gas: 730628021)] // ceil(1.05 × 695836210 measured)
 fn test_tick_vectors_0() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -318,7 +319,8 @@ fn test_tick_vectors_0() {
         plain(ref digest, ref id, @t, alone(hero_of(spec)), 1);
     }
     // The clamp at ±10 pips: 10 (+20) and 11 (clamped: +20); −14 (Bleeding,
-    // Poison and Burning: −3 − 4 − 7, clamped to −10: −20) and −10 with a regeneration of 4.
+    // Poison and Burning: −3 − 4 − 7, clamped to −10: −20) and −10 with a regeneration
+    // of 4.
     for (regen, conditions) in array![
         (10_i8, [0_u32, 0, 0, 0]), (11, [0, 0, 0, 0]), (0, [T, T, T, 0]), (4, [T, T, T, 0]),
     ] {
@@ -360,6 +362,7 @@ fn test_tick_vectors_0() {
 // (2), and the potion's (belt slot 1, 3 pips), each held to `T` (it regenerates) and to `T − 1`
 // (ended); the clock's bounds; the member steps' stops.
 #[test]
+#[available_gas(l2_gas: 504807111)] // ceil(1.05 × 480768677 measured)
 fn test_tick_vectors_1() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -377,7 +380,10 @@ fn test_tick_vectors_1() {
     // Both, the skill to `T + 1` over 3 ticks: 6 + 3 pips at `T` and `T + 1`, none at `T + 2`
     // past the potion's `T`… the potion's to `T`: 9 pips at `T`, 6 at `T + 1`, 0 at `T + 2`.
     let mut m = hero();
-    m.set_effect(0, Held { carrier: MEND, potion: false, charges: 0, deadline: T + 1, rank: 12 }, 0);
+    m
+        .set_effect(
+            0, Held { carrier: MEND, potion: false, charges: 0, deadline: T + 1, rank: 12 }, 0,
+        );
     holding(ref m, 1, 1, true, 0, T);
     plain(ref digest, ref id, @t, alone(m), 3);
     // `n`: 0 (nothing runs), 2, and 10 (the largest `play` passes: an action's ticks are at most
@@ -430,6 +436,7 @@ fn back(facing: u8) -> u8 {
 // Step 0: perception (design/18's table) and the awake set. The goblins on the adventurer's row,
 // East of it (`AT + d` is `d` tiles away), chunk 0's (entities 8–12 pack 0, 13–17 pack 1).
 #[test]
+#[available_gas(l2_gas: 663977683)] // ceil(1.05 × 632359698 measured)
 fn test_tick_vectors_2() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -492,9 +499,7 @@ fn test_tick_vectors_2() {
     goblins.append(last);
     plain(ref digest, ref id, @t, words(array![hero()], goblins), 1);
     // A goblin Engaged outside the window (on (7, 20)): never in the set, it does not act.
-    plain(
-        ref digest, ref id, @t, words(array![hero()], array![gob_at(8, 7, 20, ai::ENGAGED)]), 1,
-    );
+    plain(ref digest, ref id, @t, words(array![hero()], array![gob_at(8, 7, 20, ai::ENGAGED)]), 1);
     finish(digest, TICK_DIGEST_2);
 }
 
@@ -502,6 +507,7 @@ fn test_tick_vectors_2() {
 // adrenaline, its energy, its target in range; the trap skill skipped), its weapon in reach, else
 // a step. A Hob adjacent East (`AT + 1`) with no energy and no adrenaline, unless a row says.
 #[test]
+#[available_gas(l2_gas: 633611744)] // ceil(1.05 × 603439756 measured)
 fn test_tick_vectors_3() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -541,7 +547,8 @@ fn test_tick_vectors_3() {
         g.set_recharge(slot, T);
     }
     plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
-    // The weapon on the adventurer: in front of it (`AT + 1`, landed), behind it (`AT − 1`).
+    // The weapon on the adventurer (facing 0, toward `AT − 1`): from behind it (`AT + 1`) and
+    // from its front (`AT − 1`).
     plain(ref digest, ref id, @t, words(array![hero()], array![armed(8, AT + 1)]), 1);
     plain(ref digest, ref id, @t, words(array![hero()], array![armed(8, AT - 1)]), 1);
     finish(digest, TICK_DIGEST_3);
@@ -556,6 +563,7 @@ fn test_tick_vectors_3() {
 // (`T + 1`); down, not concluded; Cinder Ring among three goblins (the carrier through
 // `ExecutorLibrary`).
 #[test]
+#[available_gas(l2_gas: 558762708)] // ceil(1.05 × 532154960 measured)
 fn test_tick_vectors_4() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -564,11 +572,11 @@ fn test_tick_vectors_4() {
         let mut m = hero();
         holding(ref m, 0, BRACE, false, charges, T + 5);
         m.knocked = knocked;
-        plain(ref digest, ref id, @t, words(array![m], array![armed(8, AT + 1)]), 1);
+        plain(ref digest, ref id, @t, words(array![m], array![armed(8, AT - 1)]), 1);
     }
     let mut m = hero();
     holding(ref m, 0, BRACE, false, 63, T + 5);
-    plain(ref digest, ref id, @t, words(array![m], array![armed(8, AT - 1)]), 1);
+    plain(ref digest, ref id, @t, words(array![m], array![armed(8, AT + 1)]), 1);
     for rank in array![2_u8, 3, 4] {
         let mut m = hero();
         equip(ref m, 0, WALL, rank);
@@ -587,7 +595,7 @@ fn test_tick_vectors_4() {
     m.status = status::DOWN;
     plain(ref digest, ref id, @t, words(array![m], array![armed(8, AT + 1)]), 1);
     // Cinder Ring (fire 80, Burning 3 on `RING_1` around the member) at `T` on goblins 8 (East,
-    // 90 health), 9 (West, 100) and 10 (South-East… on `AT + 15`, 300): 8 and 9 die, in tile
+    // 90 health), 9 (West, 100) and 10 (on `AT + 15`, 280): 8 and 9 die, in tile
     // order, then 10 burns and acts.
     let mut m = hero();
     equip(ref m, 0, RING, 12);
@@ -596,8 +604,7 @@ fn test_tick_vectors_4() {
     a.health = 90;
     let b = armed(9, AT - 1);
     let mut c = armed(10, AT + 15);
-    c.health = 300;
-    c.max_health = 300;
+    c.health = 280;
     plain(ref digest, ref id, @t, words(array![m], array![a, b, c]), 1);
     finish(digest, TICK_DIGEST_4);
 }
@@ -607,29 +614,35 @@ fn test_tick_vectors_4() {
 // Runt's attack skill concluding into a recovery (FX-15); a goblin dying at step 3; energy,
 // adrenaline's decay out of Engaged (track CV's segment2 mutant), the held `REGENERATION`.
 #[test]
+#[available_gas(l2_gas: 930198842)] // ceil(1.05 × 885903659 measured)
 fn test_tick_vectors_5() {
     let t = table();
     let mut digest: Array<felt252> = array![];
     let mut id: u32 = TICK_PART_5;
-    // Fleeing at 2: a step away; cornered (every tile around it walled but the one toward the
-    // adventurer): no step, Engaged again.
+    // Fleeing at 2: a step away. Every tile around it walled but `AT + 1`, nearer the
+    // adventurer: its one free neighbour, it steps there, still fleeing. Every tile around it
+    // walled: cornered (no step), Engaged again.
     plain(ref digest, ref id, @t, words(array![hero()], array![hob(8, AT + 2, ai::FLEEING)]), 1);
     let around = crate::types::executor::tests::ring(AT + 2);
     let mut blocked = array![];
+    let mut all = array![];
     for tile in around {
         if *tile != AT + 1 {
             blocked.append(*tile);
         }
+        all.append(*tile);
     }
-    row(
-        ref digest,
-        ref id,
-        @t,
-        words(array![hero()], array![hob(8, AT + 2, ai::FLEEING)]),
-        walls(blocked),
-        empty(),
-        1,
-    );
+    for walled in array![blocked, all] {
+        row(
+            ref digest,
+            ref id,
+            @t,
+            words(array![hero()], array![hob(8, AT + 2, ai::FLEEING)]),
+            walls(walled),
+            empty(),
+            1,
+        );
+    }
     // Knocked down to `T` (no act), to `T − 1` (it acts).
     for knocked in array![T, T - 1] {
         let mut g = armed(8, AT + 1);
@@ -666,8 +679,8 @@ fn test_tick_vectors_5() {
     // and 1, Engaged (kept) from 2; the adventurer's adrenaline 2 beside an Engaged goblin
     // (kept: in combat) and beside an Alerted one (decays).
     for (energy, adrenaline, state) in array![
-        (29_u8, 0_u8, ai::ALERTED), (30, 0, ai::ALERTED), (0, 2, ai::ALERTED),
-        (0, 1, ai::ALERTED), (0, 2, ai::ENGAGED),
+        (29_u8, 0_u8, ai::ALERTED), (30, 0, ai::ALERTED), (0, 2, ai::ALERTED), (0, 1, ai::ALERTED),
+        (0, 2, ai::ENGAGED),
     ] {
         let mut g = hob(8, AT + 6, state);
         g.energy = energy;
@@ -702,22 +715,27 @@ fn test_tick_vectors_5() {
 // and step 3 of one tick, and over two ticks (track CV's `fits` mutant); a defeat in step 1 and in
 // step 2.
 #[test]
+#[available_gas(l2_gas: 394639866)] // ceil(1.05 × 375847491 measured)
 fn test_tick_vectors_6() {
     let t = table();
     let mut digest: Array<felt252> = array![];
     let mut id: u32 = TICK_PART_6;
-    // Goblins 8 and 9 Alerted at 2 on `AT + 2` and `AT + 2 − 15` (rows 7 and 6): each steps to
-    // its least tile, 8 first; the ids swapped.
+    // Goblins 8 and 9 Alerted on `AT + 2` and `AT + 2 − 15` (rows 7 and 6), the tile West of
+    // the second walled (`AT + 1 − 15`): both would step onto `AT + 1`; the lower id first, then
+    // the ids swapped.
     for (first, second) in array![(8_u16, 9_u16), (9, 8)] {
-        let (low, high) = if first < second {
-            (hob(first, AT + 2, ai::ALERTED), hob(second, AT + 2 - 15, ai::ALERTED))
+        let goblins = if first < second {
+            array![hob(first, AT + 2, ai::ALERTED), hob(second, AT + 2 - 15, ai::ALERTED)]
         } else {
-            (hob(second, AT + 2 - 15, ai::ALERTED), hob(first, AT + 2, ai::ALERTED))
+            array![hob(second, AT + 2 - 15, ai::ALERTED), hob(first, AT + 2, ai::ALERTED)]
         };
-        plain(ref digest, ref id, @t, words(array![hero()], array![low, high]), 1);
+        row(
+            ref digest, ref id, @t, words(array![hero()], goblins), walled(AT + 1 - 15), empty(), 1,
+        );
     }
-    // Goblin 8 Alerted at 3; 13 (pack 1) asleep on `AT + 2`, the tile it would take.
-    let goblins = array![hob(8, AT + 3, ai::ALERTED), hob(13, AT + 2, ai::ASLEEP)];
+    // Goblin 8 Alerted at 5; 13 (pack 1) asleep on `AT + 4`, the tile it would take (frozen:
+    // not awake, its tile occupied).
+    let goblins = array![hob(8, AT + 5, ai::ALERTED), hob(13, AT + 4, ai::ASLEEP)];
     plain(ref digest, ref id, @t, words(array![hero()], goblins), 1);
     // Goblin 8 Alerted at 3 steps onto `AT + 2`, holding the member's Snare (bar slot 0, placer
     // `(0, 0)`): it triggers through `TrapLibrary` (earth 10 to 40, Crippled 3; the trap used);
@@ -731,7 +749,13 @@ fn test_tick_vectors_6() {
     ] {
         let trap = Object { tile: AT + 2, kind, state: 0, param };
         let ground = array![
-            (0, Features { objects: [trap, Default::default(), Default::default()], ..FeaturesTrait::empty() }),
+            (
+                0,
+                Features {
+                    objects: [trap, Default::default(), Default::default()],
+                    ..FeaturesTrait::empty(),
+                },
+            ),
         ];
         row(
             ref digest,
@@ -744,14 +768,13 @@ fn test_tick_vectors_6() {
         );
     }
     // The same goblin three times in one tick: Cinder Ring concluding at `T` strikes goblin 8
-    // (300 health, Burning 3), it acts in step 2 (its weapon), Burning and its regeneration at
+    // (280 health, Burning 3), it acts in step 2 (its weapon), Burning and its regeneration at
     // step 3. Goblin 8 Alerted at 5 over 2 ticks: two steps.
     let mut m = hero();
     equip(ref m, 0, RING, 12);
     activating(ref m, 0, 0, T);
     let mut g = armed(8, AT + 1);
-    g.health = 300;
-    g.max_health = 300;
+    g.health = 280;
     plain(ref digest, ref id, @t, words(array![m], array![g]), 1);
     plain(ref digest, ref id, @t, words(array![hero()], array![hob(8, AT + 5, ai::ALERTED)]), 2);
     // Defeats: goblin 8's attack skill concluding at `T` on the adventurer at 1 (down at step
@@ -775,6 +798,7 @@ fn test_tick_vectors_6() {
 // `skip`: `SegmentTrait::ticks`' path. The fast path (no member activating, no goblin awake, no
 // living goblin in the window) runs in process; `n` 0 and a defeated adventurer run nothing.
 #[test]
+#[available_gas(l2_gas: 273627793)] // ceil(1.05 × 260597898 measured)
 fn test_tick_vectors_7() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -794,10 +818,24 @@ fn test_tick_vectors_7() {
     // fast path. Inside it (`AT + 6`): asleep or on watch, `TickLibrary` (a living goblin in the
     // window); dead, the fast path.
     for state in array![ai::ENGAGED, ai::ASLEEP] {
-        skip(ref digest, ref id, @t, words(array![hero()], array![gob_at(8, 7, 20, state)]), board(), 1);
+        skip(
+            ref digest,
+            ref id,
+            @t,
+            words(array![hero()], array![gob_at(8, 7, 20, state)]),
+            board(),
+            1,
+        );
     }
     for state in array![ai::ASLEEP, ai::WATCH] {
-        skip(ref digest, ref id, @t, words(array![hero()], array![hob(8, AT + 6, state)]), board(), 1);
+        skip(
+            ref digest,
+            ref id,
+            @t,
+            words(array![hero()], array![hob(8, AT + 6, state)]),
+            board(),
+            1,
+        );
     }
     let mut dead = hob(8, AT + 6, ai::DEAD);
     dead.health = 0;
@@ -807,9 +845,10 @@ fn test_tick_vectors_7() {
 
 // The roster (D-238): goblin 248 (spawn chunk 15) Alerted on (7, 15), the adventurer on (7, 12)
 // in chunk 0: its step leaves its spawn chunk and needs a roster entry. With 59 other goblins
-// away from theirs (asleep on (100, 100), chunk 96: entities 24–33, 40–49, … of spawn chunks 1–6,
-// outside the window), it steps; with 60, the roster is full: it holds its tile.
+// away from theirs (asleep on (100, 100), chunk 96: entities 24–33, 40–49, … of spawn chunks
+// 1–6, outside the window), it steps; with 60, the roster is full: it holds its tile.
 #[test]
+#[available_gas(l2_gas: 640669436)] // ceil(1.05 × 610161367 measured)
 fn test_tick_vectors_8() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -837,15 +876,24 @@ const TICK_PART_2: u32 = 41;
 const TICK_PART_3: u32 = 56;
 const TICK_PART_4: u32 = 72;
 const TICK_PART_5: u32 = 86;
-const TICK_PART_6: u32 = 109;
-const TICK_PART_7: u32 = 118;
-const TICK_PART_8: u32 = 128;
-const TICK_DIGEST_0: felt252 = 0;
-const TICK_DIGEST_1: felt252 = 0;
-const TICK_DIGEST_2: felt252 = 0;
-const TICK_DIGEST_3: felt252 = 0;
-const TICK_DIGEST_4: felt252 = 0;
-const TICK_DIGEST_5: felt252 = 0;
-const TICK_DIGEST_6: felt252 = 0;
-const TICK_DIGEST_7: felt252 = 0;
-const TICK_DIGEST_8: felt252 = 0;
+const TICK_PART_6: u32 = 110;
+const TICK_PART_7: u32 = 119;
+const TICK_PART_8: u32 = 129;
+const TICK_DIGEST_0: felt252 =
+    2137715165244208689709745686860470517894582999737742435757522380538417750806;
+const TICK_DIGEST_1: felt252 =
+    3009609747004963231434613867686976261609972322454295224762689629570822394141;
+const TICK_DIGEST_2: felt252 =
+    2464070503127361189018990603368040213276236672229521039792042149081524701296;
+const TICK_DIGEST_3: felt252 =
+    1581361779412042734771451779842351930137153259904382798530372651437484348452;
+const TICK_DIGEST_4: felt252 =
+    2912501553687549411360605587760355679227582680040058847133387902208105665510;
+const TICK_DIGEST_5: felt252 =
+    1036532419004570780675448629428909577341028595598302136564481700078945771263;
+const TICK_DIGEST_6: felt252 =
+    2538157155830053314170061708143468218737540156350474974906820625368615208501;
+const TICK_DIGEST_7: felt252 =
+    2098845368569173313750160501583154709918690736208069666979095817737906594175;
+const TICK_DIGEST_8: felt252 =
+    420744539860533300147543818911014254588995874583632251919375290186537202397;

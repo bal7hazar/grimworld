@@ -2624,6 +2624,7 @@ mod tests {
     // tick it acts, a change against its words after the first Wait (its first record). Knocked
     // down to 42, it changes nothing more.
     #[test]
+    #[available_gas(l2_gas: 224194950)] // ceil(1.05 × 213519000 measured)
     fn test_segment2_vectors_5() {
         let classes = declared();
         let content = segment2_content();
@@ -2641,7 +2642,9 @@ mod tests {
                 @classes,
                 @content,
                 words(
-                    40, array![standing(22, 22)], array![goblin(248, HOB, 21, 22, ai::ASLEEP), late],
+                    40,
+                    array![standing(22, 22)],
+                    array![goblin(248, HOB, 21, 22, ai::ASLEEP), late],
                 ),
                 region(everything(), array![], array![], true),
                 ground(15, [Default::default(); 3], 0),
@@ -2677,7 +2680,8 @@ mod tests {
         831158116844835342533304973083382111519011951117211419705514572410899617998;
     const SEGMENT2_DIGEST_4: felt252 =
         3164130820830328315832409943377935499862779783129669591231607615987355173121;
-    const SEGMENT2_DIGEST_5: felt252 = 0;
+    const SEGMENT2_DIGEST_5: felt252 =
+        1291600926751888054231234506757083835066910460304100689166175414883850062411;
 
     const DIGEST: felt252 =
         927113589772750725131747890767271916714351212897433227864916371620935306790;

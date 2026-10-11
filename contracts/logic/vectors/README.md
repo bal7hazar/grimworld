@@ -131,8 +131,8 @@ The cases (47):
 
 ## `segment2.jsonl`: a segment that calls the classes, `SegmentTrait::run` (RV-02, D-254)
 
-Printed by `types::play::tests::test_segment2_vectors_0` to `test_segment2_vectors_4` (ids 0–11, 12–22, 23–25,
-26–30, 31–45), split for snforge's step limit, each part with its digest. It covers what `segment.jsonl` cannot: the
+Printed by `types::play::tests::test_segment2_vectors_0` to `test_segment2_vectors_5` (ids 0–11, 12–22, 23–25,
+26–30, 31–45, 46–47), split for snforge's step limit, each part with its digest. It covers what `segment.jsonl` cannot: the
 branches of `run` that call `TickLibrary`, `ActionLibrary` or `TrapLibrary`, and those that meet a goblin, a trap, a
 companion, a regeneration or a `MOVEMENT` effect. One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every
 value its Cairo `Serde` (as `segment.jsonl`).
@@ -209,14 +209,14 @@ on a 15 × 15-chunk location, every chunk revealed and walkable:
 
 The mirror keeps refusing it.
 
-The cases (46):
+The cases (48):
 
 | `fn` | ids | what |
 |---|---|---|
 | `content` (1) | 0 | the table's content |
 | `combat` (12) | 1–11, 44 | the `_` arm, goblin 264 beside the adventurer, then a Wait: an Attack out of reach (1, `Reach`, the words kept), a spell on the goblin (2), Cinder Ring on itself (3, 2 ticks), a potion (4), an Attack on no entity (5, `Target`), an instant spell (6, 0 ticks charged 1); `Heavy` (`heavy`, the words kept): 0 ticks with no weight left (7), 2 ticks with 1 left (8), the potion with none (9); appended, 44: the instant trap skill 10 refused as `Heavy` after a Wait spent the weight, the ground unchanged (D-259); alone, a spell (10: the member activating, its ticks through `TickLibrary`) and a potion (11: its ticks on the fast path) after a Wait |
 | `ticks` (4) | 12–15 | `Self::ticks` through `TickLibrary`: two Waits beside goblin 264 (12); 2 owed ticks, no action (13); a goblin awake outside the window, so not calm (14); an asleep one there, calm: the fast path, no call (15) |
-| `fits` (7) | 16–22 | the goblin records of a Wait beside goblin 264 with no record (`touched` bit clear, E-1: 1 more): `ran` and the weight 1, refused (16, `undo`); weight 2, taken (17, 0 left); the invocation's first action, unbound (18); with a record, taken (19); held by an earlier segment, nothing added (20); E-16's 17th record refused (21, `undo`); the untouched one engaged (22): goblin 248 asleep beside the adventurer notices it and engages its pack, 249, outside the window and not awake, changes only its AI state (1 to 3) and is not counted (`changed` holds 248 alone) |
+| `fits` (9) | 16–22, 46, 47 | the goblin records of a Wait beside goblin 264 with no record (`touched` bit clear, E-1: 1 more): `ran` and the weight 1, refused (16, `undo`); weight 2, taken (17, 0 left); the invocation's first action, unbound (18); with a record, taken (19); held by an earlier segment, nothing added (20); E-16's 17th record refused (21, `undo`); the untouched one engaged (22): goblin 248 asleep beside the adventurer notices it and engages its pack, 249, outside the window and not awake, changes only its AI state (1 to 3) and is not counted (`changed` holds 248 alone); appended by RV-03c, 46 and 47 (the same goblin changed by two actions of one segment, track CV's `fits` mutant): 248 asleep beside the adventurer engages its pack at the first Wait's tick; 249, of that pack, in the window on (19, 22), knocked down to 41 and at its energy's max, changes only its AI state there (no record, E-1's exception); knocked down to 41 (46), it acts at the second Wait's tick (it starts an activation: a change against its words after the first Wait, its first record); to 42 (47), it changes nothing more |
 | `defeated` (3) | 23–25 | `world.defeated` breaks the loop: the adventurer at 0 health, defeated by the owed tick before the first action (23, `played` 0, no `illegal`); at 1 health with Bleeding, Poison and Burning, on the first Wait's tick, on the fast path (24) and through `TickLibrary` (25) |
 | `trap` (5) | 26–28, 43, 45 | a Move West onto local (6, 7) of chunk 16, then a Wait: a terrain trap (26, `param` skill 2), a used one (27, no call), a placed trap of goblin 264, outside the window (28: its words go with the call); appended, 43: the terrain trap with goblin 265 dead and in the world's `killed`, the call's `killed` empty; appended, 45 (FIX-02, D-266): a terrain trap of skill 10, which no member or goblin of the call holds: on chain the content holds it only because `play` reads the unused terrain traps' skills (`GoblinsLibrary`, FIX-02b), and the client's content must too |
 | `occupied` (2) | 29–30 | a Wait, then a Move West onto goblin 264: `Blocked` from `TrapTrait::occupied` (29); dead, it does not block (30) |
@@ -226,7 +226,7 @@ The cases (46):
 | `turn` (2) | 39–40 | CV: Turn, Wait, Turn: the Wait's tick clears the turned flag, the second Turn is legal, `flags` 1 after it (39); a third Turn after it is `Turned` (40) |
 | `follow` (2) | 41–42 | CV: the window follows each Move that reveals nothing: seven Moves West from (22, 22), the seventh onto (15, 22), on the first window's ring (never open in it), then a Wait (41); from (29, 22), the eighth Move West is `Blocked` by a wall on (21, 22), outside the first window (42) |
 
-Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 7, `defeated` 3, `trap` 5, `occupied` 2, `companions` 3,
+Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 9, `defeated` 3, `trap` 5, `occupied` 2, `companions` 3,
 `regeneration` 3, `movement` 2, `turn` 2, `follow` 2.
 
 ## `trap.jsonl`: a trap's trigger, `TrapTrait::trigger` (RV-03a, D-257)
@@ -631,8 +631,9 @@ slot) by 205, 206, 208, 210, 212, 213 and 214 (the charges before and after, and
 target (`Struck.knocked`, read at `t₀`) by 209 against 210; a sleeping target (`Struck.asleep`) by 211 against 212; the
 block's cap at 63 (`resolve`'s `defence.block > MAX_BLOCK`) by 213 (on the bound: 63, blocked) and 214 (below it: 62).
 Above the bound no `act` row can go: `act` strikes goblins only (a weapon's or an attack skill's foe), and a goblin's
-charges are 6 bits (`GoblinWords` 240–245), at most 63; a member's (7 bits) can pass 63, but only a goblin's hit
-strikes a member, outside `act`.
+charges are 6 bits (`GoblinWords` 240–245), at most 63, and so are a member's (corrected by RV-03c: an effect's bits
+16–21 in `MemberEffects`, bit 22 free; `MemberTrait::held` reads them modulo 64, so a 64 written there reads as 0):
+`tick.jsonl` holds the member's side at 63 and 62 (72, 73) and the grant clamped to 63 (80).
 
 **How the rows are sized for mutants** (as `hit.jsonl`): for every comparison, a row on each side of its bound (the
 clock at `LAST_TICK` and past it; knocked down to `c` and `c + 1`; `R` at `c` and `c + 1`; adrenaline at 4 × cost − 1
@@ -651,3 +652,94 @@ has its own rows (`FOE`, `ALLY`, `SELF`, `TILE`, a weapon's foe, an attack skill
 below 0). A held potion's position is a skill's position too: skills 1 and 2 sit where the potions held fall (a glyph,
 an enchantment), so a potion read as a skill (`glyphs`, `DefenceTrait::add`) is seen. Track CV names
 further cases for surviving mutants; they are appended, as `hit.jsonl`'s.
+
+## `tick.jsonl`: the ticks with a fight, `TickLibrary::ticks` (RV-03c, D-257)
+
+Printed by `types::tick::tests::vectors::test_tick_vectors_0` to `_8` (ids 0–24, 25–40, 41–55, 56–71, 72–85,
+86–109, 110–118, 119–128, 129–130), split for snforge's step limit, each part with its digest. Where `segment2.jsonl`
+records the tick class's result for a replay, this table tests a port of the class itself.
+
+**The entry vectored, and why.** `TickLibrary::ticks` (`ITickLibrary`, `systems/tick.cairo`), the real class declared
+in the test: it is what `play` calls (`SegmentTrait::ticks`, the only caller), and everything a tick does sits behind
+it: it loads the words through the content (`WordsTrait::indexed`), runs `TickTrait::run` with `Delegate` rules
+(step 0 perception and the awake set in process; step 1 each concluded carrier through the real `ExecutorLibrary`;
+step 2 in one call of the real `AiLibrary`, whose carriers go through `ExecutorLibrary` and whose trap entered goes
+through the real `TrapLibrary`; step 3 and step 5 in process), and stores the words and the ground back. `AiLibrary::act`
+alone is not a port's boundary (its inputs, the frozen tiles and the roster count, are computed by `TickLibrary`'s
+`Delegate::step`), so it is vectored through `ticks`. The ticks `play` runs without the class are the `skip` rows.
+
+One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every value its Cairo `Serde` (as `segment2.jsonl`; a
+negative integer `P − |v|`).
+
+**Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`tick_content`): the executor tests'
+(`types::executor::tests::content(40, …)`: the fixtures' bar skills 1–8, castes Hob (1) and Runt (2) of armor 40, a
+sword of 30, range 1, rank 12; Cinder Ring 40, Brace 43, Snare 45 and the others), with the castes' skills made the AI's
+cases: Hob (`k` 1) slot 0 skill 24, an attack skill of activation 2 and 1 strike (4 quarters); slot 1 skill 25, an
+instant fire spell (40 on a foe, range 2, 5 energy: 15 thirds, recharge 6); slot 2 skill 26, an instant trap skill
+(the AI skips it); slot 3 skill 27, an instant shout on itself (recharge 20). Runt (`k` 3): slot 0 skill 28, an
+instant attack skill; slot 1 skill 29, an attack skill of activation 1. And the table's: skill 80, an enchantment
+holding `REGENERATION` 2 to 6 pips with the rank (`regen0` 2, `regen12` 6); skill 81, a stance granting `BLOCK` 60 to
+72 charges with the rank (60 + rank), activation 1; potion 101 (the fixtures' belt slot 1) holding `REGENERATION` 3
+(`regen` 3). The `REGENERATION` content is the table's own, not `contracts/seed`'s (a seed change would move the
+probe and the streams). Every actor is loaded through it.
+
+**`ticks`**: `case` the call's arguments but the content and the classes: the `Words` (`clock`, the members'
+`MemberWords`, the goblins' `GoblinWords`, `killed`, `defeated`), the `Board` (`window`, `x`, `y`: the origin plus
+15, D-134), the level (20), the ground (`Array<(u8, Features)>`), `n` (the ticks). `ok` what it returns: the `Words`,
+the ground. **`skip`**: `SegmentTrait::ticks`' path for `n` ticks: `case` the `Words`, the `Board`, `n`; `ok` the path
+(0 `TickLibrary`, 1 the fast path `TickTrait::idle`: no member activating, no goblin awake, no living goblin in the
+window; 2 none: `n` 0 or the adventurer defeated), then the `Words` after it (`TickLibrary`'s with the empty ground).
+
+The world, unless a row says otherwise: the clock 200 (the first tick `T` = 201); the adventurer, member 0 on (7, 7)
+(window position 112, `AT`) facing 0 (toward `AT − 1`), the executor tests' member: level 20, health 400 of 480, 30
+energy thirds of 60 regenerating 2 a tick, health regeneration 0, adrenaline 0, bar 1–8 at rank 0, belt items
+100–103. Goblins are chunk 0's (entities 8–12 pack 0, 13–17 pack 1), a Hob unless a row says Runt, health 100 of 280,
+no energy (30 thirds at most, 1 a tick), no adrenaline, level 10, facing the adventurer; `AT + d` is `d` tiles East on
+the adventurer's row. "Armed": every caste slot recharging to `T` (`t > R` is false), so its weapon or a step. The
+board is the open window at the origin, the ground chunk 0 empty, `n` 1.
+
+| `fn` | ids | what |
+|---|---|---|
+| `content` (1) | 0 | the table's content |
+| `ticks`, the member's steps (24) | 1–24 | alone: the clock to `T`, energy 30 → 32 (1); health regeneration 3 pips from 400, 473, 474 (the max), 475 (clamped) (2–5); the ±10 pips clamp: 10, 11, Bleeding, Poison and Burning (−14), the same with 4 pips (6–9); each condition to `T` (held: −3, −4, −7 pips) and to `T − 1` (ended) (10–15); energy from 57, 58, 59, 60 (16–19); **adrenaline's decay** out of combat: from 2 (to 1), 1 (to 0: it reaches 0), 0, and 2 over 3 ticks (1, 0, 0) (20–23); the flags `TURNED`, `INSTANT`, `HIT` cleared, `HALVED` kept (24) |
+| `ticks`, **`REGENERATION`**, `n`, the stops (16) | 25–40 | skill 80 held in effect slot 0 at rank 12 to `T` (6 pips) and `T − 1` (none), at rank 0 to `T` (2) and `T + 1` (2) (25–28); potion 101 held (belt slot 1) to `T` (3 pips) and `T − 1` (none) (29, 30); both over 3 ticks, the skill to `T + 1`, the potion to `T`: 9, 6, 0 pips (31); `n` 0 (nothing), 2, 10 (the largest `play` passes: an action's ticks are at most the weight, `MAX_WEIGHT`) (32–34); at 0 before the tick: down, defeated, the clock kept (35); at 1 with the three conditions: down at step 3 of `T`, the 2 ticks after not run (36); down (status 1) and gone (2): no regeneration (37, 38); a companion (member 1) inside at 0: the tick stops at once (FX-8) (39); at 300 with 3 pips, both regenerate (40) |
+| `ticks`, perception and the awake set (15) | 41–55 | asleep at 2 (wakes Engaged, acts) and 3 (41, 42); on watch at 2 facing away (43); at 5 facing the adventurer (front arc: notices), at 6 (`range::ALERT`: not) (44, 45); at 5 facing away (46); at 5, sight blocked by a wall on `AT + 3` (47); at 5 turned one step (front-side: notices) and two (rear-side: not) (48, 49); Alerted at 5 (awake, steps) (50); Returning at 1 (awake, does nothing) (51); dead at 1 (52); the pack: 8 on watch at 2 notices, 9 (pack 0) asleep at 7 engaged with it and acting, 13 (pack 1) asleep at 6 not (53); nine Alerted goblins at 2, 2, 3, 3, 4, 4, 5, 6, 6, eight awake on the words: the eight nearest, the tie at the set's edge to the lower id (15 in, 16 out) (54); Engaged outside the window (on (7, 20)): out of the set, its awake flag cleared, no act (55) |
+| `ticks`, an Engaged goblin's act (16) | 56–71 | a Hob adjacent (`AT + 1`): slots 0 (short of adrenaline), 1 (of energy) and 2 (the trap) skipped, the shout used, `R = T + 19` (56); the shout recharging to `T` (the weapon) and `T − 1` (the shout) (57, 58); slot 0 at adrenaline 4 (starts, `A = T + 2`, 4 spent), 3 (the weapon), 5 (starts, 1 left); slot 0 recharging to `T` with 4 (the weapon), to `T − 1` (starts) (59–63); slot 1 at 15 thirds (the spell lands, `R = T + 5`), 14 (the weapon); at 2 tiles with 15 (lands), at 3 (out of range and reach: a step) (64–67); a Runt: the instant attack skill (lands, recovering to `T + 2`, `R = T + 9`); armed, its weapon (recovering to `T + 2`) (68, 69); armed, the weapon from behind the adventurer (`AT + 1`) and from its front (`AT − 1`) (70, 71) |
+| `ticks`, **the block cap**, the member's activations (14) | 72–85 | Brace held in effect slot 0, an armed goblin in front (`AT − 1`): **63 charges, blocked, to 62** (72); 62 to 61 (73); 1 to 0, the effect ended (`T − 1`) (74); 63 knocked down to `T` (held: landed, kept) and to `T − 1` (blocked, to 62) (75, 76); 63 from behind (`AT + 1`, landed) (77); skill 81 concluding at `T` on bar slot 0 at ranks 2, 3, 4: 62, 63, and 64 clamped to 63 (`MAX_BLOCK`) (78–80); bar slot 1 (skill 2, recharge 12) concluding at `T` (`R = T + 11`), overdue at `T − 1` (concluded, `R = T + 10`), at `T + 1` (not yet), down at 400 (not concluded; no target for the goblin, which leaves the set) (81–84); Cinder Ring concluding at `T` among goblins 8 (`AT + 1`, 90), 9 (`AT − 1`, 100) and 10 (`AT + 15`, 280): 9 then 8 killed (tile order), 10 burns and strikes (85) |
+| `ticks`, the AI's states, step 1 and step 3 of a goblin (24) | 86–109 | Fleeing at 2: a step away (86); every tile around it walled but `AT + 1`, nearer the adventurer: it steps there, still Fleeing (87); every tile walled: cornered, Engaged again (88); knocked down to `T` (no act) and `T − 1` (acts) (89, 90); slot 0 activating to `T` (concludes: its weapon hit, `R = T + 9`, no act after), to `T − 1` (lapsed, FX-29: `R = T + 8`, then the shout), to `T + 1` (busy) (91–93); recovering to `T − 1` (cleared, the shout) and `T` (busy) (94, 95); a Runt's slot 1 concluding at `T`: recovering to `T + 1` (FX-15) (96); Alerted at 6 at 1 health, Bleeding to `T` (dies: `DEAD`, in `killed`) and `T − 1` (97, 98); energy from 29 and 30; **adrenaline** Alerted from 2 (to 1) and 1 (to 0), Engaged from 2 (kept) (99–103); the adventurer's adrenaline 2 beside an Engaged goblin (kept: in combat) and an Alerted one (decays) (104, 105); a goblin holding skill 80 (rank 12) to `T` (+12) and `T − 1` (106, 107); Crippled to `T` (its step costs 2: recovering to `T + 1`) and `T − 1` (108, 109) |
+| `ticks`, goblin order, the carrier, traps, defeats (9) | 110–118 | goblins 8 and 9 Alerted on `AT + 2` and `AT + 2 − 15`, the tile `AT + 1 − 15` walled: both would take `AT + 1`, the lower id first, the other holds (110); the ids swapped: the other moves first (111); a step onto the tile of an asleep goblin (13, not awake: frozen) refused, another taken (112); a step onto the member's Snare (bar slot 0, placer `(0, 0)`): it triggers through `TrapLibrary` (100 → 44, Crippled to 203, the trap used) (113); onto a terrain trap: nothing (FX-34) (114); **the same goblin three times in one tick**: Cinder Ring concluding at `T` strikes goblin 8 (280 → 153, Burning), it strikes in step 2, burns in step 3 (115); goblin 8 Alerted at 5 over 2 ticks, two steps (116); defeats: goblin 8's attack skill concluding at `T` on the adventurer at 1 (down at step 1, no step 2 or 3, the 2 ticks after not run) (117); goblin 8's weapon at step 2 on it at 1: goblin 9 does not act after it (118) |
+| `skip` (10) | 119–128 | alone: the fast path, 1 and 10 ticks (119, 120); `n` 0, defeated: none (121, 122); activating: `TickLibrary` (123); outside the window, Engaged (not calm: `TickLibrary`) and asleep (the fast path) (124, 125); in the window asleep and on watch (`TickLibrary`), dead (the fast path) (126–128) |
+| `ticks`, the roster (2) | 129–130 | goblin 248 (spawn chunk 15) Alerted on (7, 15), the adventurer on (7, 12): its step leaves its spawn chunk (D-238); with 59 other goblins away from theirs (asleep on (100, 100)) it steps (129); with 60 the roster is full: it holds (130) |
+
+Per `fn`: `content` 1, `ticks` 120, `skip` 10.
+
+**The rows asked for by name.** The block cap above 63 (track CV, 2026-10-11): a member's charge field holds 6 bits,
+not 7 (`MemberEffects`, an effect's bits 16–21; bit 22 is free and `MemberTrait::held` reads the charges modulo 64),
+and the grant clamps to 63 (`ExecutorTrait::hold`, `MAX_BLOCK`), so no tick puts a member at 64: the bound the tick
+reaches is pinned instead, 72 (63, blocked, to 62) and 73 (62), and the grant at 64 clamped to 63, 80; a row above it
+(`resolve`'s `defence.block > MAX_BLOCK`) cannot come from any words and goes to RV-03a2. Adrenaline's decay: 20–23
+(the member, out of combat), 100, 101 (a goblin not Engaged: 1 to 0), 103 and 104 (kept in combat). The same goblin
+changed twice in one call: 115 and 116 here; `fits` is the segment's, so `segment2.jsonl` 46 and 47 are appended for
+it. `REGENERATION`: row 0's skill 80 and potion 101; 25–31 (the member), 106, 107 (a goblin), each on both sides of
+its deadline.
+
+**The inventory** (what the earlier tables already pin of the tick). `segment.jsonl` calls no class: its ticks are the
+fast path (`TickTrait::idle`, the members' regeneration alone). `segment2.jsonl` reaches `TickLibrary::ticks` through
+`TickRecorder`: each row records the class's result for the segment to replay, so a mirror replaying it runs no tick;
+its fast-path rows pin `idle`'s member regeneration and `SegmentTrait::idle`'s choice on four worlds. `batch.jsonl`
+pins `admit` and `revealed`, no tick. `movement.jsonl` pins the pure rules the step uses (the flood, a Move's ticks,
+the awake set's choice by distance). `hit.jsonl` pins the hit and `body.jsonl` the `Body` operations a carrier
+writes. So no table pinned the tick as a port: perception, the awake set formed on the window, step 1's conclusions,
+the AI's act, step 3's regeneration with the held effects and the decay, step 5, and the path `play` takes, all are
+vectored here; the flood is reached through the steps.
+
+**How the rows are sized for mutants** (as `hit.jsonl`): for every comparison, a row on each side of its bound and,
+for `≥` against `>`, on it: a deadline at `T` and `T − 1` (the conditions, the held effects, a knock-down, an
+activation, a recovery); a recharge at `T` and `T − 1` (`t > R`); adrenaline at 4 × cost − 1, 4 × cost and above;
+energy at the cost − 1 third and the cost; a spell's range at its value and one past; perception at 2 and 3 tiles
+asleep, 5 and 6 on watch, each arc; health and energy at the max − 1, the max and past it; the ±10 pips clamp at 10 and
+11; the block at 63 and 62 and the grant at 62, 63, 64; the roster at 59 and 60; the awake set's eighth and ninth
+candidates, tied. For every arithmetic step a row whose result tells the operator apart (`R = A + r − 1` from `T` and
+from `T − 1`; `A = T + n`; FX-15's `B = A + k − n − 1`; the pips × 2; a REGENERATION line at ranks 0 and 12). For every
+order the code fixes, a row where the other order differs (goblin ids swapped, a member before a goblin, a stop
+before the next goblin). Track CV names further cases for surviving mutants; they are appended, as `hit.jsonl`'s.
