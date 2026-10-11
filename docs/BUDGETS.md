@@ -922,6 +922,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::play::tests::test_segment2_vectors_2` | 126290389 | 132104920 | 2026-10-11 | 2747f45 |
 | grimworld_logic | `types::play::tests::test_segment2_vectors_3` | 259117320 | 271171845 | 2026-10-11 | 2747f45 |
 | grimworld_logic | `types::play::tests::test_segment2_vectors_4` | 630896204 | 662441015 | 2026-10-11 | 8c5e62b |
+| grimworld_logic | `types::play::tests::test_segment2_vectors_5` | 213519000 | 224194950 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::play::tests::test_segment_slow_move_heavy` | 105860447 | 111111543 | 2026-10-10 | c6633cb |
 | grimworld_logic | `types::play::tests::test_segment_vectors` | 977633484 | 1026515159 | 2026-10-11 | fde8a90 |
 | grimworld_logic | `types::play::tests::test_vectors` | 284846076 | 299063390 | 2026-10-09 | a76c672 |
@@ -1000,6 +1001,15 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::tick::tests::test_index_positions` | 743120 | 780276 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::tick::tests::test_kits` | 201120 | 211176 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::tick::tests::test_sheets_read_oracle` | 1780780 | 1869819 | 2026-10-07 | faa262c |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_0` | 695836210 | 730628021 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_1` | 480768677 | 504807111 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_2` | 632359698 | 663977683 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_3` | 603439756 | 633611744 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_4` | 532154960 | 558762708 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_5` | 885903659 | 930198842 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_6` | 375847491 | 394639866 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_7` | 260597898 | 273627793 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_8` | 610162567 | 640669436 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::trap::tests::test_cost_trigger` | 9909207 | 10404668 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::trap::tests::test_cost_trigger_fixture` | 9120500 | 9576525 | 2026-10-07 | 44961f2 |
 | grimworld_logic | `types::trap::tests::test_example_trap` | 12400449 | 13019107 | 2026-10-10 | 0bf80ab |
