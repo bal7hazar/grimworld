@@ -73,6 +73,19 @@ describe("ENG-08's sample zone in the editor", () => {
         /location_sizes is not a table.*\(export: location size\)/,
       );
     }
+    // `3.0` and `1e1` are floats for the converter (json.load): refused by their source text
+    for (const text of [
+      '{"location_sizes": {"floor_1": [3.0, 2]}}',
+      '{"location_sizes": {"floor_1": [1e1, 2]}}',
+      '{"location_sizes": {"a": [3, 3], "b": [3, 2.0E0]}}',
+      '{"location_sizes": {"floor_1": [3, 2.5]}}',
+    ]) {
+      expect(readManifest(text), text).toMatch(/\(export: location size\)/);
+    }
+    // numbers elsewhere and strings that look like numbers do not trip it
+    expect(
+      readManifest('{"packs": {"a": 1}, "location_sizes": {"a\\"3.0": [3, 2]}, "$c": "x 3.0"}'),
+    ).toEqual(expect.objectContaining({ location_sizes: { 'a"3.0': [3, 2] } }));
     // A manifest built in code is held at the converter's port: refused, not packed.
     const wide = { ...MANIFEST, packs: { raiders: 70000, cubs: 2 } } as Manifest;
     const out = convert(SAMPLE, wide);

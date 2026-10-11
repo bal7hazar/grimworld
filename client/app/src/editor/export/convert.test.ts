@@ -563,6 +563,22 @@ describe("every case of checks.json, refused with its code", () => {
     expect(() => buildZone(z, MANIFEST)).toThrow(expect.objectContaining({ code: CODE }));
   });
 
+  it("R-43: a gate's entry chunk 224 is accepted, 225 refused by the schema (export: schema)", () => {
+    const withEntry = (entry_chunk: number) => {
+      const raw = load("zone.json");
+      raw.gates![0]!.entry_chunk = entry_chunk;
+      return raw;
+    };
+    expect(() => validate(withEntry(224))).not.toThrow();
+    expect(() => validate(withEntry(225))).toThrow();
+    expect(verdict(withEntry(224))).toBe("accepted");
+    expect(verdict(withEntry(225))).toBe("export: schema");
+    // R-42 has no editor surface: the converter writes no PACK record
+    expect(TABLE.registry.find((c) => c.case === "pack_fewest_zero")!.converter).toContain(
+      "no PACK record",
+    );
+  });
+
   it('location_size (E-51): [1, 1] and [15, 15] pass; 0, 16, 1.5, "3", true, missing, a third value are refused', () => {
     const CODE51 = "export: location size";
     const withSizes = (location_sizes: unknown): Manifest =>
