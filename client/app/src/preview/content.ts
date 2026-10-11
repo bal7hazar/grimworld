@@ -1,6 +1,8 @@
 import {
   type CasteSheet,
   type Content,
+  type Features,
+  NotMirrored,
   type PotionSheet,
   type SkillSheet,
   from16,
@@ -11,24 +13,29 @@ import type { InstanceView, MemberView } from "./view";
 /**
  * The content a batch's segment reads (CLI-10d, D-257, D-263), assembled from the Registry's
  * records as `PlayLibrary` assembles it before its first `SegmentLibrary` call
- * (contracts/ephemeral/src/systems/play.cairo): `Content { skills, potions, castes }` (:590-594)
- * from its `Book`, filled in two reads.
+ * (contracts/ephemeral/src/systems/play.cairo): `Content { skills, potions, castes }` from its
+ * `Book`, filled in two reads.
  *
- * 1. `play`'s first `bundle` (:226-247): after the location, its chunk set and the area's pack
- *    templates, each member's content (`member_content`, :1228-1250: the bar's 8 skills, then for
+ * 1. `play`'s first `bundle` (step 2 of its header): after the location, its chunk set and the
+ *    area's pack templates, each member's content (`member_content`: the bar's 8 skills, then for
  *    each slot 0–3 the belt's item and, for a held effect that is not a potion's, its carrier
  *    skill; 0 skipped, each id once), the skills then the potions. A record the registry lacks is
- *    skipped (`exists`, :260-284).
- * 2. `goblins` (:400-536): the castes the goblins need (the derived ones' from their pack's
- *    template, :428-456, then the stored ones', :457-462), the castes' skills the book lacks, in
- *    caste order (:463-486), then the stored goblins' held effects' skills (:487-492), 32 a
- *    `bundle` (:493-514). A missing caste or skill makes the goblin unloadable (`usable`), which
- *    the view reports as `UNLOADABLE`.
+ *    skipped (`exists`).
+ * 2. `GoblinsTrait::goblins` (contracts/ephemeral/src/systems/goblins.cairo, `GoblinsLibrary`,
+ *    FIX-02b, D-269), which `play` calls as a content round: the castes the goblins need (the
+ *    derived ones' from their pack's template, then the stored ones'), the castes' skills the book
+ *    lacks, in caste order, then the stored goblins' held effects' skills, then (FIX-02, D-266)
+ *    the skills of the round's chunks' unused terrain traps (`object::TRAP`, `state` 0, `param`
+ *    ≠ 0; a trap with `param` 0 stays inert), in the chunks' order then the objects', 32 a
+ *    `bundle` (`MAX_READ`). A missing caste or skill makes the goblin unloadable (`usable`),
+ *    which the view reports as `UNLOADABLE`; a missing trap skill makes the round return `None`,
+ *    and the batch `Stop::Invalid`.
  *
  * The client needs neither the location (the view's, VIEW-01) nor the pack templates: the view's
- * goblins carry their caste, the derived ones' set from their template as `goblins` sets it
- * (:515-528). It reads the castes from the goblins' states, and each record by one
- * `Registry.record(kind, id)` (the records are the ones `bundle` concatenates, :175-184).
+ * goblins carry their caste, the derived ones' set from their template as `goblins` sets it. It
+ * reads the castes from the goblins' states, and each record by one `Registry.record(kind, id)`
+ * (the records are the ones `bundle` concatenates). The chunks' terrain traps come from the
+ * `Features` of the round's chunks (`ground`).
  *
  * The order: as `play`'s, but for the stored goblins, taken in entity order where `play` takes the
  * roster's order (`roster`, which the view does not give) and then the touched ones by chunk. The
@@ -182,7 +189,7 @@ const lowField = (word: bigint, at: number, width: number): number =>
   Number((limbs(word)[0] >> BigInt(at)) & ((1n << BigInt(width)) - 1n));
 
 /**
- * `PlayTrait::member_content` over every member (play.cairo :236-239, :1228-1250): the skills and
+ * `PlayTrait::member_content` over every member (play.cairo): the skills and
  * potions their load needs, in `play`'s order.
  */
 export function memberContent(members: readonly MemberView[]): {
@@ -208,6 +215,24 @@ export function memberContent(members: readonly MemberView[]): {
   return { skills, potions };
 }
 
+/** `object::TRAP` (contracts/logic/src/models/chunk.cairo): a terrain trap, `param` its skill. */
+const OBJECT_TRAP = 4;
+
+/**
+ * The skills of the unused terrain traps of `ground` (`GoblinsTrait::goblins`' `traps`): the
+ * `param` of each `object::TRAP` with `state` 0 and `param` ≠ 0, in the chunks' order then the
+ * objects', each id once.
+ */
+export function trapSkills(ground: readonly Features[]): number[] {
+  const out: number[] = [];
+  for (const features of ground) {
+    for (const object of features.objects) {
+      if (object.kind === OBJECT_TRAP && object.state === 0) add(out, object.param);
+    }
+  }
+  return out;
+}
+
 /** A goblin's caste (`PlayTrait::caste_of`, bits 64–79 of its state). */
 const casteOf = (state: bigint): number => Number((state >> 64n) & 0xffffn);
 /** A goblin's held effect's skill (`PlayTrait::effect_of`, bits 108–123 of its timers). */
@@ -219,16 +244,24 @@ export type Assembled = { content: Content; calls: number };
 /**
  * The batch's content from the view and the Registry's records, in two rounds: the members' skills
  * and potions with the goblins' castes, then the skills of those castes and of the stored goblins'
- * held effects that the first round did not read. The calls of a round run at once.
+ * held effects that the first round did not read, with the skills of the unused terrain traps of
+ * `ground` (the features of the round's chunks, in the area's order). The calls of a round run at
+ * once, each record by its own `Registry.record`: `calls` counts records, not `MAX_READ` bundles.
+ * A trap skill the registry lacks stops the real batch (`Stop::Invalid`); the mirror cannot say
+ * what the chain then returns, so it raises `NotMirrored`.
  */
-export async function assembleContent(view: InstanceView, record: RecordRead): Promise<Assembled> {
+export async function assembleContent(
+  view: InstanceView,
+  record: RecordRead,
+  ground: readonly Features[],
+): Promise<Assembled> {
   let calls = 0;
   const read = (kind: number, id: number) => {
     calls++;
     return record(kind, id);
   };
   const { skills, potions } = memberContent(view.members);
-  // The derived goblins first, then the stored ones (`goblins`, :436-460)
+  // The derived goblins first, then the stored ones (`goblins`)
   const castes: number[] = [];
   for (const goblin of view.goblins) if (goblin.derived) add(castes, casteOf(goblin.state));
   for (const goblin of view.goblins) if (!goblin.derived) add(castes, casteOf(goblin.state));
@@ -257,9 +290,17 @@ export async function assembleContent(view: InstanceView, record: RecordRead): P
     const effect = effectOf(goblin.timers);
     if (!held(effect)) add(more, effect);
   }
+  const traps = trapSkills(ground);
+  for (const skill of traps) if (!held(skill)) add(more, skill);
   const moreParts = await Promise.all(more.map((id) => read(SKILL, id)));
   more.forEach((id, k) => {
     if (exists(moreParts[k]!)) content.skills.push(readSkillSheet(id, moreParts[k]!));
   });
+  const missing = traps.filter((id) => !held(id));
+  if (missing.length > 0) {
+    throw new NotMirrored(
+      `terrain trap skill ${missing.join(", ")} not in the registry (the chain stops the batch Invalid)`,
+    );
+  }
   return { content, calls };
 }

@@ -16,9 +16,17 @@ export {
   readCasteSheet,
   readPotionSheet,
   readSkillSheet,
+  trapSkills,
 } from "./content";
 export type { MirrorState } from "./mirror";
-export { mirrorOf, segmentOf, unpackFeatures, unpackWalls, unportedClasses } from "./mirror";
+export {
+  featuresAround,
+  mirrorOf,
+  segmentOf,
+  unpackFeatures,
+  unpackWalls,
+  unportedClasses,
+} from "./mirror";
 export type { Preview, PreviewDeps, PreviewInput, Refused } from "./preview";
 export { previewBatch, refusals } from "./preview";
 export type {

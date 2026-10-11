@@ -9,7 +9,7 @@ stay queued). From the repository root, after
 What it does, in the order `contracts/tools/lifecycle_probe.py` uses (the probe is the reference):
 the classes are declared and `Registry` deployed, then `set_zone_checks` at once (before any record:
 BND-01's guard refuses a GATE, QUOTAS or chunk-set OUTLINE otherwise), `TxHashFate`, the libraries,
-`Hub`, `Instances`; `Hub.set_contracts`; the play classes (`Instances.set_play_class`, keys 0-5);
+`Hub`, `Instances`; `Hub.set_contracts`; the play classes (`Instances.set_play_class`, keys 0-6);
 the records of `contracts/seed/` (the test region, and the fight content the probe's `--fight on`
 writes: the zone names spawn table 1); `Hub.register`; one adventurer, `Hub.set_build` (an empty bar,
 no belt), `Hub.enter` through gate 1 (the start hub into the zone) for the first pre-funded account.
@@ -31,7 +31,8 @@ read. Its keys, all strings of hex felts unless noted:
     account           the first pre-funded account's address (no key)
     classes           {registry, zone_checks, tx_hash_fate, hub, instances, reveal_library,
                        hosts_library, trap_library, flatten_library, play_library, tick_library,
-                       ai_library, action_library, executor_library, segment_library}: class hashes
+                       ai_library, action_library, executor_library, segment_library,
+                       goblins_library}: class hashes
     contracts         {registry, tx_hash_fate, hub, instances}: addresses
     adventurer_id     the adventurer created, built and entered (a number)
     instance_id       the instance it entered: `InstanceEntered`'s id (a number)
@@ -60,7 +61,7 @@ POTIONS = (1, 8, 15, 22)
 EMPTY_BUILD = 255 << 168  # an empty bar (elite slot 255, bit 168), ENG-01 §3.3
 PLAY_CLASSES = [("ephemeral", "PlayLibrary"), ("logic", "TickLibrary"), ("logic", "AiLibrary"),
                 ("logic", "ActionLibrary"), ("logic", "ExecutorLibrary"),
-                ("logic", "SegmentLibrary")]
+                ("logic", "SegmentLibrary"), ("ephemeral", "GoblinsLibrary")]
 
 
 def check_url(url):

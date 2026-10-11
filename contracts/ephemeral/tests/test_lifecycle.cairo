@@ -18,6 +18,7 @@ use grimworld_ephemeral::models::member::{
     Recharges,
 };
 use grimworld_ephemeral::store::InstancesStoreTrait;
+use grimworld_ephemeral::systems::goblins::GoblinsTrait;
 use grimworld_ephemeral::systems::instances::Instances::Event;
 use grimworld_ephemeral::systems::instances::{
     IInstancesDispatcher, IInstancesDispatcherTrait, IInstancesSafeDispatcher,
@@ -1764,6 +1765,7 @@ fn play_classes(world: World) {
         *declare("ActionLibrary").unwrap().contract_class().class_hash,
         *declare("ExecutorLibrary").unwrap().contract_class().class_hash,
         *declare("SegmentLibrary").unwrap().contract_class().class_hash,
+        *declare("GoblinsLibrary").unwrap().contract_class().class_hash,
     ];
     start_cheat_caller_address(world.instances, addr(ADMIN));
     let admin = grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
@@ -2267,7 +2269,8 @@ fn test_play_unloadable_goblin_refused() {
 
 /// What `play`'s `[Read]` of the goblins builds for member `member` of slot 1 (play.cairo,
 /// `play`): its roster's records, then the goblins of the revealed chunks around the member
-/// (`ground`, `goblins`), `sorted`: `play`'s own steps, run in `Instances`' storage.
+/// (`ground`, then goblins.cairo's `goblins`), `sorted`: `play`'s own steps, run in `Instances`'
+/// storage.
 fn play_loads(world: World, member: u32) -> Array<grimworld_logic::models::index::GoblinWords> {
     snforge_std::interact_with_state(world.instances, || loads(world.registry, member))
 }
@@ -2294,7 +2297,7 @@ fn loads(
             );
     }
     let mut book = Book { packs: array![], castes: array![], skills: array![], potions: array![] };
-    let goblins = PlayTrait::goblins(
+    let goblins = GoblinsTrait::goblins(
         ref state,
         1,
         grimworld_logic::interface::IRegistryReadDispatcher { contract_address: registry },
@@ -2302,6 +2305,7 @@ fn loads(
         ground.span(),
         stored,
         roster.span(),
+        true,
     )
         .unwrap();
     PlayTrait::sorted(goblins.span())
@@ -2516,8 +2520,8 @@ fn test_view_unloadable_goblin_marker() {
 // batch's world), then nine Moves East back through chunk 16 to (21, 22), where the window reaches
 // chunk 15's pack at its East edge: the batch holds it again, as the single batches do.
 #[test]
-// gas: raised, ENG-07b: the twin plays every move singly (E-16, E-1 checked)
-#[available_gas(l2_gas: 331190614)] // ceil(1.05 × 315419632 measured)
+// gas: raised, FIX-02b: the goblin loader's library call, once a content round (D-269)
+#[available_gas(l2_gas: 348388438)] // ceil(1.05 × 331798512 measured)
 fn test_play_batch_equals_singles_round_trip() {
     let mut moves = array![grimworld_logic::actions::Action::Move(3)];
     let mut k: u8 = 0;
@@ -2597,7 +2601,7 @@ fn test_set_play_class_key_refused() {
         grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
             contract_address: world.instances,
         },
-        6,
+        7,
         *declare("TickLibrary").unwrap().contract_class().class_hash,
     );
 }
@@ -2696,7 +2700,8 @@ fn all_directions(ref spy: snforge_std::EventSpy, world: World, id: u64, x: u8, 
 // an even row and the adventurer at local (7, 7) or (7, 8)), each of the six directions lands on
 // hexx's neighbour. The Moves are played through `play`, so the window is assembled at each.
 #[test]
-#[available_gas(l2_gas: 341531232)] // ceil(1.05 × 325267840 measured)
+// gas: raised, FIX-02b: the goblin loader's library call, once a content round (D-269)
+#[available_gas(l2_gas: 371140077)] // ceil(1.05 × 353466740 measured)
 fn test_play_window_row_parities() {
     let world = setup();
     play_classes(world);
@@ -2714,7 +2719,8 @@ fn test_play_window_row_parities() {
 // and `y = 0` (an even and an odd row) and at the corner, a Move inside is played and a Move out
 // of the zone stops the batch. The window is never clamped, so the tiles beside the edge answer.
 #[test]
-#[available_gas(l2_gas: 324548070)] // ceil(1.05 × 309093400 measured)
+// gas: raised, FIX-02b: the goblin loader's library call, once a content round (D-269)
+#[available_gas(l2_gas: 347092200)] // ceil(1.05 × 330564000 measured)
 fn test_play_window_low_edges() {
     let world = setup();
     play_classes(world);
@@ -2731,7 +2737,8 @@ fn test_play_window_low_edges() {
 // A4, the zone's high edges: `x = 44` and `y = 44` (the window's far side hangs beyond the zone:
 // void constants) and the opposite corner.
 #[test]
-#[available_gas(l2_gas: 329981270)] // ceil(1.05 × 314267876 measured)
+// gas: raised, FIX-02b: the goblin loader's library call, once a content round (D-269)
+#[available_gas(l2_gas: 352520864)] // ceil(1.05 × 335734156 measured)
 fn test_play_window_high_edges() {
     let world = setup();
     play_classes(world);
@@ -3112,7 +3119,8 @@ fn placed_on_hosts(world: World, chunks: Span<u8>, kind: u8, hosts: felt252) -> 
 // quotas are hosted on chunks 0 and 1); the walk brings sight onto chunks 1, 0, 16 and 15, and then
 // each quota's elements are placed on its host chunks only and its count left is 0.
 #[test]
-#[available_gas(l2_gas: 109232942)] // ceil(1.05 × 104031373 measured)
+// gas: raised, FIX-02b: the goblin loader's library call, once a content round (D-269)
+#[available_gas(l2_gas: 114936509)] // ceil(1.05 × 109463341 measured)
 fn test_play_quotas_land_on_hosts() {
     let world = setup();
     play_classes(world);

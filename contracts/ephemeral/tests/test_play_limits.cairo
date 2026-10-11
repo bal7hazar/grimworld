@@ -126,6 +126,7 @@ fn play_classes(world: World) {
         *declare("ActionLibrary").unwrap().contract_class().class_hash,
         *declare("ExecutorLibrary").unwrap().contract_class().class_hash,
         *declare("SegmentLibrary").unwrap().contract_class().class_hash,
+        *declare("GoblinsLibrary").unwrap().contract_class().class_hash,
     ];
     start_cheat_caller_address(world.instances, addr(ADMIN));
     let admin = grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
@@ -460,7 +461,8 @@ fn prepare_drop(world: World) {
 // adrenaline decays once, as in the single batches: a goblin awake at the last tick and outside
 // the window since does not take the fast path's ticks awake (`SegmentTrait::idle`).
 #[test]
-#[available_gas(l2_gas: 237366667)] // ceil(1.05 × 226063492 measured)
+// gas: raised, FIX-02b: the goblin loader's library call, once a content round (D-269)
+#[available_gas(l2_gas: 252394446)] // ceil(1.05 × 240375662 measured)
 fn test_play_changed_goblin_dropped() {
     let mut actions = array![];
     let mut k: u8 = 0;

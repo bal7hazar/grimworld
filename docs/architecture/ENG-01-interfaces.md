@@ -152,11 +152,18 @@ their own ceiling:
     felts** (68.56 %), its measure 53,492 + 5 % (D-236).
   - **`PlayLibrary`** (`contracts/ephemeral/src/systems/play.cairo`), `play`'s body (its admission
     first, D-236), on `Instances`' storage and events through `Instances`' own store: **at most
-    80 %** (D-235); 58,483 (71.39 %) at ENG-07's head.
+    80 %** (D-235); 58,483 (71.39 %) at ENG-07's head; **at most 55,000 felts** for FIX-02b (D-269),
+    50,941 (62.18 %) at its head.
+  - **`GoblinsLibrary`** (`contracts/ephemeral/src/systems/goblins.cairo`, FIX-02b, D-269), the
+    goblin loader, by `library_call` in `Instances`' context like `PlayLibrary`: `play`'s two
+    content rounds (`PlayLibrary`, the terrain traps' skills read with the goblins' records) and
+    `instance_state`'s goblins (`window`, VIEW-01); it writes nothing. Under D-200's 50 %:
+    27,431 (33.49 %) at FIX-02b's head, 13,529 felts of room.
   - **`TickLibrary`** keeps **one entrypoint, `ticks`** (D-235: the old `run` removed, `act` moved to
     `ActionLibrary`), at most 88 %: 62,307 (76.06 %) at ENG-07's head.
   - **`Instances`** stays under 50 % with no exception: `play` is one call (40,921, 49.95 %); the
-    classes are set by `set_play_class(key, class)` (`play_class`: `PLAY` … `SEGMENT`).
+    classes are set by `set_play_class(key, class)` (`play_class`: `PLAY` … `SEGMENT`, and
+    `GOBLINS`, key 6, since FIX-02b).
 
 **CBT-05g: room in the walled classes (D-240, the project manager, 2026-10-09).** At least 10 % of
 each cap free in `Instances`, `PlayLibrary`, `SegmentLibrary` and `TickLibrary`, no cap raised, before
@@ -181,6 +188,21 @@ division a field); **the defeat's closing path in `Instances`**, which holds `cl
 (`PlayLibrary.play` returns the defeat). D-222's own aims are not reached by these levers:
 `TickLibrary` stays at 76.53 % (75 % aimed), `TrapLibrary` at 76.85 % (50 % aimed; most of its code
 is the executor's strike, entries and conditions).
+
+**FIX-02b: the goblin loader in its own class (D-269, the project manager, 2026-10-11).** `play` now
+reads the skills of the unused terrain traps of the chunks it loads (FIX-02, D-266); inline, and
+with the reads alone moved into `SegmentLibrary`, `PlayLibrary` passed D-240's wall (59,202 and
+59,323 felts; t-0169). The whole goblin loader moved into `GoblinsLibrary` instead (pack templates,
+the derivation from placements, castes and their skills, held effects' skills, `usable`, the
+terrain traps' skills, and the view's `window`). Measured with `class_sizes.py` (Linux, Scarb
+2.20.1, `RAYON_NUM_THREADS=1`) against main at `8c5e62b`:
+
+| Class | Before (8c5e62b) | After | Target (D-269) | What moved |
+|---|---:|---:|---:|---|
+| `PlayLibrary` | 57,203 (69.83 %) | 50,941 (62.18 %) | ≤ 55,000 | −6,262: the loader and `window` out, one call (its arguments and `Loaded`) in; 22.3 % of its 65,536 cap free |
+| `GoblinsLibrary` (new) | — | 27,431 (33.49 %) | < 40,960 (50 %) | the loader, `window`, the terrain traps' skills |
+| `SegmentLibrary` | 47,738 (58.27 %) | 47,738 (58.27 %) | ≤ 47,738 | unchanged |
+| `Instances` | 31,845 (38.87 %) | 31,845 (38.87 %) | 50 % | the view calls `GoblinsLibrary.window` instead of `PlayLibrary.goblins` (the same size) |
 
 **ENG-09: the engine reads authored terrain.** Measured at the lot's head (Linux, Scarb 2.20.1,
 `RAYON_NUM_THREADS=1`, `class_sizes.py`) against CBT-05g's figures above:
@@ -1211,8 +1233,10 @@ goblin is **derived** (untouched, at its spawn, from its pack placement) or stor
 
 **`InstanceView.goblins`, `width`, `height`, `level_min`** (VIEW-01, D-263). `goblins` are the
 goblins a batch would load first, built by `play`'s own code (D-263 condition 1): `Instances` calls
-`PlayLibrary.goblins` by `library_call`, which runs `PlayTrait::window`, the same `roster`, `ground`,
-`goblins` and `sorted` that `play`'s read of the goblins runs. They are the roster's (through the
+`GoblinsLibrary.window` by `library_call` (FIX-02b; `PlayLibrary.goblins` before), which runs
+`GoblinsTrait::window`, the same `roster`, `ground`, `GoblinsTrait::goblins` and `sorted` that
+`play`'s read of the goblins runs (through `GoblinsLibrary.goblins`). The view does not read the
+terrain traps' skills: it lists goblins. They are the roster's (through the
 masked pages) and those of the revealed chunks of the 3 × 3 around the tile of **each member
 inside** (the area `play` loads for that member; the union for a party, each chunk once; a member
 down or gone adds nothing, since no batch loads for it), a touched one or a roster one as stored,
@@ -1220,17 +1244,17 @@ an untouched one derived from its pack's placement at full health in its pack's 
 ascending entity id, in `GoblinWords`' layout. When the registry cannot load one of them (a caste, a
 caste skill or a held effect's skill missing), where `play` refuses the batch (`Stop::Invalid`), the
 list is the one marker `UNLOADABLE` (entity 0, which no goblin has, every word 0): the view never
-reverts for it, nor for the registry's bound: `PlayTrait::window` runs the shared `goblins` a chunk
+reverts for it, nor for the registry's bound: `GoblinsTrait::window` runs the shared `goblins` a chunk
 at a time, then on the roster 30 goblins at a time, with one `Book` carried between the calls, so
 each `bundle` stays within `MAX_READ` (32) however many chunks a party's windows span, and `play`'s
-own path is unchanged. While no `PlayLibrary` is set (before `set_play_class`), the list is empty. A
+own path is unchanged. While no `GoblinsLibrary` is set (before `set_play_class`), the list is empty. A
 goblin beyond those chunks (a chunk a batch enters after its first segment) is not listed: a client
 reads the view again once the batch has landed, or, for a chunk's packs, `instance_region` (its
 `RegionChunk.goblins` stay empty, ENG-05 Open question 5). `width`, `height` and `level_min` are the
 location's `Location` record's (the extent in chunks and the lowest level of its goblins), read
 from the registry by the view, 0 for an id that answers nothing. The always-empty `chunks` field is
 removed: the chunks are `instance_region`'s paged read. The view's cost is a read, not budgeted
-against the play path: `PlayLibrary`'s registry `bundle`s for the castes and skills the listed
+against the play path: `GoblinsLibrary`'s registry `bundle`s for the castes and skills the listed
 goblins need, as a batch makes them. `instance_region` finds remains lying away from their
 spawn chunk through the roster (§9.3, F-6). Both views are pure reads: callable at a block hash or
 at `pre_confirmed`.
@@ -1382,6 +1406,15 @@ it), and passes:
 
 The instance never reads the hub during play. **It reads the registry** (content, not a model of
 the persistent state): one `bundle` call per invocation that needs content (E-5).
+**`play`'s `bundle`s** (D-145; FIX-02b): `PlayLibrary`'s first, the location, a zone's chunk set,
+the area's pack templates, the members' skills and potions (the version checked on it); then, in
+each content round (the batch's first area, and each area the batch moves to),
+`GoblinsLibrary.goblins`: the pack templates, castes and skills the batch does not hold yet, one
+`bundle` a kind missing, the skills (the castes', the held effects' and **the unused terrain traps'
+`param`s**, FIX-02, D-266, each once) at most `MAX_READ` (32) a call. A round holds at most 27 trap
+skills (9 chunks of 3 objects). A trap skill the registry lacks refuses the batch (`Stop::Invalid`),
+as a goblin it cannot load does; a trap of `param` 0 asks for nothing and stays inert (the generated
+traps until GEN-TRAP, D-268).
 
 **Results** (`IResults.report`, **one call per transaction** that has any): contributors (M-4),
 experience, gold, balances, equipment drops (unidentified `ItemBase`), task increments (only
@@ -2007,7 +2040,7 @@ eight member words unchanged).
 
 | View | Bound | Reads |
 |---|---|---:|
-| `Instances.instance_state` | 1 member in the MVP (8 with a party), the 3 × 3 chunks around it, the roster (VIEW-01: bound read from the code, not measured) | header 2, entropy 1, revealed 2, quotas 1, task pages ≤ 4, member words 8 × 2 (the view's and `PlayLibrary`'s), roster pages ≤ 4 × 2 (masked, F-13), the `PLAY` class 1, the 3 × 3's chunk words ≤ 9 × 2, roster records ≤ 60 × 2, the 3 × 3's touched goblin records ≤ 90 × 2 (10 a chunk): **≤ 353** for one member, + 18 chunk words a further member; plus the registry's: the location's record, then `PlayLibrary`'s `bundle`s (pack templates, castes, their skills, 32 records a call), as a batch reads them |
+| `Instances.instance_state` | 1 member in the MVP (8 with a party), the 3 × 3 chunks around it, the roster (VIEW-01: bound read from the code, not measured) | header 2, entropy 1, revealed 2, quotas 1, task pages ≤ 4, member words 8 × 2 (the view's and `PlayLibrary`'s), roster pages ≤ 4 × 2 (masked, F-13), the `GOBLINS` class 1, the 3 × 3's chunk words ≤ 9 × 2, roster records ≤ 60 × 2, the 3 × 3's touched goblin records ≤ 90 × 2 (10 a chunk): **≤ 353** for one member, + 18 chunk words a further member; plus the registry's: the location's record, then `GoblinsLibrary`'s `bundle`s (pack templates, castes, their skills, 32 records a call), as a batch reads them |
 | `Instances.instance_region` | ≤ 16 chunks | header 1 (generation, roster count), revealed 1, 16 chunks × 2 = 32, their touched records ≤ 160 × 2 = 320, roster pages ≤ 4 (masked), every roster goblin's state (its tile) ≤ 60, the timers of those lying in the range ≤ 60, the `touched` gate of their spawn chunks outside the range ≤ 60: **≤ 538** |
 | `Instances.placement` | | 1 |
 | `Hub.counters` | ≤ 32 ids a call | 32 |
