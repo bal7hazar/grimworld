@@ -65,12 +65,15 @@ pub trait IPlayLibrary<T> {
         version: u32,
         actions: felt252,
     ) -> bool;
+    /// `instance_state`'s goblins (VIEW-01, D-263), in `Instances`' context: `PlayTrait::window`.
+    /// `None` when the registry cannot load one of them.
+    fn goblins(self: @T, instance_id: InstanceId) -> Option<Span<GoblinView>>;
 }
 
 #[starknet::contract]
 pub mod PlayLibrary {
-    use grimworld_logic::types::InstanceId;
-    use crate::systems::instances::Instances;
+    use grimworld_logic::types::{InstanceId, instance_parts};
+    use crate::systems::instances::{GoblinView, Instances};
     use super::PlayTrait;
 
     #[storage]
@@ -88,6 +91,12 @@ pub mod PlayLibrary {
         ) -> bool {
             let mut instances = Instances::unsafe_new_contract_state();
             PlayTrait::play(ref instances, instance_id, adventurer_id, sequence, version, actions)
+        }
+
+        fn goblins(self: @ContractState, instance_id: InstanceId) -> Option<Span<GoblinView>> {
+            let mut instances = Instances::unsafe_new_contract_state();
+            let (slot, _) = instance_parts(instance_id);
+            Some(PlayTrait::window(ref instances, slot)?.span())
         }
     }
 }
@@ -122,7 +131,7 @@ use crate::helpers::stored::StoredTrait;
 use crate::models::instance::{Header, HeaderAssertTrait, QuotasTrait, ROSTER_LANES, RosterTrait};
 use crate::store::InstancesStoreTrait;
 use crate::systems::instances::Instances::{ContractState as InstancesState, InternalTrait};
-use crate::systems::instances::play_class;
+use crate::systems::instances::{GoblinView, play_class};
 
 /// The bits of a chunk's 225 tiles.
 const TILES: felt252 = 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
@@ -140,11 +149,11 @@ const EMPTY_TIMERS: felt252 = LIVE + 255;
 /// The content records a batch has read (D-145): the pack templates, the castes, the skills and
 /// the potions, extended when the area moves (t-0109).
 #[derive(Drop)]
-struct Book {
-    packs: Array<(u16, Pack)>,
-    castes: Array<CasteSheet>,
-    skills: Array<SkillSheet>,
-    potions: Array<PotionSheet>,
+pub struct Book {
+    pub packs: Array<(u16, Pack)>,
+    pub castes: Array<CasteSheet>,
+    pub skills: Array<SkillSheet>,
+    pub potions: Array<PotionSheet>,
 }
 
 /// What the batch read of the instance, kept for the write-back.
@@ -316,6 +325,47 @@ pub impl PlayImpl of PlayTrait {
                 actions.span(),
                 read,
             )
+    }
+
+    /// `instance_state`'s goblins (VIEW-01, D-263): those a batch would load first (its `[Read]`
+    /// of the goblins, by the same functions: `roster`, `ground`, `goblins`, `sorted`) for every
+    /// member at once, the roster's and those of the revealed chunks of the 3 × 3 around each
+    /// member's tile, in ascending entity id, each said derived (no record: not in the roster, its
+    /// `touched` bit clear) or stored. `None` when the registry cannot load one of them, where
+    /// `play` refuses the batch (`Stop::Invalid`).
+    fn window(ref self: InstancesState, slot: u32) -> Option<Array<GoblinView>> {
+        let header = self.get_header(slot);
+        let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
+        let revealed = self.get_revealed(slot).model().bits;
+        let words = self.get_member_words(slot, header.members);
+        let mut ground: Array<(u8, Features)> = array![];
+        let mut m: u32 = 0;
+        while m < header.members.into() {
+            let (x, y) = Self::place(*words[8 * m]);
+            let more = Self::ground(@self, slot, revealed, x, y, ground.span());
+            ground.append_span(more.span());
+            m += 1;
+        }
+        let roster = Self::roster(@self, slot, header.roster_count);
+        let mut stored: Array<GoblinWords> = array![];
+        for entity in roster.span() {
+            let (state, timers) = self.get_goblin_words(slot, *entity);
+            stored.append(GoblinWords { entity: *entity, awake: false, state, timers });
+        }
+        let mut book = Book {
+            packs: array![], castes: array![], skills: array![], potions: array![],
+        };
+        let goblins = Self::goblins(
+            ref self, slot, registry, ref book, ground.span(), stored, roster.span(),
+        )?;
+        let mut out: Array<GoblinView> = array![];
+        for goblin in Self::sorted(goblins.span()) {
+            let GoblinWords { entity, awake: _, state, timers } = goblin;
+            let derived = !Self::listed(roster.span(), entity)
+                && Self::untouched(ground.span(), Self::spawn_chunk(entity), Self::k_of(entity));
+            out.append(GoblinView { entity, derived, state, timers });
+        }
+        Some(out)
     }
 
     /// The goblins of `chunks` (their packs' goblins: a record when `touched`, else derived from

@@ -7,6 +7,7 @@
 use core::poseidon::poseidon_hash_span;
 use core::testing::get_available_gas;
 use grimworld_ephemeral::events::{InstanceClosed, InstanceEntered, Refused};
+use grimworld_ephemeral::helpers::stored::StoredTrait;
 use grimworld_ephemeral::models::instance::errors::{
     ALREADY_INSIDE, NOT_HUB, NOT_INSIDE, NO_GATE, NO_LOCATION, NO_MAP, TOO_MANY_TASKS,
 };
@@ -16,11 +17,13 @@ use grimworld_ephemeral::models::member::{
     Effect, GONE, INSIDE, MemberEffects, MemberState, MemberTimers, MemberTimersTrait, NO_SLOT,
     Recharges,
 };
+use grimworld_ephemeral::store::InstancesStoreTrait;
 use grimworld_ephemeral::systems::instances::Instances::Event;
 use grimworld_ephemeral::systems::instances::{
     IInstancesDispatcher, IInstancesDispatcherTrait, IInstancesSafeDispatcher,
-    IInstancesSafeDispatcherTrait, InstanceView,
+    IInstancesSafeDispatcherTrait, InstanceView, UNLOADABLE,
 };
+use grimworld_ephemeral::systems::play::{Book, PlayTrait};
 use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
 use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
 use grimworld_logic::interface::{
@@ -866,7 +869,7 @@ fn test_generation_isolation() {
         'task page rewritten',
     );
     assert(view.roster.len() == 0, 'no roster page');
-    assert(view.goblins.len() == 0 && view.chunks.len() == 0, 'no chunk, no goblin');
+    assert(view.goblins.len() == 0, 'no goblin');
     // Every one of the member's eight words is the new generation's.
     let entering = MemberState {
         adventurer: HERO,
@@ -924,7 +927,9 @@ fn test_generation_isolation() {
         members: array![].span(),
         roster: array![].span(),
         goblins: array![].span(),
-        chunks: array![].span(),
+        width: 0,
+        height: 0,
+        level_min: 0,
     };
     assert(old == empty, 'old id: nothing');
     assert(
@@ -2256,6 +2261,162 @@ fn test_play_unloadable_goblin_refused() {
         .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
     let (played, stop, sequence, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 2 && sequence == 0, 'refused, nothing run');
+}
+
+// ---- VIEW-01 (D-263): `instance_state`'s goblins are those `play` loads ----
+
+/// What `play`'s `[Read]` of the goblins builds for the member of slot 1 (play.cairo, `play`): its
+/// roster's records, then the goblins of the revealed chunks around the member (`ground`,
+/// `goblins`), `sorted`: `play`'s own steps, run in `Instances`' storage.
+fn play_loads(world: World) -> Array<grimworld_logic::models::index::GoblinWords> {
+    snforge_std::interact_with_state(world.instances, || loads(world.registry))
+}
+
+fn loads(registry: ContractAddress) -> Array<grimworld_logic::models::index::GoblinWords> {
+    let mut state =
+        grimworld_ephemeral::systems::instances::Instances::contract_state_for_testing();
+    let header = state.get_header(1);
+    let words = state.get_member_words(1, header.members);
+    let (x, y) = PlayTrait::place(*words[0]);
+    let revealed = state.get_revealed(1).model().bits;
+    let ground = PlayTrait::ground(@state, 1, revealed, x, y, array![].span());
+    let roster = PlayTrait::roster(@state, 1, header.roster_count);
+    let mut stored = array![];
+    for entity in roster.span() {
+        let (words, timers) = state.get_goblin_words(1, *entity);
+        stored
+            .append(
+                grimworld_logic::models::index::GoblinWords {
+                    entity: *entity, awake: false, state: words, timers,
+                },
+            );
+    }
+    let mut book = Book { packs: array![], castes: array![], skills: array![], potions: array![] };
+    let goblins = PlayTrait::goblins(
+        ref state,
+        1,
+        grimworld_logic::interface::IRegistryReadDispatcher { contract_address: registry },
+        ref book,
+        ground.span(),
+        stored,
+        roster.span(),
+    )
+        .unwrap();
+    PlayTrait::sorted(goblins.span())
+}
+
+/// The view's goblins equal `play`'s loading, word for word and in order; each stored one equals
+/// its record and is not `derived`. Returns `(derived, stored)` counts.
+fn assert_view_is_play(world: World, id: u64) -> (u32, u32) {
+    let view = play(world, 'alice').instance_state(id);
+    let loaded = play_loads(world);
+    assert(view.goblins.len() == loaded.len(), 'as many goblins');
+    let (mut derived, mut stored) = (0_u32, 0_u32);
+    let mut i = 0;
+    while i < loaded.len() {
+        let seen = *view.goblins[i];
+        let words = *loaded[i];
+        assert(
+            seen.entity == words.entity && seen.state == words.state && seen.timers == words.timers,
+            'view = play',
+        );
+        let at = key(selector!("goblins"), array![1, seen.entity.into()]);
+        if seen.derived {
+            derived += 1;
+        } else {
+            assert(
+                read(world.instances, at) == seen.state
+                    && read(world.instances, at + 1) == seen.timers,
+                'stored: its record',
+            );
+            stored += 1;
+        }
+        i += 1;
+    }
+    (derived, stored)
+}
+
+// The alerted pack of 3 on chunk 15 and a calm pack of 2 on chunk 1, both in the 3 × 3 around the
+// member on chunk 16's (20, 22): every goblin derived first; after Waits the alerted pack walks to
+// the member (records, `touched`, the roster for those that leave chunk 15) and the calm one stays
+// untouched. Both times the view lists what `play` loads; then the location's record.
+#[test]
+#[available_gas(l2_gas: 400000000)]
+fn test_view_goblins_are_plays() {
+    let world = setup();
+    play_classes(world);
+    pack_content(world);
+    let id = create(world, 7, 'alice', 1, 0);
+    prepare_walk(world);
+    put_member(world, 20, 22);
+    let calm = grimworld_logic::models::index::PackPlacement {
+        tile: 2 * 15 + 7, template: 1, level: 1, count: 2, offsets: 9 + 8 * 32, alert: 0,
+    };
+    let features = grimworld_logic::models::index::Features {
+        packs: [calm, Default::default()], objects: [Default::default(); 3], touched: 0,
+    };
+    write(world.instances, chunk_key(1, 1) + 1, StorePacking::pack(features));
+    let (derived, stored) = assert_view_is_play(world, id);
+    println!("view, before: {} derived, {} stored", derived, stored);
+    assert(derived == 5 && stored == 0, 'every goblin derived');
+
+    let waits = array![
+        grimworld_logic::actions::Action::Wait, grimworld_logic::actions::Action::Wait,
+        grimworld_logic::actions::Action::Wait, grimworld_logic::actions::Action::Wait,
+    ];
+    let mut spy = spy_events();
+    play(world, 'alice').play(id, 7, 0, 0, batch(waits.span()));
+    let (played, _, _, _) = batch_played(ref spy, world);
+    let (derived, stored) = assert_view_is_play(world, id);
+    println!(
+        "view, after {} Waits: {} derived, {} stored, roster {}",
+        played,
+        derived,
+        stored,
+        header_of(world, 1).roster_count,
+    );
+    assert(derived > 0 && stored > 0, 'derived and stored');
+
+    // The location's record: its extent and `level_min`, read by the view
+    let view = play(world, 'alice').instance_state(id);
+    assert(view.width == 3 && view.height == 3 && view.level_min == 1, 'the location');
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let wider = LocationTrait::new(
+        location_kind::ZONE,
+        1,
+        1,
+        2,
+        3,
+        0,
+        4,
+        5,
+        0,
+        0,
+        0,
+        1,
+        false,
+        0,
+        112,
+        Lanes16 { lanes: [0; 15] },
+    );
+    records.set(LOCATION, header_of(world, 1).location.into(), wider.pack());
+    let view = play(world, 'alice').instance_state(id);
+    assert(view.width == 4 && view.height == 5 && view.level_min == 2, 'width, height, level');
+}
+
+// A goblin the registry cannot load (caste 99): `play` refuses the batch, the view answers with
+// the one `UNLOADABLE` marker and the rest of the instance, never a revert.
+#[test]
+#[available_gas(l2_gas: 400000000)]
+fn test_view_unloadable_goblin_marker() {
+    let world = setup();
+    play_classes(world);
+    pack_content(world);
+    let id = create(world, 7, 'alice', 1, 0);
+    prepare_ghost(world);
+    let view = play(world, 'alice').instance_state(id);
+    assert(view.goblins == array![UNLOADABLE].span(), 'the marker');
+    assert(view.instance_id == id && view.members.len() == 8, 'the rest of the view');
 }
 
 // t-0110, major 1: a Move across a chunk border and back. From chunk 16's last column, (29, 22),
