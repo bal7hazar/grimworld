@@ -231,8 +231,8 @@ Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 7, `defeated` 3, `trap` 4,
 
 ## `trap.jsonl`: a trap's trigger, `TrapTrait::trigger` (RV-03a, D-257)
 
-Printed by `types::trap::tests::vectors::test_trap_vectors_0` to `_3` (ids 0–13, 14–23, 24–35, 36–58), split for
-snforge's step limit, each part with its digest. Where `segment2.jsonl` records the trap class's result for a replay,
+Printed by `types::trap::tests::vectors::test_trap_vectors_0` to `_4` (ids 0–13, 14–23, 24–35, 36–58, 59–62), split
+for snforge's step limit, each part with its digest. Where `segment2.jsonl` records the trap class's result for a replay,
 this table tests a port of the class itself: each row is one call of `TrapLibrary::trigger` (the real class, declared
 in the test), which loads the words through the content, finds the entrant by its entity
 (`ExecutorTrait::actor`: none, nothing triggers), runs `TrapTrait::trigger` with a fresh `Cache`, and stores the words
@@ -266,23 +266,25 @@ position 142, chunk 0's tile 142. A trap's hit is never blocked or evaded and ha
 | `trigger`, the source (10) | 14–23 | the pit's hit guarded `BELOW_HALF` on the placer (health × 2 < 480): at 400 and 240 not held (the knock-down alone, to 306), at 239 held (100 → 58) (14–16); caltrops at rank 15 (Bleeding 25: to 329), with `CONDITION_DURATION` Bleeding 33 % (337), 63 % (capped at 50: 341), Poison 33 % (another condition: 329) (17–20); `KNOCKDOWN_FLAT` 3 with the pit's hit held: 2 + 3, to 309 (21); Snare at rank 0 (100 → 86) and 15 (100 → 34) (22, 23) |
 | `trigger`, a goblin's (4) | 24–27 | goblin 45's trap (caste slot 2, rank 12, level 10) on the member (24); on goblin 44, its side, nothing (25); its placer dead, its record still the source (26); its placer not in the call (entity 46), nothing (27) |
 | `trigger`, the entrant (8) | 28–35 | under Snare: goblin 44 asleep (wakes, Engaged), on watch (wakes), at 1 health (killed, in `killed`, Crippled not applied) (28–30); the member under goblin 45's trap holding Brace (a `BLOCK` charge: not blocked, the charge kept), Sidestep (`EVADE`: not evaded), Knocked down (31–33); an entrant the call does not hold: entity 99, member 1 of one, nothing (34, 35) |
-| `trigger`, the lookup (13) | 36–48 | the object written: a chest on the tile at 0, the trap at 1 (36); a chunk of 3 objects, used traps on the tile at 0 and 1, the trap at 2 (37); the trap on another tile, nothing (38); chunk 0 the ground's second entry, entry 1 written (39); no chunk 0, nothing (40); chunk 0 twice, the trap in the second: only the first is read, nothing (41). The position: 240, outside, nothing (42); 239, chunk 15's tile 14 (43); a negative origin `(−5, 0)`: position 0 before the location, nothing, position 5 its tile (0, 0) (44, 45); origin x 210, position 14 chunk 14's tile 14 (46); origin x 240, chunk column 16, nothing (47); origin y 240, chunk row 16, nothing (48) |
+| `trigger`, the lookup (13) | 36–48 | the object written: a chest on the tile at 0, the trap at 1 (36); a chunk of 3 objects, used traps on the tile at 0 and 1, the trap at 2 (37); the trap on another tile, nothing (38); chunk 0 the ground's second entry, entry 1 written (39); no chunk 0, nothing (40); chunk 0 twice, the trap in the second: only the first is read, nothing (41). The position: 240, outside, nothing (42); 239, chunk 15's tile 14 (43); a negative origin on the x axis, `(−5, 0)`: position 0 before the location, nothing, position 5 its tile (0, 0) (44, 45; the y axis: 59, 60); origin x 210, position 14 chunk 14's tile 14 (46); origin x 240, chunk column 16, nothing (47); origin y 240, chunk row 16, nothing (48) |
 | `free` (10) | 49–58 | an empty chunk: 0 (49); a chest elsewhere at 0: 1 (50); a used placed trap, a used terrain trap at 0: 0 (51, 52); a chest on the tile, an unused trap on it: none (53, 54); a used trap on the tile at 1: 1 (55); full, a used vein at 1: none (56); full, a used trap at 2: 2 (57); an empty object (kind 0) whose tile is the tile: 0 (58) |
+| `trigger`, appended (4) | 59–62 | RV-03a's fix loop 1 (the review of #440), after every earlier id: a negative origin on the y axis, `(0, −5)`: position 0 before the location, nothing (59), position 75 (row 5) its tile (0, 0), chunk 0's tile 0 (60); goblin 45's trap from caste slot 0 (skill 24) and slot 3 (skill 27), neither holding an entry: it triggers on the member, nothing applied, the trap used (61, 62) |
 
-Per `fn`: `content` 1, `trigger` 48, `free` 10. `place` and `spot` (placing, `free` with the window's checks) are not
+Per `fn`: `content` 1, `trigger` 52, `free` 10. `place` and `spot` (placing, `free` with the window's checks) are not
 in this table (the trap unit tests `test_place` and `test_example_trap` hold them; RV-03b's `act` places).
 
 ## `body.jsonl`: the `Body` operations and the effect entry's (RV-03a, D-257)
 
-Printed by `types::executor::tests::body::test_body_vectors_0` to `_4` (ids 0–51, 52–122, 123–172, 173–220,
-221–311), split for snforge's step limit, each part with its digest. One line: `{"id", "fn", "case", "ok"}`, every
+Printed by `types::executor::tests::body::test_body_vectors_0` to `_5` (ids 0–51, 52–122, 123–172, 173–220,
+221–311, 312–326), split for snforge's step limit, each part with its digest. One line: `{"id", "fn", "case", "ok"}`, every
 felt in hex (a negative integer `P − |v|`).
 
 **Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`body_content`): the fixtures' (`Fixture::
 content`: the bar's skills 1–8 at positions 0–7, the castes' 24–31 at 8–15), with skill 1 of adrenaline cost 5 (a
 member's cap: 20 quarters), skill 3 a stance whose `REGENERATION` line is 1 to 4, skill 4 a stance, skill 5 an
 enchantment of −2 to −5 pips, skill 24 (Hob's slot 0) of cost 5 (Hob's cap, 20); the belt's potions 100 to 103 (pips
-1, 3, −2, 0); the castes of armor 20, `ARMOR_VS` 5 against type 1 and 63 against type 9. Every actor is loaded through
+1, 3, −2, 0); the castes of armor 20, Hob's `ARMOR_VS` 5 against type 1 and 63 against type 9, Runt's 11 to 19 against types 1 to
+9 (one a lane: added by the fix loop of #440, the only change to an earlier row). Every actor is loaded through
 it (`MemberTrait::load`, `GoblinTrait::load`), its hot fields written back into its words (`store`).
 
 **The actor** is `Unit`'s layout: `0` then a `Member`'s 35 fields, or `1` then a `Goblin`'s 21, each in its struct's
@@ -358,10 +360,11 @@ adrenaline 0 of 20). `T`, the `t` of every operation that takes one, is 50.
 | `duration` (16) | 260–275 | `(d0, d12)` (5, 17), (17, 5), (0, 43,688), (43,688, 0), each at ranks 0, 1, 12, 15 |
 | `class` (26) | 276–301 | every kind 0–24, and 255 |
 | `pack`, `unpack` (10) | 302–311 | each in turn on: the empty entry, earth 10 to 40, energy −5 to −17, every field at its layout's maximum (the durations at `MAX_BASE_DURATION`), `scope` alone |
+| appended: `armor_vs` (12), `hold` (3) | 312–326 | RV-03a's fix loop 1 (the review of #440), after every earlier id: `armor_vs` on every lane, a member's per-type armors 5 to 12 and 63 (types 1 to 9) at types 4 to 8 (312–316), a Runt goblin (11 to 19) at types 2 to 8 (317–323); `hold`, belt potion 2 beside potion 1 held in slot 0 (not the same item: slot 1) (324); step 2's `!old.potion`, both sides: belt potion 3 held in slot 0 (its sheet at position 3, where stance 4 sits), stance 3 goes to slot 1 (325); stance 4 held in slot 0, stance 3 takes slot 0 (326) |
 
 Per `fn`: `content` 1, `health` 2, `max_health` 2, `is_member` 2, `place` 2, `alive` 9, `knocked` 6, `asleep` 3,
-`halves` 4, `armor_vs` 10, `infliction` 2, `enchant_percent` 2, `slots` 2, `effect` 5, `wound` 10, `heal` 13,
-`energize` 14, `struck` 16, `landed` 15, `halved` 3, `inflict` 50, `cure` 19, `hold` 22, `spend` 7, `line` 36,
+`halves` 4, `armor_vs` 22, `infliction` 2, `enchant_percent` 2, `slots` 2, `effect` 5, `wound` 10, `heal` 13,
+`energize` 14, `struck` 16, `landed` 15, `halved` 3, `inflict` 50, `cure` 19, `hold` 25, `spend` 7, `line` 36,
 `value` 3, `duration` 16, `class` 26, `pack` 5, `unpack` 5.
 
 **The inventory** (what the earlier tables already pin of these operations). `hit.jsonl` pins `HitTrait::resolve`,

@@ -20,7 +20,7 @@ use crate::types::infliction::Infliction;
 use crate::types::tick::{
     CasteSheet, Content, ContentTrait, Held, PotionSheet, Sheets, SkillSheetTrait, ai, flag, status,
 };
-use crate::types::world::fixtures::{Fixture, HOB, two};
+use crate::types::world::fixtures::{Fixture, HOB, RUNT, two};
 use super::at;
 
 /// The clock or tick the operations that take one run at.
@@ -151,8 +151,8 @@ fn flag_felt(b: bool) -> felt252 {
 /// 24–31 at 8–15), with: skill 1 an adrenaline cost of 5 strikes (a member's cap, 20 quarters),
 /// skill 3 a stance whose `REGENERATION` line is 1 to 4, skill 4 a stance, skill 5 an enchantment
 /// of −2 to −5 pips, skill 24 (Hob's slot 0) a cost of 5 (Hob's cap, 20); the belt's potions
-/// 100 to 103 (pips 1, 3, −2, 0); the castes of armor 20, `ARMOR_VS` 5 against type 1 and 63
-/// against type 9.
+/// 100 to 103 (pips 1, 3, −2, 0); the castes of armor 20, Hob's `ARMOR_VS` 5 against type 1 and
+/// 63 against type 9, Runt's 11 to 19 against types 1 to 9.
 pub fn body_content() -> Content {
     let base = Fixture::content();
     let mut skills = array![];
@@ -179,9 +179,21 @@ pub fn body_content() -> Content {
         PotionSheet { id: 102, regen: -2, ..Default::default() },
         PotionSheet { id: 103, regen: 0, ..Default::default() },
     ];
+    // RV-03a fix loop 1: Runt's `ARMOR_VS` 11 to 19 against types 1 to 9, one a lane.
+    let mut lanes: u64 = 0;
+    let mut shift: u64 = 1;
+    for t in 1..10_u64 {
+        lanes += (10 + t) * shift;
+        shift *= 64;
+    }
     let mut castes: Array<CasteSheet> = array![];
     for caste in base.castes {
-        castes.append(CasteSheet { armor: 20, armor_vs: 5 + 63 * 0x1000000000000, ..*caste });
+        let armor_vs = if *caste.id == RUNT {
+            lanes
+        } else {
+            5 + 63 * 0x1000000000000
+        };
+        castes.append(CasteSheet { armor: 20, armor_vs, ..*caste });
     }
     Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
 }
@@ -845,6 +857,48 @@ fn holds(content: @Content, sheets: @Sheets) -> Array<(Unit, Op)> {
     rows
 }
 
+/// Appended by RV-03a's fix loop 1 (the review of #440), after every earlier id: `armor_vs` on
+/// every type's lane, and `hold`'s potion paths.
+fn appended(content: @Content, sheets: @Sheets) -> Array<(Unit, Op)> {
+    let mut rows = array![];
+    // `armor_vs`, a member: its per-type armors 5 to 12 and 63 (types 1 to 9: `MemberStats` 48,
+    // 54, then 200 + 6 (t − 3)), at types 4 to 8.
+    let mut armored = member(content);
+    armored.words.stats += 5 * two(48)
+        + 6 * two(54)
+        + 7 * two(200)
+        + 8 * two(206)
+        + 9 * two(212)
+        + 10 * two(218)
+        + 11 * two(224)
+        + 12 * two(230)
+        + 63 * two(236);
+    for damage_type in 4..9_u8 {
+        rows.append((Unit::M(armored), Op::ArmorVs(damage_type)));
+    }
+    // A goblin of caste Runt (`ARMOR_VS` 11 to 19 against types 1 to 9), at types 2 to 8.
+    let g = Fixture::goblin(265, RUNT);
+    let words = GoblinWords { entity: 265, awake: true, state: g.state, timers: g.timers };
+    let runt = Unit::G(Fixture::load_goblin(words, content));
+    for damage_type in 2..9_u8 {
+        rows.append((runt, Op::ArmorVs(damage_type)));
+    }
+    // `hold`, a potion beside another: belt potion 1 (item 101) held in slot 0, belt potion 2
+    // (item 102) is not the same item, slot 1.
+    let m = member(content);
+    let potion = m_holding(m, 0, held(1, true, 0, 60, 0), sheets);
+    rows.append((Unit::M(potion), hold(held(2, true, 0, 60, 0), 2, false)));
+    // Step 2's `!old.potion`, both sides: belt potion 3 (its sheet at position 3, where skill 4,
+    // a stance, sits) held in slot 0, stance 3 is not put there, slot 1; stance 4 held in slot
+    // 0, stance 3 takes it.
+    let three = at(sheets, 3);
+    let potion = m_holding(m, 0, held(3, true, 0, 60, 0), sheets);
+    rows.append((Unit::M(potion), hold(held(3, false, 0, 58, 12), three, true)));
+    let stance = m_holding(m, 0, held(4, false, 0, 60, 0), sheets);
+    rows.append((Unit::M(stance), hold(held(3, false, 0, 58, 12), three, true)));
+    rows
+}
+
 fn hold(h: Held, at: u32, stance: bool) -> Op {
     Op::Hold((h, at, stance, T))
 }
@@ -993,13 +1047,26 @@ fn test_body_vectors_4() {
     finish(digest, BODY_DIGEST_4);
 }
 
+// Appended by the fix loop: ids after every earlier part's.
+#[test]
+#[available_gas(l2_gas: 156243847)] // ceil(1.05 × 148803663 measured)
+fn test_body_vectors_5() {
+    let content = body_content();
+    let sheets = content.sheets();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = BODY_PART_5;
+    run(ref digest, ref id, @sheets, appended(@content, @sheets));
+    finish(digest, BODY_DIGEST_5);
+}
+
 /// The first id of each part, and each part's digest.
 const BODY_PART_1: u32 = 52;
 const BODY_PART_2: u32 = 123;
 const BODY_PART_3: u32 = 173;
 const BODY_PART_4: u32 = 221;
+const BODY_PART_5: u32 = 312;
 const BODY_DIGEST_0: felt252 =
-    251382024194373744949060254424679112427411048847036935103067442093017926402;
+    1598459221565441623804350022951177107043960060755901037354943566470590002612;
 const BODY_DIGEST_1: felt252 =
     822755559781721334376966019348273462998371782871208343343980908972303218630;
 const BODY_DIGEST_2: felt252 =
@@ -1008,3 +1075,5 @@ const BODY_DIGEST_3: felt252 =
     204783480972355102103941296066621439799057620292245381899642073046951479842;
 const BODY_DIGEST_4: felt252 =
     3116694715749133080887387106960700414459042789108760740297312786033004326793;
+const BODY_DIGEST_5: felt252 =
+    180299553724079398759478913516279442118061555934969195638265543515182710644;

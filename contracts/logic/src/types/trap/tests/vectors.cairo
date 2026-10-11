@@ -489,10 +489,37 @@ fn test_trap_vectors_3() {
     finish(digest, TRAP_DIGEST_3);
 }
 
+// Appended by RV-03a's fix loop 1 (the review of #440), after every earlier id: a negative origin
+// on the y axis; a goblin placer on another caste slot.
+#[test]
+#[available_gas(l2_gas: 158320785)] // ceil(1.05 × 150781700 measured)
+fn test_trap_vectors_4() {
+    let class = class();
+    let content = trap_content();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TRAP_PART_4;
+    // A board whose origin is negative, `(0, −5)` (`y` held as 10): position 0 lies before the
+    // location (nothing); position 75 (row 5) is its tile (0, 0), chunk 0's tile 0.
+    let south = Board { window: open(), x: ORIGIN, y: ORIGIN - 5 };
+    let corner = alone(trap(0, object::TRAP, 0, TERRAIN));
+    row(ref digest, ref id, class, @content, world(), south, corner.clone(), 0, 0, 20);
+    row(ref digest, ref id, class, @content, world(), south, corner, 0, 75, 20);
+    // Goblin 45's trap from caste slot 0 (skill 24) and slot 3 (skill 27), neither a trap skill
+    // nor holding an entry: it triggers on the member, nothing applied, the trap used; slot 2's
+    // Snare payload (row 24) is not read.
+    let b = board();
+    for slot in array![0_u8, 3] {
+        let placed = trap(SPOT, object::PLACED_TRAP, 0, Placer::Goblin((PLACER, slot)).param());
+        row(ref digest, ref id, class, @content, world(), b, alone(placed), 0, SPOT, 0);
+    }
+    finish(digest, TRAP_DIGEST_4);
+}
+
 /// The first id of each part, and each part's digest.
 const TRAP_PART_1: u32 = 14;
 const TRAP_PART_2: u32 = 24;
 const TRAP_PART_3: u32 = 36;
+const TRAP_PART_4: u32 = 59;
 const TRAP_DIGEST_0: felt252 =
     2787498107184120386038607310383447558271195683507077469272024736095572910618;
 const TRAP_DIGEST_1: felt252 =
@@ -501,3 +528,5 @@ const TRAP_DIGEST_2: felt252 =
     3438638085967200555492296647354720432742156539403220268880570701724845901951;
 const TRAP_DIGEST_3: felt252 =
     3075499101549686030732729308817093250590815560376692689788891479222492881474;
+const TRAP_DIGEST_4: felt252 =
+    2230414804466176496992525929743744514951125034518003269410151585528301294780;
