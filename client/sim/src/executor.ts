@@ -206,8 +206,9 @@ export function memberDefence(member: Member, t: number, sheets: Sheets): Defenc
   for (let slot = 0; slot < 4; slot++) {
     const held = m.effect_of(member, slot);
     const position = m.effect_position(member, slot);
-    if (held.deadline >= t && position !== ABSENT_LANE)
+    if (held.deadline >= t && position !== ABSENT_LANE) {
       addHeld(defence, held, position, slot, sheets);
+    }
   }
   return defence;
 }
@@ -270,8 +271,9 @@ function defenceOf(c: Cache, unit: Unit, actor: Actor, t: number, sheets: Sheets
 
 /** `ExecutorTrait::actor`: member 0–7 the world holds, or the goblin of entity `entity`. */
 export function actor(world: World, entity: number): Actor | undefined {
-  if (entity < FIRST_GOBLIN)
+  if (entity < FIRST_GOBLIN) {
     return entity < world.members.length ? { kind: "M", i: entity } : undefined;
+  }
   const i = find(world, entity);
   return i === undefined ? undefined : { kind: "G", i };
 }
