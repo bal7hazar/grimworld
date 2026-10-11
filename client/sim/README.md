@@ -186,7 +186,7 @@ where `actors` centres each entry's set by its own target: a `TILE` set beside a
 other kind and may reach a goblin the sub-world does not hold (review t-0209). `action.ts`'s
 `mixed` refuses those with `NotMirrored` (`unported.MIXED`); `SELF` with `FOE` or `ALLY`, `FOE`
 with `ALLY`, and `TILE` first with `SELF` later stay mirrored. `src/parity/actcases.ts` holds the refused shapes (a `TILE` hit then a `FOE`
-condition; the reverse, an order `assert_carrier` refuses, `HIT_NOT_FIRST`; a `SELF` hit then a
+or an `ALLY` condition; the reverse, an order `assert_carrier` refuses, `HIT_NOT_FIRST`; a `SELF` hit then a
 `TILE` condition) and the kept ones, each run against its expected result (a `SELF` disc hit then a
 `FOE` condition; a `TILE` disc hit then a `SELF` condition; a `FOE` hit then an `ALLY` condition),
 run by `src/action.test.ts` and, against the `act` mutants of `mixed` (its guard, its `SELF` arm,
@@ -208,8 +208,14 @@ a refusal the words and the ground are the case's, felt for felt. `segment2.json
 state and health, `TrapTrait::occupied` and a wide carrier's candidates its AI state alone (rows
 217 to 222 hold goblins dead by one field only).
 
-Of the action's 153 mutants, 130 are killed by the tables and 4 by `actcases.ts` (`mixed`'s guard,
-its `SELF` arm, and two that refuse a kept shape). 16 survive, holes of `act.jsonl`
+Of the action's 154 mutants, 130 are killed by the tables and 5 by `actcases.ts` (`mixed`'s guard,
+its `SELF` arm, the `ALLY` one that makes a `TILE` then `ALLY` carrier run on the whole world, and
+two that refuse a kept shape: `TILE` counted with `ALLY`, and `TILE` first with `SELF` later
+refused; the third such mutant, `SELF` counted as a `TILE` one, is killed by the tables, not by
+`actcases.ts`). `mixed`'s attack arm (`let entity = attack`) has no test: it is defence in depth.
+`assert_carrier`'s `ATTACK_ENTRY` keeps an attack's entries `FOE` + `SINGLE`, so legal content
+never holds an attack with a `TILE` entry, and `act` does not carry an attack (the ticks do), so
+no case reaches the arm. 16 survive, holes of `act.jsonl`
 reported to track game: no attack skill on a slot other than 0 with that slot's (or slot 0's)
 weapon-required bit alone; no negative `NEXT_SPELL_COST`; no spell counting for a quick-cast pair
 from a bar slot above 0; no `act` row landing an attack skill with passives or a held

@@ -1,4 +1,5 @@
 import {
+  actionAct,
   type Area,
   type Classes,
   type Content,
@@ -43,11 +44,12 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  * The goblins are the view's as they are, derived ones included (at full health, in their pack's
  * state): `PlayLibrary` loads them by the same functions.
  * Of the three classes behind the seam, `TrapLibrary::trigger` is client/sim's `trapTrigger`
- * (CLI-02g-D, CLI-10e): a segment that enters a trap predicts. `TickLibrary::ticks` and
- * `ActionLibrary::act` have no port yet: `unportedClasses` answers each call with `NotMirrored`,
- * so a segment predicts on the fast path (no goblin in the window, no combat) and through a
- * direct trap call. A trap reached through `TickLibrary`'s nested calls (a goblin's step onto
- * one) stays `ticks`' and is still not mirrored.
+ * (CLI-02g-D, CLI-10e) and `ActionLibrary::act` is its `actionAct` (CLI-02g-E, CLI-10g): a segment
+ * that enters a trap, or whose combat action needs no `ticks`, predicts. `TickLibrary::ticks` has
+ * no port yet: `unportedClasses` answers it with `NotMirrored`, so a combat action followed by
+ * ticks (goblins awake) is not mirrored. Neither is a carrier that mixes a TILE target with an
+ * entity one (client/sim's `MIXED`: `actionAct` answers it `NotMirrored`). A trap reached through
+ * `TickLibrary`'s nested calls (a goblin's step onto one) stays `ticks`' and is still not mirrored.
  */
 
 /** What the mirror runs from. */
@@ -204,7 +206,10 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
   };
 }
 
-/** The classes client/sim does not port yet: each call is no prediction (`trigger` is ported). */
+/**
+ * The classes client/sim does not port yet: each call is no prediction (`trigger` and `act` are
+ * ported, `nativeClasses`; only `ticks` is left).
+ */
 export const unportedClasses: Classes = {
   ticks() {
     throw new NotMirrored("TickLibrary::ticks (no port in client/sim yet)");
@@ -217,8 +222,12 @@ export const unportedClasses: Classes = {
   },
 };
 
-/** The classes the preview runs: the unported ones, and the trap class client/sim computes. */
-export const nativeClasses: Classes = { ...unportedClasses, trigger: trapTrigger };
+/** The classes the preview runs: `ticks` unported, the trap and action classes client/sim computes. */
+export const nativeClasses: Classes = {
+  ...unportedClasses,
+  trigger: trapTrigger,
+  act: actionAct,
+};
 
 /** The preview's `predict`: the segment of `state` with the batch's actions. */
 export function mirrorOf(state: MirrorState, classes: Classes = nativeClasses): Predict {
