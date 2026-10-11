@@ -212,7 +212,7 @@ lot's head; no class of the expedition's path moved (`Instances`, `PlayLibrary`,
 
 **BND-01** (the registry's deployment guard, R-42), measured with `class_sizes.py` on the lot's head: `Registry`
 33,179 → 33,217 CASM felts (40.50 % → 40.55 %, +38: the refusal of a `GATE` and a `QUOTAS` before the class is
-set, and the pack's fewest of 0); `ZoneChecks` unchanged at 26,298 (32.10 %). No source of the expedition's
+set, and the pack's fewest of 0); `ZoneChecks` 26,298 → 26,410 (32.10 % → 32.24 %, +112: R-43, `GateAssert::assert_valid` run first on a `GATE` write). No source of the expedition's
 path moved; at the lot's head `Instances` is at 37.76 %, `PlayLibrary` 67.76 %, `SegmentLibrary` 58.11 %,
 `TickLibrary` 78.09 % and `RevealLibrary` 49.85 %, each under its threshold.
 

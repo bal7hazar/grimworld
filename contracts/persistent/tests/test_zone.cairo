@@ -1317,7 +1317,7 @@ fn gate_entering_chunk(destination: u16, entry: u8) -> Span<felt252> {
 // map, a hub, a location not yet written: R-41 alone reads only the first); 224, the last chunk,
 // is accepted.
 #[test]
-#[available_gas(l2_gas: 40000000)]
+#[available_gas(l2_gas: 27139221)] // ceil(1.05 × 25846877 measured)
 fn test_gate_entry_past_the_board() {
     let r = ZoneFixture::bare();
     r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 15, 15, 6).pack());
@@ -1340,7 +1340,7 @@ fn test_gate_entry_past_the_board() {
 // R-43 as a case of the table: the Registry's alone (the converter's `GateRecord::pack` refuses
 // it).
 #[test]
-#[available_gas(l2_gas: 18000000)]
+#[available_gas(l2_gas: 7747991)] // ceil(1.05 × 7379039 measured)
 #[should_panic(expected: 'gate: entry chunk')]
 fn test_refuse_gate_entry_chunk() {
     let r = ZoneFixture::bare();
