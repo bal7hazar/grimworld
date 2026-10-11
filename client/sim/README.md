@@ -7,18 +7,19 @@ the harness's reader.
 
 ## What is mirrored
 
-| File                                          | Cairo                                                                                                                                                                                                                                                                                                                                                                      | Vector table     | Cases       |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ----------- |
-| `src/window.ts`                               | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02)                                                                                                                                                                                                                                                                                                           | `window.jsonl`   | 2,065       |
-| `src/hit.ts`                                  | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                                                                                                                                                                                                                                                                       | `hit.jsonl`      | 203         |
-| `src/fate.ts`                                 | `fate::domain`, `fate::derive` and the purposes (`contracts/logic/src/fate.cairo`), Poseidon through `@scure/starknet`                                                                                                                                                                                                                                                     | `fate.jsonl`     | 227         |
-| `src/packing.ts`                              | `contracts/logic/src/packing.cairo`: `split`, `limbs`, `join`, `peel`, `fits`, the field readers, `Lanes32`, `Lanes16`, `Counter`, `Bitmap`                                                                                                                                                                                                                                | `packing.jsonl`  | 520         |
-| `src/movement.ts`                             | the moves of a played batch (ENG-07, CLI-02c): the window's board around the adventurer (`SegmentTrait::board`, `BoardTrait::position`, `AssemblyTrait::origin`), a Move's ticks (`TickMathTrait::move_ticks`), the tick's flood (`Bfs::flood`, `FloodTrait`) and step 0's awake set (`TickTrait::awake`)                                                                  | `movement.jsonl` | 94          |
-| `src/batch.ts`                                | where a played batch stops (ENG-07b, CLI-02d): `SegmentTrait::admit` (E-16's cap of 16 records, E-1's weight with +1 a first record) and `SegmentTrait::revealed` (a reveal's weight, 2 a chunk)                                                                                                                                                                           | `batch.jsonl`    | 28          |
-| `src/segment.ts`                              | one segment of a played batch (ENG-07, D-248, CLI-02f): `SegmentTrait::run` (`types/play.cairo`): the owed ticks' fold, `max(1, ticks)`, the three weight checks (`run`'s, `turn`'s, `step`'s), the `ran` rule, a Move's reveal stop, `fits` (through `admit`), the illegal halts; the window's walkable board (`SegmentTrait::board`, `hexx`'s `AssemblyTrait::assemble`) | `segment.jsonl`  | 47          |
-| `src/reveal.ts`, `src/reveal/`, `src/hexx.ts` | the reveal of a chunk (ENG-05, ENG-05b, ENG-10b): `RevealTrait::reveal` and its steps (`types/reveal.cairo`, `reveal/board.cairo`, `reveal/placement.cairo`), `SightTrait::chunks`, `fate::EntropyTrait` (`word`, `feed`, `outline`), `PackPlacementTrait::member`, and what they call of `hexx` 0.2.0 (`RngTrait`, `CaverTrait::smooth` and `keep_component`)             | `reveal.jsonl`   | 214         |
-| `src/exp2.ts`                                 | `helpers/exp2.cairo`'s table, generated for both sides by `contracts/tools/exp2_table.py`                                                                                                                                                                                                                                                                                  | `--check` in CI  | 241 entries |
-| `src/felt.ts`                                 | `P`, the integer types (`u8` … `u128`, `i8` … `i32`) with Cairo's panics, truncating division, signed felts, short strings                                                                                                                                                                                                                                                 | —                | —           |
+| File                                          | Cairo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Vector table                      | Cases       |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ----------- |
+| `src/window.ts`                               | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02)                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `window.jsonl`                    | 2,065       |
+| `src/hit.ts`                                  | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `hit.jsonl`                       | 203         |
+| `src/fate.ts`                                 | `fate::domain`, `fate::derive` and the purposes (`contracts/logic/src/fate.cairo`), Poseidon through `@scure/starknet`                                                                                                                                                                                                                                                                                                                                                                                                                      | `fate.jsonl`                      | 227         |
+| `src/packing.ts`                              | `contracts/logic/src/packing.cairo`: `split`, `limbs`, `join`, `peel`, `fits`, the field readers, `Lanes32`, `Lanes16`, `Counter`, `Bitmap`                                                                                                                                                                                                                                                                                                                                                                                                 | `packing.jsonl`                   | 520         |
+| `src/movement.ts`                             | the moves of a played batch (ENG-07, CLI-02c): the window's board around the adventurer (`SegmentTrait::board`, `BoardTrait::position`, `AssemblyTrait::origin`), a Move's ticks (`TickMathTrait::move_ticks`), the tick's flood (`Bfs::flood`, `FloodTrait`) and step 0's awake set (`TickTrait::awake`)                                                                                                                                                                                                                                   | `movement.jsonl`                  | 94          |
+| `src/batch.ts`                                | where a played batch stops (ENG-07b, CLI-02d): `SegmentTrait::admit` (E-16's cap of 16 records, E-1's weight with +1 a first record) and `SegmentTrait::revealed` (a reveal's weight, 2 a chunk)                                                                                                                                                                                                                                                                                                                                            | `batch.jsonl`                     | 28          |
+| `src/segment.ts`                              | one segment of a played batch (ENG-07, D-248, CLI-02f, CLI-02g-A): `SegmentTrait::run` (`types/play.cairo`) on the real world: the owed ticks' fold, `max(1, ticks)`, the three weight checks (`run`'s, `turn`'s, `step`'s), the `ran` rule, a Move's reveal stop, `fits` with its goblin records, the illegal halts, `world.defeated`, the occupied tile, the companions, the fast path's ticks and regeneration, `MOVEMENT`, the followed window; the window's walkable board (`SegmentTrait::board`, `hexx`'s `AssemblyTrait::assemble`) | `segment.jsonl`, `segment2.jsonl` | 47, 43      |
+| `src/segment/`                                | the `Serde` codecs of `Content`, `Words`, the ground, `Area`, `executor::Board`, `Action`, `Done` and the recorded calls (`serde.ts`); a member's load and store, the content's `Sheets`, `Index` and `Kit` (`words.ts`); the seam of the classes and their call digests (`classes.ts`)                                                                                                                                                                                                                                                     | `segment2.jsonl`                  | 43          |
+| `src/reveal.ts`, `src/reveal/`, `src/hexx.ts` | the reveal of a chunk (ENG-05, ENG-05b, ENG-10b): `RevealTrait::reveal` and its steps (`types/reveal.cairo`, `reveal/board.cairo`, `reveal/placement.cairo`), `SightTrait::chunks`, `fate::EntropyTrait` (`word`, `feed`, `outline`), `PackPlacementTrait::member`, and what they call of `hexx` 0.2.0 (`RngTrait`, `CaverTrait::smooth` and `keep_component`)                                                                                                                                                                              | `reveal.jsonl`                    | 214         |
+| `src/exp2.ts`                                 | `helpers/exp2.cairo`'s table, generated for both sides by `contracts/tools/exp2_table.py`                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `--check` in CI                   | 241 entries |
+| `src/felt.ts`                                 | `P`, the integer types (`u8` … `u128`, `i8` … `i32`) with Cairo's panics, truncating division, signed felts, short strings                                                                                                                                                                                                                                                                                                                                                                                                                  | —                                 | —           |
 
 The functions keep the Cairo names and argument order (`sight(open, from, to)`, `arc(source,
 target, facing)`, …): `number` for positions, facings and ranges, `bigint` for felts, bitmaps and
@@ -28,26 +29,42 @@ A packing guard that panics in Cairo (`join`'s high limb, `fits`, `pack_bitmap`)
 `CairoPanic`; the table records it as a refusal (`[0, result…]` accepted, `[1]` refused), and its
 adapter in `src/parity/tables.ts` turns only that guard's own panic into `[1]`.
 
-## What the segment mirror does not port
+## The segment and its classes
 
-`segment.jsonl` has no goblin and calls no class, so `run`'s branches below have no case. Where
-`run` reaches one, `runSegment` throws `NotMirrored` (`not mirrored: <branch>`, listed in
-`unported`), never a guess; `src/segment/unported.test.ts` holds each:
+`run` calls three classes: `TickLibrary::ticks`, `ActionLibrary::act`, `TrapLibrary::trigger`.
+They go through one seam, `Classes` (`src/segment/classes.ts`). `run` computes each call's inputs
+itself and passes them through it, then loads the words and the ground the class returns, as
+`SegmentTrait::reload` does. A trap writes back the members, and the placer goblin of a placed
+trap.
 
-- `world.defeated` → break (a world defeated, or a tick with the adventurer at 0 health);
-- the combat arm: Attack, Skill, Item through `ActionLibrary`, and its Heavy;
-- ticks through `TickLibrary` (a goblin in the window, or a world not calm);
-- a tick that regenerates (`MemberTrait::regenerate`): health regen, Bleeding, Poison or Burning
-  held, an effect's pips held, or health above its max; the fixture's ticks change no health;
-- a world of more than one member (a companion blocks a Move and regenerates);
-- an armed trap on the tile a Move enters;
-- Blocked by a tile a goblin occupies, or by a missing neighbour (a guard only: the adventurer
-  stands at the window's column 7, every direction has a neighbour);
-- a held `MOVEMENT` effect (FX-18; the fixture holds none);
-- `fits`' goblin records (a refusal on weight with first records, the untouched-engaged skip):
-  only the branches above change a goblin, so `fits` here is `admit` with no fresh record.
+**Native**, as `run` holds them:
 
-Energy and adrenaline, which a tick also regenerates, are not part of the mirror's world.
+- the loop and its stops;
+- Move: open, occupied by a living member or goblin, Crippled, a held `MOVEMENT` effect;
+- Turn and Wait, the followed window;
+- the trap lookup (`AiTrait::armed`) and the words it sends;
+- `idle`'s choice and the fast path (`TickTrait::idle`): the clock, the flags, the members'
+  regeneration out of combat (`MemberTickTrait::regenerate`: health, energy, adrenaline), the
+  defeat check;
+- `fits`' goblin records.
+
+**Behind the seam**: the three classes. `segment2.jsonl`'s rows are replayed by
+`src/parity/replayer.ts`, which is test scaffolding and is never exported by `src/index.ts`. At
+each call it checks the kind and the Poseidon digest of the inputs `run` computed (the README of
+the vectors gives their order), then returns the recorded words and ground. A call of another
+kind, other inputs, an extra call or a missing one fails the row, naming the call's index and kind.
+Lots D to F replace the replayer with ports, class by class; the batch preview needs those ports,
+since it predicts batches nobody recorded (D-255).
+
+**Not mirrored**: one branch. A Move whose neighbour is missing (`LayoutTrait::neighbor` → `None`,
+the window's edge) throws `NotMirrored`. `run` never reaches it: the adventurer stands at the
+window's column 7, and every direction has a neighbour (`src/segment/unported.test.ts`).
+`GoblinTrait::load`'s refusals (a caste or a caste skill the content does not hold) and the cap of
+8 awake goblins are not checked; no row reaches them.
+
+`segment.jsonl`'s rows hold a simplified adventurer. Their decoder builds its words as the
+unit-test fixture's member (max health 480, no regeneration, no effect or skill), and its classes
+fail on any call: the table never reaches one.
 
 ## Where the vectors come from
 

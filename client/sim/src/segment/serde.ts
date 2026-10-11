@@ -116,7 +116,11 @@ function readCaste(r: Felts): CasteSheet {
 }
 
 export function readContent(r: Felts): Content {
-  return { skills: r.span(() => readSkill(r)), potions: r.span(() => readPotion(r)), castes: r.span(() => readCaste(r)) };
+  return {
+    skills: r.span(() => readSkill(r)),
+    potions: r.span(() => readPotion(r)),
+    castes: r.span(() => readCaste(r)),
+  };
 }
 
 export function writeContent(content: Content): bigint[] {
@@ -130,7 +134,13 @@ export function writeContent(content: Content): bigint[] {
       s.entry2,
       s.entry3,
     ]),
-    ...span(content.potions, (p) => [n(p.id), toFelt(i16, BigInt(p.regen)), p.entry, n(p.range), n(p.strength)]),
+    ...span(content.potions, (p) => [
+      n(p.id),
+      toFelt(i16, BigInt(p.regen)),
+      p.entry,
+      n(p.range),
+      n(p.strength),
+    ]),
     ...span(content.castes, (c) => [
       ...[c.id, c.health, c.health_regen, c.energy, c.energy_regen, c.weapon_ticks].map(n),
       ...c.skills.map(n),
@@ -151,7 +161,12 @@ export function readWords(r: Felts): Words {
     members: r.span(
       () => Object.fromEntries(MEMBER_KEYS.map((key) => [key, r.felt()])) as MemberWords,
     ),
-    goblins: r.span((): GoblinWords => ({ entity: r.u16(), awake: r.bool(), state: r.felt(), timers: r.felt() })),
+    goblins: r.span((): GoblinWords => ({
+      entity: r.u16(),
+      awake: r.bool(),
+      state: r.felt(),
+      timers: r.felt(),
+    })),
     killed: r.span(() => r.u16()),
     defeated: r.bool(),
   };
@@ -355,7 +370,16 @@ export function readDone(r: Felts): Done {
   const some = r.felt();
   if (some !== 0n && some !== 1n) throw new RangeError(`option variant ${some}`);
   const illegal = some === 0n ? readIllegal(r) : undefined;
-  return { played, weight, owed, reveal, illegal, heavy: r.bool(), changed: r.span(() => r.u16()), undo: r.bool() };
+  return {
+    played,
+    weight,
+    owed,
+    reveal,
+    illegal,
+    heavy: r.bool(),
+    changed: r.span(() => r.u16()),
+    undo: r.bool(),
+  };
 }
 
 export function writeDone(done: Done): bigint[] {
@@ -400,7 +424,11 @@ export function writeCall(call: Call): bigint[] {
     case "ticks":
       return [0n, ...head];
     case "act":
-      return [1n, ...head, ...("ticks" in call.outcome ? [0n, n(call.outcome.ticks)] : [1n, n(call.outcome.illegal)])];
+      return [
+        1n,
+        ...head,
+        ...("ticks" in call.outcome ? [0n, n(call.outcome.ticks)] : [1n, n(call.outcome.illegal)]),
+      ];
     case "trigger":
       return [2n, ...head, n(call.triggered)];
   }

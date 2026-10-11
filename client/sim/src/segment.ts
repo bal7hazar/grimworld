@@ -25,7 +25,14 @@ import { P, add, panic, u8 } from "./felt";
 import { ORIGIN, board as origin_board, move_ticks, origin, position } from "./movement";
 import { chunks as sight } from "./reveal";
 import type { Classes } from "./segment/classes";
-import { type Action, type Area, type Board, type Done, type Ground, Illegal } from "./segment/serde";
+import {
+  type Action,
+  type Area,
+  type Board,
+  type Done,
+  type Ground,
+  Illegal,
+} from "./segment/serde";
 import {
   ABSENT_LANE,
   DEAD,
@@ -341,7 +348,13 @@ function trap(world: World, rules: Rules, at: number): void {
   const index = entity === undefined ? -1 : world.goblins.findIndex((g) => g.entity === entity);
   const goblins = index < 0 ? [] : [{ ...world.goblins[index]! }];
   const out = rules.classes.trigger({
-    words: { clock: world.clock, members: world.members.map(store), goblins, killed: [], defeated: false },
+    words: {
+      clock: world.clock,
+      members: world.members.map(store),
+      goblins,
+      killed: [],
+      defeated: false,
+    },
     content: rules.content,
     board: rules.board,
     ground: rules.ground,
@@ -402,7 +415,12 @@ function step(world: World, rules: Rules, direction: number, weight: number): Re
   }
   const n = move_ticks(crippled(member), t0, movement(member, rules.sheets, c));
   if (n > weight) return { halt: "heavy" };
-  set_place(member, on.x + (to % WIDTH) - ORIGIN, on.y + Math.floor(to / WIDTH) - ORIGIN, direction);
+  set_place(
+    member,
+    on.x + (to % WIDTH) - ORIGIN,
+    on.y + Math.floor(to / WIDTH) - ORIGIN,
+    direction,
+  );
   trap(world, rules, to);
   return { ticks: n };
 }

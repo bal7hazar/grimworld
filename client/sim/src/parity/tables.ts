@@ -401,7 +401,10 @@ const segment2Row: Mirror = (c) => {
   const calls = read.span(() => readCall(read));
   read.end();
   const classes = replayer(calls);
-  const out = runSegment({ words, content: content(), area, level, ground, owed, weight, actions }, classes);
+  const out = runSegment(
+    { words, content: content(), area, level, ground, owed, weight, actions },
+    classes,
+  );
   classes.end();
   return [...writeWords(out.words), ...writeGround(out.ground), ...writeDone(out.done)];
 };

@@ -10,7 +10,7 @@
 // they are needed. Not mirrored, as no row reaches them: `GoblinTrait::load`'s refusal of a caste
 // or a caste skill the content does not hold, and `WorldAssert::assert_awake` (at most 8 awake).
 
-import { P, add, fromFelt, i16, narrow, panic, u16, u32, u8 } from "../felt";
+import { P, add, narrow, panic, u16, u32, u8 } from "../felt";
 import { field, limbs, peel } from "../packing";
 
 /** A member's stored words (`models::index::MemberWords`). */
@@ -54,7 +54,13 @@ export type SkillSheet = {
 };
 
 /** `types::tick::PotionSheet`. */
-export type PotionSheet = { id: number; regen: number; entry: bigint; range: number; strength: number };
+export type PotionSheet = {
+  id: number;
+  regen: number;
+  entry: bigint;
+  range: number;
+  strength: number;
+};
 
 /** `types::tick::CasteSheet`. */
 export type CasteSheet = {
@@ -369,7 +375,10 @@ export function store(member: Member): MemberWords {
   const { words } = member;
   const was = hot(words);
   const region = (m: { status: number; health: number; energy: number; adrenaline: number }) =>
-    BigInt(m.status) + BigInt(m.health) * two(8) + BigInt(m.energy) * two(24) + BigInt(m.adrenaline) * two(40);
+    BigInt(m.status) +
+    BigInt(m.health) * two(8) +
+    BigInt(m.energy) * two(24) +
+    BigInt(m.adrenaline) * two(40);
   const state = felt(
     words.state +
       (region(member) - region(was)) * two(56) +
@@ -405,7 +414,10 @@ export function place(member: Member): { x: number; y: number; facing: number } 
 export function set_place(member: Member, x: number, y: number, facing: number): void {
   const was = place(member);
   const old = was.x + was.y * 0x100 + was.facing * 0x10000;
-  member.words = { ...member.words, state: felt(member.words.state + delta(old, x + y * 0x100 + facing * 0x10000, two(32))) };
+  member.words = {
+    ...member.words,
+    state: felt(member.words.state + delta(old, x + y * 0x100 + facing * 0x10000, two(32))),
+  };
 }
 
 /** `MemberWordsTrait::set_facing`. */
@@ -440,7 +452,8 @@ export function held(effects: bigint, slot: number) {
 export const is_alive = (member: Member): boolean => member.status === 0 && member.health > 0;
 
 /** `MemberTrait::downs`: 1 when inside at 0 health. */
-export const downs = (member: Member): number => (member.status === 0 && member.health === 0 ? 1 : 0);
+export const downs = (member: Member): number =>
+  member.status === 0 && member.health === 0 ? 1 : 0;
 
 /** `GoblinPlaceTrait::at`: a goblin's tile and facing (`GoblinState` 0–23). */
 export function goblinPlace(state: bigint): { x: number; y: number; facing: number } {
@@ -496,6 +509,3 @@ export function words(world: World): Words {
 /** `u32` and `u16` adds that panic on overflow, as Cairo's. */
 export const u32add = (a: number, b: number): number => Number(add(u32, BigInt(a), BigInt(b)));
 export const u16add = (a: number, b: number): number => Number(add(u16, BigInt(a), BigInt(b)));
-
-/** An `i16` of a `Serde` felt (a sheet's regeneration). */
-export const i16FromFelt = (value: bigint): number => Number(fromFelt(i16, value));

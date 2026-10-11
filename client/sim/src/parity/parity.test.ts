@@ -73,6 +73,24 @@ describe("parity with the Cairo code", () => {
     });
   });
 
+  it("covers every fn of segment2.jsonl with its count", () => {
+    const counts = replay(table("segment2.jsonl"), readTable("segment2.jsonl"));
+    expect(Object.fromEntries(counts)).toEqual({
+      content: 1,
+      combat: 11,
+      ticks: 4,
+      fits: 7,
+      defeated: 3,
+      trap: 3,
+      occupied: 2,
+      companions: 3,
+      regeneration: 3,
+      movement: 2,
+      turn: 2,
+      follow: 2,
+    });
+  });
+
   it("covers every fn of packing.jsonl with its count", () => {
     const counts = replay(table("packing.jsonl"), readTable("packing.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({

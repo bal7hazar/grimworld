@@ -31,7 +31,13 @@ export type TicksCall = {
 };
 
 /** `ActionLibrary::act(words, content, board, executor, ground, action)`. */
-export type ActCall = { words: Words; content: Content; board: Board; ground: Ground; action: Action };
+export type ActCall = {
+  words: Words;
+  content: Content;
+  board: Board;
+  ground: Ground;
+  action: Action;
+};
 
 /** `TrapLibrary::trigger(words, content, board, ground, entrant, position, level)`. */
 export type TriggerCall = {
