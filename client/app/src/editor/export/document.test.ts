@@ -92,6 +92,43 @@ describe("ENG-08's sample zone in the editor", () => {
     expect(out instanceof Refused && out.message).toMatch(/70000 does not fit 16 bits/);
   });
 
+  it("reads pack_bounds as the converter does (E-52): two whole numbers, 1 <= fewest <= most <= 5, each key a pack", () => {
+    const bounds = (pack_bounds: unknown) => JSON.stringify({ ...MANIFEST, pack_bounds });
+    for (const ok of [
+      [1, 1],
+      [1, 5],
+      [5, 5],
+    ]) {
+      expect(readManifest(bounds({ raiders: ok, cubs: [1, 3] })), JSON.stringify(ok)).toEqual(
+        expect.objectContaining({ pack_bounds: { raiders: ok, cubs: [1, 3] } }),
+      );
+    }
+    for (const bad of [
+      { raiders: [0, 1] },
+      { raiders: [2, 1] },
+      { raiders: [1, 6] },
+      { raiders: [1.5, 2] },
+      { raiders: ["1", 2] },
+      { raiders: [true, 2] },
+      { raiders: [1] },
+      { raiders: [1, 2, 3] },
+      { raiders: [null, 2] },
+      { raiders: [2, 3], dragons: [1, 2] },
+      [[1, 2]],
+    ]) {
+      expect(readManifest(bounds(bad)), JSON.stringify(bad)).toMatch(
+        /pack_bounds is not a table.*\(export: pack bounds\)/,
+      );
+    }
+    // `1.0` and `2e0` are floats for the converter (json.load): refused by their source text
+    for (const text of [
+      '{"packs": {"a": 1}, "pack_bounds": {"a": [1.0, 2]}}',
+      '{"packs": {"a": 1}, "pack_bounds": {"a": [1, 2e0]}}',
+    ]) {
+      expect(readManifest(text), text).toMatch(/\(export: pack bounds\)/);
+    }
+  });
+
   it("opens with no note: the editor fits it where the file says", () => {
     expect(opened().notes).toEqual([]);
   });

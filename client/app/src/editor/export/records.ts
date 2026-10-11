@@ -131,6 +131,61 @@ export function assertSizes(sizes: unknown): Map<string, readonly [number, numbe
   );
 }
 
+/** `types.cairo:75`: a pack is at most 5 goblins (E-3, E-52). */
+export const MAX_PACK_SIZE = 5;
+
+/**
+ * A manifest pack's `[fewest, most]` (`pack_bounds`, E-52, `records.py` assert_bounds): exactly two
+ * whole numbers, not booleans, with 1 <= fewest <= most <= `MAX_PACK_SIZE`. A pair `Pack::bounds`
+ * cannot return would only skew R-27's verdict, so it is refused.
+ */
+export function assertBounds(what: string, bounds: unknown): readonly [number, number] {
+  const ok =
+    Array.isArray(bounds) &&
+    bounds.length === 2 &&
+    bounds.every((v) => typeof v === "number" && Number.isInteger(v)) &&
+    (bounds[0] as number) >= 1 &&
+    (bounds[0] as number) <= (bounds[1] as number) &&
+    (bounds[1] as number) <= MAX_PACK_SIZE;
+  if (!ok) {
+    throw new Refused(
+      "export: pack bounds",
+      `${what}: bounds ${JSON.stringify(bounds) ?? String(bounds)} is not [fewest, most] with 1 <= fewest <= most <= ${MAX_PACK_SIZE}`,
+    );
+  }
+  return [bounds[0] as number, bounds[1] as number];
+}
+
+/**
+ * Every entry of the manifest's `pack_bounds`, strictly, whether or not a Heart quota names the
+ * pack; the table is a mapping and each key a pack of the manifest's `packs` (`assert_pack_bounds`).
+ */
+export function assertPackBounds(
+  table: unknown,
+  packs: Readonly<Record<string, number>>,
+): Map<string, readonly [number, number]> {
+  if (typeof table !== "object" || table === null || Array.isArray(table)) {
+    throw new Refused(
+      "export: pack bounds",
+      `pack_bounds ${JSON.stringify(table) ?? String(table)} is not a mapping`,
+    );
+  }
+  for (const name of Object.keys(table)) {
+    if (!Object.hasOwn(packs, name)) {
+      throw new Refused(
+        "export: pack bounds",
+        `pack ${JSON.stringify(name)} is not in the manifest's packs`,
+      );
+    }
+  }
+  return new Map(
+    Object.entries(table).map(([name, b]) => [
+      name,
+      assertBounds(`pack ${JSON.stringify(name)}`, b),
+    ]),
+  );
+}
+
 export const has = (bits: bigint, i: number): boolean => ((bits >> BigInt(i)) & 1n) === 1n;
 export const bit = (i: number): bigint => 1n << BigInt(i);
 
