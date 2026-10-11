@@ -1,33 +1,54 @@
-// The executor's trap path (CLI-02g-D, D-257): the mirror of what `contracts/logic/src/types/
-// executor.cairo`'s `ExecutorTrait::trigger` runs, held equal to it by `contracts/logic/vectors/
-// trap.jsonl`. A trap's payload on its one entrant: the guards (`guards`), each entry's `Op`
-// (`ops`, `hold`), the hit (`trap`, `strike`, `resolve`, through `hit.ts`) never blocked or evaded
-// and with no arc, the other entries in entry order (`entries`), the entrant written back (`put`).
-// The defence a hit reads (`DefenceTrait`, `holding`) is read through `Levered`'s cache, as the
-// class does (`TrapLibrary` runs `Levered` with a fresh `Cache`).
+// The executor (CLI-02g-D, CLI-02g-E, D-257): the mirror of what `contracts/logic/src/types/
+// executor.cairo`'s `ExecutorTrait` runs for a trap's trigger (`trigger`) and for the action
+// phase's carrier (`execute`), held equal to it by `contracts/logic/vectors/trap.jsonl` and
+// `act.jsonl`. A carrier's entries (`read`), their guards (`guards`), each entry's `Op` (`ops`,
+// `hold`), its hit modifiers (`modifiers`), the target sets (`actors`), the source's terms
+// (`offence`, `penetration`, `attack`), the hit (`strike`, `resolve`, through `hit.ts`), the other
+// entries in entry order (`apply`), each actor written back (`put`). The defence a hit reads
+// (`DefenceTrait`, `holding`) is read through `Levered`'s cache, as the classes do (`TrapLibrary`
+// and `ExecutorLibrary` run `Levered`); a carrier's awake goblins are gathered into one write of
+// the awake set (`pending`, `flush`), a trap's one entrant is written at once (`Naive`'s).
 //
-// Not here, for `act` (lot E, RV-03b): a carrier's `read`, `modifiers`, `penetration`, `on`,
-// `attack`, the actor sets (`actors`) and a source's `offence`; the trap path reaches none of them.
-// `strike`'s `Blocked` branch and `resolve`'s weapon arc are ported whole, but only a weapon hit
-// reaches them. The fields keep the Cairo names; the reasons of each rule are the Cairo module's.
+// Not here: `Delegate`'s sub-world (the goblins a carrier can reach, `wide`, `subcontent`): the
+// port runs the carrier on the whole world, equal to the sub-world for carriers whose entries share
+// a target kind; a mixed-target carrier is not mirrored (`action.ts`'s `mixed`). `conclude` and
+// `legal` (an activation's end) are the ticks' (lot F). The fields keep the Cairo names; the
+// reasons of each rule are the Cairo module's.
 
 import * as body from "./body";
 import type { Unit } from "./body";
 import * as m from "./body/member";
 import { type Infliction, effective_duration } from "./body/infliction";
 import { skill_kind } from "./combat";
-import { type Entry, duration, is_holding, kind, unpack, value } from "./effect";
-import { add, mul, panic, u32 } from "./felt";
-import { HitClass, MAX_BLOCK, type HitOutcome, level_strength, resolve as hit } from "./hit";
+import { type Entry, duration, is_hit_modifier, is_holding, kind, unpack, value } from "./effect";
+import { add, arg, mul, panic, u16, u32 } from "./felt";
+import {
+  HitClass,
+  MAX_BLOCK,
+  type HitOutcome,
+  level_strength,
+  resolve as hit,
+  weapon_base,
+  weapon_strength,
+} from "./hit";
+import { position as boardPosition } from "./movement";
 import { field, limbs } from "./packing";
 import * as goblinModel from "./segment/goblin";
 import type { Goblin } from "./segment/goblin";
 import type { Board } from "./segment/serde";
 import { ai } from "./segment/tick";
-import { ABSENT, ABSENT_LANE, type Held, type Member, type Sheets } from "./segment/words";
+import {
+  ABSENT,
+  ABSENT_LANE,
+  type Held,
+  type Member,
+  type Sheets,
+  is_alive,
+  place as memberPlace,
+} from "./segment/words";
 import type { World } from "./segment/world";
 import { from16, from8 } from "./signed";
-import { Arc, FAR, arc, front } from "./window";
+import { Arc, FAR, arc, front, inside, range, shape, shapes } from "./window";
 
 export type { Board };
 
@@ -38,7 +59,17 @@ export const MAX_CLOCK = 0xfffffff;
 /** A value's bounds at play (design/19 §6). */
 const MAX_VALUE = 32767;
 const MAX_ENERGY_VALUE = 255;
+const MAX_PERCENT = 100;
 const MAX_ARMOR_EFFECT = 255;
+/** The bit of an actor's membership mask for the carrier's hit; entries 1–3 are bits 1, 2, 4. */
+const HIT_BIT = 8;
+
+/** `types::effect::target`: what an entry addresses. */
+export const target = { SELF: 0, FOE: 1, ALLY: 2, TILE: 3 } as const;
+/** `types::effect::filter`: the actors of a set. */
+export const filter = { FOES: 0, ALLIES: 1 } as const;
+/** `types::effect::scope`: the hits a `PENETRATION` effect applies to. */
+export const scope = { WEAPON: 0, ATTACK_SKILL: 1, SPELL: 2, ALL: 3 } as const;
 
 export const errors = {
   ADDRESS: "executor: no such actor",
@@ -57,6 +88,21 @@ function at<T>(list: readonly T[], index: number): T {
 
 /** `world::Actor`: member `i` or goblin `i` of the world. */
 export type Actor = { kind: "M"; i: number } | { kind: "G"; i: number };
+
+/** Cairo's `==` on two actors. */
+export const same = (a: Actor, b: Actor): boolean => a.kind === b.kind && a.i === b.i;
+
+/** `Carrier`: a weapon attack, a skill at its position and rank, a potion at its position and belt slot. */
+export type Carrier =
+  | { kind: "Weapon" }
+  | { kind: "Skill"; at: number; rank: number }
+  | { kind: "Potion"; at: number; slot: number };
+
+/** `Executed`: what an execution did. */
+export type Executed = "Ran" | "Place" | "Skipped" | "Illegal";
+
+/** `world::Pending`: the awake goblins a carrier wrote, by index, for one write of the awake set. */
+export type Pending = [number, Goblin][];
 
 /** `Defence`: what a hit reads of its target that changes only with a held effect (§5.5 step 3). */
 export type Defence = {
@@ -148,7 +194,7 @@ export const entry = (sheets: Sheets, position: number, k: number): Entry =>
   at(sheets.entries, Number(mul(u32, 3n, BigInt(position))) + k);
 
 /** `LeveredLevers::potion_entry`. */
-const potion_entry = (sheets: Sheets, position: number): Entry =>
+export const potion_entry = (sheets: Sheets, position: number): Entry =>
   at(sheets.potion_entries, position);
 
 /** `LeveredLevers::defence`: member `index`'s defence at `t`, kept while `at == t + 1`. */
@@ -194,6 +240,53 @@ export function armor(member: Member): { armor: number; stance: number; enchante
     armor: from16(field(bar, two(104), two(16))),
     stance: from8(field(kit, two(56), two(8))),
     enchanted: from8(field(kit, two(64), two(8))),
+  };
+}
+
+/**
+ * `MemberSnapshotTrait::weapon`: its class (`MemberStats` 88–95), damage (96–103), range
+ * (112–119), strength (120–127), damage type (160–167), requirement met (176–183).
+ */
+export function weapon(member: Member): {
+  weapon: number;
+  damage: number;
+  range: number;
+  strength: number;
+  damage_type: number;
+  met: boolean;
+} {
+  const [low, high] = limbs(member.words.stats);
+  return {
+    weapon: small(field(low, two(88), 0x100n)),
+    damage: small(field(low, two(96), 0x100n)),
+    range: small(field(low, two(112), 0x100n)),
+    strength: small(low / two(120)),
+    damage_type: small(field(high, two(32), 0x100n)),
+    met: field(high, two(48), 0x100n) !== 0n,
+  };
+}
+
+/** `MemberSnapshotTrait::on_hit`: `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT` (`MemberKit` 128–143). */
+export function on_hit(member: Member): { steal: number; energy: number } {
+  const high = limbs(member.words.kit)[1];
+  return { steal: small(high % 0x100n), energy: small(field(high, two(8), 0x100n)) };
+}
+
+/**
+ * `MemberSnapshotTrait::passives`: its `DAMAGE_PERCENT` sums of class `s` (0 plain weapon, 1
+ * attack skill, 2 spell), unguarded and `ABOVE_HALF`, and its `PENETRATION` sum of the class
+ * (`MemberBar` 136 + 8 (3 g + s), 184 + 8 s).
+ */
+export function passives(
+  member: Member,
+  s: number,
+): { percent: number; above: number; sum: number } {
+  const high = limbs(member.words.bar)[1];
+  const shift = at([two(8), two(16), two(24)], s);
+  return {
+    percent: from8(field(high, shift, 0x100n)),
+    above: from8(field(high, shift * two(24), 0x100n)),
+    sum: small(field(high, shift * two(48), 0x100n)),
   };
 }
 
@@ -278,6 +371,9 @@ export function actor(world: World, entity: number): Actor | undefined {
   return i === undefined ? undefined : { kind: "G", i };
 }
 
+/** `ExecutorTrait::actor`, under a name a parameter of `actors` does not hide. */
+const actorOf = (world: World, entity: number): Actor | undefined => actor(world, entity);
+
 /** `WorldTrait::find`: the goblin of entity `entity`, by a binary search of the world's goblins. */
 export function find(world: World, entity: number): number | undefined {
   let low = 0;
@@ -299,10 +395,12 @@ export function unitOf(world: World, actor: Actor): Unit {
 }
 
 /**
- * `ExecutorTrait::put` with `Naive`'s lever (a trap's one entrant is no carrier's rebuild): a
- * member written back; a goblin at 0 health still alive killed (`ai::DEAD`, in `killed`), written.
+ * `ExecutorTrait::put`: a member written back; a goblin at 0 health still alive killed
+ * (`ai::DEAD`, in `killed`), then, with `Levered`'s lever (`pending`), gathered for its carrier's
+ * one write of the awake set if it is awake and in it, else written at once (`Naive`'s, and a
+ * trap's one entrant).
  */
-export function put(world: World, actor: Actor, unit: Unit): void {
+export function put(world: World, actor: Actor, unit: Unit, pending?: Pending): void {
   if (unit.kind === "M") {
     if (actor.kind === "M") {
       at(world.members, actor.i);
@@ -316,8 +414,18 @@ export function put(world: World, actor: Actor, unit: Unit): void {
     goblin.ai = ai.DEAD;
     world.killed.push(goblin.entity);
   }
+  // `world.position(i)`: in the awake set, as the world holds it now
+  if (pending !== undefined && goblin.awake && at(world.goblins, actor.i).awake) {
+    pending.push([actor.i, goblin]);
+    return;
+  }
   at(world.goblins, actor.i);
   world.goblins[actor.i] = goblin;
+}
+
+/** `WorldTrait::flush` of `ExecutorTrait::sorted`: the pending writes, by ascending index. */
+export function flush(world: World, pending: Pending): void {
+  for (const [i, goblin] of [...pending].sort(([a], [b]) => a - b)) world.goblins[i] = goblin;
 }
 
 /** `ExecutorTrait::bit`: entry `k`'s bit. */
@@ -640,3 +748,544 @@ export function spell(
 /** `ExecutorTrait::clamp`. */
 export const clamp = (v: number, low: number, high: number): number =>
   v < low ? low : v > high ? high : v;
+
+// ---- The action phase's carrier (CLI-02g-E): `execute` and what it runs.
+
+/** `BoardTrait::tile`: the window's position of a location's tile `x + 256 y`. */
+export const tile = (board: Board, t: number): number =>
+  boardPosition(board, t % 256, Math.floor(t / 256));
+
+/**
+ * `ExecutorTrait::locate`: whether the actor is alive (a member inside above 0, a goblin not dead
+ * and above 0) and its position in the window.
+ */
+export function locate(world: World, board: Board, actor: Actor): [boolean, number] {
+  if (actor.kind === "M") {
+    const member = at(world.members, actor.i);
+    const { x, y } = memberPlace(member);
+    return [is_alive(member), boardPosition(board, x, y)];
+  }
+  const goblin = at(world.goblins, actor.i);
+  const { x, y } = goblinModel.place(goblin);
+  return [goblinModel.is_alive(goblin) && goblin.health > 0, boardPosition(board, x, y)];
+}
+
+/** `ExecutorTrait::weapon_range`: the range of the source's weapon. */
+export function weapon_range(world: World, sheets: Sheets, source: Actor): number {
+  if (source.kind === "M") return weapon(at(world.members, source.i)).range;
+  return at(sheets.castes, at(world.goblins, source.i).caste_at).weapon_range;
+}
+
+/**
+ * `ExecutorTrait::addressing`: what `carrier` addresses (its first entry's target, an attack's
+ * foe) and the reach its target must be in (the skill's range, an attack's: the weapon's).
+ */
+export function addressing(
+  world: World,
+  sheets: Sheets,
+  source: Actor,
+  carrier: Carrier,
+): [number, number] {
+  if (carrier.kind === "Weapon") return [target.FOE, weapon_range(world, sheets, source)];
+  if (carrier.kind === "Skill") {
+    const sheet = at(sheets.skills, carrier.at);
+    if (sheet.kind === skill_kind.ATTACK) return [target.FOE, weapon_range(world, sheets, source)];
+    return [entry(sheets, carrier.at, 0).target, sheet.range];
+  }
+  return [potion_entry(sheets, carrier.at).target, at(sheets.potions, carrier.at).range];
+}
+
+/** `WindowTrait::near`: a shape of radius 1 at most on `centre`, its walkable tiles; else none. */
+export function near(open: bigint, s: number, centre: number): bigint {
+  if (!inside(centre)) return 0n;
+  if (s === shapes.SINGLE || s === shapes.RING_1 || s === shapes.DISC_1) {
+    return shape(open, s, centre);
+  }
+  return 0n;
+}
+
+/**
+ * `ExecutorTrait::read`: the carrier's entries up to the first empty, what they apply with, and
+ * whether it has an implicit weapon hit (a weapon attack, an attack skill).
+ */
+export function read(
+  sheets: Sheets,
+  source: Unit,
+  carrier: Carrier,
+  t: number,
+): { entries: Entry[]; context: Context; weapon: boolean } {
+  const infliction = body.infliction(source);
+  const enchant = body.enchant_percent(source);
+  const base = { infliction, enchant, t };
+  if (carrier.kind === "Weapon") {
+    const context = {
+      ...base,
+      rank: 0,
+      skill_kind: 0,
+      carrier: 0,
+      potion: false,
+      at: ABSENT,
+      scope: 0,
+    };
+    return { entries: [], context, weapon: true };
+  }
+  if (carrier.kind === "Skill") {
+    const sheet = at(sheets.skills, carrier.at);
+    const entries: Entry[] = [];
+    for (let k = 0; k < 3; k++) {
+      const e = entry(sheets, carrier.at, k);
+      if (e.kind === kind.EMPTY) break;
+      entries.push(e);
+    }
+    const attack = sheet.kind === skill_kind.ATTACK;
+    const context = {
+      ...base,
+      rank: carrier.rank,
+      skill_kind: sheet.kind,
+      carrier: sheet.id,
+      potion: false,
+      at: carrier.at,
+      scope: attack ? 1 : 2,
+    };
+    return { entries, context, weapon: attack };
+  }
+  const e = potion_entry(sheets, carrier.at);
+  const context = {
+    ...base,
+    rank: 0,
+    skill_kind: 0,
+    carrier: carrier.slot,
+    potion: true,
+    at: carrier.at,
+    scope: 3,
+  };
+  return { entries: e.kind === kind.EMPTY ? [] : [e], context, weapon: false };
+}
+
+/**
+ * `ExecutorTrait::modifiers`: the hit modifiers whose guard held, `ATTACK_BONUS` (0…32,767, the
+ * last one's) and `HIT_PENETRATION` (each 0…100, summed).
+ */
+export function modifiers(
+  entries: readonly Entry[],
+  held: number,
+  rank: number,
+): { bonus: number; penetration: number } {
+  let bonus = 0;
+  let penetration = 0;
+  let b = 1;
+  for (const e of entries) {
+    if ((held & b) !== 0) {
+      if (e.kind === kind.ATTACK_BONUS) bonus = clamp(value(e, rank), 0, MAX_VALUE);
+      else if (e.kind === kind.HIT_PENETRATION) {
+        penetration = Number(
+          add(u16, BigInt(penetration), BigInt(clamp(value(e, rank), 0, MAX_PERCENT))),
+        );
+      }
+    }
+    b *= 2;
+  }
+  return { bonus, penetration };
+}
+
+/**
+ * `ExecutorTrait::penetration`: the source's `PENETRATION` effects held at `t` that apply to the
+ * hit's class `cls` (0 a plain weapon hit, 1 an attack skill's, 2 a spell, 3 none), each 0…100.
+ */
+export function penetration(source: Unit, cls: number, t: number, sheets: Sheets): number {
+  if (cls === 3) return 0;
+  let sum = 0;
+  for (let slot = 0; slot < body.slots(source); slot++) {
+    const { held, at: position } = body.effect(source, slot);
+    if (held.deadline >= t && position !== ABSENT) {
+      const e = holding(sheets, held.potion, position);
+      if (e.kind === kind.PENETRATION) {
+        const s = e.scope;
+        const applies =
+          s === scope.ALL ||
+          (cls === 2 && s === scope.SPELL) ||
+          (cls < 2 && s === scope.WEAPON) ||
+          (cls === 1 && s === scope.ATTACK_SKILL);
+        if (applies) {
+          sum = Number(add(u16, BigInt(sum), BigInt(clamp(value(e, held.rank), 0, MAX_PERCENT))));
+        }
+      }
+    }
+  }
+  return sum;
+}
+
+/**
+ * `Body::offence`: a carrier's source terms of its hit. A member's: its passives of the context's
+ * scope, its held penetration and the carrier's; a weapon hit its weapon's, any other `spell`'s
+ * at `3 × level` (a bomb at the potion's strength). A goblin's: its caste's weapon at `5 × rank`,
+ * no passives.
+ */
+export function offence(
+  source: Unit,
+  cls: HitClass,
+  e: Entry,
+  bonus: number,
+  carried: number,
+  context: Context,
+  sheets: Sheets,
+): Offence {
+  const u16add = (a: number, b: number): number => Number(add(u16, BigInt(a), BigInt(b)));
+  const held = penetration(source, context.scope, context.t, sheets);
+  // `bonus.try_into().unwrap()`: a `u16`
+  const extra = (): bigint => arg(u16, BigInt(bonus));
+  if (source.kind === "G") {
+    const goblin = source.goblin;
+    const caste = at(sheets.castes, goblin.caste_at);
+    const pen = u16add(held, carried);
+    if (cls === HitClass.Weapon) {
+      return {
+        class: cls,
+        weapon: caste.weapon,
+        melee: caste.weapon_range === range.TOUCH,
+        strength: Number(weapon_strength(BigInt(caste.rank), 255n)),
+        base: Number(weapon_base(BigInt(caste.weapon_damage), true, extra())),
+        percent: 0,
+        above: 0,
+        penetration: pen,
+        damage_type: caste.damage_type,
+        steal: 0,
+        energy: 0,
+      };
+    }
+    const strength = Number(level_strength(BigInt(goblinModel.level(goblin))));
+    return spell(cls, strength, e, 0, 0, pen, context);
+  }
+  const member = source.member;
+  const s = context.scope;
+  const { percent, above, sum } = s < 3 ? passives(member, s) : { percent: 0, above: 0, sum: 0 };
+  const pen = u16add(u16add(sum, held), carried);
+  if (cls === HitClass.Weapon) {
+    const w = weapon(member);
+    const { steal, energy } = on_hit(member);
+    return {
+      class: cls,
+      weapon: w.weapon,
+      melee: w.range === range.TOUCH,
+      strength: w.strength,
+      base: Number(weapon_base(BigInt(w.damage), w.met, extra())),
+      percent,
+      above,
+      penetration: pen,
+      damage_type: w.damage_type,
+      steal,
+      energy,
+    };
+  }
+  const strength =
+    cls === HitClass.Item
+      ? at(sheets.potions, context.at).strength
+      : Number(level_strength(BigInt(level(member))));
+  return spell(cls, strength, e, percent, above, pen, context);
+}
+
+/** `Body::defence` through `UnitBody`, the `Levered` lever's: a member's by its index, cached. */
+export const defence = defenceOf;
+
+/** `OnAttack`: the source's `ON_ATTACK_CONDITION`s held, the slots holding charges, its infliction. */
+export type OnAttack = { conditions: [number, number][]; charged: number; infliction: Infliction };
+
+/** `ExecutorTrait::attack`: the source's `ON_ATTACK_CONDITION`s held at `t`, gathered once a carrier. */
+export function attack(source: Unit, t: number, sheets: Sheets): OnAttack {
+  const conditions: [number, number][] = [];
+  let charged = 0;
+  for (let slot = 0; slot < body.slots(source); slot++) {
+    const { held, at: position } = body.effect(source, slot);
+    if (held.deadline >= t && position !== ABSENT) {
+      const e = holding(sheets, held.potion, position);
+      if (e.kind === kind.ON_ATTACK_CONDITION) {
+        conditions.push([e.param, value(e, held.rank)]);
+        if (held.charges > 0) charged += bit(slot);
+      }
+    }
+  }
+  return { conditions, charged, infliction: body.infliction(source) };
+}
+
+/** `Gain`: what the source gains from one actor's turn. */
+export type Gain = { landed: boolean; stolen: number };
+
+/**
+ * `ExecutorTrait::on`: one actor other than the source: the hit first, if its set holds it and its
+ * guard held; stopped, nothing else; landed by a weapon, the source's `ON_ATTACK_CONDITION`s and
+ * its life steal; then the other entries. Returns what the source gains.
+ */
+export function on(
+  c: Cache,
+  unit: Unit,
+  actor: Actor,
+  shot: Shot,
+  onAttack: OnAttack,
+  health: number,
+  max_health: number,
+  list: readonly Op[],
+  bits: number,
+  held: number,
+  context: Context,
+  sheets: Sheets,
+): Gain {
+  const gain: Gain = { landed: false, stolen: 0 };
+  if (shot.hit) {
+    const t = context.t;
+    if (!strike(c, unit, actor, shot, health, max_health, t, sheets)) return gain;
+    if (shot.offence.class === HitClass.Weapon) {
+      gain.landed = true;
+      for (const [condition, v] of onAttack.conditions) {
+        if (body.alive(unit)) body.inflict(unit, condition, v, onAttack.infliction, t, sheets);
+      }
+      const steal = shot.offence.steal;
+      if (steal > 0 && body.alive(unit)) {
+        const stolen = Math.min(steal, body.health(unit));
+        body.wound(unit, stolen);
+        gain.stolen += stolen;
+      }
+    }
+  }
+  apply(c, unit, actor, list, bits, held, context, sheets);
+  return gain;
+}
+
+/** One actor of a carrier's sets: its position, itself, the bits of the sets that hold it. */
+export type Listed = [number, Actor, number];
+
+/**
+ * `ExecutorTrait::actors`: every set taken now (its entry's shape on its centre, clipped to the
+ * window, the actors its filter takes, alive; the source never in its own hit's set), and the
+ * actors of their union, ascending position. A carrier whose entries are all `SINGLE` and none
+ * `TILE` reads its source and the addressed entity alone; any other scans the world.
+ */
+export function actors(
+  world: World,
+  board: Board,
+  source: Unit,
+  actor: Actor,
+  source_at: number,
+  entries: readonly Entry[],
+  damage: number | undefined,
+  address: number,
+): Listed[] {
+  let addressed: Actor | undefined;
+  let addressed_at = FAR;
+  let addressed_alive = false;
+  let wide = false;
+  let targets_entity = damage === 3;
+  for (const e of entries) {
+    if (e.target === target.FOE || e.target === target.ALLY) targets_entity = true;
+    if (e.shape !== shapes.SINGLE || e.target === target.TILE) wide = true;
+  }
+  if (targets_entity) {
+    const a = actorOf(world, address);
+    if (a !== undefined) {
+      [addressed_alive, addressed_at] = locate(world, board, a);
+      addressed = a;
+    }
+  }
+  const tile_at = tile(board, address);
+  const sets: [bigint, number, number][] = [];
+  let union = 0n;
+  entries.forEach((e, k) => {
+    if (e.kind !== kind.TRAP && !is_hit_modifier(e)) {
+      const centre =
+        e.target === target.SELF ? source_at : e.target === target.TILE ? tile_at : addressed_at;
+      const mask = near(board.open, e.shape, centre);
+      sets.push([mask, e.filter, e.kind === kind.DAMAGE ? HIT_BIT : bit(k)]);
+      union |= mask;
+    }
+  });
+  if (damage === 3) {
+    const mask = near(board.open, shapes.SINGLE, addressed_at);
+    sets.push([mask, filter.FOES, HIT_BIT]);
+    union |= mask;
+  }
+  const member_source = body.is_member(source);
+  const candidates: [number, Actor, boolean][] = [];
+  if (wide) {
+    world.members.forEach((member, i) => {
+      if (is_alive(member)) {
+        const { x, y } = memberPlace(member);
+        candidates.push([boardPosition(board, x, y), { kind: "M", i }, true]);
+      }
+    });
+    world.goblins.forEach((goblin, i) => {
+      if (goblinModel.is_alive(goblin)) {
+        const { x, y } = goblinModel.place(goblin);
+        candidates.push([boardPosition(board, x, y), { kind: "G", i }, false]);
+      }
+    });
+  } else {
+    if (body.alive(source)) candidates.push([source_at, actor, member_source]);
+    if (addressed !== undefined && !same(addressed, actor) && addressed_alive) {
+      candidates.push([addressed_at, addressed, addressed.kind === "M"]);
+    }
+  }
+  const has = (mask: bigint, p: number): boolean => ((mask >> BigInt(p)) & 1n) === 1n;
+  const found: Listed[] = [];
+  for (const [p, candidate, is_member] of candidates) {
+    if (p >= FAR || !has(union, p)) continue;
+    const foe = is_member !== member_source;
+    let bits = 0;
+    for (const [mask, set_filter, b] of sets) {
+      const takes = set_filter === filter.FOES ? foe : !foe;
+      const own_hit = b === HIT_BIT && same(candidate, actor);
+      if (takes && !own_hit && has(mask, p)) bits |= b;
+    }
+    if (bits !== 0) found.push([p, candidate, bits]);
+  }
+  return ascending(found);
+}
+
+/** `ExecutorTrait::ascending`: `list` in ascending position, a selection as Cairo's. */
+export function ascending(list: readonly Listed[]): Listed[] {
+  const sorted: Listed[] = [];
+  let last = 0;
+  let first = true;
+  for (let n = 0; n < list.length; n++) {
+    let least = 0x100;
+    let pick = 0;
+    list.forEach(([p], i) => {
+      if ((first || p > last) && p < least) {
+        least = p;
+        pick = i;
+      }
+    });
+    sorted.push(at(list, pick));
+    last = least;
+    first = false;
+  }
+  return sorted;
+}
+
+/**
+ * `ExecutorTrait::run`: §5.14 for the source, held apart from the world until the carrier ends:
+ * the guards once, a `TRAP` carrier placed (or skipped), the hit modifiers, the target sets, the
+ * source's terms, each actor in order, the source's side of a landed weapon hit. The awake goblins
+ * it changed are gathered into `pending`.
+ */
+export function run(
+  c: Cache,
+  world: World,
+  sheets: Sheets,
+  board: Board,
+  source: Unit,
+  actor: Actor,
+  carrier: Carrier,
+  address: number,
+  t: number,
+  pending: Pending,
+): Executed {
+  const { entries, context, weapon: weapon_hit } = read(sheets, source, carrier, t);
+  const held = guards(source, entries);
+  const list = ops(entries, context);
+  if (entries.length > 0 && entries[0]!.kind === kind.TRAP) {
+    return (held & 1) === 1 ? "Place" : "Skipped";
+  }
+  const { bonus, penetration: carried } = modifiers(entries, held, context.rank);
+  let damage: number | undefined = weapon_hit ? 3 : undefined;
+  entries.forEach((e, k) => {
+    if (e.kind === kind.DAMAGE) damage = k;
+  });
+  let hit_held = false;
+  let cls: HitClass = HitClass.Spell;
+  let hit_entry = unpack(0n);
+  if (damage === 3) {
+    hit_held = true;
+    cls = HitClass.Weapon;
+  } else if (damage !== undefined) {
+    cls = context.scope === 2 ? HitClass.Spell : HitClass.Item;
+    hit_held = (held & bit(damage)) !== 0;
+    hit_entry = at(entries, damage);
+  }
+  const { x, y, facing: source_facing } = body.place(source);
+  const source_at = boardPosition(board, x, y);
+  const list_of = actors(world, board, source, actor, source_at, entries, damage, address);
+  const terms =
+    damage !== undefined
+      ? offence(source, cls, hit_entry, bonus, carried, context, sheets)
+      : spell(cls, 0, hit_entry, 0, 0, 0, context);
+  const onAttack: OnAttack =
+    cls === HitClass.Weapon
+      ? attack(source, t, sheets)
+      : { conditions: [], charged: 0, infliction: context.infliction };
+  const health = body.health(source);
+  const max_health = body.max_health(source);
+  let gain: Gain = { landed: false, stolen: 0 };
+  for (const [p, target_actor, bits] of list_of) {
+    if (same(target_actor, actor)) {
+      apply(c, source, actor, list, bits, held, context, sheets);
+      continue;
+    }
+    const shot: Shot = {
+      hit: (bits & HIT_BIT) !== 0 && hit_held,
+      offence: terms,
+      source_at,
+      source_facing,
+      target_at: p,
+    };
+    const unit = unitOf(world, target_actor);
+    const got = on(
+      c,
+      unit,
+      target_actor,
+      shot,
+      onAttack,
+      health,
+      max_health,
+      list,
+      bits,
+      held,
+      context,
+      sheets,
+    );
+    gain = {
+      landed: gain.landed || got.landed,
+      stolen: Number(add(u16, BigInt(gain.stolen), BigInt(got.stolen))),
+    };
+    put(world, target_actor, unit, pending);
+  }
+  if (gain.landed) {
+    let charged = onAttack.charged;
+    for (let slot = 0; charged !== 0; slot++) {
+      if (charged % 2 === 1) body.spend(source, slot, t);
+      charged = Math.floor(charged / 2);
+    }
+    body.landed(source, sheets);
+    if (terms.energy > 0) body.energize(source, terms.energy, sheets);
+  }
+  body.heal(source, gain.stolen);
+  return "Ran";
+}
+
+/**
+ * `ExecutorTrait::execute`: runs `carrier` of `source` on `address` (an entity, or a location's
+ * tile `x + 256 y` for a `TILE` carrier) at `t`, then writes the source back with the awake
+ * goblins it changed (a goblin source joins their one write if it is awake).
+ */
+export function execute(
+  c: Cache,
+  world: World,
+  sheets: Sheets,
+  board: Board,
+  source: Actor,
+  carrier: Carrier,
+  address: number,
+  t: number,
+): Executed {
+  const unit = unitOf(world, source);
+  const pending: Pending = [];
+  const executed = run(c, world, sheets, board, unit, source, carrier, address, t, pending);
+  if (unit.kind === "M") {
+    flush(world, pending);
+    if (source.kind === "M") world.members[source.i] = unit.member;
+    return executed;
+  }
+  if (source.kind !== "G") panic(errors.ADDRESS);
+  if (unit.goblin.awake && at(world.goblins, source.i).awake) pending.push([source.i, unit.goblin]);
+  else world.goblins[source.i] = unit.goblin;
+  flush(world, pending);
+  return executed;
+}

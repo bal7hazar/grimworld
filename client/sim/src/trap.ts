@@ -2,8 +2,8 @@
 // `TrapTrait` (the lookup, the source, the trigger) and of `TrapLibrary::trigger`
 // (`contracts/logic/src/systems/trap.cairo`), held equal to them by `contracts/logic/vectors/
 // trap.jsonl`. `trigger` is the class itself, computed: `run`'s seam (`segment/classes.ts`) takes
-// it for `Classes.trigger`. Placing a trap (`spot`, `place`) is `act`'s (lot E); `free`, its index,
-// is here with the lookup it shares.
+// it for `Classes.trigger`. Placing a trap (`spot`, `place`, `placer`) is here for `act`
+// (`action.ts`), with the lookup and `free` it shares.
 
 import { NONE, type Infliction } from "./body/infliction";
 import * as m from "./body/member";
@@ -21,9 +21,15 @@ import {
 import type { Features } from "./reveal";
 import type { Ground } from "./segment/serde";
 import type { Classes, TriggerCall } from "./segment/classes";
-import { ABSENT_LANE, type Sheets, is_alive, place, sheets as indexed } from "./segment/words";
+import {
+  ABSENT_LANE,
+  type Sheets,
+  is_alive,
+  place as memberPlace,
+  sheets as indexed,
+} from "./segment/words";
 import { type World, world as load, words as store } from "./segment/world";
-import { FAR } from "./window";
+import { FAR, shapes } from "./window";
 
 /** `chunk::object`: the kinds a trap is (`TRAP`, a terrain one; `PLACED_TRAP`, an actor's). */
 export const object = { NONE: 0, TRAP: 4, PLACED_TRAP: 9 } as const;
@@ -35,6 +41,12 @@ const ALL_HELD = 7;
 const CHUNK_SIDE = 15;
 const MAX_CHUNKS = 225;
 const OUT = "Index out of bounds";
+
+export const errors = {
+  PLACER_MEMBER: "placer: member",
+  PLACER_SLOT: "placer: slot",
+  PLACER_ENTITY: "placer: entity",
+} as const;
 const UNWRAP = "Option::unwrap failed.";
 
 type Object = Features["objects"][number];
@@ -75,6 +87,19 @@ export function locate(board: Board, position: number): [number, number] | undef
   return [chunk, ly * CHUNK_SIDE + lx];
 }
 
+/** `PlacerTrait::param`: the object's `param`; a member above 7 or a bar slot above 7 refused. */
+export function param(placer: Placer): number {
+  if (placer.kind === "M") {
+    if (!(placer.member < 8)) panic(errors.PLACER_MEMBER);
+    if (!(placer.slot < 8)) panic(errors.PLACER_SLOT);
+    return placer.member + placer.slot * 8;
+  }
+  const entity = placer.entity - executor.FIRST_GOBLIN;
+  if (!(placer.entity >= executor.FIRST_GOBLIN && entity < 0x1000)) panic(errors.PLACER_ENTITY);
+  if (!(placer.slot <= 3)) panic(errors.PLACER_SLOT);
+  return 0x8000 + entity + placer.slot * 0x1000;
+}
+
 /** `TrapTrait::is_trap`: a terrain trap or a placed one. */
 const is_trap = (o: Object): boolean => o.kind === object.TRAP || o.kind === object.PLACED_TRAP;
 
@@ -95,13 +120,52 @@ export function free(features: Features, tile: number): number | undefined {
 /** `TrapTrait::occupied`: a living actor stands on the window's `position` (remains do not block). */
 export function occupied(world: World, board: Board, position: number): boolean {
   for (const member of world.members) {
-    const { x, y } = place(member);
+    const { x, y } = memberPlace(member);
     if (is_alive(member) && boardPosition(board, x, y) === position) return true;
   }
   return world.goblins.filter(is_goblin_alive).some((goblin) => {
     const { x, y } = goblinPlace(goblin);
     return boardPosition(board, x, y) === position;
   });
+}
+
+/** `TrapTrait::spot`: where a trap placed on the window's `position` goes: its ground entry, its index, its tile. */
+export function spot(
+  world: World,
+  board: Board,
+  ground: Ground,
+  position: number,
+): { entry: number; index: number; tile: number } | undefined {
+  const where = locate(board, position);
+  if (where === undefined) return undefined;
+  const [chunk, tile] = where;
+  // `TrapTrait::open`: the tile walkable
+  if (executor.near(board.open, shapes.SINGLE, position) === 0n) return undefined;
+  if (occupied(world, board, position)) return undefined;
+  const entry = ground.findIndex(([c]) => c === chunk);
+  if (entry < 0) return undefined;
+  const index = free(ground[entry]![1], tile);
+  return index === undefined ? undefined : { entry, index, tile };
+}
+
+/** `TrapTrait::placer`: the placer of `actor`'s carrier from bar or caste slot `slot`. */
+export function placer(world: World, actor: Actor, slot: number): Placer {
+  if (actor.kind === "M") return { kind: "M", member: actor.i, slot };
+  return { kind: "G", entity: world.goblins[actor.i]!.entity, slot };
+}
+
+/** `TrapTrait::place`: the ground with `placer`'s trap on the window's `position`; none if it cannot take one. */
+export function place(
+  ground: Ground,
+  world: World,
+  board: Board,
+  position: number,
+  by: Placer,
+): Ground | undefined {
+  const found = spot(world, board, ground, position);
+  if (found === undefined) return undefined;
+  const trap = { tile: found.tile, kind: object.PLACED_TRAP, state: 0, param: param(by) };
+  return write(ground, found.entry, found.index, trap);
 }
 
 /** `TrapTrait::write`: the ground's chunk at `entry` with object `index` replaced. */

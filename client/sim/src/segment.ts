@@ -92,6 +92,8 @@ export class NotMirrored extends Error {
 /** The branches `NotMirrored` names. */
 export const unported = {
   EDGE: "Blocked by a missing neighbour (the window's edge)",
+  MIXED:
+    "a carrier whose entries mix a TILE target with an entity one (Delegate's sub-world is not the whole world)",
 } as const;
 
 /** What a segment runs from: `SegmentLibrary::segment`'s inputs, the classes aside. */

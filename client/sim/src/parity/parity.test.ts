@@ -156,6 +156,34 @@ describe("parity with the Cairo code", () => {
     expect(native.triggers - before).toBe(recorded.length);
   });
 
+  it("covers every fn of act.jsonl with its count", () => {
+    const counts = replay(table("act.jsonl"), readTable("act.jsonl"));
+    expect(Object.fromEntries(counts)).toEqual({ content: 1, act: 175, defence: 19, offence: 28 });
+  });
+
+  it("computes segment2.jsonl's act calls natively, each equal to its recording", () => {
+    // The rows that record an `ActionLibrary::act` call, from their spans of calls
+    const vectors = readTable("segment2.jsonl");
+    const recorded = vectors.flatMap((vector) => {
+      if (vector.fn === "content") return [];
+      const read = new Felts(vector.case);
+      readWords(read);
+      readArea(read);
+      read.u8();
+      readGround(read);
+      read.u8();
+      read.u8();
+      read.span(() => readAction(read));
+      const calls = read.span(() => readCall(read));
+      read.end();
+      return calls.filter((call) => call.kind === "act").map(() => vector.id);
+    });
+    expect(recorded).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 44]);
+    const before = native.acts;
+    replay(table("segment2.jsonl"), vectors);
+    expect(native.acts - before).toBe(recorded.length);
+  });
+
   it("covers every fn of packing.jsonl with its count", () => {
     const counts = replay(table("packing.jsonl"), readTable("packing.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({
