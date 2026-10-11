@@ -36,8 +36,11 @@ sent batch equals its preview.
   empty goblin list where the roster or a pack of the area holds some (no `PlayLibrary` set), for
   several members while goblins are listed, where no content is given and the segment reads a
   sheet (a goblin's caste or skill, a bar's skill: `... not in content`), and on any call to
-  `TickLibrary`, `ActionLibrary` or `TrapLibrary`, which client/sim does not port yet: it predicts
-  the fast path (no living goblin in the window, no combat, no trap). Given content that lacks a
+  `TickLibrary` or `ActionLibrary`, which client/sim does not port yet: it predicts the fast path
+  (no living goblin in the window, no combat) and a segment that enters a trap, which calls
+  `TrapLibrary::trigger` directly (client/sim's `trapTrigger`, CLI-10e). A trap reached through
+  `TickLibrary`'s nested calls (a goblin's step onto one) stays `ticks`' and is still not
+  mirrored. Given content that lacks a
   sheet the segment reads is a `grimworld.mirror-failure`, not a silent `NotMirrored`. The
   reconciliation compares the goblin sets both ways.
 - `assembleContent(view, record)` (`content.ts`, CLI-10d) assembles that content as `PlayLibrary`

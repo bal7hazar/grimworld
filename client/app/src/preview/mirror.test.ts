@@ -1,8 +1,9 @@
-import { NotMirrored } from "@grimworld/sim";
+import { type Ground, NotMirrored, type TriggerCall, trapTrigger } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import {
   type MirrorState,
   mirrorOf,
+  nativeClasses,
   segmentOf,
   unpackFeatures,
   unpackWalls,
@@ -11,7 +12,7 @@ import {
 import { recordedBefore, recordedPlayed } from "./recorded";
 import * as goblins from "./recorded-goblins";
 import { assembleContent } from "./content";
-import { reconcile } from "./reconcile";
+import { type Prediction, reconcile } from "./reconcile";
 import { Stop, extractOutcome } from "./trace";
 import { type RegionChunk, decodeInstanceView, encodeInstanceView } from "./view";
 
@@ -211,6 +212,78 @@ describe("the mirror on the recorded state", () => {
     expect(() => unportedClasses.ticks({} as never)).toThrow(NotMirrored);
     expect(() => unportedClasses.act({} as never)).toThrow(NotMirrored);
     expect(() => unportedClasses.trigger({} as never)).toThrow(NotMirrored);
+  });
+
+  it("keeps ticks and act unported: the native classes change trigger alone", () => {
+    expect(nativeClasses.trigger).toBe(trapTrigger);
+    expect(() => nativeClasses.ticks({} as never)).toThrow("TickLibrary::ticks");
+    expect(() => nativeClasses.act({} as never)).toThrow("ActionLibrary::act");
+    expect(() => nativeClasses.ticks({} as never)).toThrow(NotMirrored);
+    expect(() => nativeClasses.act({} as never)).toThrow(NotMirrored);
+  });
+
+  it("predicts a Move onto a trap: the trap used, the member struck (CLI-10e)", () => {
+    const state = recordedState();
+    // trap.jsonl's skill 70 (0x46): a terrain trap's payload, earth damage and Poison
+    const skill = {
+      id: 0x46,
+      kind: 9,
+      energy: 0,
+      profession: 0,
+      adrenaline: 0,
+      activation: 1,
+      recharge: 10,
+      regen0: 0,
+      regen12: 0,
+      range: 0,
+      entry1: 0x1c000000000000000000012n,
+      entry2: 0x140000000000028000a0701n,
+      entry3: 0x14000000000000400040206n,
+    };
+    const content = { skills: [skill], potions: [], castes: [] };
+    // The adventurer stands on tile 105 of chunk 0; terrain traps (kind 4, skill 70) on the three
+    // tiles it can step to: 106 (east), 90 (north) and 120 (south)
+    const trap = (tile: number) => BigInt(tile) | (4n << 8n) | (0x46n << 16n);
+    const objects = (trap(106) | (trap(90) << 32n) | (trap(120) << 64n)) << 128n;
+    const region = state.region.map((c) =>
+      c.chunk === 0 ? { ...c, features: c.features | objects } : c,
+    );
+    const quiet = { ...state, content };
+    const stepped = { ...quiet, region };
+    expect(unpackFeatures(region.find((c) => c.chunk === 0)!.features).objects).toMatchObject([
+      { tile: 106, kind: 4 },
+      { tile: 90, kind: 4 },
+      { tile: 120, kind: 4 },
+    ]);
+    const calls: TriggerCall[] = [];
+    const spy = {
+      ...nativeClasses,
+      trigger: (call: TriggerCall) => {
+        calls.push(call);
+        return trapTrigger(call);
+      },
+    };
+    const used = (ground: Ground) =>
+      ground.flatMap(([, f]) => f.objects).filter((o) => o.kind === 4 && o.state === 1);
+    const moves = [0, 1, 2, 3].map((direction) => [{ kind: "move" as const, direction }]);
+    const reached = moves.filter((actions) => {
+      calls.length = 0;
+      mirrorOf(stepped, spy)(actions);
+      return calls.length > 0;
+    });
+    expect(reached.length).toBeGreaterThan(0);
+    for (const actions of reached) {
+      // `Predict` is client/sim's `Ran`, whose ground `Prediction` does not list
+      const without = mirrorOf(quiet)(actions) as Prediction & { ground: Ground };
+      const predicted = mirrorOf(stepped)(actions) as Prediction & { ground: Ground };
+      // The entered trap is used in the predicted ground, and the member's words are not those of
+      // the same batch with no trap
+      expect(used(predicted.ground)).toHaveLength(1);
+      expect(used(without.ground)).toHaveLength(0);
+      expect(predicted.words.members).not.toEqual(without.words.members);
+      // The unported classes refuse it
+      expect(() => mirrorOf(stepped, unportedClasses)(actions)).toThrow("TrapLibrary::trigger");
+    }
   });
 
   it("refuses a revealed chunk around the adventurer that the region does not give", () => {
