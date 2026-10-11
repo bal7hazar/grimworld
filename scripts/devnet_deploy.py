@@ -16,9 +16,11 @@ no belt), `Hub.enter` through gate 1 (the start hub into the zone) for the first
 
 Local node only: it refuses any NODE_URL that is not 127.0.0.1 and never reads a Sepolia variable.
 It runs once per node: a node whose first account has already sent a transaction is refused (exit 1)
-with a message, and nothing is deployed. The private key is read from the environment `with-node.sh`
-sets, used to import the account into a throwaway `sncast` accounts file (under $WITH_NODE_LOG_DIR),
-and never printed or written; the client reads it from devnet's `devnet_getPredeployedAccounts`.
+with a message, and nothing is deployed. The node must be a devnet whose `devnet_getPredeployedAccounts`
+answers with the account first, and the URL must be exactly `http://127.0.0.1:<port>`. The private key
+is read from the environment `with-node.sh` sets and written only to `sncast`'s throwaway accounts file
+under $WITH_NODE_LOG_DIR (default `.with-node/`, gitignored); it is never printed or put in the JSON,
+and the client reads it from devnet's `devnet_getPredeployedAccounts`.
 
 The JSON file (`--out <path>`; without it the JSON goes to stdout) is an interface track CV's tests
 read. Its keys, all strings of hex felts unless noted:
@@ -61,12 +63,19 @@ PLAY_CLASSES = [("ephemeral", "PlayLibrary"), ("logic", "TickLibrary"), ("logic"
                 ("logic", "SegmentLibrary")]
 
 
+def check_url(url):
+    """The local node only: exactly `http://127.0.0.1:<port>` (no userinfo, no backslash tricks)."""
+    parts = urllib.parse.urlparse(url)
+    if parts.scheme != "http" or not re.fullmatch(r"127\.0\.0\.1:[0-9]{1,5}", parts.netloc) \
+            or parts.path not in ("", "/") or parts.query or parts.fragment or "\\" in url:
+        sys.exit("devnet_deploy: the local node only (NODE_URL must be http://127.0.0.1:<port>)")
+
+
 class Node:
     """The local node and the first pre-funded account, through the JSON-RPC and `sncast`."""
 
     def __init__(self, url, address, key, logs):
-        if urllib.parse.urlparse(url).hostname != "127.0.0.1":
-            sys.exit("devnet_deploy: the local node only (NODE_URL must be on 127.0.0.1)")
+        check_url(url)
         self.url, self.address = url, address
         os.makedirs(logs, exist_ok=True)
         self.accounts = os.path.join(logs, "accounts-devnet-deploy.json")
@@ -94,7 +103,7 @@ class Node:
         return out.stdout + out.stderr
 
     def import_account(self):
-        # the key goes to sncast's argv, as in the probe; local node, test account
+        # as in the probe: sncast stores it in its throwaway accounts file (local node, test account)
         self.sncast("persistent", "account", "import", "--url", self.url, "--name", "deployer",
                     "--type", "oz", "--address", self.address, "--private-key", self.key)
         self.key = None
@@ -193,10 +202,17 @@ def main(argv):
     node = Node(url, address, key,
                 os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node")))
 
+    try:
+        predeployed = node.rpc("devnet_getPredeployedAccounts", {})
+    except Exception as error:  # not a devnet: the method is unknown
+        sys.exit(f"devnet_deploy: the node is not a starknet-devnet ({error})")
+    if not predeployed or int(predeployed[0]["address"], 16) != int(address, 16):
+        sys.exit("devnet_deploy: the first predeployed account of the node is not NODE_ACCOUNT_ADDRESS")
     nonce = int(node.rpc("starknet_getNonce", {"block_id": "latest", "contract_address": address}), 16)
     if nonce != 0:
-        print(f"devnet_deploy: this node already has a deployment (the account {address} has sent "
-              f"{nonce} transactions); use a fresh node", file=sys.stderr)
+        print(f"devnet_deploy: this node already has a deployment (the account {address} "
+              f"has sent {nonce} transactions (an earlier deployment, or another tool); use a fresh "
+              "node)", file=sys.stderr)
         return 1
     chain = bytes.fromhex(node.rpc("starknet_chainId", [])[2:]).decode()
     node.import_account()
@@ -223,9 +239,7 @@ def main(argv):
     play = {}
     for key_, (package, name) in enumerate(PLAY_CLASSES):
         play[name] = node.declare(package, name)
-        node.sncast("ephemeral", "--account", "deployer", "--wait", "invoke", "--url", node.url,
-                    "--contract-address", instances, "--function", "set_play_class",
-                    "--calldata", hex(key_), play[name])
+        node.invoke(instances, "set_play_class", key_, play[name])
     for kind, rid, parts in seed_records():
         node.invoke(registry, "set_record", kind, rid, len(parts), *parts)
 

@@ -10,8 +10,10 @@ scripts/with-node.sh python3 scripts/devnet_deploy.py --out deployment.json
 
 Without `--out` the JSON goes to stdout. It refuses a node that is not on 127.0.0.1, never reads a
 Sepolia variable, and runs once per node: a node whose first account has already sent a transaction
-is refused (exit 1) and nothing is deployed. It writes no private key; the client reads the key from
-`devnet_getPredeployedAccounts`.
+is refused (exit 1) and nothing is deployed. The node must be a devnet whose first predeployed account is the
+`NODE_ACCOUNT_ADDRESS`, and the URL exactly `http://127.0.0.1:<port>`. The private key is written only to
+`sncast`'s throwaway accounts file under the gitignored `.with-node/` log folder, never printed or put in
+the JSON; the client reads it from `devnet_getPredeployedAccounts`.
 
 Order (the lifecycle probe's, `contracts/tools/lifecycle_probe.py`): `Registry`, `set_zone_checks`
 (before any record), `TxHashFate`, the libraries, `Hub`, `Instances`, `Hub.set_contracts`, the play
