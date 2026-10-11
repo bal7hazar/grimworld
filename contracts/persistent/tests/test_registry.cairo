@@ -1067,6 +1067,56 @@ fn test_set_record_caste_bounds() {
     assert(r.admin.last_id(CASTE) == 1, 'one caste written');
 }
 
+/// A spell (not an attack) with `entries`: a carrier whose entries may address differently.
+fn spell_of(entries: [Entry; 3]) -> Span<felt252> {
+    SkillTrait::new(1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::FOE, false, entries).pack()
+}
+
+// CARRIER-01 (D-271): a carrier's non-`TRAP` entries address tiles or entities, never both: a
+// `TILE` entry with a `FOE` or `ALLY` one is refused (the carry reads the cast address as one
+// kind); `SELF` resolves to the caster, whatever the address, so it mixes with `TILE`; a `TRAP`
+// with its `FOE` payload stays legal.
+#[test]
+#[available_gas(l2_gas: 20000000)]
+fn test_set_record_mixed_targets() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let hit = |
+        t: u8,
+    | EntryTrait::new(
+        kind::DAMAGE, damage::FIRE, 30, 30, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    let inflict = |
+        t: u8,
+    | EntryTrait::new(
+        kind::CONDITION, condition::BURNING, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    let heal = |
+        t: u8,
+    | EntryTrait::new(kind::HEAL, 0, 20, 20, 0, 0, 0, t, shape::SINGLE, filter::ALLIES, 0, 0);
+    let trap = EntryTrait::new(kind::TRAP, 0, 0, 0, 0, 0, 0, target::TILE, shape::SINGLE, 0, 0, 0);
+    // Refused: `TILE` with `FOE`, or with `ALLY`, in either order.
+    for (a, b) in array![
+        (hit(target::TILE), inflict(target::FOE)), (inflict(target::FOE), heal(target::TILE)),
+        (hit(target::TILE), heal(target::ALLY)), (hit(target::ALLY), inflict(target::TILE)),
+    ] {
+        assert_refused(try_write(r, SKILL, spell_of([a, b, none])), entry_errors::MIXED_TARGETS);
+    }
+    // Legal: all `TILE`, all entity (`FOE` with `ALLY`), `TILE` with `SELF`, a `TRAP` and its
+    // `FOE` payload.
+    assert_accepted(
+        try_write(r, SKILL, spell_of([hit(target::TILE), inflict(target::TILE), none])),
+    );
+    assert_accepted(
+        try_write(r, SKILL, spell_of([hit(target::FOE), heal(target::ALLY), none])),
+    );
+    assert_accepted(
+        try_write(r, SKILL, spell_of([hit(target::TILE), heal(target::SELF), none])),
+    );
+    assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), none])));
+    assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), inflict(target::FOE)])));
+}
+
 // DS-20 (§6 test 7): a second `ATTACK_BONUS` on one carrier is refused; a potion's entry is a
 // legal, unscaled carrier (design/19 §5.14).
 #[test]

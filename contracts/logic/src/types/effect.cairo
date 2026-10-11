@@ -149,6 +149,7 @@ pub mod errors {
     pub const ATTACK_ENTRY: felt252 = 'carrier: attack entry';
     pub const TRAP_ENTRY: felt252 = 'carrier: trap entry';
     pub const PAYLOAD: felt252 = 'carrier: trap payload';
+    pub const MIXED_TARGETS: felt252 = 'carrier: mixed targets';
     pub const DISC_1: felt252 = 'carrier: disc 1 not a potion';
     pub const AREA: felt252 = 'carrier: area after the MVP';
 }
