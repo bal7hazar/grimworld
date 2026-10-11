@@ -290,6 +290,10 @@ verdict, findings table, coverage).
 
 - None. D-208's dungeon residue was lifted on 2026-10-07: ENG-10b measured it to zero (0 chunks, 0 tiles), and its randomness re-audit passed with a minor finding deferred (PLAN FEED-1). D-229 keeps it at zero once an entropy feeder lands.
 
+#### Deployment order
+
+`IRegistryAdmin.set_zone_checks` is the first admin call of every deployment, before any record. Registry's cross-record bounds and their storage index count only records written after it, so an earlier record escapes R-41 and R-30's reverse checks (ENG-R1c-1, #422). A contract guard that refuses records while the class is unset is queued (BND-01).
+
 ## 8. Phase gates and the definition of done
 
 A phase closes when all its tasks are merged; its exit criterion (PLAN) is **demonstrated, not
