@@ -132,14 +132,14 @@ The cases (47):
 ## `segment2.jsonl`: a segment that calls the classes, `SegmentTrait::run` (RV-02, D-254)
 
 Printed by `types::play::tests::test_segment2_vectors_0` to `test_segment2_vectors_4` (ids 0–11, 12–22, 23–25,
-26–30, 31–43), split for snforge's step limit, each part with its digest. It covers what `segment.jsonl` cannot: the
+26–30, 31–44), split for snforge's step limit, each part with its digest. It covers what `segment.jsonl` cannot: the
 branches of `run` that call `TickLibrary`, `ActionLibrary` or `TrapLibrary`, and those that meet a goblin, a trap, a
 companion, a regeneration or a `MOVEMENT` effect. One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every
 value its Cairo `Serde` (as `segment.jsonl`).
 
 **Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`types::tick::Content`): the unit-test
-fixture's (`Fixture::content`), skill 8 instant (activation 0), and skill 9, an enchantment whose first entry is
-`MOVEMENT` (FX-18). Every other row loads its words through it.
+fixture's (`Fixture::content`), skill 8 instant (activation 0), skill 9, an enchantment whose first entry is
+`MOVEMENT` (FX-18), and skill 10, an instant trap skill (range 3, a `TRAP` entry, Snare's earth payload). Every other row loads its words through it.
 
 **`case`**, in order: the `Words` (`clock`, the members' `MemberWords`, the goblins' `GoblinWords`, `killed`,
 `defeated`), the `Area`, the `level` (1), the `ground` (`Array<(u8, Features)>`: the chunk objects and `touched`
@@ -165,7 +165,8 @@ digest; a mirror that reaches a different call, or none, or calls with other inp
 row says so. It does not check the classes themselves (the ephemeral tests and `hit.jsonl` do): a mirror replaying
 these rows needs no `ActionLibrary` or `TickLibrary` of its own. No branch needed a stub. A replay is sound only when
 the mirror computes each call's inputs and checks them against the digest: a mirror that takes the recorded results
-without that check can pass a row while calling the classes with other inputs (row 43 is one such case).
+without that check can pass a row while calling the classes with other inputs (row 43 is one such case). A mirror
+that leaves a recorded call unused also differs: it asserts that each row's span of calls is fully consumed.
 
 The classes are the real ones (`ExecutorLibrary`, `AiLibrary`, `TickLibrary`, `ActionLibrary`, `TrapLibrary`)
 behind test recorders (`types/play/tests/recorder.cairo`) that forward each call and log the segment's own:
@@ -175,20 +176,24 @@ chunk revealed, at clock 40, unless a row says otherwise; goblin 264 is chunk 16
 fixture's Hob (Engaged, awake, health 100).
 
 **Three behaviours of `run` a mirror reproduces** (track CV's replay, D-255):
-- A refused combat action (`Illegal` or `Heavy`) restores the words but keeps the ground `ActionLibrary` returned
-  (`play.cairo`, `SegmentTrait::combat`: `rules.ground = ground` before the result is read). For `Illegal` this is
-  the ground it was given: every refusal of `ActionTrait::act` comes before its first `carry`, the only step that
-  changes the ground. For `Heavy` the action has already resolved, so a ground it changed (a trap placed by an
-  instant trap skill) is kept. That is a defect, not a rule to rely on: D-259 (FIX-01) makes a `Heavy` refusal leave
-  the ground as it was; no row here reaches it.
+- A refused combat action (`Illegal` or `Heavy`) restores the words and leaves the ground as it was (D-259, FIX-01;
+  `play.cairo`, `SegmentTrait::combat`: `rules.ground` takes `ActionLibrary`'s ground only when the result is kept).
+  A `Heavy` action has already resolved in `ActionLibrary` (an instant trap skill, 0 ticks, with no weight left
+  after a first action places its trap there), so its ground is dropped with its words and spends nothing; an
+  `Illegal` refusal comes before the first `carry`, so the ground it returns is the one given. Row 44 (an instant
+  trap skill refused as `Heavy`): the `ground` in `ok` is the `ground` in `case`. Held by
+  `types::play::tests::test_heavy_trap_keeps_the_ground` and `test_illegal_trap_keeps_the_ground`.
 - The fast path's ticks (`TickTrait::idle`) regenerate the members as a tick's step does in `TickLibrary`
   (`MemberTrait::regenerate`): health, energy up to its max, and adrenaline decaying (not engaged), not only health.
-- The trap call carries the clock, the members and the placer goblin, with `killed` empty and `defeated` false
-  whatever the world holds: the trap reads neither, and `run` reads back only the members and the placer goblin
-  (a defeat is found by the next tick's step 5). The digest of a `trigger` call is over those words; row 43 holds
-  it with a goblin in the world's `killed`.
+- The trap call carries the clock, the members and the placer goblin, with `killed` empty and `defeated` false:
+  the trap reads neither, and `run` reads back only the members and the placer goblin (a defeat is found by the
+  next tick's step 5). `defeated` is false in every reachable state (`run` breaks on `world.defeated` before any
+  action); `killed` is not, and the digest of a `trigger` call is over those words with it empty: row 43 holds it
+  with a goblin in the world's `killed`.
 
-**Not reached:** `LayoutTrait::neighbor` → `None` (a Move off the window's edge). The window is assembled around the
+**Not reached:** `LayoutTrait::neighbor` → `None` (a Move off the window's edge). This rests on there being no
+displacement effect (`types/effect.cairo` kinds) and on `rules.board` being refreshed only after a Move: a future
+push, teleport or dash must add a refresh and a vector (D-255). The window is assembled around the
 adventurer after every Move that does not end the segment, and nothing else moves it, so a Move always starts at
 the window's centre (`movement.jsonl`'s `origin`: position 112 or 127), and every neighbour of the centre exists:
 hexx 0.2.0's `AssemblyTrait::origin` (`src/board/assembly.cairo`) puts the origin at `(x − 7, y − 7)` on an odd row
@@ -204,12 +209,12 @@ on a 15 × 15-chunk location, every chunk revealed and walkable:
 
 The mirror keeps refusing it.
 
-The cases (44):
+The cases (45):
 
 | `fn` | ids | what |
 |---|---|---|
 | `content` (1) | 0 | the table's content |
-| `combat` (11) | 1–11 | the `_` arm, goblin 264 beside the adventurer, then a Wait: an Attack out of reach (1, `Reach`, the words kept), a spell on the goblin (2), Cinder Ring on itself (3, 2 ticks), a potion (4), an Attack on no entity (5, `Target`), an instant spell (6, 0 ticks charged 1); `Heavy` (`heavy`, the words kept): 0 ticks with no weight left (7), 2 ticks with 1 left (8), the potion with none (9); alone, a spell (10: the member activating, its ticks through `TickLibrary`) and a potion (11: its ticks on the fast path) after a Wait |
+| `combat` (12) | 1–11, 44 | the `_` arm, goblin 264 beside the adventurer, then a Wait: an Attack out of reach (1, `Reach`, the words kept), a spell on the goblin (2), Cinder Ring on itself (3, 2 ticks), a potion (4), an Attack on no entity (5, `Target`), an instant spell (6, 0 ticks charged 1); `Heavy` (`heavy`, the words kept): 0 ticks with no weight left (7), 2 ticks with 1 left (8), the potion with none (9); appended, 44: the instant trap skill 10 refused as `Heavy` after a Wait spent the weight, the ground unchanged (D-259); alone, a spell (10: the member activating, its ticks through `TickLibrary`) and a potion (11: its ticks on the fast path) after a Wait |
 | `ticks` (4) | 12–15 | `Self::ticks` through `TickLibrary`: two Waits beside goblin 264 (12); 2 owed ticks, no action (13); a goblin awake outside the window, so not calm (14); an asleep one there, calm: the fast path, no call (15) |
 | `fits` (7) | 16–22 | the goblin records of a Wait beside goblin 264 with no record (`touched` bit clear, E-1: 1 more): `ran` and the weight 1, refused (16, `undo`); weight 2, taken (17, 0 left); the invocation's first action, unbound (18); with a record, taken (19); held by an earlier segment, nothing added (20); E-16's 17th record refused (21, `undo`); the untouched one engaged (22): goblin 248 asleep beside the adventurer notices it and engages its pack, 249, outside the window and not awake, changes only its AI state (1 to 3) and is not counted (`changed` holds 248 alone) |
 | `defeated` (3) | 23–25 | `world.defeated` breaks the loop: the adventurer at 0 health, defeated by the owed tick before the first action (23, `played` 0, no `illegal`); at 1 health with Bleeding, Poison and Burning, on the first Wait's tick, on the fast path (24) and through `TickLibrary` (25) |
@@ -221,7 +226,7 @@ The cases (44):
 | `turn` (2) | 39–40 | CV: Turn, Wait, Turn: the Wait's tick clears the turned flag, the second Turn is legal, `flags` 1 after it (39); a third Turn after it is `Turned` (40) |
 | `follow` (2) | 41–42 | CV: the window follows each Move that reveals nothing: seven Moves West from (22, 22), the seventh onto (15, 22), on the first window's ring (never open in it), then a Wait (41); from (29, 22), the eighth Move West is `Blocked` by a wall on (21, 22), outside the first window (42) |
 
-Per `fn`: `content` 1, `combat` 11, `ticks` 4, `fits` 7, `defeated` 3, `trap` 4, `occupied` 2, `companions` 3,
+Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 7, `defeated` 3, `trap` 4, `occupied` 2, `companions` 3,
 `regeneration` 3, `movement` 2, `turn` 2, `follow` 2.
 
 ## `hit.jsonl`: one hit (CBT-03a)
