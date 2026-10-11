@@ -24,17 +24,17 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  * batch loads first, instances.cairo :136-146, and the location's `width`, `height` and
  * `level_min`, :142-145), the region's chunks (`instance_region`: the view's `chunks` are gone,
  * the chunks are the region's), the controlled member (`Instances.placement`, `placement.member`,
- * play.cairo :186-187) and the content (the sheets of the members' skills and potions and of the
+ * play.cairo :187-188) and the content (the sheets of the members' skills and potions and of the
  * area goblins' castes and skills, as `PlayLibrary`'s `bundle` reads them), which the caller
  * assembles from the Registry's records (`assembleContent`, CLI-10d). Where these do not hold what the segment needs, there is no
  * prediction (`NotMirrored`), never a guess:
  * - a view whose goblins are the `UNLOADABLE` marker: `play` refuses the batch (`Stop::Invalid`
- *   before any action, play.cairo :285-300), the mirror does not predict a refusal;
+ *   before any action, play.cairo :286-301), the mirror does not predict a refusal;
  * - an empty goblin list where the roster or a pack of the area holds some: the view lists none
  *   while no `PlayLibrary` is set (instances.cairo :598);
- * - several members while the view lists goblins: it lists the goblins of every member's window at once
- *   (play.cairo :338-349, `window`), `play` loads those of the controlled member's alone, and the
- *   view cannot tell a window's goblins from a roster's;
+ * - several members while the view lists goblins: it lists the goblins of every inside member's
+ *   window at once (play.cairo :341-356, `window`), `play` loads those of the controlled member's
+ *   alone, and the view cannot tell a window's goblins from a roster's;
  * - a revealed chunk around the controlled member that the region does not give;
  * - no content given, where the segment reads a sheet (a goblin's caste or skill, a bar's skill):
  *   it panics `... not in content`. Given content that lacks a sheet the segment reads is no such

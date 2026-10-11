@@ -11,23 +11,23 @@ import type { InstanceView, MemberView } from "./view";
 /**
  * The content a batch's segment reads (CLI-10d, D-257, D-263), assembled from the Registry's
  * records as `PlayLibrary` assembles it before its first `SegmentLibrary` call
- * (contracts/ephemeral/src/systems/play.cairo): `Content { skills, potions, castes }` (:566-570)
+ * (contracts/ephemeral/src/systems/play.cairo): `Content { skills, potions, castes }` (:590-594)
  * from its `Book`, filled in two reads.
  *
- * 1. `play`'s first `bundle` (:225-246): after the location, its chunk set and the area's pack
- *    templates, each member's content (`member_content`, :1204-1226: the bar's 8 skills, then for
+ * 1. `play`'s first `bundle` (:226-247): after the location, its chunk set and the area's pack
+ *    templates, each member's content (`member_content`, :1228-1250: the bar's 8 skills, then for
  *    each slot 0–3 the belt's item and, for a held effect that is not a potion's, its carrier
  *    skill; 0 skipped, each id once), the skills then the potions. A record the registry lacks is
- *    skipped (`exists`, :259-283).
- * 2. `goblins` (:376-512): the castes the goblins need (the derived ones' from their pack's
- *    template, :404-432, then the stored ones', :433-438), the castes' skills the book lacks, in
- *    caste order (:439-462), then the stored goblins' held effects' skills (:463-468), 32 a
- *    `bundle` (:469-490). A missing caste or skill makes the goblin unloadable (`usable`), which
+ *    skipped (`exists`, :260-284).
+ * 2. `goblins` (:400-536): the castes the goblins need (the derived ones' from their pack's
+ *    template, :428-456, then the stored ones', :457-462), the castes' skills the book lacks, in
+ *    caste order (:463-486), then the stored goblins' held effects' skills (:487-492), 32 a
+ *    `bundle` (:493-514). A missing caste or skill makes the goblin unloadable (`usable`), which
  *    the view reports as `UNLOADABLE`.
  *
  * The client needs neither the location (the view's, VIEW-01) nor the pack templates: the view's
  * goblins carry their caste, the derived ones' set from their template as `goblins` sets it
- * (:491-504). It reads the castes from the goblins' states, and each record by one
+ * (:515-528). It reads the castes from the goblins' states, and each record by one
  * `Registry.record(kind, id)` (the records are the ones `bundle` concatenates, :175-184).
  *
  * The order: as `play`'s, but for the stored goblins, taken in entity order where `play` takes the
@@ -182,7 +182,7 @@ const lowField = (word: bigint, at: number, width: number): number =>
   Number((limbs(word)[0] >> BigInt(at)) & ((1n << BigInt(width)) - 1n));
 
 /**
- * `PlayTrait::member_content` over every member (play.cairo :235-238, :1204-1226): the skills and
+ * `PlayTrait::member_content` over every member (play.cairo :236-239, :1228-1250): the skills and
  * potions their load needs, in `play`'s order.
  */
 export function memberContent(members: readonly MemberView[]): {
@@ -228,7 +228,7 @@ export async function assembleContent(view: InstanceView, record: RecordRead): P
     return record(kind, id);
   };
   const { skills, potions } = memberContent(view.members);
-  // The derived goblins first, then the stored ones (`goblins`, :412-436)
+  // The derived goblins first, then the stored ones (`goblins`, :436-460)
   const castes: number[] = [];
   for (const goblin of view.goblins) if (goblin.derived) add(castes, casteOf(goblin.state));
   for (const goblin of view.goblins) if (!goblin.derived) add(castes, casteOf(goblin.state));

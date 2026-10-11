@@ -133,7 +133,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const read = reader();
     const before = await read.instanceState(deployment.contracts.instances, instanceId());
     // The location's extent is the view's (VIEW-01); the member the adventurer controls is the
-    // chain's (`placement`, play.cairo :186-187), the area's centre
+    // chain's (`placement`, play.cairo :187-188), the area's centre
     const { member } = await read.placement(
       deployment.contracts.instances,
       deployment.adventurer_id,
