@@ -364,3 +364,108 @@ The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `rev
 - Part 4 (6, ENG-05c): a cave dungeon floor of `N` 6 (entropy 15) whose outline holds two
   neighbouring chunks with their seam closed, revealed whole by decreasing index (208–213).
 
+
+## `act.jsonl`: the adventurer's action, `ActionTrait::act` (RV-03b, D-257)
+
+Printed by `types::action::tests::vectors::test_act_vectors_0` to `_9` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
+107–126, 127–142, 143–156, 157–175, 176–203), split for snforge's step limit, each part with its digest. Where
+`segment2.jsonl` records the action class's result for a replay, this table tests a port of the class itself: each
+`act` row is one call of `ActionLibrary::act` (the real class, declared in the test), which loads the words through
+the content, runs `ActionTrait::act` for member 0 with `Delegate` rules whose carrier runs through the real
+`ExecutorLibrary` (also declared), and returns the words stored back, the ground and the tick cost, or, on a refusal,
+the words as they came, the ground and the `Illegal`. One line: `{"id", "fn", "case", "ok"}`, every felt in hex,
+every value its Cairo `Serde` (as `segment2.jsonl`; a negative integer `P − |v|`).
+
+**Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`act_content`): the action unit tests'
+(`types::action::tests::bench`: the executor tests' `content(40, …)`, castes of armor 40 and a sword of 30 at rank
+12, Snare 45 at 10 energy, activation 2, recharge 20; skill 60 a glyph, `NEXT_SPELL_COST` 4 for 10 ticks; 61 a fire
+spell, 5 energy, activation 3, range 6, fire 40 on a foe; 62 a Warden skill, 8 energy, profession 2, instant, a heal
+of 10 on `SELF`; 63 a stance, instant; 64 an attack skill of 2 adrenaline strikes, activation 0; 65 an instant heal
+of 10 on an ally, range 6), with: 66 an instant trap skill (range 3, `TRAP` then earth 10 to 40); 67 the same, its
+`TRAP` entry guarded `BELOW_HALF`; 68 a hex of activation 1 (range 6, fire 40); 69 an enchantment on `SELF` of
+activation 2; 70 an attack skill of activation 2, 5 energy and 1 strike; 71 an instant spell (range 6, fire 40); 72
+a glyph whose `NEXT_SPELL_COST` is 1 to 13 with the rank; 73 an enchantment holding `PENETRATION` 20 of scope
+`WEAPON`; 74 a stance holding `PENETRATION` 150 of scope `SPELL`; 75 a hex holding `ARMOR` −20; 76 an enchantment
+holding `ARMOR` 300. Its potions: 100 the bomb (fire 30 on `DISC_1`
+around a tile, range 6, strength 30), 101 a draught (a heal of 25 on `SELF`), 102 a dart (20 piercing on a foe,
+range 4, strength 45), and a sheet of id 0, which no belt slot names (an empty slot never takes it). Every actor is
+loaded through it.
+
+**`act`**: `case` the call's arguments but the content and the executor's class: the `Words` (`clock`, the members'
+`MemberWords`, the goblins' `GoblinWords`, `killed`, `defeated`), the `Board` (`window`'s one felt, `x`, `y`: the
+origin plus 15, D-134), the ground (`Array<(u8, Features)>`), the `Action` (`Move(d)` `0, d`; `Turn(d)` `1, d`;
+`Wait` `2`; `Attack(e)` `3, e`; `Skill((slot, target))` `4, slot, t, v` with `t` 0 an entity, 1 a tile `x + 256 y`;
+`Item((slot, a))` `5, slot, a`; `Interact(tile)` `6, tile`). `ok` what it returns: the `Words`, the ground (a trap
+placed is a `PLACED_TRAP` object, `param` its placer), then the `Result<u8, Illegal>`: `0, ticks`, or `1, i` with `i`
+the variant (0 `Clock`, 1 `Absent`, 2 `Knocked`, 3 `Turned`, 4 `Instant`, 5 `Empty`, 6 `Belt`, 7 `Recharging`, 8
+`Energy`, 9 `Adrenaline`, 10 `Target`, 11 `Reach`, 12 `Trap`, 13 `Kind`, 14 `Blocked`). On a refusal the words and
+the ground are the case's, felt for felt (every one of the 75 refusals here).
+
+**`defence`**: `Body::defence` through `UnitBody` (the executor's dispatch), the lever `Levered` with a fresh `Cache`
+(a member as member 0). `case` the actor, then `t`; `ok` its `Defence` (`armor` signed, `effects`, `stance` and
+`enchanted` signed, `in_stance`, `is_enchanted`, `block`, `block_slot`, `evade`). **`offence`**: `Body::offence`
+the same way. `case` the actor, the `HitClass` (0 `Weapon`, 1 `Spell`, 2 `Item`, 3 `Trap`), the `Entry` (its
+`Serde`, as `body.jsonl`), `bonus` (`u32`), `penetration` (`u16`), then the `Context`'s fields in order: `rank`, the
+`Infliction` (`condition`, `percent`, `knockdown`), `enchant`, `skill_kind`, `carrier`, `potion`, `at` (`ABSENT`,
+`2^32 − 1`, for a weapon), `scope`, `t`; `ok` the `Offence`'s fields in order: `class`, `weapon`, `melee`,
+`strength`, `base`, `percent` and `above` (signed), `penetration`, `damage_type`, `steal`, `energy`. The actor in both
+is `0` then its `MemberWords`, or `1` then its `GoblinWords`, loaded through the content (`MemberTrait::load`,
+`GoblinTrait::load`).
+
+The world, unless a row says otherwise: the clock 200; the adventurer, member 0 on (7, 7) (window position 112)
+facing 0, level 20, health 400 of 480, 30 energy thirds of 60, adrenaline 0, its sword (damage 27, range 1, `k` 0:
+1 tick, strength 60, slashing), its bar the row's skills from slot 0 at rank 12 and the fixtures' 1–8 after, its belt
+items 100–103 at count 0; goblin 8, a Hob of health 100, adjacent East (position 113). The board is the open window
+at the origin, the ground chunk 0 empty. A dead goblin is at health 0 and in AI state `DEAD`; a second member is the
+executor tests' member.
+
+| `fn` | ids | what |
+|---|---|---|
+| `content` (1) | 0 | the table's content |
+| `act`, the preamble (26) | 1–26 | Wait (1 tick, nothing written) (1); at `LAST_TICK` legal, past it `Clock` (2, 3); dead past it, `Clock` first (4); `Absent` at 0 health, legal at 1, `Absent` down and gone above 0 (5–8); at 0 and knocked down, `Absent` first (9); knocked down to `c` (lapsed at `t₀ = c + 1`: legal), to `c + 1` and `c + 2`, `Knocked` (10–12); knocked down: Wait legal, Turn, Skill, Item, Move and Interact `Knocked` (13–18); Turn to 0, 5 (the last direction) and to the facing it has: 0 ticks, the facing and `TURNED` set (19–21); with `TURNED`, `Turned` (22); with `INSTANT` only, legal (23); Wait with both flags, legal (24); Move and Interact, `Kind` (the segment's) (25, 26) |
+| `act`, Attack (16) | 27–42 | the sword on goblin 8, adjacent East (lands now, the member turned toward it), on goblin 11 a row up (27, 28); goblin 9 at 2, `Reach` (29); a dead goblin, an entity no actor holds (77), the member itself (0), member 1 of a world of one, entity 7, a living member adjacent: `Target` (30–35); `k` 2 and 255 (`MemberStats` 104–111) (36, 37); a range of 3 (`MemberStats` 112): a goblin at 3 legal, at 4 `Reach`, at 3 behind a wall at 2 `Reach`, at 3 outside the window (the board's origin at (5, 0)) `Reach` (38–41); from facing 4 at `LAST_TICK` (42) |
+| `act`, the skill's refusals (27) | 43–69 | each in `act`'s order at its bound, and the one before it winning: `Empty` (bar slot 0 of id 0; slot 7 holding the stance, legal; emptied; emptied with its weapon-required bit) (43–46); `Kind` (the attack skill with its slot's bit, `MemberStats` 40 + slot; with slot 1's bit only, legal; with the bit and recharging, `Kind` first; the stance with its bit, legal) (47–50); `Instant` (the stance and the instant spell with `INSTANT`; the spell of activation 3 and the attack skill of activation 0 with it, legal; the stance with `TURNED`, legal; with `INSTANT` and recharging, `Instant` first) (51–56); `Recharging` (`R = c + 1` refused, `R = c` legal; the attack skill recharging and short of adrenaline, `Recharging` first) (57–59); `Adrenaline` (2 strikes, 8 quarters: 7 refused, 8 and 9 legal; the attack skill of activation 2 short of both, `Adrenaline` first, of energy only, of neither) (60–65); `Energy` (the fire spell's 5, 15 thirds: 14 refused, 15 legal; short and aimed at no actor, `Energy` first; aimed at no actor, `Target`) (66–69) |
+| `act`, the aim (25) | 70–94 | the fire spell (`FOE`, range 6): a goblin at 6 (started: activation 3, `A = c + 3`, its target the entity), at 7 `Reach`, a dead one, the member, a tile `Target`, behind a wall `Reach` (70–75); the ally heal (`ALLY`, range 6, instant): the member itself; member 1 at 6 (legal), at 7 (`Reach`), at 0 health, a goblin, a tile, member 1 of a world of one (`Target`) (76–82); `SELF` (the stance): a goblin, no actor, a tile, all legal, the facing kept (83–85); the enchantment on `SELF` of activation 2 on a tile (`act_tile` 1, its target the member) and on an entity (86, 87); Snare (`TILE`, range 3, activation 2): an empty tile at 3 (started, `act_tile` 1, its target the tile), at 4 `Reach`, an entity `Target`, goblin 8's tile and the member's own `Trap`, a dead goblin's (legal), a walled tile `Reach` (88–94) |
+| `act`, the trap's tile (12) | 95–106 | the instant trap on position 114 (chunk 0's tile 114): the ground's chunk 0 empty (index 0 written), a chest elsewhere at 0 (index 1), a used trap on the tile at 0 (index 0) (95–97); a chest on the tile, an unused trap on it, three objects elsewhere `Trap` (98–100); chunk 0 the ground's second entry (101); no chunk 0, `Trap` (102); the board's origin at (5, 0), the trap on (16, 7), chunk 1's tile 106 (103); the guarded trap (`BELOW_HALF` on the placer, health × 2 < 480): at 400 and 240 nothing placed (legal, 0 ticks, its recharge spent), at 239 placed (104–106) |
+| `act`, the energy (20) | 107–126 | the Warden skill (8 energy): a Warden primary (`MemberStats` 72) of rank 12 at 0 energy (floored: free), rank 8 (8 − 8: free), rank 7 at 2 thirds (`Energy`) and at 3; a primary 1 of rank 12 at 23 thirds (`Energy`) and 24; a Warden of rank 12 casting the fire spell at 14 (`Energy`) and 15 (no *Fieldcraft*) (107–114); the glyph (4) held in effect slot 0 to `c + 1` (the fire spell's 5 − 4, 3 thirds: legal, the glyph consumed, `D = c`), to `c` (lapsed: `Energy`) (115, 116); with the glyph held: the Warden skill (not a spell: kept), the hex, the enchantment, the instant spell (consumed) (117–120); the rune (1 + rank) on the fire spell: rank 0 at 11 and 12 thirds, rank 3 at 3, rank 4 and 12 at 0 (121–125); two glyphs (slots 0 and 2: 4 + 1, both consumed), the stance (slot 1) and a potion (slot 3) held and kept (126) |
+| `act`, quick cast and the tick cost (16) | 127–142 | pair 0 (`MemberBar` 208–219) of N 5, pair 1 (220–231) of N 2, bar slot 0's pairs (`MemberStats` 168, 169), the counters (`MemberState` `casts`, `casts_2`). The fire spell (activation 3): pair 0 at 4 (its bonus: activation 2, the counter 0), at 3 (to 4, activation 3), N 0 (kept), the slot not counting (kept), pair 1 at 1 (its bonus), both (bonuses 2: activation 1) (127–132); the hex (activation 1) with one bonus and with two: kept at 1 (`quick ≥ n`) (133, 134); the enchantment (activation 2) with two: 1 (135); Snare (a trap, not a spell) and the instant spell (activation 0): no count (136, 137); the attack skill of activation 2 (`max(k, n)`, FX-5) at `k` 1, 2, 3 (138–140); the attack skill of activation 0 at `k` 2 (lands now, `k` ticks, its recharge from `c + 1`, `INSTANT` not set), the instant spell (lands now, 0 ticks, `INSTANT`, its recharge) (141, 142) |
+| `act`, Item (14) | 143–156 | the bomb (belt slot 0, `TILE`, range 6, `DISC_1`): count 1 (to 0, both goblins on the disc hit, the member turned toward the tile), 2 (to 1), 0 (`Belt`); a tile at 6 (legal), at 7 and behind a wall (`Reach`) (143–148); belt slot 3, item 103, which the content lacks: count 1 and 0 (`Empty` first); slot 0's item 0 (the potion of id 0 not taken): `Empty` (149–151); the draught (slot 1, `SELF`): healed 25, the facing kept, any address (152); the dart (slot 2, `FOE`, range 4): a goblin at 4 (legal), at 5 (`Reach`), the member (`Target`), a tile's value read as an entity (`Target`) (153–156) |
+| `defence` (19) | 157–175 | a member: none held; its armor (`MemberBar` 232–247, −7) and guarded sums (`MemberKit` 184–191 in a stance 4, 192–199 enchanted −3); the shield (`ARMOR` 30, an enchantment) to `t` (held) and `t − 1` (lapsed); in two slots (summed); a potion held (neither stance nor enchanted); each `ARMOR` clamped to 0…255: the rust (−20: 0, a hex: neither stance nor enchanted), the bulwark (300: 255), both with the shield (285); Brace (`BLOCK`, a stance) with 2 charges in slot 2; 0 charges in slot 1 and 3 in slot 3 (the first with charges); 1 in slot 0 and 3 in slot 2 (the lowest slot); Sidestep (`EVADE`) (157–169). A goblin (its caste's armor 40): none; the shield to `t`, to `t − 1`; the rust (0); Brace; Sidestep (170–175) |
+| `offence` (28) | 176–203 | the member's sword, a plain weapon hit (scope 0): bonus 0, 5, 255; its requirement not met (`MemberStats` 176); a range of 3 (not melee); `LIFE_STEAL_ON_HIT` 3 and `ENERGY_ON_HIT` 2 (`MemberKit` 128, 136) (176–181); the passives (`MemberBar` 136, 160, 184 for scope 0: +10, −5, 3; 144, 168, 192 for 1: 20, 6, 4; 152, 176, 200 for 2: −30, 7, 5) and the call's penetration 7: a plain weapon hit, an attack skill (`Weapon`, scope 1), the fire entry (40 to 70) as a spell at ranks 0, 6, 12 (level 20: strength 60), a bomb (`Item`, scope 3: the potion's strength 30, no passives), a trap (`Trap`, scope 3), a cold entry of −20 (its base clamped to 0) (182–189); the edge (`PENETRATION` 20, `WEAPON`) and the focus (150 clamped to 100, `SPELL`) held to `t`: scopes 0, 1, 2, 3 (190–193); to `t − 1`: none (194–197); a goblin (a Hob of caste rank 12, a sword of 30, range 1, slashing, level 10): its weapon hit at bonus 0 and 5, a spell, a trap; holding the edge: its weapon hit, a spell (198–203) |
+
+Per `fn`: `content` 1, `act` 156, `defence` 19, `offence` 28.
+
+**The inventory** (what the earlier tables already pin of `act`). `segment2.jsonl` reaches `ActionLibrary::act` in its
+combat rows, but through `ActionRecorder`: each row records the class's result for the segment to replay, so a mirror
+replaying it runs no `act` at all. `hit.jsonl` pins `HitTrait::resolve`, the hit a carrier's entry lands, from a
+`Hit` that holds the `Offence` and `Defence` terms already built; `body.jsonl` pins the `Body` operations a carrier
+writes (`wound`, `struck`, `landed`, `inflict`, `hold`, `spend`); `trap.jsonl` the trigger of a placed trap and
+`free`. `segment.jsonl` calls no class. So no table pinned `act` as a port, nor `defence` and `offence`: every branch
+of `act` is vectored here, and the two `Body` operations RV-03a deferred are vectored directly, on a member and a
+goblin, rather than through `act` rows: an `act` row shows their result only through the hit it lands (a defence's
+block slot, an offence's steal and energy reach the words only on some hits), so the direct rows pin every field. The
+`act` rows run them all the same, through the real executor (the attacks, the spells, the bomb, the dart). `Blocked`
+is not `act`'s (the segment's Move): no row gives it. `ActionTrait::aim`, `energy`, `glyphs`, `consume` and
+`QuickCastTrait::count` are private steps of `act`, pinned through it.
+
+**No refusal changes the ground** (FIX-01, track CV's review note): every `Err` of `act` returns before its arm's
+`rules.carry`, the only write to the ground (a trap placed): `Clock`, `Absent` and `Knocked` before the arms; Turn's
+`Turned` writes nothing; Attack's `aim` before its carry; the skill's every refusal, `Trap` the last, before its costs;
+the item's `Empty`, `Belt` and `aim` before its count. `types::action::tests::test_no_carry_before_a_refusal` pins it:
+the in-class executor behind a `Carry` that counts its calls, each refusal `act` gives is refused with no carry, and
+each legal combat action carries once. In this table, every refusal's words and ground are the case's.
+
+**How the rows are sized for mutants** (as `hit.jsonl`): for every comparison, a row on each side of its bound (the
+clock at `LAST_TICK` and past it; knocked down to `c` and `c + 1`; `R` at `c` and `c + 1`; adrenaline at 4 × cost − 1
+and 4 × cost; energy at the cost − 1 third and the cost; *Fieldcraft* at the cost − 1, the cost and past it; a glyph
+to `c` and `c + 1`; a range at its value and one past; `quick` below, equal to and above `n`; `k` below, equal to and
+above the activation; the guarded trap's health × 2 at 480, 478; a belt count at 0, 1, 2); for every arithmetic step a
+row whose result tells the operator apart (the energy in thirds; *Fieldcraft*'s rank × 1 against the cost; the
+glyphs' sum against the cost, with a rune whose line rises with the rank; the counter's `+ 1` and its reset; `n −
+quick`; `A = c + n`; the recharge from `c + 1`; the count − 1). For every refusal, a row where it wins over the next
+one in `act`'s order, so a mutant that swaps two checks is seen. Each flag test reads one bit among others set
+(`TURNED` with `INSTANT`, `INSTANT` with `TURNED`), so a mutant reading the whole byte is seen. Each kind of target
+has its own rows (`FOE`, `ALLY`, `SELF`, `TILE`, a weapon's foe, an attack skill's foe, a potion's by its entry).
+`defence` and `offence` have a row on each side of each held effect's deadline (`t − 1`, `t`), each scope of
+`PENETRATION`, each `HitClass`, the clamps (an `ARMOR` sum, a percent above 100, a base below 0). Track CV names
+further cases for surviving mutants; they are appended, as `hit.jsonl`'s.

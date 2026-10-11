@@ -33,7 +33,8 @@ const CLOCK: u32 = 200;
 /// The table's own skills, after `bench`'s (ids 66 on): an instant trap; an instant trap whose
 /// `TRAP` entry is guarded `BELOW_HALF`; a hex of activation 1; an enchantment on `SELF` of
 /// activation 2; an attack skill of activation 2; an instant spell; a glyph whose line rises with
-/// the rank; two `PENETRATION` holders (`WEAPON` 20, `SPELL` 150).
+/// the rank; two `PENETRATION` holders (`WEAPON` 20, `SPELL` 150); two `ARMOR` holders (a hex of
+/// −20, an enchantment of 300).
 const PIT: u16 = 66;
 const GUARDED: u16 = 67;
 const HEX: u16 = 68;
@@ -43,6 +44,8 @@ const BOLT: u16 = 71;
 const RUNE: u16 = 72;
 const EDGE: u16 = 73;
 const FOCUS: u16 = 74;
+const RUST: u16 = 75;
+const BULWARK: u16 = 76;
 /// The belt: slot 0 the bomb (100), slot 1 a draught (101, a heal on `SELF`), slot 2 a dart (102,
 /// 20 piercing on a foe, range 4), slot 3 item 103, which the content does not hold.
 const DART_RANGE: u8 = 4;
@@ -169,6 +172,14 @@ fn act_content() -> Content {
         scope::SPELL,
     );
     skills.append(skill(FOCUS, skill_kind::STANCE, 0, [focus, none, none]));
+    let rust = EntryTrait::new(
+        kind::ARMOR, 0, -20, -20, 5, 5, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    skills.append(skill(RUST, skill_kind::HEX, 6, [rust, none, none]));
+    let bulwark = EntryTrait::new(
+        kind::ARMOR, 0, 300, 300, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+    );
+    skills.append(skill(BULWARK, skill_kind::ENCHANTMENT, 0, [bulwark, none, none]));
     let mut potions = array![];
     for potion in base.potions {
         potions.append(PotionSheet { strength: 30, ..*potion });
@@ -300,7 +311,7 @@ fn thing(position: u8, kind: u8, state: u8) -> Object {
 
 // Row 0, the content; the clock, absent, knocked down; Wait, Turn, Move, Interact.
 #[test]
-#[available_gas(l2_gas: 948193013)] // ceil(1.05 × 903040964 measured)
+#[available_gas(l2_gas: 954710240)] // ceil(1.05 × 909247847 measured)
 fn test_act_vectors_0() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -384,7 +395,7 @@ fn test_act_vectors_0() {
 
 // Attack: the target, the weapon's reach and `k`, the sight, the facing.
 #[test]
-#[available_gas(l2_gas: 783356551)] // ceil(1.05 × 746053858 measured)
+#[available_gas(l2_gas: 786008935)] // ceil(1.05 × 748579938 measured)
 fn test_act_vectors_1() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -489,7 +500,7 @@ fn ally(position: u8) -> Member {
 
 // Skill: each refusal in `act`'s order, at its bound, and the one before it winning.
 #[test]
-#[available_gas(l2_gas: 957514586)] // ceil(1.05 × 911918653 measured)
+#[available_gas(l2_gas: 961700117)] // ceil(1.05 × 915904873 measured)
 fn test_act_vectors_2() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -577,7 +588,7 @@ fn test_act_vectors_2() {
 
 // Skill: the aim (§2.3): a foe, an ally, `SELF`, a tile; range and sight; a trap's tile.
 #[test]
-#[available_gas(l2_gas: 934699279)] // ceil(1.05 × 890189789 measured)
+#[available_gas(l2_gas: 938557945)] // ceil(1.05 × 893864709 measured)
 fn test_act_vectors_3() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -656,7 +667,7 @@ fn test_act_vectors_3() {
 
 // The trap's tile (§5.11, FX-14): the ground the instant trap writes; the guarded trap.
 #[test]
-#[available_gas(l2_gas: 359629796)] // ceil(1.05 × 342504567 measured)
+#[available_gas(l2_gas: 361628450)] // ceil(1.05 × 344408047 measured)
 fn test_act_vectors_4() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -722,7 +733,7 @@ fn test_act_vectors_4() {
 
 // Costs: *Fieldcraft*, the glyphs, the floor at 0.
 #[test]
-#[available_gas(l2_gas: 704741572)] // ceil(1.05 × 671182449 measured)
+#[available_gas(l2_gas: 707938192)] // ceil(1.05 × 674226849 measured)
 fn test_act_vectors_5() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -786,7 +797,7 @@ fn test_act_vectors_5() {
 
 // Quick cast (§5.12, FX-39, FX-43); the activation and the instant path; the tick cost.
 #[test]
-#[available_gas(l2_gas: 543258308)] // ceil(1.05 × 517388864 measured)
+#[available_gas(l2_gas: 581570521)] // ceil(1.05 × 553876686 measured)
 fn test_act_vectors_6() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -796,16 +807,13 @@ fn test_act_vectors_6() {
     // (`MemberStats` 168, 169); the counters (`casts` 0 and 1). The fire spell (activation 3):
     // pair 0 at 4 (its bonus: activation 2, the counter 0); at 3 (to 4, activation 3); N 0 (the
     // counter kept); the slot not counting for it (kept); pair 1 at 1 (its bonus); both (bonuses
-    // 2: activation 1).
+    // 2: activation 1). The hex (activation 1) with one bonus and with two: kept at 1 (`quick ≥
+    // n`); the enchantment (activation 2) with two: 1; Snare (a trap, not a spell) and the
+    // instant spell (activation 0): no count.
     let cases: Array<(u16, felt252, felt252, felt252, u8, u8)> = array![
         (FIRE, 5, 0, 1, 4, 0), (FIRE, 5, 0, 1, 3, 0), (FIRE, 0, 0, 1, 4, 0), (FIRE, 5, 0, 0, 4, 0),
-        (FIRE, 0, 2, 2, 0, 1),
-        (
-            FIRE, 5, 2, 3, 4, 1,
-        ), // The hex (activation 1) with one bonus: kept at 1 (`quick ≥ n`); the enchantment
-        // (activation 2) with two: 1; Snare (a trap, not a spell): no count; the instant spell
-        // (activation 0): no count.
-        (HEX, 5, 0, 1, 4, 0), (WARD, 5, 2, 3, 4, 1), (SNARE, 5, 0, 1, 4, 0), (BOLT, 5, 0, 1, 4, 0),
+        (FIRE, 0, 2, 2, 0, 1), (FIRE, 5, 2, 3, 4, 1), (HEX, 5, 0, 1, 4, 0), (HEX, 5, 2, 3, 4, 1),
+        (WARD, 5, 2, 3, 4, 1), (SNARE, 5, 0, 1, 4, 0), (BOLT, 5, 0, 1, 4, 0),
     ];
     for (skill, n0, n1, matches, c0, c1) in cases {
         let mut m = hero(@t, array![skill]);
@@ -843,7 +851,7 @@ fn test_act_vectors_6() {
 
 // Item: the belt slot, its count, the potion's addressing and reach.
 #[test]
-#[available_gas(l2_gas: 649023332)] // ceil(1.05 × 618117459 measured)
+#[available_gas(l2_gas: 651385349)] // ceil(1.05 × 620366999 measured)
 fn test_act_vectors_7() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -1028,7 +1036,7 @@ fn goblin_holding(id: u16, charges: u8, deadline: u32, rank: u8) -> Goblin {
 
 // `defence`: the armor terms, each held effect's `ARMOR`, `BLOCK`, `EVADE`, its deadline.
 #[test]
-#[available_gas(l2_gas: 198974172)] // ceil(1.05 × 189499211 measured)
+#[available_gas(l2_gas: 255430355)] // ceil(1.05 × 243267004 measured)
 fn test_act_vectors_8() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -1055,6 +1063,18 @@ fn test_act_vectors_8() {
     let mut m = hero(@t, array![]);
     holding(ref m, 2, 1, true, 0, at, 0);
     defence_row(ref digest, ref id, @t, Unit::M(m), at);
+    // Each `ARMOR` clamped to 0…255: the rust (−20: 0), the bulwark (300: 255), both with the
+    // shield (0 + 255 + 30).
+    for skill in array![RUST, BULWARK] {
+        let mut m = hero(@t, array![]);
+        holding(ref m, 0, skill, false, 0, at, 12);
+        defence_row(ref digest, ref id, @t, Unit::M(m), at);
+    }
+    let mut m = hero(@t, array![]);
+    holding(ref m, 0, RUST, false, 0, at, 12);
+    holding(ref m, 1, BULWARK, false, 0, at, 12);
+    holding(ref m, 2, SHIELD, false, 0, at, 12);
+    defence_row(ref digest, ref id, @t, Unit::M(m), at);
     // Brace (`BLOCK`, a stance): 2 charges in slot 2 (block 2, slot 2, in a stance); 0 charges in
     // slot 1 and 3 in slot 3 (the first with charges: slot 3); 1 in slot 0 and 3 in slot 2 (the
     // lowest: slot 0). Sidestep (`EVADE`, a stance).
@@ -1072,12 +1092,13 @@ fn test_act_vectors_8() {
     let mut m = hero(@t, array![]);
     holding(ref m, 0, SIDESTEP, false, 0, at, 12);
     defence_row(ref digest, ref id, @t, Unit::M(m), at);
-    // A goblin (its caste's armor 40): none held; the shield to `t`, to `t − 1`; Brace with 2
-    // charges; Sidestep.
+    // A goblin (its caste's armor 40): none held; the shield to `t`, to `t − 1`; the rust (0);
+    // Brace with 2 charges; Sidestep.
     defence_row(ref digest, ref id, @t, Unit::G(goblin(8, AT + 1, 0, 100)), at);
     for deadline in array![at, at - 1] {
         defence_row(ref digest, ref id, @t, Unit::G(goblin_holding(SHIELD, 0, deadline, 12)), at);
     }
+    defence_row(ref digest, ref id, @t, Unit::G(goblin_holding(RUST, 0, at, 12)), at);
     defence_row(ref digest, ref id, @t, Unit::G(goblin_holding(BRACE, 2, at, 12)), at);
     defence_row(ref digest, ref id, @t, Unit::G(goblin_holding(SIDESTEP, 0, at, 12)), at);
     finish(digest, ACT_DIGEST_8);
@@ -1086,7 +1107,7 @@ fn test_act_vectors_8() {
 // `offence`: a weapon hit's terms, a spell's, a bomb's and a trap's; the passives and the held
 // `PENETRATION`.
 #[test]
-#[available_gas(l2_gas: 383814080)] // ceil(1.05 × 365537219 measured)
+#[available_gas(l2_gas: 386649626)] // ceil(1.05 × 368237739 measured)
 fn test_act_vectors_9() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -1239,11 +1260,11 @@ const ACT_PART_3: u32 = 70;
 const ACT_PART_4: u32 = 95;
 const ACT_PART_5: u32 = 107;
 const ACT_PART_6: u32 = 127;
-const ACT_PART_7: u32 = 142;
-const ACT_PART_8: u32 = 156;
-const ACT_PART_9: u32 = 171;
+const ACT_PART_7: u32 = 143;
+const ACT_PART_8: u32 = 157;
+const ACT_PART_9: u32 = 176;
 const ACT_DIGEST_0: felt252 =
-    2258519626633452323591347680500760095352080403447149129877763879843743647137;
+    1175653181451784382851520909946160264869596527370860170588120110218714707129;
 const ACT_DIGEST_1: felt252 =
     1877557721926457155813392980629918693731735479670870480906151700622873362804;
 const ACT_DIGEST_2: felt252 =
@@ -1255,10 +1276,10 @@ const ACT_DIGEST_4: felt252 =
 const ACT_DIGEST_5: felt252 =
     3328369351943691349854646900527534687345859035084235558300853463618473601151;
 const ACT_DIGEST_6: felt252 =
-    787263912630692189098858866890065077848333125569176675529078709875810047442;
+    1203805621806876648476583917929853616124543079888817121158120546887060930534;
 const ACT_DIGEST_7: felt252 =
     2942793287167649455997698397685145632568504538091578805479456198635937661385;
 const ACT_DIGEST_8: felt252 =
-    3519066250288377838892857768850060918790096251226129357011129871503164223166;
+    125427638892877233255178533104061449391953775311725324253266212463024105458;
 const ACT_DIGEST_9: felt252 =
     2720915314688875214492673004805861766276897858278301462922432372461233942929;
