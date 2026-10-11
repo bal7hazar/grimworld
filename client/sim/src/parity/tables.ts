@@ -432,5 +432,5 @@ export const TABLES: readonly Entry[] = [
   { file: "reveal.jsonl", floor: 197, fns: reveal },
   { file: "batch.jsonl", floor: 28, fns: batch },
   { file: "segment.jsonl", floor: 47, fns: segment },
-  { file: "segment2.jsonl", floor: 43, fns: segment2 },
+  { file: "segment2.jsonl", floor: 44, fns: segment2 },
 ];
