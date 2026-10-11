@@ -1,12 +1,13 @@
-// What the segment tables cannot show of the mirror (CLI-02f, CLI-02g-A): the one branch of
-// `SegmentTrait::run` it does not mirror (a Move off the window's edge, D-255), that `run` does not
-// change what it is given, and that the replayer of the parity tests stays out of the app's API.
+// What the segment tables cannot show of the mirror (CLI-02f, CLI-02g-A): the branches of
+// `SegmentTrait::run` it does not mirror (a Move off the window's edge, D-255; a Heavy refusal whose
+// call changed the ground, game's fix pending), that `run` does not change what it is given, and
+// that the replayer of the parity tests stays out of the app's API.
 
 import { describe, expect, it } from "vitest";
 import * as sim from "../index";
 import { board as origin_board, position } from "../movement";
 import { LIVE } from "../packing";
-import { run } from "../segment";
+import { NotMirrored, run, unported } from "../segment";
 import type { Segment } from "../segment";
 import { WIDTH, inside, neighbor } from "../window";
 import type { Classes } from "./classes";
@@ -66,7 +67,56 @@ const UNREACHED: Classes = {
   },
 };
 
+/** Classes whose `act` returns `ticks`, the words unchanged, the ground with a placed trap if `changes`. */
+function acting(ticks: number, changes: boolean): Classes {
+  return {
+    ...UNREACHED,
+    act: (call) => ({
+      words: call.words,
+      ground: changes
+        ? [
+            [
+              16,
+              {
+                packs: [0, 1].map(() => ({
+                  tile: 0,
+                  template: 0,
+                  level: 0,
+                  count: 0,
+                  offsets: 0,
+                  alert: 0,
+                })),
+                objects: [
+                  { tile: 112, kind: 9, state: 0, param: 0 },
+                  ...[0, 1].map(() => ({ tile: 0, kind: 0, state: 0, param: 0 })),
+                ],
+                touched: 0,
+              },
+            ],
+          ]
+        : call.ground,
+      outcome: { ticks },
+    }),
+  };
+}
+
 describe("the segment beyond its tables", () => {
+  it("throws on a combat action refused as Heavy whose call changed the ground", () => {
+    // An instant trap skill (0 ticks) with no weight left: `run` keeps the placed trap, a bug
+    const heavy: Segment = {
+      ...segment(),
+      owed: 0,
+      weight: 0,
+      actions: [{ kind: "skill", slot: 0, target: { tile: true, value: 112 } }],
+    };
+    expect(() => run(heavy, acting(0, true))).toThrow(new NotMirrored(unported.HEAVY_GROUND));
+    // The ground unchanged, restoring and keeping agree: the refusal is mirrored
+    expect(run(heavy, acting(0, false)).done.heavy).toBe(true);
+    // Run within the weight, the changed ground is kept
+    const ran = run({ ...heavy, weight: 1 }, acting(0, true));
+    expect([ran.done.played, ran.ground.length]).toEqual([1, 1]);
+  });
+
   it("cannot reach Blocked by a missing neighbour: the adventurer stands inside the window's ring", () => {
     // Its window is around it (column 7, row 7 or 8): every direction has a neighbour, so the
     // branch's `NotMirrored` is a guard only

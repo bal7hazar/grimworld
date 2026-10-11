@@ -16,9 +16,11 @@
 // (`TickTrait::idle`: the clock, the flags, the members' regeneration out of combat, the defeat
 // check) and `idle`'s choice, the records of `fits`. **Behind the seam** (`segment/classes.ts`):
 // `TickLibrary::ticks`, `ActionLibrary::act` and `TrapLibrary::trigger`, whose words and ground are
-// loaded back as `SegmentTrait::reload` loads them. One branch is not mirrored and throws
+// loaded back as `SegmentTrait::reload` loads them. Two branches are not mirrored and throw
 // `NotMirrored`, never a guess: a Move whose neighbour is missing (`LayoutTrait::neighbor` →
-// `None`, the window's edge), which `run` never reaches (D-255).
+// `None`, the window's edge), which `run` never reaches (D-255); and a combat action refused as
+// Heavy whose call changed the ground, which `run` keeps, a bug game fixes after RV-02 (the fix
+// restores the input ground).
 
 import { admit } from "./batch";
 import { P, add, panic, u8 } from "./felt";
@@ -32,6 +34,7 @@ import {
   type Done,
   type Ground,
   Illegal,
+  writeGround,
 } from "./segment/serde";
 import {
   ABSENT_LANE,
@@ -94,6 +97,8 @@ export class NotMirrored extends Error {
 /** The branches `NotMirrored` names. */
 export const unported = {
   EDGE: "Blocked by a missing neighbour (the window's edge)",
+  /** `combat` keeps `ActionLibrary`'s ground on a Heavy refusal: a bug, game's fix pending. */
+  HEAVY_GROUND: "heavy refusal with a changed ground: game fix pending",
 } as const;
 
 /** What a segment runs from: `SegmentLibrary::segment`'s inputs, the classes aside. */
@@ -458,19 +463,28 @@ function combat(world: World, rules: Rules, action: Action, weight: number): Res
     ground: rules.ground,
     action,
   });
-  rules.ground = out.ground;
   let kept = words;
   let result: Result;
   if ("illegal" in out.outcome) {
     result = { halt: { illegal: out.outcome.illegal } };
   } else if (out.outcome.ticks > weight || (out.outcome.ticks === 0 && weight === 0)) {
+    // Cairo keeps the ground the call returned, where the fix restores the input ground: the two
+    // agree only when the call left it as it was
+    if (!same(out.ground, rules.ground)) throw new NotMirrored(unported.HEAVY_GROUND);
     result = { halt: "heavy" };
   } else {
     kept = out.words;
     result = { ticks: out.outcome.ticks };
   }
+  rules.ground = out.ground;
   into(world, kept, rules.sheets);
   return result;
+}
+
+/** Whether two grounds hold the same felts. */
+function same(a: Ground, b: Ground): boolean {
+  const [x, y] = [writeGround(a), writeGround(b)];
+  return x.length === y.length && x.every((felt, i) => felt === y[i]);
 }
 
 /** `SegmentTrait::first`: whether the goblin has no record yet (its chunk's `touched` bit clear). */

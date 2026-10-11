@@ -56,9 +56,17 @@ kind, other inputs, an extra call or a missing one fails the row, naming the cal
 Lots D to F replace the replayer with ports, class by class; the batch preview needs those ports,
 since it predicts batches nobody recorded (D-255).
 
-**Not mirrored**: one branch. A Move whose neighbour is missing (`LayoutTrait::neighbor` → `None`,
-the window's edge) throws `NotMirrored`. `run` never reaches it: the adventurer stands at the
-window's column 7, and every direction has a neighbour (`src/segment/unported.test.ts`).
+**Not mirrored**: two branches, which throw `NotMirrored` (`unported`,
+`src/segment/unported.test.ts`):
+
+- `EDGE`: a Move whose neighbour is missing (`LayoutTrait::neighbor` → `None`, the window's edge).
+  `run` never reaches it: the adventurer stands at the window's column 7, and every direction has a
+  neighbour.
+- `HEAVY_GROUND`: an Attack, a Skill or an Item refused as Heavy whose `act` call changed the
+  ground. `run` keeps that ground (an instant trap skill keeps its placed trap), a bug that game
+  fixes after RV-02 by restoring the input ground. When the call left the ground unchanged,
+  keeping and restoring agree, and the mirror goes on. No `segment2.jsonl` row reaches the throw.
+
 `GoblinTrait::load`'s refusals (a caste or a caste skill the content does not hold) and the cap of
 8 awake goblins are not checked; no row reaches them.
 
