@@ -21,12 +21,14 @@ import { ChunkKind, type InstanceView, encodeInstanceView } from "./view";
 
 // Against the game deployed on the local node (OPS-01a), run through the script that starts and
 // stops the node, from the repository root, after the classes are built:
-//   scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
-//     GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node:preview'
+//   scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py \
+//     --out "$PWD/.with-node/deployment.json" &&
+//     GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" \
+//     pnpm --filter @grimworld/app test:node:preview'
 // A script of its own: the burner's `test:node` restarts the node, which would drop the deployment.
 // `PREVIEW_RECORD=<file>` also writes a recording there, in the form of `recorded.ts` (a quiet
-// world, CLI-10c) and `recorded-goblins.ts` (a world whose view lists a goblin, CLI-10d). Without a deployment (the
-// ordinary `pnpm test`), skipped.
+// world, CLI-10c) and `recorded-goblins.ts` (a world whose view lists a goblin, CLI-10d). Without
+// a deployment (the ordinary `pnpm test`), skipped.
 const env = import.meta.env as Record<string, string | undefined>;
 const deploymentPath = env.GRIMWORLD_DEPLOYMENT;
 
