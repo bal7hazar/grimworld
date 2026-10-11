@@ -300,7 +300,7 @@ fn thing(position: u8, kind: u8, state: u8) -> Object {
 
 // Row 0, the content; the clock, absent, knocked down; Wait, Turn, Move, Interact.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 948193013)] // ceil(1.05 × 903040964 measured)
 fn test_act_vectors_0() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -384,7 +384,7 @@ fn test_act_vectors_0() {
 
 // Attack: the target, the weapon's reach and `k`, the sight, the facing.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 783356551)] // ceil(1.05 × 746053858 measured)
 fn test_act_vectors_1() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -489,7 +489,7 @@ fn ally(position: u8) -> Member {
 
 // Skill: each refusal in `act`'s order, at its bound, and the one before it winning.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 957514586)] // ceil(1.05 × 911918653 measured)
 fn test_act_vectors_2() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -577,7 +577,7 @@ fn test_act_vectors_2() {
 
 // Skill: the aim (§2.3): a foe, an ally, `SELF`, a tile; range and sight; a trap's tile.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 934699279)] // ceil(1.05 × 890189789 measured)
 fn test_act_vectors_3() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -656,7 +656,7 @@ fn test_act_vectors_3() {
 
 // The trap's tile (§5.11, FX-14): the ground the instant trap writes; the guarded trap.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 359629796)] // ceil(1.05 × 342504567 measured)
 fn test_act_vectors_4() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -722,7 +722,7 @@ fn test_act_vectors_4() {
 
 // Costs: *Fieldcraft*, the glyphs, the floor at 0.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 704741572)] // ceil(1.05 × 671182449 measured)
 fn test_act_vectors_5() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -786,7 +786,7 @@ fn test_act_vectors_5() {
 
 // Quick cast (§5.12, FX-39, FX-43); the activation and the instant path; the tick cost.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 543258308)] // ceil(1.05 × 517388864 measured)
 fn test_act_vectors_6() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -843,7 +843,7 @@ fn test_act_vectors_6() {
 
 // Item: the belt slot, its count, the potion's addressing and reach.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 649023332)] // ceil(1.05 × 618117459 measured)
 fn test_act_vectors_7() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -1028,7 +1028,7 @@ fn goblin_holding(id: u16, charges: u8, deadline: u32, rank: u8) -> Goblin {
 
 // `defence`: the armor terms, each held effect's `ARMOR`, `BLOCK`, `EVADE`, its deadline.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 198974172)] // ceil(1.05 × 189499211 measured)
 fn test_act_vectors_8() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -1086,7 +1086,7 @@ fn test_act_vectors_8() {
 // `offence`: a weapon hit's terms, a spell's, a bomb's and a trap's; the passives and the held
 // `PENETRATION`.
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 383814080)] // ceil(1.05 × 365537219 measured)
 fn test_act_vectors_9() {
     let t = table();
     let mut digest: Array<felt252> = array![];
@@ -1242,13 +1242,23 @@ const ACT_PART_6: u32 = 127;
 const ACT_PART_7: u32 = 142;
 const ACT_PART_8: u32 = 156;
 const ACT_PART_9: u32 = 171;
-const ACT_DIGEST_0: felt252 = 0;
-const ACT_DIGEST_1: felt252 = 0;
-const ACT_DIGEST_2: felt252 = 0;
-const ACT_DIGEST_3: felt252 = 0;
-const ACT_DIGEST_4: felt252 = 0;
-const ACT_DIGEST_5: felt252 = 0;
-const ACT_DIGEST_6: felt252 = 0;
-const ACT_DIGEST_7: felt252 = 0;
-const ACT_DIGEST_8: felt252 = 0;
-const ACT_DIGEST_9: felt252 = 0;
+const ACT_DIGEST_0: felt252 =
+    2258519626633452323591347680500760095352080403447149129877763879843743647137;
+const ACT_DIGEST_1: felt252 =
+    1877557721926457155813392980629918693731735479670870480906151700622873362804;
+const ACT_DIGEST_2: felt252 =
+    2155260657038495315163185118748703662879353180211412156835508204161953960819;
+const ACT_DIGEST_3: felt252 =
+    3138600085200800918734995720959513392942643883035079236558859120978533027964;
+const ACT_DIGEST_4: felt252 =
+    2869183508149844581645506755790026186828086578831961600605060318144159783553;
+const ACT_DIGEST_5: felt252 =
+    3328369351943691349854646900527534687345859035084235558300853463618473601151;
+const ACT_DIGEST_6: felt252 =
+    787263912630692189098858866890065077848333125569176675529078709875810047442;
+const ACT_DIGEST_7: felt252 =
+    2942793287167649455997698397685145632568504538091578805479456198635937661385;
+const ACT_DIGEST_8: felt252 =
+    3519066250288377838892857768850060918790096251226129357011129871503164223166;
+const ACT_DIGEST_9: felt252 =
+    2720915314688875214492673004805861766276897858278301462922432372461233942929;
