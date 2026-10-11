@@ -362,6 +362,9 @@ mod tests {
     use crate::types::world::{Actor, TickTrait, World, WorldTrait};
     use super::{Ground, TrapTrait};
 
+    /// `vectors/trap.jsonl` (RV-03a, D-257).
+    mod vectors;
+
     /// The trap's tile, `(7, 9)`: window position 142, chunk 0's tile 142.
     const TILE: u16 = 7 + 256 * 9;
     const SPOT: u8 = 142;

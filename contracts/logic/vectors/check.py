@@ -61,6 +61,21 @@ TABLES = {
         "grimworld_logic::types::play::tests::test_segment2_vectors_3",
         "grimworld_logic::types::play::tests::test_segment2_vectors_4",
     ],
+    "trap.jsonl": [
+        "grimworld_logic::types::trap::tests::vectors::test_trap_vectors_0",
+        "grimworld_logic::types::trap::tests::vectors::test_trap_vectors_1",
+        "grimworld_logic::types::trap::tests::vectors::test_trap_vectors_2",
+        "grimworld_logic::types::trap::tests::vectors::test_trap_vectors_3",
+        "grimworld_logic::types::trap::tests::vectors::test_trap_vectors_4",
+    ],
+    "body.jsonl": [
+        "grimworld_logic::types::executor::tests::body::test_body_vectors_0",
+        "grimworld_logic::types::executor::tests::body::test_body_vectors_1",
+        "grimworld_logic::types::executor::tests::body::test_body_vectors_2",
+        "grimworld_logic::types::executor::tests::body::test_body_vectors_3",
+        "grimworld_logic::types::executor::tests::body::test_body_vectors_4",
+        "grimworld_logic::types::executor::tests::body::test_body_vectors_5",
+    ],
     "reveal.jsonl": [
         "grimworld_logic::types::reveal::tests::test_vectors",
         "grimworld_logic::types::reveal::tests::test_vectors_1",
