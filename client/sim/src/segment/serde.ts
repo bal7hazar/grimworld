@@ -187,7 +187,7 @@ export function writeWords(words: Words): bigint[] {
 /** The chunk objects and `touched` bits a call reads and writes, `(chunk, Features)`. */
 export type Ground = [number, Features][];
 
-function readFeatures(r: Felts): Features {
+export function readFeatures(r: Felts): Features {
   return {
     packs: r.fixed(2, () => ({
       tile: r.u8(),

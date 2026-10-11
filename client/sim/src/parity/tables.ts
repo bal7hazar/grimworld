@@ -83,8 +83,10 @@ import {
   Felts,
   readAction,
   readArea,
+  readBoard,
   readCall,
   readContent,
+  readFeatures,
   readGround,
   readWords,
   writeContent,
@@ -95,6 +97,7 @@ import {
 import { type Content, type MemberWords, type Words, sheets as indexed } from "../segment/words";
 import type { Entry, Mirror } from "./replay";
 import { replayer } from "./replayer";
+import { free, triggerClass } from "../trap";
 import { readTable } from "./table";
 
 /** The felts of a case, exactly `count` of them. */
@@ -626,10 +629,57 @@ const bodyFns: Record<string, Mirror> = {
   unpack: (c) => writeEntry(unpack(onEntry(c, (r) => fromFelt(u128, r.felt())))),
 };
 
+/** `trap.jsonl`'s content: its row 0's `ok`, which every `trigger` row's words are loaded through. */
+let trapContent: Content | undefined;
+function contentOfTrap(): Content {
+  if (trapContent === undefined) {
+    const read = new Felts(readTable("trap.jsonl")[0]!.ok!);
+    trapContent = readContent(read);
+    read.end();
+  }
+  return trapContent;
+}
+
+const trap: Record<string, Mirror> = {
+  // The table's content, decoded and encoded again: what every `trigger` row reads
+  content: (c) => {
+    args(c, 0);
+    return writeContent(contentOfTrap());
+  },
+  // `TrapLibrary::trigger` on the case's words, board, ground, entrant, position and level
+  trigger: (c) => {
+    const read = new Felts(c);
+    const words = readWords(read);
+    const board = readBoard(read);
+    const ground = readGround(read);
+    const [entrant, position, level] = [read.u16(), read.u8(), read.u8()];
+    read.end();
+    const out = triggerClass({
+      words,
+      content: contentOfTrap(),
+      board,
+      ground,
+      entrant,
+      position,
+      level,
+    });
+    return [...writeWords(out.words), ...writeGround(out.ground), ...bool(out.triggered)];
+  },
+  free: (c) => {
+    const read = new Felts(c);
+    const features = readFeatures(read);
+    const tile = read.u8();
+    read.end();
+    const found = free(features, tile);
+    return found === undefined ? [1n] : [0n, BigInt(found)];
+  },
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
   { file: "body.jsonl", floor: 327, fns: bodyFns },
+  { file: "trap.jsonl", floor: 63, fns: trap },
   { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
   { file: "movement.jsonl", floor: 81, fns: movement },
