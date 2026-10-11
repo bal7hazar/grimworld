@@ -29,6 +29,7 @@ import {
   fromFelt,
   i16,
   i32,
+  i8,
   panic,
   toFelt,
   u128,
@@ -90,6 +91,7 @@ import {
   readGround,
   readWords,
   type Ground,
+  type Outcome,
   writeContent,
   writeDone,
   writeGround,
@@ -99,6 +101,10 @@ import { type Content, type MemberWords, type Words, sheets as indexed } from ".
 import type { Entry, Mirror } from "./replay";
 import { replayer } from "./replayer";
 import { free, triggerClass } from "../trap";
+import { actClass } from "../action";
+import * as executor from "../executor";
+import { load as loadMember } from "../segment/words";
+import { load as loadGoblin } from "../segment/goblin";
 import { readTable } from "./table";
 
 /** The felts of a case, exactly `count` of them. */
@@ -420,8 +426,8 @@ function content(): Content {
   return content2;
 }
 
-/** The `trigger` calls of `segment2.jsonl` the port computed, each equal to its recording. */
-export const native = { triggers: 0 };
+/** The `trigger` and `act` calls of `segment2.jsonl` the port computed, each equal to its recording. */
+export const native = { triggers: 0, acts: 0 };
 
 const callFelts = (out: { words: Words; ground: Ground; triggered: boolean }): bigint[] => [
   ...writeWords(out.words),
@@ -429,10 +435,28 @@ const callFelts = (out: { words: Words; ground: Ground; triggered: boolean }): b
   ...bool(out.triggered),
 ];
 
+/** `Result<u8, Illegal>`'s `Serde`. */
+const outcomeFelts = (outcome: Outcome): bigint[] =>
+  "ticks" in outcome ? [0n, BigInt(outcome.ticks)] : [1n, BigInt(outcome.illegal)];
+
+const actFelts = (out: { words: Words; ground: Ground; outcome: Outcome }): bigint[] => [
+  ...writeWords(out.words),
+  ...writeGround(out.ground),
+  ...outcomeFelts(out.outcome),
+];
+
+/** Throws unless two results are felt for felt the same. */
+function equal(name: string, got: readonly bigint[], recorded: readonly bigint[]): void {
+  if (got.length !== recorded.length || got.some((felt, i) => felt !== recorded[i])) {
+    throw new Error(`${name} computed ${got}, recorded ${recorded}`);
+  }
+}
+
 /**
- * The replayed classes with `trigger` computed by the port (`trap.ts`'s `triggerClass`): the
- * replayer still takes the recorded call (its kind, its digest, its place in the span), and the
- * port's result must equal it, words, ground and `triggered`; the port's is what `run` loads.
+ * The replayed classes with `trigger` and `act` computed by the ports (`trap.ts`'s `triggerClass`,
+ * `action.ts`'s `actClass`): the replayer still takes the recorded call (its kind, its digest, its
+ * place in the span), and the port's result must equal it, felt for felt; the port's is what `run`
+ * loads. `ticks` stays replayed (lot F).
  */
 function computed(replayed: ReturnType<typeof replayer>): ReturnType<typeof replayer> {
   return {
@@ -440,11 +464,15 @@ function computed(replayed: ReturnType<typeof replayer>): ReturnType<typeof repl
     trigger(call) {
       const recorded = callFelts(replayed.trigger(call));
       const out = triggerClass(call);
-      const got = callFelts(out);
-      if (got.length !== recorded.length || got.some((felt, i) => felt !== recorded[i])) {
-        throw new Error(`trigger computed ${got}, recorded ${recorded}`);
-      }
+      equal("trigger", callFelts(out), recorded);
       native.triggers += 1;
+      return out;
+    },
+    act(call) {
+      const recorded = actFelts(replayed.act(call));
+      const out = actClass(call);
+      equal("act", actFelts(out), recorded);
+      native.acts += 1;
       return out;
     },
   };
@@ -453,8 +481,8 @@ function computed(replayed: ReturnType<typeof replayer>): ReturnType<typeof repl
 /**
  * A `segment2` row: `run` on the case's words, area, level, ground, `owed`, `weight` and actions,
  * the classes replayed from the calls the row recorded (test scaffolding); the words, the ground
- * and `Done` after it. `TrapLibrary::trigger` is computed by the port (`computed`); `ticks` and `act`
- * stay replayed (lots E and F).
+ * and `Done` after it. `TrapLibrary::trigger` and `ActionLibrary::act` are computed by the ports
+ * (`computed`); `ticks` stays replayed (lot F).
  */
 const segment2Row: Mirror = (c) => {
   const read = new Felts(c);
@@ -707,11 +735,129 @@ const trap: Record<string, Mirror> = {
   },
 };
 
+/** `act.jsonl`'s content: its row 0's `ok`, which every actor of the table is loaded through. */
+let actContent: Content | undefined;
+function contentOfAct(): Content {
+  if (actContent === undefined) {
+    const read = new Felts(readTable("act.jsonl")[0]!.ok!);
+    actContent = readContent(read);
+    read.end();
+  }
+  return actContent;
+}
+let actSheets: ReturnType<typeof indexed> | undefined;
+const sheetsOfAct = () => (actSheets ??= indexed(contentOfAct()));
+
+/** An actor as an `act.jsonl` row records it: `0` and its `MemberWords`, or `1` and its `GoblinWords`, loaded. */
+function readActor(r: Felts): body.Unit {
+  const tag = r.u8();
+  if (tag === 0) {
+    const [state, timers, effects, recharges, stats, bar, kit] = r.fixed(7, () => r.felt());
+    const words = { state, timers, effects, recharges, stats, bar, kit } as MemberWords;
+    return { kind: "M", member: loadMember(words, sheetsOfAct()) };
+  }
+  if (tag === 1) {
+    const words = { entity: r.u16(), awake: r.bool(), state: r.felt(), timers: r.felt() };
+    return { kind: "G", goblin: loadGoblin(words, sheetsOfAct()) };
+  }
+  throw new RangeError(`actor tag ${tag}`);
+}
+
+/** The actor of a `defence` or `offence` row: a member as member 0, a goblin as goblin 0. */
+const actorOfUnit = (unit: body.Unit): executor.Actor =>
+  unit.kind === "M" ? { kind: "M", i: 0 } : { kind: "G", i: 0 };
+
+const signed8 = (v: number): bigint => toFelt(i8, BigInt(v));
+const signed16 = (v: number): bigint => toFelt(i16, BigInt(v));
+
+const act: Record<string, Mirror> = {
+  // The table's content, decoded and encoded again: what every actor is loaded through
+  content: (c) => {
+    args(c, 0);
+    return writeContent(contentOfAct());
+  },
+  // `ActionLibrary::act` on the case's words, board, ground and action
+  act: (c) => {
+    const read = new Felts(c);
+    const words = readWords(read);
+    const board = readBoard(read);
+    const ground = readGround(read);
+    const action = readAction(read);
+    read.end();
+    const out = actClass({ words, content: contentOfAct(), board, ground, action });
+    return actFelts(out);
+  },
+  // `Body::defence` through `UnitBody`, `Levered` with a fresh `Cache`
+  defence: (c) => {
+    const read = new Felts(c);
+    const unit = readActor(read);
+    const t = read.u32();
+    read.end();
+    const d = executor.defence(executor.cache(), unit, actorOfUnit(unit), t, sheetsOfAct());
+    return [
+      signed16(d.armor),
+      BigInt(d.effects),
+      signed8(d.stance),
+      signed8(d.enchanted),
+      ...bool(d.in_stance),
+      ...bool(d.is_enchanted),
+      BigInt(d.block),
+      BigInt(d.block_slot),
+      ...bool(d.evade),
+    ];
+  },
+  // `Body::offence` through `UnitBody`
+  offence: (c) => {
+    const read = new Felts(c);
+    const unit = readActor(read);
+    const cls = read.u8();
+    if (cls > 3) throw new RangeError(`hit class ${cls}`);
+    const entry = readEntry(read);
+    const bonus = read.u32();
+    const penetration = read.u16();
+    const context: executor.Context = {
+      rank: read.u8(),
+      infliction: readInfliction(read),
+      enchant: read.u8(),
+      skill_kind: read.u8(),
+      carrier: read.u16(),
+      potion: read.bool(),
+      at: read.u32(),
+      scope: read.u8(),
+      t: read.u32(),
+    };
+    read.end();
+    const o = executor.offence(
+      unit,
+      cls as executor.Offence["class"],
+      entry,
+      bonus,
+      penetration,
+      context,
+      sheetsOfAct(),
+    );
+    return [
+      BigInt(o.class),
+      BigInt(o.weapon),
+      ...bool(o.melee),
+      BigInt(o.strength),
+      BigInt(o.base),
+      signed16(o.percent),
+      signed16(o.above),
+      BigInt(o.penetration),
+      BigInt(o.damage_type),
+      BigInt(o.steal),
+      BigInt(o.energy),
+    ];
+  },
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
   { file: "body.jsonl", floor: 327, fns: bodyFns },
   { file: "trap.jsonl", floor: 63, fns: trap },
+  { file: "act.jsonl", floor: 223, fns: act },
   { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
   { file: "movement.jsonl", floor: 81, fns: movement },
