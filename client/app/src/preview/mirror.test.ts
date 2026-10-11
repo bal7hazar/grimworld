@@ -429,7 +429,9 @@ describe("the native action class on segment2.jsonl's act rows (CLI-10g)", () =>
   });
 
   it("stays not mirrored where the combat action is followed by ticks", () => {
-    const withTicks = ACT_ROWS.filter((id) => segment2Row(id).calls.some((c) => c.kind === "ticks"));
+    const withTicks = ACT_ROWS.filter((id) =>
+      segment2Row(id).calls.some((c) => c.kind === "ticks"),
+    );
     for (const id of withTicks) {
       expect(() => runSegment(segment2Row(id).segment, nativeClasses), `row ${id}`).toThrow(
         "TickLibrary::ticks",
