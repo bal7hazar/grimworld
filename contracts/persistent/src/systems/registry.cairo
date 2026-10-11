@@ -296,12 +296,16 @@ pub mod Registry {
         /// - an authored zone's records (ENG-01 §3.5's R-table, ENG-09), and the rules a generated
         ///   zone, a dungeon floor or a gate shares with other records (R-11, R-12, R-27, R-30,
         ///   R-41; ENG-R1c-1): every rule between two records at the write of either, against the
-        ///   other when it exists (`ZoneAssert`), once the zone checks' class is set. A `GATE` and
-        ///   a `QUOTAS` are refused until it is (BND-01): they are the two kinds `index` counts
-        ///   (`gate_entries`, `gate_entry_counts`, `heart_packs`) and R-41, R-27 and R-30's reverse
-        ///   checks read those counts, so a record written unindexed would escape them for good.
-        ///   Every other rule reads the stored records themselves, and runs at the next write of
-        ///   either record of the pair.
+        ///   other when it exists (`ZoneAssert`), once the zone checks' class is set. Refused until
+        ///   it is (BND-01): a `GATE` and a `QUOTAS`, the two kinds `index` counts (`gate_entries`,
+        ///   `gate_entry_counts`, `heart_packs`: R-41, R-27 and R-30's reverse checks read those
+        ///   counts, so a record written unindexed would escape them), and a chunk set (an
+        ///   `OUTLINE`
+        ///   of chunk 255), which R-11 and R-12 check against the `LOCATION` and the `QUOTAS` and
+        ///   which a pair of records written before the class would leave unchecked for good. Every
+        ///   other kind is safe to write first: a `LOCATION` and a border mask have no rule that
+        ///   an unchecked write can hide (each rule between them and a refused kind runs at that
+        ///   kind's write, once the class is set), and the authored kinds are refused already.
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == LOCATION {
@@ -314,8 +318,11 @@ pub mod Registry {
                 if kind == QUOTAS {
                     QuotaSetRecord::unpack(record).assert_legal();
                 }
-                // BND-01: the two indexed kinds (`index`) are refused before the class is set.
-                self.assert_zone(kind, id, record, kind != OUTLINE);
+                // BND-01: the two indexed kinds (`index`) and a chunk set (an `OUTLINE` of chunk
+                // 255) are refused before the class is set; a border mask is not (R-20 reads the
+                // `ZONE_CHUNK`, which is)
+                let chunk_set = kind == OUTLINE && id % 256 == CHUNK_SET.into();
+                self.assert_zone(kind, id, record, kind != OUTLINE || chunk_set);
             } else if kind == ZONE_CHUNK || kind == CANDIDATES || kind == BRIDGE {
                 self.assert_zone(kind, id, record, true);
             } else if kind == MODIFIER {

@@ -1046,10 +1046,14 @@ floor's `LOCATION` (`N` > 0, whatever the kind: the engine's `SiteTrait::emergin
 since ENG-R1c-1, as `caste_skills`) for R-27's reverse check, and `gate_entries` (per location, the
 entry chunks of the gates that lead to it, one bit each) with `gate_entry_counts` (the gates per
 location and chunk) for R-41's. A count is lowered only while above 0, so `set_zone_checks` comes before
-any `GATE` and any `QUOTAS` (the two kinds `index` counts): **`Registry` refuses them until it is set**
-(`'registry: no zone checks'`, BND-01; `lifecycle_probe.py` already sets it first), so no gate or quota set
-is ever left out of the indexes. The other kinds are not refused: each of their rules reads the stored
-records and runs again at the next write of either record of the pair. **The checks run in `ZoneChecks`**
+any record those checks govern: **`Registry` refuses until it is set** (`'registry: no zone checks'`, BND-01;
+`lifecycle_probe.py` already sets it first) (1) a `GATE` and a `QUOTAS`, the two kinds `index` counts, so no gate
+or quota set is left out of the indexes (a count then cannot miss a record; the guards on a lowered count stay
+defensive), (2) a chunk set (an `OUTLINE` of chunk 255), which R-11 and R-12 check against the `LOCATION` and the
+`QUOTAS`: a `LOCATION` and a chunk set written before the class would never meet R-11 (review t-0153), and (3) the
+authored zone's own kinds (ENG-09). The other kinds are not refused, and are safe to write first: a `LOCATION`, a
+border mask and the like have no rule an unchecked write can hide, since each rule between one of them and a
+refused kind runs at that kind's write, once the class is set. **The checks run in `ZoneChecks`**
 (`contracts/persistent/src/systems/zone.cairo`), `Registry`'s library class, by `library_call` in
 `Registry`'s context (it reads `records` and writes `heart_packs`, `gate_entries` and
 `gate_entry_counts` under the same names): built into

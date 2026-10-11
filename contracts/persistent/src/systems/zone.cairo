@@ -86,9 +86,9 @@ pub mod ZoneChecks {
     }
 
     /// The indexes the reverse checks read (`IZoneChecks::index`). A count is lowered only while it
-    /// is above 0: a record written before `set_zone_checks` was never counted (`set_zone_checks`
-    /// comes before any record, as a constructor's configuration would: `lifecycle_probe.py`), and
-    /// its rewrite is never blocked by it.
+    /// is above 0. Since BND-01 `Registry` refuses a `GATE` and a `QUOTAS` until `set_zone_checks`,
+    /// so no such record is written uncounted and a count cannot miss one: the guard stays
+    /// defensive.
     #[generate_trait]
     impl IndexImpl of IndexTrait {
         /// A `QUOTAS` written: the counts of `heart_packs` move from the Heart templates the stored

@@ -182,18 +182,20 @@ fn test_set_record_existing_changes() {
 
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
-// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 8375861)] // ceil(1.05 × 7977010 measured)
+// gas: raised, BND-01: the chunk set is written with the class set
+#[available_gas(l2_gas: 16213964)] // ceil(1.05 × 15441870 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
-    let r = Fixture::deploy();
+    let r = Fixture::deploy_checked();
     // Location 2 does not exist yet: its outline and a shop of hub 2 are refused.
     let refused = r.safe.set_record(OUTLINE, 2 * 256 + 255, Felts::one(1));
-    assert(*refused.unwrap_err().at(0) == NO_PARENT, 'outline without location');
+    // With the class set `ZoneChecks` answers first: a missing location has no rectangle
+    let code = *refused.unwrap_err().at(0);
+    assert(code == 'zone: set outside rectangle', code);
     let refused = r.safe.set_record(SHOP, 2 * 16 + 1, Felts::two(1, 0));
     assert(*refused.unwrap_err().at(0) == NO_PARENT, 'shop without hub');
-    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
-    r.admin.set_record(LOCATION, 2, Felts::two(0, 0));
+    r.admin.set_record(LOCATION, 1, floor(4, 4, 6));
+    r.admin.set_record(LOCATION, 2, floor(4, 4, 6));
     r.admin.set_record(OUTLINE, 2 * 256 + 255, Felts::one(1));
     r.admin.set_record(OUTLINE, 2 * 256 + 16, Felts::one(2));
     r.admin.set_record(SHOP, 2 * 16 + 1, Felts::two(3, 4));
@@ -203,14 +205,14 @@ fn test_set_record_composite_needs_parent() {
     assert(r.admin.last_id(OUTLINE) == 0 && r.admin.last_id(SHOP) == 0, 'composite: last id 0');
     // Location 3 still does not exist.
     let refused = r.safe.set_record(OUTLINE, 3 * 256 + 255, Felts::one(1));
-    assert(*refused.unwrap_err().at(0) == NO_PARENT, 'outline of location 3');
+    assert(*refused.unwrap_err().at(0) == 'zone: set outside rectangle', 'outline of location 3');
 }
 
 // `QUOTAS` is keyed by its location's id (D-145): one record per location, refused while that
 // location does not exist; `last_id` stays 0.
 #[test]
-// gas: raised, BND-01: the quotas written with the zone checks set
-#[available_gas(l2_gas: 12801294)] // ceil(1.05 × 12191708 measured)
+// gas: raised, BND-01: the chunk set is written with the class set
+#[available_gas(l2_gas: 13623935)] // ceil(1.05 × 12975176 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy_checked();
@@ -229,16 +231,20 @@ fn test_set_record_quotas_keyed_by_location() {
     assert(r.admin.last_id(QUOTAS) == 0, 'composite: last id 0');
     let refused = r.safe.set_record(QUOTAS, 3, quotas_of(1));
     assert(*refused.unwrap_err().at(0) == 'zone: count above members', 'location 3');
+    // An all-empty quota set has nothing for `ZoneChecks` to count: the parent check answers
+    let empty = QuotaSet { quotas: Default::default() }.pack();
+    let refused = r.safe.set_record(QUOTAS, 3, empty);
+    assert(*refused.unwrap_err().at(0) == NO_PARENT, 'empty quotas: no parent');
 }
 
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
 #[test]
-// gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 5419323)] // ceil(1.05 × 5161260 measured)
+// gas: raised, BND-01: the chunk set is written with the class set
+#[available_gas(l2_gas: 10426650)] // ceil(1.05 × 9930142 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
-    let r = Fixture::deploy();
-    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
+    let r = Fixture::deploy_checked();
+    r.admin.set_record(LOCATION, 1, floor(4, 4, 6));
     let refused = r.safe.set_record(OUTLINE, 256 + 225, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == OUTLINE_CHUNK, 'chunk 225');
     let refused = r.safe.set_record(OUTLINE, 256 + 254, Felts::one(1));
@@ -355,9 +361,10 @@ fn test_set_record_not_next_refused() {
 // --- the content version (AC-2) -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 9593766)] // ceil(1.05 × 9136920 measured)
+// gas: raised, BND-01: the chunk set is written with the class set
+#[available_gas(l2_gas: 15876660)] // ceil(1.05 × 15120628 measured)
 fn test_version_rises_per_changed_record() {
-    let r = Fixture::deploy();
+    let r = Fixture::deploy_checked();
     assert(r.version() == 0, '0 at deployment');
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
     assert(r.version() == 1, 'new record: +1');
@@ -373,7 +380,7 @@ fn test_version_rises_per_changed_record() {
     r.admin.set_record(BOOK, 1, Felts::three(5, 0, 7));
     assert(r.version() == 4, 'to zero: +1');
     // Composite kinds likewise.
-    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
+    r.admin.set_record(LOCATION, 1, floor(4, 4, 6));
     assert(r.version() == 5, 'location: +1');
     r.admin.set_record(OUTLINE, 256 + 255, Felts::one(9));
     assert(r.version() == 6, 'new outline: +1');
@@ -782,13 +789,13 @@ fn next_id(r: Registry, kind: u8) -> u32 {
 // content version rises twice for each. Kinds in order, so that `LOCATION` 1 exists before the
 // composite kinds that name it.
 #[test]
-#[available_gas(l2_gas: 54088088)] // ceil(1.05 × 51512464 measured)
+#[available_gas(l2_gas: 52306668)] // ceil(1.05 × 49815874 measured)
 fn test_inputs_version_every_other_kind() {
     let r = Fixture::deploy();
     let mut others: u32 = 0;
     for kind in 1..LAST_KIND + 1 {
-        // The authored zone's own kinds (ENG-09) need an authored zone and its checks, and a gate
-        // and a quota set the checks' class (BND-01): their writes are `test_zone`'s
+        // The authored zone's own kinds (ENG-09) need an authored zone and its checks, and a gate,
+        // a quota set and a chunk set the checks' class (BND-01): their writes are `test_zone`'s
         if kind == SKILL
             || kind == ITEM
             || kind == MODIFIER
@@ -796,7 +803,8 @@ fn test_inputs_version_every_other_kind() {
             || kind == BRIDGE
             || kind == CANDIDATES
             || kind == GATE
-            || kind == QUOTAS {
+            || kind == QUOTAS
+            || kind == OUTLINE {
             continue;
         }
         let id = next_id(r, kind);
@@ -807,7 +815,7 @@ fn test_inputs_version_every_other_kind() {
         assert(r.inputs() == 0, 'inputs version unchanged');
         others += 1;
     }
-    assert(others == 20, 'the 20 other kinds');
+    assert(others == 19, 'the 19 other kinds');
 }
 
 // --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1)

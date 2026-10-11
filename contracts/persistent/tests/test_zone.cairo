@@ -1371,6 +1371,22 @@ fn test_refuse_gate_without_zone_checks() {
     r.refuse(GATE, 1, gate_to(1, 0));
 }
 
+// BND-01 (review t-0153, minor 1): a chunk set is refused until the class is set, so a `LOCATION`
+// (4 x 4, generated) and an `OUTLINE` of chunk 255 with a chunk outside it cannot both be written
+// unchecked; a border mask, which R-20 checks against a `ZONE_CHUNK`, is not refused.
+#[test]
+#[available_gas(l2_gas: 11876464)] // ceil(1.05 × 11310918 measured)
+fn test_chunk_set_cannot_precede_the_class() {
+    let r = unchecked();
+    r.admin.set_record(LOCATION, 2, plain(location_kind::ZONE, 4, 4, 0).pack());
+    // Chunk 4 is (4, 0): outside the 4 x 4 rectangle
+    r.refused(OUTLINE, 2 * 256 + 255, chunk_set(0x13), 'registry: no zone checks');
+    r.admin.set_record(OUTLINE, 2 * 256 + 16, chunk_set(1));
+    r.admin.set_zone_checks(class("ZoneChecks"));
+    r.refused(OUTLINE, 2 * 256 + 255, chunk_set(0x13), 'zone: set outside rectangle');
+    r.admin.set_record(OUTLINE, 2 * 256 + 255, chunk_set(0xF));
+}
+
 // BND-01: and so is a `QUOTAS` (`heart_packs`).
 #[test]
 #[available_gas(l2_gas: 4070283)] // ceil(1.05 × 3876460 measured)
