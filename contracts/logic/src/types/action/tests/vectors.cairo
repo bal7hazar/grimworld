@@ -11,7 +11,7 @@ use crate::actions::Action;
 use crate::interface::{IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher};
 use crate::models::chunk::{Features, FeaturesTrait, Object, object};
 use crate::models::goblin::{Goblin, GoblinTrait, GoblinWordsTrait};
-use crate::models::member::{Member, MemberTrait, MemberWordsTrait};
+use crate::models::member::{Member, MemberSnapshotTrait, MemberTrait, MemberWordsTrait};
 use crate::types::combat::{HitClass, damage, skill_kind, weapon};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
 use crate::types::executor::tests::body::{emit, finish};
@@ -1313,6 +1313,59 @@ fn test_act_vectors_10() {
     finish(digest, ACT_DIGEST_10);
 }
 
+/// The adventurer with `id` on bar slot `slot` at `rank` (the others the fixtures' 1–8, rank 12).
+fn ranked(t: @Table, slot: u8, id: u16, rank: u8) -> Member {
+    let mut m = hero(t, array![]);
+    let old: felt252 = m.rank(slot).into();
+    m.words.stats -= old * two(128 + 4 * slot.into());
+    equip(ref m, t.sheets, slot, id, rank);
+    m
+}
+
+// The bar rank handed to the carrier (`Carrier::Skill((at, member.rank(slot)))`, the review of
+// #447): the rune on bar slot 2 at ranks 3 and 9, slot 0 at 12; and a goblin dead by one field
+// only, which play never makes: these rows pin the port, which must read liveness from both.
+#[test]
+#[available_gas(l2_gas: 288675232)] // ceil(1.05 × 274928792 measured)
+fn test_act_vectors_11() {
+    let t = table();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = ACT_PART_11;
+    // The rune (instant, `SELF`) held at the slot's rank: 3, 9.
+    for rank in array![3_u8, 9] {
+        plain(
+            ref digest,
+            ref id,
+            @t,
+            alone(CLOCK, ranked(@t, 2, RUNE, rank), array![]),
+            skill_on(2, 0),
+        );
+    }
+    // Goblin 8 at health 0 and Engaged; at health 100 and `DEAD`: the sword (`locate`: dead,
+    // `Target`), the instant trap on its tile (`TrapTrait::occupied` reads the AI state), the bomb
+    // on its tile (count 1).
+    let mut engaged = goblin(8, AT + 1, 0, 0);
+    engaged.ai = ai::ENGAGED;
+    let mut dead = goblin(8, AT + 1, 0, 100);
+    dead.ai = ai::DEAD;
+    for g in array![engaged, dead] {
+        plain(
+            ref digest, ref id, @t, alone(CLOCK, hero(@t, array![]), array![g]), Action::Attack(8),
+        );
+        plain(
+            ref digest,
+            ref id,
+            @t,
+            alone(CLOCK, hero(@t, array![PIT]), array![g]),
+            skill_at(0, AT + 1),
+        );
+        let mut m = hero(@t, array![]);
+        m.set_belt_count(0, 1);
+        plain(ref digest, ref id, @t, alone(CLOCK, m, array![g]), Action::Item((0, tile(AT + 1))));
+    }
+    finish(digest, ACT_DIGEST_11);
+}
+
 /// The first id of each part, and each part's digest.
 const ACT_PART_1: u32 = 27;
 const ACT_PART_2: u32 = 43;
@@ -1324,6 +1377,7 @@ const ACT_PART_7: u32 = 144;
 const ACT_PART_8: u32 = 158;
 const ACT_PART_9: u32 = 177;
 const ACT_PART_10: u32 = 205;
+const ACT_PART_11: u32 = 215;
 const ACT_DIGEST_0: felt252 =
     1030940271732062604804669110503688872228708044099169595645925593071242230283;
 const ACT_DIGEST_1: felt252 =
@@ -1346,3 +1400,5 @@ const ACT_DIGEST_9: felt252 =
     2720915314688875214492673004805861766276897858278301462922432372461233942929;
 const ACT_DIGEST_10: felt252 =
     2161744668382002736604283308408713117091980477643056135990864466526928679814;
+const ACT_DIGEST_11: felt252 =
+    2143361324673287838917145131743092043867945749555276112912585183627383427359;

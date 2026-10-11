@@ -1069,11 +1069,22 @@ mod tests {
     // a refusal, and only `rules.carry` writes it (a trap placed). Every `Err` of `act` returns
     // before its arm's carry, and every carry is followed by an `Ok`: each refusal `act` gives
     // (every `Illegal` but `Blocked`, the segment's), the carries counted, is refused with none;
-    // the legal combat actions carry once.
+    // the legal combat actions carry once. Snare is made instant here (0 ticks), so its `Trap`
+    // refusal sits on the path that carries now: a carry moved before it is seen (#447's review).
     #[test]
-    #[available_gas(l2_gas: 33179391)] // ceil(1.05 × 31599420 measured)
+    #[available_gas(l2_gas: 34991061)] // ceil(1.05 × 33324820 measured)
     fn test_no_carry_before_a_refusal() {
-        let sheets = bench().sheets();
+        let base = bench();
+        let mut skills = array![];
+        for sheet in base.skills {
+            let mut sheet = *sheet;
+            if sheet.id == SNARE {
+                sheet.activation = 0;
+            }
+            skills.append(sheet);
+        }
+        let sheets = Content { skills: skills.span(), potions: base.potions, castes: base.castes }
+            .sheets();
         let kit = array![STANCE, FIRE, RAGE, SNARE].span();
         let mut cases: Array<(u32, Member, Action, Result<u8, Illegal>)> = array![];
         let base = adventurer(@sheets, kit);
@@ -1120,6 +1131,9 @@ mod tests {
         let mut m = base;
         m.set_belt_count(0, 1);
         cases.append((CLOCK, m, Action::Item((0, tile(AT + 2))), Ok(1)));
+        let mut m = base;
+        m.energy = 30;
+        cases.append((CLOCK, m, Action::Skill((3, Target::Tile(tile(AT + 2)))), Ok(0)));
         let mut refused = 0;
         for (clock, member, action, expected) in cases {
             let mut world = Fixture::world(

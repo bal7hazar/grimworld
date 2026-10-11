@@ -563,7 +563,7 @@ origin plus 15, D-134), the ground (`Array<(u8, Features)>`), the `Action` (`Mov
 placed is a `PLACED_TRAP` object, `param` its placer), then the `Result<u8, Illegal>`: `0, ticks`, or `1, i` with `i`
 the variant (0 `Clock`, 1 `Absent`, 2 `Knocked`, 3 `Turned`, 4 `Instant`, 5 `Empty`, 6 `Belt`, 7 `Recharging`, 8
 `Energy`, 9 `Adrenaline`, 10 `Target`, 11 `Reach`, 12 `Trap`, 13 `Kind`, 14 `Blocked`). On a refusal the words and
-the ground are the case's, felt for felt (every one of the 75 refusals here).
+the ground are the case's, felt for felt (every one of the 78 refusals here).
 
 **`defence`**: `Body::defence` through `UnitBody` (the executor's dispatch), the lever `Levered` with a fresh `Cache`
 (a member as member 0). `case` the actor, then `t`; `ok` its `Defence` (`armor` signed, `effects`, `stance` and
@@ -580,7 +580,9 @@ The world, unless a row says otherwise: the clock 200; the adventurer, member 0 
 facing 0, level 20, health 400 of 480, 30 energy thirds of 60, adrenaline 0, its sword (damage 27, range 1, `k` 0:
 1 tick, strength 60, slashing), its bar the row's skills from slot 0 at rank 12 and the fixtures' 1–8 after, its belt
 items 100–103 at count 0; goblin 8, a Hob of health 100, adjacent East (position 113). The board is the open window
-at the origin, the ground chunk 0 empty. A dead goblin is at health 0 and in AI state `DEAD`; a second member is the
+at the origin, the ground chunk 0 empty. A dead goblin is at health 0 and in AI state `DEAD`, but in 217–222, dead by
+one field only (a state play never makes: those rows pin the port, which reads liveness from the AI state where the
+class does, `TrapTrait::occupied`, and from health where it does, `locate` reading both); a second member is the
 executor tests' member.
 
 | `fn` | ids | what |
@@ -597,8 +599,9 @@ executor tests' member.
 | `defence` (19) | 158–176 | a member: none held; its armor (`MemberBar` 232–247, −7) and guarded sums (`MemberKit` 184–191 in a stance 4, 192–199 enchanted −3); the shield (`ARMOR` 30, an enchantment) to `t` (held) and `t − 1` (lapsed); in two slots (summed); a potion held (neither stance nor enchanted); each `ARMOR` clamped to 0…255: the rust (−20: 0, a hex: neither stance nor enchanted), the bulwark (300: 255), both with the shield (285); Brace (`BLOCK`, a stance) with 2 charges in slot 2; 0 charges in slot 1 and 3 in slot 3 (the first with charges); 1 in slot 0 and 3 in slot 2 (the lowest slot); Sidestep (`EVADE`) (158–170). A goblin (its caste's armor 40): none; the shield to `t`, to `t − 1`; the rust (0); Brace; Sidestep (171–176) |
 | `offence` (28) | 177–204 | the member's sword, a plain weapon hit (scope 0): bonus 0, 5, 255; its requirement not met (`MemberStats` 176); a range of 3 (not melee); `LIFE_STEAL_ON_HIT` 3 and `ENERGY_ON_HIT` 2 (`MemberKit` 128, 136) (177–182); the passives (`MemberBar` 136, 160, 184 for scope 0: +10, −5, 3; 144, 168, 192 for 1: 20, 6, 4; 152, 176, 200 for 2: −30, 7, 5) and the call's penetration 7: a plain weapon hit, an attack skill (`Weapon`, scope 1), the fire entry (40 to 70) as a spell at ranks 0, 6, 12 (level 20: strength 60), a bomb (`Item`, scope 3: the potion's strength 30, no passives), a trap (`Trap`, scope 3), a cold entry of −20 (its base clamped to 0) (183–190); the edge (`PENETRATION` 20, `WEAPON`) and the focus (150 clamped to 100, `SPELL`) held to `t`: scopes 0, 1, 2, 3 (191–194); to `t − 1`: none (195–198); a goblin (a Hob of caste rank 12, a sword of 30, range 1, slashing, level 10): its weapon hit at bonus 0 and 5, a spell, a trap; holding the edge: its weapon hit, a spell (199–204) |
 | `act`, the struck target (10) | 205–214 | appended for track CV's trap port (#444): the sword on goblin 8 holding Brace (`BLOCK`), the member in its front arc (facing 0): blocked, 2 charges to 1, 1 to 0 (the effect ends) (205, 206); the member behind it (facing 3): landed, the charges kept (207); the attack skill: blocked, a charge spent (208); knocked down to `t₀ = c + 1` (held: landed, not blocked) and to `c` (lapsed: blocked) (209, 210); asleep (its first hit neither blocked nor evaded, D-179: landed) and on watch (blocked) (211, 212); 63 charges (the cap, `MAX_BLOCK`: blocked, to 62) and 62 (to 61) (213, 214) |
+| `act`, the bar rank and one-field deaths (8) | 215–222 | appended for #447's review: the rune (instant, `SELF`) on bar slot 2 at ranks 3 and 9 (slot 0 at 12), held at the slot's rank, the rank the carrier takes (`Carrier::Skill((at, member.rank(slot)))`) (215, 216); goblin 8 dead by one field only, at health 0 and Engaged (217–219), at health 100 and `DEAD` (220–222): the sword (`Target`: `locate` reads both), the instant trap on its tile (`TrapTrait::occupied` reads the AI state), the bomb on its tile (count 1) |
 
-Per `fn`: `content` 1, `act` 167, `defence` 19, `offence` 28.
+Per `fn`: `content` 1, `act` 175, `defence` 19, `offence` 28.
 
 **The inventory** (what the earlier tables already pin of `act`). `segment2.jsonl` reaches `ActionLibrary::act` in its
 combat rows, but through `ActionRecorder`: each row records the class's result for the segment to replay, so a mirror
@@ -618,7 +621,9 @@ is not `act`'s (the segment's Move): no row gives it. `ActionTrait::aim`, `energ
 `Turned` writes nothing; Attack's `aim` before its carry; the skill's every refusal, `Trap` the last, before its costs;
 the item's `Empty`, `Belt` and `aim` before its count. `types::action::tests::test_no_carry_before_a_refusal` pins it:
 the in-class executor behind a `Carry` that counts its calls, each refusal `act` gives is refused with no carry, and
-each legal combat action carries once. In this table, every refusal's words and ground are the case's.
+each legal combat action carries once. Its Snare is instant (0 ticks), so its `Trap` refusal is on the path that
+carries at once: a carry moved before that refusal fails the test. In this table, every refusal's words and ground are
+the case's.
 
 **Track CV's surviving mutants of the trap port (#444)**, killed by `act` rows only (a trap's hit is never blocked, so
 `trap.jsonl` cannot): `ExecutorTrait::strike`'s block spend (a blocked weapon hit spends one charge of the blocking
@@ -634,7 +639,8 @@ clock at `LAST_TICK` and past it; knocked down to `c` and `c + 1`; `R` at `c` an
 and 4 × cost; energy at the cost − 1 third and the cost; *Fieldcraft* at the cost − 1, the cost and past it; a glyph
 to `c` and `c + 1`; a range at its value and one past; `quick` below, equal to and above `n`; `k` below, equal to and
 above the activation; the guarded trap's health × 2 at 480, 478; a belt count at 0, 1, 2); for every arithmetic step a
-row whose result tells the operator apart (the energy in thirds; *Fieldcraft*'s rank × 1 against the cost; the
+row whose result tells the operator apart (the bar rank the carrier takes: a skill at ranks 3 and 9 on slot 2, 215
+and 216, held at that rank; the energy in thirds; *Fieldcraft*'s rank × 1 against the cost; the
 glyphs' sum against the cost, with a rune whose line rises with the rank; the counter's `+ 1` and its reset; `n −
 quick`; `A = c + n`; the recharge from `c + 1`; the count − 1). For every refusal, a row where it wins over the next
 one in `act`'s order, so a mutant that swaps two checks is seen. Each flag test reads one bit among others set
