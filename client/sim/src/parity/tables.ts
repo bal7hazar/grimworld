@@ -7,6 +7,7 @@ import { CairoPanic, boolFromFelt, fromFelt, panic, u16, u32, u8 } from "../felt
 import { PURPOSES, derive, domain } from "../fate";
 import { hitFromFelts, outcomeToFelts, resolve } from "../hit";
 import {
+  LIVE,
   byte_at,
   errors as packingErrors,
   field,
@@ -43,8 +44,26 @@ import {
 } from "../reveal";
 import { base } from "../reveal/board";
 import { run as runSegment } from "../segment";
-import type { Action, Area, Done, World } from "../segment";
+import type { Segment } from "../segment";
+import type { Classes } from "../segment/classes";
+import {
+  type Done,
+  Felts,
+  readAction,
+  readArea,
+  readCall,
+  readContent,
+  readGround,
+  readWords,
+  writeContent,
+  writeDone,
+  writeGround,
+  writeWords,
+} from "../segment/serde";
+import type { Content, MemberWords, Words } from "../segment/words";
 import type { Entry, Mirror } from "./replay";
+import { replayer } from "./replayer";
+import { readTable } from "./table";
 
 /** The felts of a case, exactly `count` of them. */
 function args(felts: readonly bigint[], count: number): readonly bigint[] {
@@ -277,108 +296,129 @@ const batch: Record<string, Mirror> = {
 };
 
 /** The felts of a `Serde`, read in order. */
-class Reader {
-  private at = 0;
-  constructor(private readonly felts: readonly bigint[]) {}
-  felt(): bigint {
-    const felt = this.felts[this.at++];
-    if (felt === undefined) throw new RangeError(`${this.felts.length} felts, more expected`);
-    return felt;
-  }
-  small(): number {
-    return small(this.felt());
-  }
-  u16(): number {
-    return Number(fromFelt(u16, this.felt()));
-  }
-  u32(): number {
-    return Number(fromFelt(u32, this.felt()));
-  }
-  span<T>(item: () => T): T[] {
-    return Array.from({ length: this.u32() }, item);
-  }
-  end(): void {
-    if (this.at !== this.felts.length) {
-      throw new RangeError(`${this.felts.length} felts, ${this.at} read`);
-    }
-  }
-}
+/** The member words of a `segment` row's adventurer: its place, status, health and timers. */
+type Standing = {
+  x: number;
+  y: number;
+  facing: number;
+  status: number;
+  health: number;
+  crippled: number;
+  knocked: number;
+};
 
-/** An `Action` of a `Serde`: the variants a segment row holds; the combat ones are not mirrored. */
-function action(read: Reader): Action {
-  const variant = read.felt();
-  if (variant === 0n) return { kind: "move", direction: read.small() };
-  if (variant === 1n) return { kind: "turn", direction: read.small() };
-  if (variant === 2n) return { kind: "wait" };
-  if (variant === 6n) return { kind: "interact", tile: read.u16() };
-  throw new RangeError(`action variant ${variant}: not in the segment table`);
-}
+const two = (bits: number): bigint => 1n << BigInt(bits);
 
 /**
- * A `segment` row's case: the adventurer (alone, no goblin, flags 0, no effect, as the unit-test
- * fixture), `Area`, `owed`, `weight`, the actions.
+ * The words of a `segment` row's adventurer as the unit-test fixture's member: max health 480, no
+ * regeneration (stored 10, its pips + 10), no energy, adrenaline, activation (`NO_SLOT`),
+ * condition but Crippled and the knock-down, effect, skill or belt; flags 0. What the row prints
+ * of it (its place and flags) is all a tick on the fast path can change of it.
  */
-function segmentFromFelts(c: readonly bigint[]): [World, Area, readonly Action[], number, number] {
-  const read = new Reader(c);
-  const clock = read.u32();
-  const [x, y, facing, status] = [read.small(), read.small(), read.small(), read.small()];
-  const health = read.u16();
-  const [crippled, knocked] = [read.u32(), read.u32()];
-  const world: World = {
-    clock,
-    // The unit-test fixture's: max health 480, no regeneration, no condition but Crippled and
-    // the knock-down, no effect
-    adventurer: {
-      ...{ x, y, facing, status, health, max_health: 480, health_regen: 0 },
-      ...{ bleeding: 0, poison: 0, burning: 0, effects: [], crippled, knocked },
-      ...{ flags: 0, movement: false },
-    },
-    members: 1,
-    goblins: [],
-    calm: true,
-    defeated: false,
-    armed: [],
+function standing(a: Standing): MemberWords {
+  return {
+    state:
+      LIVE +
+      BigInt(a.x) * two(32) +
+      BigInt(a.y) * two(40) +
+      BigInt(a.facing) * two(48) +
+      BigInt(a.status) * two(56) +
+      BigInt(a.health) * two(64),
+    timers: LIVE + 255n + BigInt(a.crippled) * two(160) + BigInt(a.knocked) * two(192),
+    effects: LIVE,
+    recharges: LIVE,
+    stats: LIVE + 480n + 10n * two(32),
+    bar: LIVE,
+    kit: LIVE,
   };
-  const area: Area = {
-    width: read.small(),
-    height: read.small(),
-    known: read.felt(),
-    revealed: read.felt(),
-    chunks: read.span(() => [read.small(), read.felt()] as const),
-    changed: read.span(() => read.u16()),
-    ran: boolFromFelt(read.felt()),
-  };
-  const owed = read.small();
-  const weight = read.small();
-  const actions = read.span(() => action(read));
-  read.end();
-  return [world, area, actions, owed, weight];
 }
 
-/** The world after and `Done`, as the row prints them. */
-function segmentToFelts(world: World, done: Done): bigint[] {
-  const { x, y, facing, flags } = world.adventurer;
-  return [
-    ...[world.clock, x, y, facing, flags, done.played, done.weight, done.owed].map(BigInt),
-    ...bool(done.reveal),
-    ...(done.illegal === undefined ? [1n] : [0n, BigInt(done.illegal)]),
-    ...bool(done.heavy),
-    BigInt(done.changed.length),
-    ...done.changed.map(BigInt),
-    ...bool(done.undo),
-  ];
+/** A `segment` row's case: the adventurer alone, `Area`, `owed`, `weight`, the actions. */
+function segmentFromFelts(c: readonly bigint[]): Segment {
+  const read = new Felts(c);
+  const clock = read.u32();
+  const [x, y, facing, status] = [read.u8(), read.u8(), read.u8(), read.u8()];
+  const health = read.u16();
+  const [crippled, knocked] = [read.u32(), read.u32()];
+  const member = standing({ x, y, facing, status, health, crippled, knocked });
+  const words: Words = { clock, members: [member], goblins: [], killed: [], defeated: false };
+  const area = readArea(read);
+  const [owed, weight] = [read.u8(), read.u8()];
+  const actions = read.span(() => readAction(read));
+  read.end();
+  const content = { skills: [], potions: [], castes: [] };
+  return { words, content, area, level: 1, ground: [], owed, weight, actions };
+}
+
+/** The classes of a table that never reaches them: a call fails its row. */
+const UNREACHED: Classes = {
+  ticks: () => panic("segment.jsonl: a TickLibrary call"),
+  act: () => panic("segment.jsonl: an ActionLibrary call"),
+  trigger: () => panic("segment.jsonl: a TrapLibrary call"),
+};
+
+/** The adventurer's clock, place and flags after, then `Done`, as the row prints them. */
+function segmentToFelts(words: Words, done: Done): bigint[] {
+  const [low, high] = limbs(words.members[0]!.state);
+  const [x, y, facing] = [32n, 40n, 48n].map((shift) => (low >> shift) & 0xffn);
+  return [BigInt(words.clock), x!, y!, facing!, (high >> 32n) & 0xffn, ...writeDone(done)];
 }
 
 /** Every `fn` of the segment table is one call of `run`; the `fn` names the branch it is about. */
 const segmentRow: Mirror = (c) => {
-  const [world, area, actions, owed, weight] = segmentFromFelts(c);
-  const { world: after, done } = runSegment(world, area, actions, owed, weight);
-  return segmentToFelts(after, done);
+  const { words, done } = runSegment(segmentFromFelts(c), UNREACHED);
+  return segmentToFelts(words, done);
 };
 
 const segment: Record<string, Mirror> = Object.fromEntries(
   ["fold", "reveal", "cost", "ran", "fits", "halt"].map((name) => [name, segmentRow]),
 );
+
+/** `segment2.jsonl`'s content: its row 0's `ok`, which every other row loads its words through. */
+let content2: Content | undefined;
+function content(): Content {
+  if (content2 === undefined) {
+    const read = new Felts(readTable("segment2.jsonl")[0]!.ok!);
+    content2 = readContent(read);
+    read.end();
+  }
+  return content2;
+}
+
+/**
+ * A `segment2` row: `run` on the case's words, area, level, ground, `owed`, `weight` and actions,
+ * the classes replayed from the calls the row recorded (test scaffolding); the words, the ground
+ * and `Done` after it.
+ */
+const segment2Row: Mirror = (c) => {
+  const read = new Felts(c);
+  const words = readWords(read);
+  const area = readArea(read);
+  const level = read.u8();
+  const ground = readGround(read);
+  const [owed, weight] = [read.u8(), read.u8()];
+  const actions = read.span(() => readAction(read));
+  const calls = read.span(() => readCall(read));
+  read.end();
+  const classes = replayer(calls);
+  const out = runSegment({ words, content: content(), area, level, ground, owed, weight, actions }, classes);
+  classes.end();
+  return [...writeWords(out.words), ...writeGround(out.ground), ...writeDone(out.done)];
+};
+
+const segment2: Record<string, Mirror> = {
+  // The table's content, decoded and encoded again: what every other row reads
+  content: (c) => {
+    args(c, 0);
+    return writeContent(content());
+  },
+  ...Object.fromEntries(
+    [
+      ...["combat", "ticks", "fits", "defeated", "trap", "occupied", "companions"],
+      ...["regeneration", "movement", "turn", "follow"],
+    ].map((name) => [name, segment2Row]),
+  ),
+};
 
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
@@ -389,4 +429,5 @@ export const TABLES: readonly Entry[] = [
   { file: "reveal.jsonl", floor: 197, fns: reveal },
   { file: "batch.jsonl", floor: 28, fns: batch },
   { file: "segment.jsonl", floor: 47, fns: segment },
+  { file: "segment2.jsonl", floor: 43, fns: segment2 },
 ];
