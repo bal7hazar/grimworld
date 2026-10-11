@@ -10,9 +10,12 @@
 // `segment/goblin.ts` (`GoblinTrait::load`) as `WordsTrait::indexed` does, which refuses what
 // Cairo refuses, and `words()` stores the words back.
 
-import { P, add, narrow, panic, u16, u32, u8 } from "../felt";
+import { type Entry, line, unpack } from "../effect";
+import { P, add, panic, u16, u32 } from "../felt";
 import { field, limbs, peel } from "../packing";
-import { from16 } from "../signed";
+
+export type { Entry };
+export { kind, line, unpack } from "../effect";
 
 /** A member's stored words (`models::index::MemberWords`). */
 export type MemberWords = {
@@ -84,22 +87,6 @@ export type CasteSheet = {
 /** The content of a batch (`types::tick::Content`). */
 export type Content = { skills: SkillSheet[]; potions: PotionSheet[]; castes: CasteSheet[] };
 
-/** `types::effect::Entry`, unpacked from its 97 bits. */
-export type Entry = {
-  kind: number;
-  param: number;
-  v0: number;
-  v12: number;
-  d0: number;
-  d12: number;
-  charges: number;
-  target: number;
-  shape: number;
-  filter: number;
-  guard: number;
-  scope: number;
-};
-
 /** A caste's kit (`types::tick::Kit`). */
 export type Kit = { skills: number[]; cap: number; weapon_ticks: number };
 
@@ -113,9 +100,6 @@ export type Sheets = Content & {
   index: { skills: Map<number, number>; castes: Map<number, number>; potions: Map<number, number> };
 };
 
-/** `types::effect::kind`, the kinds the segment reads. */
-export const kind = { EMPTY: 0, REGENERATION: 5, MOVEMENT: 16 } as const;
-
 /** A position in a list of `Sheets` that holds nothing (`ABSENT`), and in a 16-bit lane. */
 export const ABSENT = 0xffffffff;
 export const ABSENT_LANE = 0xffff;
@@ -126,7 +110,7 @@ export const NO_SLOT = 255;
 /** Stored health regeneration is its pips + 10 (`REGEN_OFFSET`). */
 const REGEN_OFFSET = 10;
 /** Energy is in thirds (`ENERGY_THIRDS`). */
-const ENERGY_THIRDS = 3;
+export const ENERGY_THIRDS = 3;
 const MAX_GOBLIN_ADRENALINE = 252;
 const MAX_SKILLS = 0xffff;
 
@@ -145,35 +129,6 @@ const small = (value: bigint): number => Number(value);
 /** `TickMathTrait::delta`: `(new − old) × shift`, the felt that rewrites a field in place. */
 export const delta = (old: number, next: number, shift: bigint): bigint =>
   felt(BigInt(next - old) * shift);
-
-/** `EntryTrait::unpack`: the entry of 97 bits. */
-export function unpack(bits: bigint): Entry {
-  let rest = bits;
-  const take = (size: bigint): bigint => {
-    const value = rest % size;
-    rest /= size;
-    return value;
-  };
-  const kind = small(take(0x100n));
-  const param = small(take(0x100n));
-  const v0 = from16(take(0x10000n));
-  const v12 = from16(take(0x10000n));
-  const d0 = small(take(0x10000n));
-  const d12 = small(take(0x10000n));
-  const charges = small(take(0x40n));
-  const target = small(take(4n));
-  const shape = small(take(8n));
-  const filter = small(take(2n));
-  const guard = small(take(8n));
-  // What is left is the scope (`div_rem` of the last field keeps the quotient)
-  const scope = Number(narrow(u8, rest));
-  return { kind, param, v0, v12, d0, d12, charges, target, shape, filter, guard, scope };
-}
-
-/** `EntryTrait::line`: the value at `rank` on the line from rank 0 to rank 12 (Cairo's `i32` `/`). */
-export function line(v0: number, v12: number, rank: number): number {
-  return v0 + Math.trunc(((v12 - v0) * rank) / 12);
-}
 
 const NONE: Entry = unpack(0n);
 
@@ -306,7 +261,7 @@ function hot(words: MemberWords) {
 }
 
 /** The belt slot's potion id of a `MemberKit` low limb, slot 0–3 (Cairo's span index). */
-function beltItem(belt: bigint, slot: number): number {
+export function beltItem(belt: bigint, slot: number): number {
   const shift = [1n, two(32), two(64), two(96)][slot];
   if (shift === undefined) panic("Index out of bounds");
   return small(field(belt, shift, two(32)));
@@ -450,11 +405,22 @@ export type Held = {
   rank: number;
 };
 
+/**
+ * `MemberTrait::effect_at`: where effect slot 0–3 lies (bits 0, 56, 128, 184): the high limb or
+ * not, its shift in the limb and in the word. A slot above 3 is slot 3, as Cairo's `else`.
+ */
+export function effect_lane(slot: number): { upper: boolean; shift: bigint; base: bigint } {
+  if (slot === 0) return { upper: false, shift: 1n, base: 1n };
+  if (slot === 1) return { upper: false, shift: two(56), base: two(56) };
+  if (slot === 2) return { upper: true, shift: 1n, base: two(128) };
+  return { upper: true, shift: two(56), base: two(184) };
+}
+
 /** `MemberWordsTrait::held`: the effect in slot 0–3 of the effects word. */
 export function held(effects: bigint, slot: number): Held {
   const [low, high] = limbs(effects);
-  const limb = slot < 2 ? low : high;
-  const shift = slot % 2 === 0 ? 1n : two(56);
+  const { upper, shift } = effect_lane(slot);
+  const limb = upper ? high : low;
   return {
     carrier: small(field(limb, shift, two(16))),
     charges: small(field(limb, shift * two(16), 0x40n)),

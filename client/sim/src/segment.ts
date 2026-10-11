@@ -15,18 +15,17 @@
 // the trap lookup (`AiTrait::armed`) and the words it sends, the ticks' fast path
 // (`TickTrait::idle`: the clock, the flags, the members' regeneration out of combat, the defeat
 // check) and `idle`'s choice, the records of `fits`. **Behind the seam** (`segment/classes.ts`):
-// `TickLibrary::ticks`, `ActionLibrary::act` and `TrapLibrary::trigger`, whose words and ground are
-// loaded back as `SegmentTrait::reload` loads them. Two branches are not mirrored and throw
-// `NotMirrored`, never a guess: a Move whose neighbour is missing (`LayoutTrait::neighbor` →
-// `None`, the window's edge), which `run` never reaches (D-255); and a combat action refused as
-// Heavy whose call changed the ground, which `run` keeps, a bug game fixes after RV-02 (the fix
-// restores the input ground).
+// `TickLibrary::ticks`, `ActionLibrary::act` and `TrapLibrary::trigger`, each passed a copy of the
+// words and the ground, whose words and ground are loaded back as `SegmentTrait::reload` loads
+// them. One branch is not mirrored and throws `NotMirrored`, never a guess: a Move whose neighbour
+// is missing (`LayoutTrait::neighbor` → `None`, the window's edge), which `run` never reaches
+// (D-255).
 
 import { admit } from "./batch";
 import { P, add, panic, u8 } from "./felt";
 import { ORIGIN, board as origin_board, move_ticks, origin, position } from "./movement";
 import { chunks as sight } from "./reveal";
-import type { Classes } from "./segment/classes";
+import { type Classes, copyGround, copyWords } from "./segment/classes";
 import {
   type Goblin,
   is_alive as is_goblin_alive,
@@ -259,11 +258,11 @@ function ticks(world: World, rules: Rules, n: number): void {
     return;
   }
   const out = rules.classes.ticks({
-    words: stored(world),
+    words: copyWords(stored(world)),
     content: rules.content,
     board: rules.board,
     level: rules.level,
-    ground: rules.ground,
+    ground: copyGround(rules.ground),
     n,
   });
   rules.ground = out.ground;
@@ -327,7 +326,7 @@ function trap(world: World, rules: Rules, at: number): void {
     },
     content: rules.content,
     board: rules.board,
-    ground: rules.ground,
+    ground: copyGround(rules.ground),
     entrant: 0,
     position: at,
     level: rules.level,
@@ -424,10 +423,10 @@ function wait(world: World): Result {
 function combat(world: World, rules: Rules, action: Action, weight: number): Result {
   const words = stored(world);
   const out = rules.classes.act({
-    words,
+    words: copyWords(words),
     content: rules.content,
     board: rules.board,
-    ground: rules.ground,
+    ground: copyGround(rules.ground),
     action,
   });
   let kept = words;

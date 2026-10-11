@@ -91,6 +91,42 @@ describe("parity with the Cairo code", () => {
     });
   });
 
+  it("covers every fn of body.jsonl with its count", () => {
+    const counts = replay(table("body.jsonl"), readTable("body.jsonl"));
+    expect(Object.fromEntries(counts)).toEqual({
+      content: 1,
+      health: 2,
+      max_health: 2,
+      is_member: 2,
+      place: 2,
+      alive: 9,
+      knocked: 6,
+      asleep: 3,
+      halves: 4,
+      armor_vs: 22,
+      infliction: 2,
+      enchant_percent: 2,
+      slots: 2,
+      effect: 5,
+      wound: 10,
+      heal: 13,
+      energize: 14,
+      struck: 16,
+      landed: 15,
+      halved: 3,
+      inflict: 50,
+      cure: 19,
+      hold: 25,
+      spend: 7,
+      line: 36,
+      value: 3,
+      duration: 16,
+      class: 26,
+      pack: 5,
+      unpack: 5,
+    });
+  });
+
   it("covers every fn of packing.jsonl with its count", () => {
     const counts = replay(table("packing.jsonl"), readTable("packing.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({

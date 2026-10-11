@@ -1,11 +1,64 @@
-// What a tick shares between its actors, as named functions each with one source (CLI-02g-B1):
-// `TickMathTrait::{degeneration, effect_pips, heal, decay, held}` (`helpers/tick.cairo`),
-// `MemberTickTrait::regenerate` and `MemberConditionTrait::can_act` (`models/member.cairo`), and
-// `types::tick::flag` with its `KEPT`. `segment.ts`'s fast path calls them; the ticks of the other
+// What a tick shares between its actors, as named functions each with one source (CLI-02g-B1,
+// CLI-02g-C): `TickMathTrait::{degeneration, effect_pips, heal, decay, held, refreshed, cured,
+// recharge_deadline, min16}` and `TickAssert` (`helpers/tick.cairo`), `MemberTickTrait::regenerate`
+// and `MemberConditionTrait::can_act` (`models/member.cairo`), and `types::tick`'s `flag` with its
+// `KEPT`, `ai` and `status`. `segment.ts`'s fast path and `body/` call them; the ticks of the other
 // lots are to call the same ones.
 
-import { u16add } from "./words";
+import { condition } from "../combat";
+import { panic, sub, u32 } from "../felt";
+import { u16add, u32add } from "./words";
 import type { Member } from "./words";
+
+/** `helpers::tick::errors`. */
+export const errors = {
+  CONDITION: "tick: condition not stored",
+  DURATION: "tick: duration below 1",
+  KNOCK: "tick: knock-down is knock",
+} as const;
+
+/** `types::tick::ai`: a goblin's AI state. */
+export const ai = {
+  ASLEEP: 0,
+  WATCH: 1,
+  ALERTED: 2,
+  ENGAGED: 3,
+  FLEEING: 4,
+  RETURNING: 5,
+  DEAD: 6,
+  LOOTED: 7,
+} as const;
+
+/** `types::tick::status`: a member's place in the instance. */
+export const status = { INSIDE: 0 } as const;
+
+const u32sub = (a: number, b: number): number => Number(sub(u32, BigInt(a), BigInt(b)));
+
+/** `TickAssert::assert_condition`: one of the MVP's five, 1–5. */
+export function assert_condition(c: number): void {
+  if (!(c >= condition.BLEEDING && c <= condition.LAST_MVP)) panic(errors.CONDITION);
+}
+
+/** `TickAssert::assert_duration`: at least 1 tick. */
+export function assert_duration(d: number): void {
+  if (!(d >= 1)) panic(errors.DURATION);
+}
+
+/** `TickMathTrait::refreshed`: inflicted at `t0` for `d ≥ 1` ticks, `max(old, t0 + d − 1)` (FX-6). */
+export function refreshed(old: number, t0: number, d: number): number {
+  assert_duration(d);
+  const deadline = u32sub(u32add(t0, d), 1);
+  return deadline > old ? deadline : old;
+}
+
+/** `TickMathTrait::cured`: held at `t0` (`old ≥ t0`), it ends at `t0 − 1`; else kept. */
+export const cured = (old: number, t0: number): number => (old >= t0 ? u32sub(t0, 1) : old);
+
+/** `TickMathTrait::recharge_deadline`: `t0 + r − 1`. */
+export const recharge_deadline = (t0: number, r: number): number => u32sub(u32add(t0, r), 1);
+
+/** `TickMathTrait::min16`. */
+export const min16 = (a: number, b: number): number => (a < b ? a : b);
 
 /** `MemberState.flags`: what happened "since the last tick" and "hit this tick" (`types::tick::flag`). */
 export const flag = { TURNED: 1, INSTANT: 2, HIT: 8, HALVED: 16 } as const;

@@ -11,6 +11,7 @@ the harness's reader.
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ----------- |
 | `src/window.ts`                               | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02)                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `window.jsonl`                    | 2,065       |
 | `src/hit.ts`                                  | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `hit.jsonl`                       | 203         |
+| `src/body/`, `src/effect.ts`, `src/combat.ts` | the `Body` operations (`types/executor.cairo`'s `Body`, `MemberBody`, `GoblinBody` and the dispatch `UnitBody`, CLI-02g-C) and what they call of `models/member.cairo` and `models/goblin.cairo` (the snapshot's reads, the lifecycle, the conditions, the interrupt), `types/infliction.cairo`, `durations.cairo`; the effect entry (`EntryTrait`: `line`, `value`, `duration`, `class`, `pack`, `unpack`)                                                                                                                                 | `body.jsonl`                      | 327         |
 | `src/fate.ts`                                 | `fate::domain`, `fate::derive` and the purposes (`contracts/logic/src/fate.cairo`), Poseidon through `@scure/starknet`                                                                                                                                                                                                                                                                                                                                                                                                                      | `fate.jsonl`                      | 227         |
 | `src/packing.ts`                              | `contracts/logic/src/packing.cairo`: `split`, `limbs`, `join`, `peel`, `fits`, the field readers, `Lanes32`, `Lanes16`, `Counter`, `Bitmap`                                                                                                                                                                                                                                                                                                                                                                                                 | `packing.jsonl`                   | 520         |
 | `src/movement.ts`                             | the moves of a played batch (ENG-07, CLI-02c): the window's board around the adventurer (`SegmentTrait::board`, `BoardTrait::position`, `AssemblyTrait::origin`), a Move's ticks (`TickMathTrait::move_ticks`), the tick's flood (`Bfs::flood`, `FloodTrait`) and step 0's awake set (`TickTrait::awake`)                                                                                                                                                                                                                                   | `movement.jsonl`                  | 94          |
@@ -71,6 +72,33 @@ Illegal or Heavy restores the words and the ground; `SegmentTrait::combat` takes
 ground only when the result is kept. Row 44 (an instant trap skill refused as Heavy) holds it, and
 the mutant "a Heavy refusal keeps ActionLibrary's ground" is killed by it.
 
+**A class must not mutate its inputs** (CLI-02g-C). A library call receives its inputs serialised;
+`run` keeps that true whatever a port does: it passes each call a copy of the words and the ground
+(`copyWords`, `copyGround` in `src/segment/classes.ts`; `play.cairo`'s `combat` clones the ground the
+same way). No row records an Illegal refusal whose call changed the ground, nor a class that
+mutates its inputs: `src/parity/seam.ts` holds those cases, run by `src/segment/unported.test.ts`
+and, against each `seam` mutant (the Illegal refusal keeping the call's ground, the ground or the
+words passed uncopied), by `src/parity/mutants.test.ts`.
+
+## The `Body` operations
+
+`src/body/` mirrors the operations the executor runs on an actor (CLI-02g-C, D-257), on a member
+and on a goblin through one dispatch, as `UnitBody` (`Unit`: `{ kind: "M", member }` or
+`{ kind: "G", goblin }`): the reads (`health`, `max_health`, `is_member`, `alive`, `place`,
+`knocked`, `asleep`, `halves`, `armor_vs`, `infliction`, `enchant_percent`, `slots`, `effect`) and
+the writes (`wound`, `heal`, `energize`, `struck`, `landed`, `halved`, `inflict`, `cure`, `hold`,
+`spend`), each in place on the unit, as Cairo's `ref self` (`copyUnit` for a caller that keeps its
+input). `src/effect.ts` is the effect entry. `defence` and `offence` come with `act` (RV-03b).
+`src/body/serde.ts` reads and writes a unit, a `Held` and an `Infliction` as the table records
+them. Lot D (the trap's path) builds on `body/index.ts`, `body/member.ts` (`interrupt`, `hold`,
+`put`, `apply`, `knock`), `body/goblin.ts`, `body/infliction.ts` and `effect.ts`.
+
+`body.jsonl`'s rows are its README's: row 0 the content every actor is loaded through, then one
+operation a row. Four mutants survive, holes of the table reported to track game: `hold`'s step 1
+at a carrier held to exactly `T`; a potion compared by its belt slot rather than its item (the
+table's belt holds four different items); the recharge lanes of bar slots 4–7 and a goblin
+activating caste slot 3, which no knock-down row reaches.
+
 **Fail closed** (CLI-02g-B1): `world()` loads each goblin through `GoblinTrait::load`
 (`src/segment/goblin.ts`), as `WordsTrait::indexed` does, and panics with Cairo's string where
 Cairo panics: a caste not in the content (`tick: caste not in content`), a caste skill or the
@@ -79,9 +107,9 @@ effect's skill not in it (`tick: skill not in content`), an effect's regeneratio
 than 8 goblins awake (`tick: more than 8 awake`). No row of `segment2.jsonl` records a refusal, so
 the cases are `src/parity/refusals.ts`', hand copies of the Cairo unit tests where they exist, run by
 `src/segment/goblin.test.ts` and, against each mutant that drops a refusal, by
-`src/parity/mutants.test.ts`. `GoblinTrait`'s tick, lifecycle and condition rules, and the members'
-(`MemberTickTrait`, `MemberLifecycleTrait`, infliction, durations) have no oracle before RV-03:
-they are lot B's remainder.
+`src/parity/mutants.test.ts`. The lifecycle and condition rules of both kinds, the infliction and
+the durations are `src/body/`'s (below); the tick's rules (`GoblinTickTrait::regenerate`,
+`conclude`, `lapse`, the members' activation) wait for RV-03c.
 
 `segment.jsonl`'s rows hold a simplified adventurer. Their decoder builds its words as the
 unit-test fixture's member (max health 480, no regeneration, no effect or skill), and its classes

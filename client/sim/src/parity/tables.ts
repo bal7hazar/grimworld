@@ -3,7 +3,39 @@
 // adapting the felts of a case to the mirror's arguments and its result to Cairo's `Serde`.
 // A new table of the game is one entry here.
 
-import { CairoPanic, boolFromFelt, fromFelt, panic, u16, u32, u8 } from "../felt";
+import * as body from "../body";
+import {
+  readHeld,
+  readInfliction,
+  readUnit,
+  writeHeld,
+  writeInfliction,
+  writeUnit,
+} from "../body/serde";
+import {
+  type Entry as EffectEntry,
+  class_,
+  duration,
+  is_holding,
+  is_hit_modifier,
+  line,
+  pack,
+  unpack,
+  value,
+} from "../effect";
+import {
+  CairoPanic,
+  boolFromFelt,
+  fromFelt,
+  i16,
+  i32,
+  panic,
+  toFelt,
+  u128,
+  u16,
+  u32,
+  u8,
+} from "../felt";
 import { PURPOSES, derive, domain } from "../fate";
 import { hitFromFelts, outcomeToFelts, resolve } from "../hit";
 import {
@@ -60,7 +92,7 @@ import {
   writeGround,
   writeWords,
 } from "../segment/serde";
-import type { Content, MemberWords, Words } from "../segment/words";
+import { type Content, type MemberWords, type Words, sheets as indexed } from "../segment/words";
 import type { Entry, Mirror } from "./replay";
 import { replayer } from "./replayer";
 import { readTable } from "./table";
@@ -422,9 +454,182 @@ const segment2: Record<string, Mirror> = {
   ),
 };
 
+/** `body.jsonl`'s content: its row 0's `ok`, which every actor of the table is loaded through. */
+let bodyContent: Content | undefined;
+function contentOfBody(): Content {
+  if (bodyContent === undefined) {
+    const read = new Felts(readTable("body.jsonl")[0]!.ok!);
+    bodyContent = readContent(read);
+    read.end();
+  }
+  return bodyContent;
+}
+let bodySheets: ReturnType<typeof indexed> | undefined;
+const sheetsOfBody = () => (bodySheets ??= indexed(contentOfBody()));
+
+/** An `Entry`'s `Serde`, its 12 fields. */
+function readEntry(r: Felts): EffectEntry {
+  return {
+    kind: r.u8(),
+    param: r.u8(),
+    v0: r.i16(),
+    v12: r.i16(),
+    d0: r.u16(),
+    d12: r.u16(),
+    charges: r.u8(),
+    target: r.u8(),
+    shape: r.u8(),
+    filter: r.u8(),
+    guard: r.u8(),
+    scope: r.u8(),
+  };
+}
+
+const writeEntry = (e: EffectEntry): bigint[] => [
+  ...[e.kind, e.param].map(BigInt),
+  toFelt(i16, BigInt(e.v0)),
+  toFelt(i16, BigInt(e.v12)),
+  ...[e.d0, e.d12, e.charges, e.target, e.shape, e.filter, e.guard, e.scope].map(BigInt),
+];
+
+/** A `body` row: the actor, then the operation's arguments read by `args`, all read. */
+function onUnit<T>(c: readonly bigint[], args: (r: Felts) => T): [body.Unit, T] {
+  const read = new Felts(c);
+  const unit = readUnit(read);
+  const rest = args(read);
+  read.end();
+  return [unit, rest];
+}
+
+/** A read of the actor: its value's felts. */
+const reading =
+  (get: (unit: body.Unit) => number | boolean): Mirror =>
+  (c) => {
+    const [unit] = onUnit(c, () => undefined);
+    return [BigInt(get(unit))];
+  };
+
+/** A write on the actor: its arguments read by `args`, the actor after. */
+const writing =
+  <T>(args: (r: Felts) => T, op: (unit: body.Unit, rest: T) => void): Mirror =>
+  (c) => {
+    const [unit, rest] = onUnit(c, args);
+    op(unit, rest);
+    return writeUnit(unit);
+  };
+
+const i32of = (r: Felts): number => Number(fromFelt(i32, r.felt()));
+
+/** An entry row: its `case` read by `args`, all read. */
+function onEntry<T>(c: readonly bigint[], args: (r: Felts) => T): T {
+  const read = new Felts(c);
+  const rest = args(read);
+  read.end();
+  return rest;
+}
+
+const bodyFns: Record<string, Mirror> = {
+  // The table's content, decoded and encoded again: what every actor is loaded through
+  content: (c) => {
+    args(c, 0);
+    return writeContent(contentOfBody());
+  },
+  health: reading(body.health),
+  max_health: reading(body.max_health),
+  is_member: reading(body.is_member),
+  alive: reading(body.alive),
+  asleep: reading(body.asleep),
+  halves: reading(body.halves),
+  enchant_percent: reading(body.enchant_percent),
+  slots: reading(body.slots),
+  place: (c) => {
+    const [unit] = onUnit(c, () => undefined);
+    const { x, y, facing } = body.place(unit);
+    return [x, y, facing].map(BigInt);
+  },
+  knocked: (c) => {
+    const [unit, t] = onUnit(c, (r) => r.u32());
+    return [BigInt(body.knocked(unit, t))];
+  },
+  armor_vs: (c) => {
+    const [unit, type] = onUnit(c, (r) => r.u8());
+    return [BigInt(body.armor_vs(unit, type, sheetsOfBody()))];
+  },
+  infliction: (c) => {
+    const [unit] = onUnit(c, () => undefined);
+    return writeInfliction(body.infliction(unit));
+  },
+  effect: (c) => {
+    const [unit, slot] = onUnit(c, (r) => r.u8());
+    const { held, at } = body.effect(unit, slot);
+    return [...writeHeld(held), BigInt(at)];
+  },
+  wound: writing(
+    (r) => r.u16(),
+    (unit, damage) => body.wound(unit, damage),
+  ),
+  heal: writing(
+    (r) => r.u16(),
+    (unit, v) => body.heal(unit, v),
+  ),
+  energize: writing(i32of, (unit, v) => body.energize(unit, v, sheetsOfBody())),
+  struck: writing(
+    () => undefined,
+    (unit) => body.struck(unit, sheetsOfBody()),
+  ),
+  landed: writing(
+    () => undefined,
+    (unit) => body.landed(unit, sheetsOfBody()),
+  ),
+  halved: writing(
+    () => undefined,
+    (unit) => body.halved(unit),
+  ),
+  inflict: writing(
+    (r) => ({ c: r.u8(), v: i32of(r), source: readInfliction(r), t: r.u32() }),
+    (unit, { c, v, source, t }) => body.inflict(unit, c, v, source, t, sheetsOfBody()),
+  ),
+  cure: writing(
+    (r) => ({ c: r.u8(), t: r.u32() }),
+    (unit, { c, t }) => body.cure(unit, c, t),
+  ),
+  hold: writing(
+    (r) => ({ held: readHeld(r), at: r.u32(), stance: r.bool(), t: r.u32() }),
+    (unit, { held, at, stance, t }) => body.hold(unit, held, at, stance, t, sheetsOfBody()),
+  ),
+  spend: writing(
+    (r) => ({ slot: r.u8(), t: r.u32() }),
+    (unit, { slot, t }) => body.spend(unit, slot, t),
+  ),
+  line: (c) => {
+    const [v0, v12, rank] = onEntry(c, (r) => [r.i16(), r.i16(), r.u8()]);
+    return [toFelt(i32, BigInt(line(v0!, v12!, rank!)))];
+  },
+  value: (c) => {
+    const [entry, rank] = onEntry(c, (r) => [readEntry(r), r.u8()] as const);
+    return [toFelt(i32, BigInt(value(entry, rank)))];
+  },
+  duration: (c) => {
+    const [entry, rank] = onEntry(c, (r) => [readEntry(r), r.u8()] as const);
+    return [toFelt(i32, BigInt(duration(entry, rank)))];
+  },
+  class: (c) => {
+    const entry = { ...unpack(0n), kind: onEntry(c, (r) => r.u8()) };
+    const found = class_(entry);
+    return [
+      ...(found === undefined ? [1n] : [0n, BigInt(found)]),
+      ...bool(is_holding(entry)),
+      ...bool(is_hit_modifier(entry)),
+    ];
+  },
+  pack: (c) => [pack(onEntry(c, readEntry))],
+  unpack: (c) => writeEntry(unpack(onEntry(c, (r) => fromFelt(u128, r.felt())))),
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
+  { file: "body.jsonl", floor: 327, fns: bodyFns },
   { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
   { file: "movement.jsonl", floor: 81, fns: movement },
