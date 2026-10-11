@@ -380,3 +380,85 @@ fn test_terrain_trap_widest_area() {
     assert(trap_of(world).state == 1, 'the trap is used');
     assert(health(world) < before, 'the payload hurt the member');
 }
+
+// More than `MAX_READ` skills in one content round are read in two `bundle`s: the 27 trap skills of
+// the widest area and the 8 skills of two castes (2 and 3, 4 skills each) whose goblins, one a
+// pack, chunk 0 derives: 35 skills, 32 then 3. Every goblin loads and the trap fires.
+#[test]
+#[available_gas(l2_gas: 123797406)] // ceil(1.05 × 117902291 measured)
+fn test_terrain_trap_skills_chunked() {
+    let world = setup();
+    open_zone(world, 22, 22);
+    let records = IRecordsDispatcher { contract_address: world.registry };
+    let mut skill: u16 = 200;
+    let mut caste: u16 = 2;
+    while caste < 4 {
+        let skills = [skill, skill + 1, skill + 2, skill + 3];
+        for id in skills.span() {
+            register_trap_skill(world, (*id).into());
+        }
+        let sheet = CasteTrait::new(
+            1,
+            0,
+            100,
+            10,
+            0,
+            [0; 9],
+            WeaponTrait::new(grimworld_logic::types::combat::weapon::AXE, 10, 1, 1, 1),
+            0,
+            0,
+            skills,
+            0,
+            0,
+            0,
+            false,
+        );
+        records.set(CASTE, caste.into(), CasteRecord::pack(@sheet));
+        let one = PackCaste { caste, min: 1, max: 5 };
+        let pack = Pack {
+            castes: [
+                one, Default::default(), Default::default(), Default::default(), Default::default(),
+            ],
+            level: 0,
+        };
+        records.set(PACK, caste.into(), PackRecord::pack(@pack));
+        skill += 4;
+        caste += 1;
+    }
+    let chunks: Array<u8> = array![0, 1, 2, 15, 16, 17, 30, 31, 32];
+    let mut id: u16 = 100;
+    for chunk in chunks {
+        let mut objects = array![];
+        let mut k: u8 = 0;
+        while k < 3 {
+            // Chunk 16's first trap is the one the Move enters: tile 111.
+            let tile = if chunk == 16 && k == 0 {
+                111
+            } else {
+                k
+            };
+            register_trap_skill(world, id.into());
+            objects.append(Object { tile, kind: object::TRAP, state: 0, param: id });
+            id += 1;
+            k += 1;
+        }
+        // Chunk 0's two packs, one goblin each, on local tiles 16 and 20, asleep, far from the
+        // member
+        let packs = if chunk == 0 {
+            [
+                PackPlacement { tile: 16, template: 2, level: 1, count: 1, offsets: 0, alert: 0 },
+                PackPlacement { tile: 20, template: 3, level: 1, count: 1, offsets: 0, alert: 0 },
+            ]
+        } else {
+            [Default::default(); 2]
+        };
+        let features = Features {
+            packs, objects: [*objects[0], *objects[1], *objects[2]], touched: 0,
+        };
+        write(world.instances, chunk_key(chunk) + 1, StorePacking::pack(features));
+    }
+    let before = health(world);
+    play(world).play(world.id, 7, 0, 0, batch(array![Action::Move(0)].span()));
+    assert(trap_of(world).state == 1, 'the trap is used');
+    assert(health(world) < before, 'the payload hurt the member');
+}
