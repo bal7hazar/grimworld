@@ -344,13 +344,7 @@ export function take_hit(member: Member): void {
  * `Infliction`, refreshed by `max`; nothing on a member not alive. Knocked down is `knock`'s: any
  * other condition panics once its duration is computed.
  */
-export function apply(
-  member: Member,
-  c: number,
-  v: number,
-  source: Infliction,
-  t0: number,
-): void {
+export function apply(member: Member, c: number, v: number, source: Infliction, t0: number): void {
   if (!is_alive(member)) return;
   const d = duration(source, c, v);
   if (c === condition.BLEEDING) member.bleeding = refreshed(member.bleeding, t0, d);

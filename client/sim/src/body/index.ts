@@ -44,8 +44,11 @@ export function copyUnit(unit: Unit): Unit {
   };
 }
 
-const pick = <T>(unit: Unit, onMember: (member: Member) => T, onGoblin: (goblin: Goblin) => T): T =>
-  unit.kind === "M" ? onMember(unit.member) : onGoblin(unit.goblin);
+const pick = <T>(
+  unit: Unit,
+  onMember: (member: Member) => T,
+  onGoblin: (goblin: Goblin) => T,
+): T => (unit.kind === "M" ? onMember(unit.member) : onGoblin(unit.goblin));
 
 export const health = (unit: Unit): number =>
   pick(

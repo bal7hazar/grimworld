@@ -6,6 +6,13 @@
 //
 // A call's digest is the Poseidon hash of its inputs' `Serde` felts, the content and the class
 // hashes left out, in the recorders' order (`types/play/tests/recorder.cairo`).
+//
+// **A class must not mutate its inputs.** A library call receives its inputs serialised: what it
+// changes is its own copy, and only what it returns reaches `run`. `run` keeps that true whatever
+// an implementation does: it passes each call a copy of the words and of the ground (`copyWords`,
+// `copyGround`; `play.cairo`'s `combat` clones the ground the same way), so that a class that
+// mutates them cannot change the words or the ground a refusal keeps (D-259), nor the segment
+// `run` was given (`parity/seam.ts` holds the cases).
 
 import { poseidonHashMany } from "@scure/starknet";
 import {
@@ -19,6 +26,25 @@ import {
   writeWords,
 } from "./serde";
 import type { Content, Words } from "./words";
+
+/** A copy of the words, nothing shared with them (Cairo's `words.clone()`). */
+export const copyWords = (words: Words): Words => ({
+  ...words,
+  members: words.members.map((member) => ({ ...member })),
+  goblins: words.goblins.map((goblin) => ({ ...goblin })),
+  killed: [...words.killed],
+});
+
+/** A copy of the ground, nothing shared with it (Cairo's `ground.clone()`). */
+export const copyGround = (ground: Ground): Ground =>
+  ground.map(([chunk, features]) => [
+    chunk,
+    {
+      packs: features.packs.map((pack) => ({ ...pack })),
+      objects: features.objects.map((object) => ({ ...object })),
+      touched: features.touched,
+    },
+  ]);
 
 /** `TickLibrary::ticks(words, content, board, classes, level, ground, n)`. */
 export type TicksCall = {

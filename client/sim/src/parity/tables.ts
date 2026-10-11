@@ -4,7 +4,14 @@
 // A new table of the game is one entry here.
 
 import * as body from "../body";
-import { readHeld, readInfliction, readUnit, writeHeld, writeInfliction, writeUnit } from "../body/serde";
+import {
+  readHeld,
+  readInfliction,
+  readUnit,
+  writeHeld,
+  writeInfliction,
+  writeUnit,
+} from "../body/serde";
 import {
   type Entry as EffectEntry,
   class_,
@@ -16,7 +23,19 @@ import {
   unpack,
   value,
 } from "../effect";
-import { CairoPanic, boolFromFelt, fromFelt, i16, i32, panic, toFelt, u128, u16, u32, u8 } from "../felt";
+import {
+  CairoPanic,
+  boolFromFelt,
+  fromFelt,
+  i16,
+  i32,
+  panic,
+  toFelt,
+  u128,
+  u16,
+  u32,
+  u8,
+} from "../felt";
 import { PURPOSES, derive, domain } from "../fate";
 import { hitFromFelts, outcomeToFelts, resolve } from "../hit";
 import {

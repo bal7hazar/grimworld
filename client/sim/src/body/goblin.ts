@@ -134,13 +134,7 @@ export function take_hit(goblin: Goblin, sheets: Sheets): void {
  * `Infliction`, refreshed by `max`; a dead goblin takes nothing. Any other condition panics once
  * its duration is computed.
  */
-export function apply(
-  goblin: Goblin,
-  c: number,
-  v: number,
-  source: Infliction,
-  t0: number,
-): void {
+export function apply(goblin: Goblin, c: number, v: number, source: Infliction, t0: number): void {
   if (!is_alive(goblin)) return;
   const d = duration(source, c, v);
   if (c === condition.BLEEDING) goblin.bleeding = refreshed(goblin.bleeding, t0, d);

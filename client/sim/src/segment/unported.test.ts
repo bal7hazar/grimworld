@@ -1,121 +1,23 @@
 // What the segment tables cannot show of the mirror (CLI-02f, CLI-02g-A): the branches of
-// `SegmentTrait::run` it does not mirror (a Move off the window's edge, D-255), that a refusal leaves the ground as it was (D-259), that `run` does not change what it is given, and
-// that the replayer of the parity tests stays out of the app's API.
+// `SegmentTrait::run` it does not mirror (a Move off the window's edge, D-255), that a refusal
+// leaves the words and the ground as they were even when the class mutates its inputs (D-259,
+// `parity/seam.ts`' cases), that `run` does not change what it is given, and that the replayer of
+// the parity tests stays out of the app's API.
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as sim from "../index";
 import { board as origin_board, position } from "../movement";
-import { LIVE } from "../packing";
+import { CHECKS, UNREACHED, holds, segment } from "../parity/seam";
 import { run } from "../segment";
-import type { Segment } from "../segment";
 import { WIDTH, inside, neighbor } from "../window";
-import type { Classes } from "./classes";
-
-/** A 3 × 3 location, every chunk known, revealed and walkable (the table's `region`). */
-const ALL = [0, 1, 2, 15, 16, 17, 30, 31, 32];
-const BITS = ALL.reduce((set, chunk) => set | (1n << BigInt(chunk)), 0n);
-
-/** The adventurer on (22, 22) at clock 40, health 400 of 480, no regeneration. */
-function segment(): Segment {
-  const two = (bits: number) => 1n << BigInt(bits);
-  return {
-    words: {
-      clock: 40,
-      members: [
-        {
-          state: LIVE + 22n * two(32) + 22n * two(40) + 400n * two(64),
-          timers: LIVE + 255n,
-          effects: LIVE,
-          recharges: LIVE,
-          stats: LIVE + 480n + 10n * two(32),
-          bar: LIVE,
-          kit: LIVE,
-        },
-      ],
-      goblins: [],
-      killed: [],
-      defeated: false,
-    },
-    content: { skills: [], potions: [], castes: [] },
-    area: {
-      width: 3,
-      height: 3,
-      known: BITS,
-      revealed: BITS,
-      chunks: ALL.map((chunk) => [chunk, (1n << 225n) - 1n] as const),
-      changed: [],
-      ran: false,
-    },
-    level: 1,
-    ground: [],
-    owed: 1,
-    weight: 10,
-    actions: [{ kind: "move", direction: 0 }, { kind: "turn", direction: 2 }, { kind: "wait" }],
-  };
-}
-
-const UNREACHED: Classes = {
-  ticks: () => {
-    throw new Error("a TickLibrary call");
-  },
-  act: () => {
-    throw new Error("an ActionLibrary call");
-  },
-  trigger: () => {
-    throw new Error("a TrapLibrary call");
-  },
-};
-
-/** Classes whose `act` returns `ticks`, the words unchanged, the ground with a placed trap if `changes`. */
-function acting(ticks: number, changes: boolean): Classes {
-  return {
-    ...UNREACHED,
-    act: (call) => ({
-      words: call.words,
-      ground: changes
-        ? [
-            [
-              16,
-              {
-                packs: [0, 1].map(() => ({
-                  tile: 0,
-                  template: 0,
-                  level: 0,
-                  count: 0,
-                  offsets: 0,
-                  alert: 0,
-                })),
-                objects: [
-                  { tile: 112, kind: 9, state: 0, param: 0 },
-                  ...[0, 1].map(() => ({ tile: 0, kind: 0, state: 0, param: 0 })),
-                ],
-                touched: 0,
-              },
-            ],
-          ]
-        : call.ground,
-      outcome: { ticks },
-    }),
-  };
-}
 
 describe("the segment beyond its tables", () => {
-  it("restores the ground on a combat action refused as Heavy whose call changed it (D-259)", () => {
-    // An instant trap skill (0 ticks) with no weight left: the act call placed a trap, the refusal drops it
-    const heavy: Segment = {
-      ...segment(),
-      owed: 0,
-      weight: 0,
-      actions: [{ kind: "skill", slot: 0, target: { tile: true, value: 112 } }],
-    };
-    const refused = run(heavy, acting(0, true));
-    expect(refused.done.heavy).toBe(true);
-    expect(refused.ground).toEqual(heavy.ground);
-    // Run within the weight, the changed ground is kept
-    const ran = run({ ...heavy, weight: 1 }, acting(0, true));
-    expect([ran.done.played, ran.ground.length]).toEqual([1, 1]);
-  });
+  for (const check of CHECKS) {
+    it(`${check.name} (D-259)`, () => {
+      expect(() => holds(check)).not.toThrow();
+    });
+  }
 
   it("cannot reach Blocked by a missing neighbour: the adventurer stands inside the window's ring", () => {
     // Its window is around it (column 7, row 7 or 8): every direction has a neighbour, so the
