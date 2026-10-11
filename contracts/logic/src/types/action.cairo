@@ -476,14 +476,20 @@ mod tests {
     use crate::types::combat::{damage, skill_kind, weapon};
     use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
     use crate::types::executor::tests::{AT, SNARE, at, content, entry, goblin, member, skill};
-    use crate::types::executor::{BoardTrait, Executor, ExecutorTrait};
+    use crate::types::executor::{
+        Board, BoardTrait, Carrier, Executed, Executor, ExecutorCarry, ExecutorTrait,
+    };
     use crate::types::infliction::Infliction;
     use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, Held, PotionSheet, Sheets, flag};
+    use crate::types::trap::Ground;
     use crate::types::window::{FAR, WindowTrait};
     use crate::types::world::fixtures::{Fixture, two};
-    use crate::types::world::{World, WorldTrait};
+    use crate::types::world::{Actor, World, WorldTrait};
     use crate::types::{LAST_TICK, Target};
-    use super::{ActionTrait, FIELDCRAFT_PER_RANK, Illegal, QuickCastTrait};
+    use super::{ActionTrait, Carry, FIELDCRAFT_PER_RANK, Illegal, QuickCastTrait};
+
+    /// `vectors/act.jsonl` (RV-03b, D-257).
+    mod vectors;
 
     /// The tests' own skills, after the executor's (ids 60 on).
     const GLYPH: u16 = 60;
@@ -1025,5 +1031,124 @@ mod tests {
             act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(1), 'its weapon',
         );
         assert(world.goblin(0).health < 100, 'landed');
+    }
+    /// The in-class executor, its carries counted.
+    #[derive(Drop)]
+    struct Spy {
+        rules: Executor,
+        carried: u32,
+    }
+
+    impl SpyCarry of Carry<Spy> {
+        fn carry(
+            ref self: Spy,
+            ref world: World,
+            sheets: @Sheets,
+            source: Actor,
+            slot: u8,
+            carrier: Carrier,
+            address: u16,
+            t: u32,
+        ) -> Executed {
+            self.carried += 1;
+            ExecutorCarry::carry(
+                ref self.rules, ref world, sheets, source, slot, carrier, address, t,
+            )
+        }
+
+        fn board(self: @Spy) -> Board {
+            ExecutorCarry::board(self.rules)
+        }
+
+        fn ground(self: @Spy) -> @Ground {
+            ExecutorCarry::ground(self.rules)
+        }
+    }
+
+    // FIX-01 (track CV's review note): `ActionLibrary` returns the ground its rules hold, also on
+    // a refusal, and only `rules.carry` writes it (a trap placed). Every `Err` of `act` returns
+    // before its arm's carry, and every carry is followed by an `Ok`: each refusal `act` gives
+    // (every `Illegal` but `Blocked`, the segment's), the carries counted, is refused with none;
+    // the legal combat actions carry once. Snare is made instant here (0 ticks), so its `Trap`
+    // refusal sits on the path that carries now: a carry moved before it is seen (#447's review).
+    #[test]
+    #[available_gas(l2_gas: 34991061)] // ceil(1.05 × 33324820 measured)
+    fn test_no_carry_before_a_refusal() {
+        let base = bench();
+        let mut skills = array![];
+        for sheet in base.skills {
+            let mut sheet = *sheet;
+            if sheet.id == SNARE {
+                sheet.activation = 0;
+            }
+            skills.append(sheet);
+        }
+        let sheets = Content { skills: skills.span(), potions: base.potions, castes: base.castes }
+            .sheets();
+        let kit = array![STANCE, FIRE, RAGE, SNARE].span();
+        let mut cases: Array<(u32, Member, Action, Result<u8, Illegal>)> = array![];
+        let base = adventurer(@sheets, kit);
+        cases.append((LAST_TICK + 1, base, Action::Wait, Err(Illegal::Clock)));
+        let mut m = base;
+        m.health = 0;
+        cases.append((CLOCK, m, Action::Wait, Err(Illegal::Absent)));
+        let mut m = base;
+        m.knocked = CLOCK + 1;
+        cases.append((CLOCK, m, Action::Attack(8), Err(Illegal::Knocked)));
+        let mut m = base;
+        m.flags = flag::TURNED;
+        cases.append((CLOCK, m, Action::Turn(1), Err(Illegal::Turned)));
+        let mut m = base;
+        m.flags = flag::INSTANT;
+        cases.append((CLOCK, m, Action::Skill((0, Target::Entity(0))), Err(Illegal::Instant)));
+        cases.append((CLOCK, base, Action::Item((3, 8)), Err(Illegal::Empty)));
+        cases.append((CLOCK, base, Action::Item((0, tile(AT + 2))), Err(Illegal::Belt)));
+        let mut m = base;
+        m.set_recharge(0, CLOCK + 1);
+        cases.append((CLOCK, m, Action::Skill((0, Target::Entity(0))), Err(Illegal::Recharging)));
+        let mut m = base;
+        m.energy = 14;
+        cases.append((CLOCK, m, Action::Skill((1, Target::Entity(8))), Err(Illegal::Energy)));
+        cases
+            .append((CLOCK, base, Action::Skill((2, Target::Entity(8))), Err(Illegal::Adrenaline)));
+        cases.append((CLOCK, base, Action::Attack(0), Err(Illegal::Target)));
+        cases.append((CLOCK, base, Action::Attack(9), Err(Illegal::Reach)));
+        let mut m = base;
+        m.energy = 30;
+        cases
+            .append((CLOCK, m, Action::Skill((3, Target::Tile(tile(AT + 1)))), Err(Illegal::Trap)));
+        cases.append((CLOCK, base, Action::Move(0), Err(Illegal::Kind)));
+        let mut m = base;
+        m.adrenaline = 9;
+        m.words.stats += two(42);
+        cases.append((CLOCK, m, Action::Skill((2, Target::Entity(8))), Err(Illegal::Kind)));
+        // The legal ones that carry: a weapon attack, an instant skill, an attack skill, a potion.
+        cases.append((CLOCK, base, Action::Attack(8), Ok(1)));
+        cases.append((CLOCK, base, Action::Skill((0, Target::Entity(0))), Ok(0)));
+        let mut m = base;
+        m.adrenaline = 9;
+        cases.append((CLOCK, m, Action::Skill((2, Target::Entity(8))), Ok(1)));
+        let mut m = base;
+        m.set_belt_count(0, 1);
+        cases.append((CLOCK, m, Action::Item((0, tile(AT + 2))), Ok(1)));
+        let mut m = base;
+        m.energy = 30;
+        cases.append((CLOCK, m, Action::Skill((3, Target::Tile(tile(AT + 2)))), Ok(0)));
+        let mut refused = 0;
+        for (clock, member, action, expected) in cases {
+            let mut world = Fixture::world(
+                clock, array![member], array![goblin(8, AT + 1, 0, 100), goblin(9, AT + 3, 0, 100)],
+            );
+            let mut spy = Spy { rules: fresh(), carried: 0 };
+            let result = ActionTrait::act(ref world, @sheets, ref spy, 0, action);
+            assert(result == expected, 'the expected result');
+            if result.is_err() {
+                assert(spy.carried == 0, 'a carry before a refusal');
+                refused += 1;
+            } else {
+                assert(spy.carried == 1, 'one carry');
+            }
+        }
+        assert(refused == 15, 'every refusal');
     }
 }

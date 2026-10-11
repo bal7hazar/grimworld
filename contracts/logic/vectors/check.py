@@ -83,6 +83,20 @@ TABLES = {
         "grimworld_logic::types::reveal::tests::test_vectors_3",
         "grimworld_logic::types::reveal::tests::test_vectors_4",
     ],
+    "act.jsonl": [
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_0",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_1",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_2",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_3",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_4",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_5",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_6",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_7",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_8",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_9",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_10",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_11",
+    ],
 }
 
 
