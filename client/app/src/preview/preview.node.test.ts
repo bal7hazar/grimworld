@@ -4,7 +4,8 @@ import { LOCAL_ACCOUNT_CLASS, createStarknetChain } from "../account/starknet";
 import type { Call, ExecutionStatus } from "../account/types";
 import type { PlayAction } from "./actions";
 import { previewCalls, selector } from "./calls";
-import { CASTE, ITEM, type RecordRead, SKILL, assembleContent } from "./content";
+import { CASTE, ITEM, type RecordRead, SKILL, assembleContent, trapSkills } from "./content";
+import { featuresAround } from "./mirror";
 import { mirrorOf } from "./mirror";
 import { previewBatch } from "./preview";
 import { createReader } from "./read";
@@ -162,9 +163,20 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const input = { ...(await target()), actions: [WAIT] };
     // The content as `PlayLibrary` assembles it (CLI-10d): the deployed adventurer has an empty
     // build and no belt, so it holds the castes of the goblins listed and their skills
+    const ground = featuresAround({ view: before, member, region });
     const { content, calls } = await assembleContent(
       before,
       recording(deployment.contracts.registry),
+      ground,
+    );
+    // The terrain traps' skills (FIX-02b): when the world holds an unused one around the member,
+    // its skill is in the content; when it holds none (the usual draw), nothing is forced
+    const trapIds = trapSkills(ground);
+    for (const id of trapIds) expect(content.skills.map((sheet) => sheet.id)).toContain(id);
+    console.info(
+      trapIds.length > 0
+        ? `terrain traps: skills ${trapIds.join(", ")} in the content`
+        : "terrain traps: none around the member in this world, no skill asserted",
     );
     listed = before.goblins.length;
     sheets =
@@ -355,11 +367,24 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const read = reader();
     const view = await read.instanceState(deployment.contracts.instances, instanceId());
     const registry = deployment.contracts.registry;
+    const { member } = await read.placement(
+      deployment.contracts.instances,
+      deployment.adventurer_id,
+    );
+    const ground = featuresAround({
+      view,
+      member,
+      region: await read.region(deployment.contracts.instances, instanceId()),
+    });
     const times: number[] = [];
     let calls = 0;
     for (let run = 0; run < 10; run++) {
       const start = performance.now();
-      ({ calls } = await assembleContent(view, (kind, id) => read.record(registry, kind, id)));
+      ({ calls } = await assembleContent(
+        view,
+        (kind, id) => read.record(registry, kind, id),
+        ground,
+      ));
       times.push(performance.now() - start);
     }
     console.info(

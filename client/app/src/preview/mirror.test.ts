@@ -2,6 +2,7 @@ import { type Ground, NotMirrored, type TriggerCall, trapTrigger } from "@grimwo
 import { describe, expect, it } from "vitest";
 import {
   type MirrorState,
+  featuresAround,
   mirrorOf,
   nativeClasses,
   segmentOf,
@@ -309,8 +310,10 @@ function goblinState(): Omit<MirrorState, "content"> {
 /** Its content, assembled from the records read there (CLI-10d). */
 async function goblinContent() {
   const records = new Map(goblins.recordedRecords.map(([k, id, parts]) => [`${k}:${id}`, parts]));
-  const { content } = await assembleContent(goblinState().view, (kind, id) =>
-    Promise.resolve((records.get(`${kind}:${id}`) ?? ["0x0", "0x0"]).map(BigInt)),
+  const { content } = await assembleContent(
+    goblinState().view,
+    (kind, id) => Promise.resolve((records.get(`${kind}:${id}`) ?? ["0x0", "0x0"]).map(BigInt)),
+    featuresAround(goblinState()),
   );
   return content;
 }
