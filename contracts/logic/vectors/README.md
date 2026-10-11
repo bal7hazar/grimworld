@@ -92,6 +92,7 @@ an `Option`: `1` for `None`, `0` then the value for `Some`; an enum: its variant
 - the adventurer (member 0, alone in the world, no goblin): `clock`, `x`, `y` (global tile), `facing`, `status`
   (0 inside, 1 down), `health`, Crippled's deadline (0: not Crippled; a Move at tick `t0 ≤ deadline` takes 2 ticks),
   the end of a knock-down (0: none; knocked while `t0 ≤` it); energy and the rest as the unit-test fixture;
+  as the fixture's member, it holds no effect in any slot (no `MOVEMENT` effect) and starts with `flags` 0;
 - `Area`: `width`, `height` (3 × 3 chunks, all known), `known`, `revealed`, `chunks` (the span of `(chunk, walkable
   bits)` of the revealed chunks: bit `15 ly + lx`, 1 walkable), `changed` (the goblin entities whose records
   the invocation's earlier segments changed), `ran`;
@@ -112,7 +113,8 @@ No class is called (the class hashes are zero), so every row has no goblin and i
 records of a fight (`fits` counting new records and first records, the weight of E-1, the owed ticks' records) are
 `TickLibrary`'s; `fits` is reached here through the 17 records the area already holds (E-16: more than 16 stops an
 action when `ran`). The owed ticks' records are held by `test_play_records_owed_ticks`
-(`contracts/ephemeral/tests/test_play_limits.cairo`) and by `batch.jsonl`'s `owed`.
+(`contracts/ephemeral/tests/test_play_limits.cairo`) and by `batch.jsonl`'s `owed`. The branches that call a class,
+or meet a goblin, a trap, a companion, a change of health or a `MOVEMENT` effect, are `segment2.jsonl`'s.
 
 The cases (47):
 
@@ -126,6 +128,101 @@ The cases (47):
 | `halt` (14) | 33–46 | the illegal halts: Clock (33–35: Move, Turn, Wait at `LAST_TICK + 1`), Absent (36–38 health 0, 39 status down), Knocked (40, 41; a Wait is legal, 42), Blocked (43 a wall; the Wait before it runs), Turned (44), Kind (Interact, 45, and after two Waits, 46) |
 
 `Heavy` is not an `Illegal`: it is `heavy` in `Done` (ids 18, 19, 21 and 22, 23).
+
+## `segment2.jsonl`: a segment that calls the classes, `SegmentTrait::run` (RV-02, D-254)
+
+Printed by `types::play::tests::test_segment2_vectors_0` to `test_segment2_vectors_4` (ids 0–11, 12–22, 23–25,
+26–30, 31–43), split for snforge's step limit, each part with its digest. It covers what `segment.jsonl` cannot: the
+branches of `run` that call `TickLibrary`, `ActionLibrary` or `TrapLibrary`, and those that meet a goblin, a trap, a
+companion, a regeneration or a `MOVEMENT` effect. One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every
+value its Cairo `Serde` (as `segment.jsonl`).
+
+**Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`types::tick::Content`): the unit-test
+fixture's (`Fixture::content`), skill 8 instant (activation 0), and skill 9, an enchantment whose first entry is
+`MOVEMENT` (FX-18). Every other row loads its words through it.
+
+**`case`**, in order: the `Words` (`clock`, the members' `MemberWords`, the goblins' `GoblinWords`, `killed`,
+`defeated`), the `Area`, the `level` (1), the `ground` (`Array<(u8, Features)>`: the chunk objects and `touched`
+bits the call starts with), `owed`, `weight`, the actions (`Attack(e)` is `3, e`, `Skill((slot, target))` `4, slot,
+t, v` with `t` 0 an entity, 1 a tile, `Item((slot, e))` `5, slot, e`; the others as `segment.jsonl`), then **the
+calls**: the span of the class calls `run` made, in order (`recorder::Call`):
+- `0, digest, Words, ground`: `TickLibrary::ticks`, what it returned;
+- `1, digest, Words, ground, Result<u8, Illegal>`: `ActionLibrary::act` (`Ok` is `0, ticks`, `Err` `1, i`);
+- `2, digest, Words, ground, triggered`: `TrapLibrary::trigger`.
+
+`digest` is the Poseidon hash of the call's inputs as `Serde` felts, the content and the class hashes left out (the
+table's environment): `words, board, level, ground, n` for `ticks`; `words, board, ground, action` for `act`; `words,
+board, ground, entrant, position, level` for `trigger`. `board` is `executor::Board` (`window`, `x`, `y`).
+
+**`ok`**: the `Words` after, the `ground` after, then `Done` (as `segment.jsonl`; `illegal` adds 10 Target and 11 Reach).
+
+**Replaying a row.** The mirror runs `run` on the case's words and, where `run` calls a class, takes the next call
+of the span instead: it checks the kind and the digest of the inputs it computes, then loads the recorded
+`Words` and `ground` as `run` loads the class's (`SegmentTrait::reload`; `trap` writes back the members, and the
+placer goblin of a placed trap). This is sound for `run`'s own logic: the classes are pure functions of their
+inputs and the content, so a recorded result stands for the call whenever the mirror's inputs hash to the recorded
+digest; a mirror that reaches a different call, or none, or calls with other inputs, differs from `run`, and the
+row says so. It does not check the classes themselves (the ephemeral tests and `hit.jsonl` do): a mirror replaying
+these rows needs no `ActionLibrary` or `TickLibrary` of its own. No branch needed a stub. A replay is sound only when
+the mirror computes each call's inputs and checks them against the digest: a mirror that takes the recorded results
+without that check can pass a row while calling the classes with other inputs (row 43 is one such case).
+
+The classes are the real ones (`ExecutorLibrary`, `AiLibrary`, `TickLibrary`, `ActionLibrary`, `TrapLibrary`)
+behind test recorders (`types/play/tests/recorder.cairo`) that forward each call and log the segment's own:
+`TickLibrary`'s nested calls to the trap class are not in the span. The adventurer is the unit-test fixture's
+member (two potions 101 in belt slot 1) on (22, 22) of chunk 16 of the 3 × 3 location of `segment.jsonl`, every
+chunk revealed, at clock 40, unless a row says otherwise; goblin 264 is chunk 16's first (`8 + 16 chunk + k`), the
+fixture's Hob (Engaged, awake, health 100).
+
+**Three behaviours of `run` a mirror reproduces** (track CV's replay, D-255):
+- A refused combat action (`Illegal` or `Heavy`) restores the words but keeps the ground `ActionLibrary` returned
+  (`play.cairo`, `SegmentTrait::combat`: `rules.ground = ground` before the result is read). For `Illegal` this is
+  the ground it was given: every refusal of `ActionTrait::act` comes before its first `carry`, the only step that
+  changes the ground. For `Heavy` the action has already resolved, so a ground it changed (a trap placed by an
+  instant trap skill) is kept. That is a defect, not a rule to rely on: D-259 (FIX-01) makes a `Heavy` refusal leave
+  the ground as it was; no row here reaches it.
+- The fast path's ticks (`TickTrait::idle`) regenerate the members as a tick's step does in `TickLibrary`
+  (`MemberTrait::regenerate`): health, energy up to its max, and adrenaline decaying (not engaged), not only health.
+- The trap call carries the clock, the members and the placer goblin, with `killed` empty and `defeated` false
+  whatever the world holds: the trap reads neither, and `run` reads back only the members and the placer goblin
+  (a defeat is found by the next tick's step 5). The digest of a `trigger` call is over those words; row 43 holds
+  it with a goblin in the world's `killed`.
+
+**Not reached:** `LayoutTrait::neighbor` → `None` (a Move off the window's edge). The window is assembled around the
+adventurer after every Move that does not end the segment, and nothing else moves it, so a Move always starts at
+the window's centre (`movement.jsonl`'s `origin`: position 112 or 127), and every neighbour of the centre exists:
+hexx 0.2.0's `AssemblyTrait::origin` (`src/board/assembly.cairo`) puts the origin at `(x − 7, y − 7)` on an odd row
+and `(x − 7, y − 8)` on an even one, Euclidean. Held by tests in `contracts/logic/src/types/play.cairo` (D-255),
+on a 15 × 15-chunk location, every chunk revealed and walkable:
+- `types::play::tests::test_board_centred_0` to `_11`: on every tile of four chunks, the board puts the adventurer on
+  112 or 127 with its six neighbours in the window. The chunks: 16 (every residue of `x` and `y` modulo 15), 31
+  (each residue of `y` on the other row parity), 0 (`x` or `y` below 7, the origin negative, D-134), and 224 (the
+  location's last chunk); three tests a chunk, five rows each;
+- `types::play::tests::test_move_keeps_board_centred_0` to `_3`: through `run`, walks of 1 to 6 Moves in each
+  direction, none ending the segment, from (22, 22), (22, 37), (7, 7) and (217, 217) (chunks 16, 31, 0, 224): after
+  each, the segment's board is centred on the adventurer.
+
+The mirror keeps refusing it.
+
+The cases (44):
+
+| `fn` | ids | what |
+|---|---|---|
+| `content` (1) | 0 | the table's content |
+| `combat` (11) | 1–11 | the `_` arm, goblin 264 beside the adventurer, then a Wait: an Attack out of reach (1, `Reach`, the words kept), a spell on the goblin (2), Cinder Ring on itself (3, 2 ticks), a potion (4), an Attack on no entity (5, `Target`), an instant spell (6, 0 ticks charged 1); `Heavy` (`heavy`, the words kept): 0 ticks with no weight left (7), 2 ticks with 1 left (8), the potion with none (9); alone, a spell (10: the member activating, its ticks through `TickLibrary`) and a potion (11: its ticks on the fast path) after a Wait |
+| `ticks` (4) | 12–15 | `Self::ticks` through `TickLibrary`: two Waits beside goblin 264 (12); 2 owed ticks, no action (13); a goblin awake outside the window, so not calm (14); an asleep one there, calm: the fast path, no call (15) |
+| `fits` (7) | 16–22 | the goblin records of a Wait beside goblin 264 with no record (`touched` bit clear, E-1: 1 more): `ran` and the weight 1, refused (16, `undo`); weight 2, taken (17, 0 left); the invocation's first action, unbound (18); with a record, taken (19); held by an earlier segment, nothing added (20); E-16's 17th record refused (21, `undo`); the untouched one engaged (22): goblin 248 asleep beside the adventurer notices it and engages its pack, 249, outside the window and not awake, changes only its AI state (1 to 3) and is not counted (`changed` holds 248 alone) |
+| `defeated` (3) | 23–25 | `world.defeated` breaks the loop: the adventurer at 0 health, defeated by the owed tick before the first action (23, `played` 0, no `illegal`); at 1 health with Bleeding, Poison and Burning, on the first Wait's tick, on the fast path (24) and through `TickLibrary` (25) |
+| `trap` (4) | 26–28, 43 | a Move West onto local (6, 7) of chunk 16, then a Wait: a terrain trap (26, `param` skill 2), a used one (27, no call), a placed trap of goblin 264, outside the window (28: its words go with the call); appended, 43: the terrain trap with goblin 265 dead and in the world's `killed`, the call's `killed` empty |
+| `occupied` (2) | 29–30 | a Wait, then a Move West onto goblin 264: `Blocked` from `TrapTrait::occupied` (29); dead, it does not block (30) |
+| `companions` (3) | 31–33 | a second member on (23, 22) blocks a Move East (31); down, it does not (32); on (25, 22), at 300 health with health regeneration, it regenerates on the fast path with an owed tick and two Waits (33) |
+| `regeneration` (3) | 34–36 | an owed tick, a Wait, a Move and a Wait on the fast path: health regeneration under the max (34), at it (35), Bleeding to tick 42 (36) |
+| `movement` (2) | 37–38 | Crippled to 100, two Moves West: with skill 9's `MOVEMENT` held to 100 each takes 1 tick (37); held to 40, ended at clock 40, 2 (38) |
+| `turn` (2) | 39–40 | CV: Turn, Wait, Turn: the Wait's tick clears the turned flag, the second Turn is legal, `flags` 1 after it (39); a third Turn after it is `Turned` (40) |
+| `follow` (2) | 41–42 | CV: the window follows each Move that reveals nothing: seven Moves West from (22, 22), the seventh onto (15, 22), on the first window's ring (never open in it), then a Wait (41); from (29, 22), the eighth Move West is `Blocked` by a wall on (21, 22), outside the first window (42) |
+
+Per `fn`: `content` 1, `combat` 11, `ticks` 4, `fits` 7, `defeated` 3, `trap` 4, `occupied` 2, `companions` 3,
+`regeneration` 3, `movement` 2, `turn` 2, `follow` 2.
 
 ## `hit.jsonl`: one hit (CBT-03a)
 
