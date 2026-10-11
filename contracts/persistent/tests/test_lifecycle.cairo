@@ -432,8 +432,7 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
 
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 41194489)] // ceil(1.05 × 39232846 measured)
 fn test_start_hub_from_the_registry() {
     let world = setup_with_town(OUTPOST);
@@ -447,8 +446,7 @@ fn test_start_hub_from_the_registry() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 43298017)] // ceil(1.05 × 41236206 measured)
 fn test_start_hub_refusals() {
     // No region 1 in the registry.
@@ -477,8 +475,7 @@ fn test_start_hub_refusals() {
 // level 1, a Vanguard's 20 energy, 2 pips, armor 80), the owner as controller, no task yet (E-14);
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 55178378)] // ceil(1.05 × 52550836 measured)
 fn test_enter() {
     let world = setup();
@@ -522,8 +519,7 @@ fn test_enter() {
 // The belt's reserve, the worst case (ENG-01 §6, §9.3): four items on four pages, each lane
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 52371886)] // ceil(1.05 × 49877986 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
@@ -560,8 +556,7 @@ fn test_enter_reserves_the_belt() {
 // Two slots of the same item are one debit of their sum (ENG-01 §6); a lane left non-zero keeps
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 48370126)] // ceil(1.05 × 46066786 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
@@ -578,8 +573,7 @@ fn test_enter_one_debit_per_item() {
 }
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 62223238)] // ceil(1.05 × 59260226 measured)
 fn test_enter_refusals() {
     let world = setup();
@@ -619,8 +613,7 @@ fn test_enter_refusals() {
 // CBT-08a: the belt `set_build` stores is the one `enter` reserves; the bar and the elite slot
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 63217570)] // ceil(1.05 × 60207209 measured)
 fn test_enter_after_set_build() {
     let world = setup();
@@ -690,8 +683,7 @@ const EMPTY_BUILD: felt252 = NEW_BUILD - LIVE;
 // CBT-02e (D-168 2): `enter` refuses an adventurer whose snapshot `set_build` never stored,
 // changing nothing; after `set_build`, it enters.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 50504968)] // ceil(1.05 × 48099969 measured)
 fn test_enter_refuses_a_missing_snapshot() {
     let world = setup();
@@ -715,8 +707,7 @@ fn test_enter_refuses_a_missing_snapshot() {
 // (GLD-01's, written here with `store`), and the stale mark (what the entrypoints of the report's
 // staleness table write). The snapshot finally copied is the level-2 one.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 61223619)] // ceil(1.05 × 58308208 measured)
 fn test_enter_refuses_a_stale_snapshot() {
     let world = setup();
@@ -797,8 +788,7 @@ fn rules_of(world: World) -> felt252 {
 // the stored snapshot, and `set_build` clears it. The records were new before the first
 // `set_build`.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 66634741)] // ceil(1.05 × 63461658 measured)
 fn test_enter_refuses_after_an_input_rewritten() {
     let world = setup();
@@ -826,8 +816,7 @@ fn test_enter_refuses_after_an_input_rewritten() {
 // location), and new ids of the kinds it reads, stale nothing: `enter` copies the snapshot
 // `set_build` stored before them, without a second `set_build`.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 61826801)] // ceil(1.05 × 58882667 measured)
 fn test_enter_after_other_records_changed() {
     let world = setup();
@@ -852,8 +841,7 @@ fn test_enter_after_other_records_changed() {
 // the stored snapshot; setting the class back raises it again (still stale); `set_build` under the
 // class clears it; the same class set again raises nothing and stales nothing.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 55236723)] // ceil(1.05 × 52606402 measured)
 fn test_enter_refuses_after_a_new_rules_class() {
     let world = setup();
@@ -882,8 +870,7 @@ fn test_enter_refuses_after_a_new_rules_class() {
 // D-169 (AC-2): the rules epoch's wrap. At 511, the highest of its 9 bits, a new class takes it
 // to 0, and a snapshot flattened at 511 is stale under 0; `set_build` clears it.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 53339089)] // ceil(1.05 × 50799132 measured)
 fn test_enter_after_the_rules_epoch_wraps() {
     let world = setup();
@@ -918,8 +905,7 @@ fn set_registry(world: World, registry: ContractAddress) {
 // the original one); the same registry and class set again raise nothing, and after `set_build`
 // the adventurer enters.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 54649311)] // ceil(1.05 × 52046962 measured)
 fn test_enter_refuses_after_a_new_registry() {
     let world = setup();
@@ -969,8 +955,7 @@ fn test_rules_epoch_full_cycle_reads_fresh() {
 // ---- travel -------------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 50261750)] // ceil(1.05 × 47868333 measured)
 fn test_travel() {
     let world = setup();
@@ -1038,8 +1023,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // Returned through a hub gate: the hub reached and unlocked, the belt's unused counts back in the
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 53069442)] // ceil(1.05 × 50542325 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
@@ -1081,8 +1065,7 @@ fn test_report_returned_through_a_hub_gate() {
 // Travel back and defeat: `hub` 0 is the last hub (D-04); on defeat the belt comes back as on
 // return (D-141, E-15).
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 54448668)] // ceil(1.05 × 51855874 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
@@ -1116,8 +1099,7 @@ fn test_report_to_the_last_hub() {
 // Through a gate to a location: still inside, in the next instance; nothing credited (the reserve
 // carries). Writes: `place`.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 53379050)] // ceil(1.05 × 50837190 measured)
 fn test_report_moved() {
     let world = setup();
@@ -1150,8 +1132,7 @@ fn test_report_moved() {
 // What the models hold today is applied: experience to every contributor, gold and balances to the
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 52444054)] // ceil(1.05 × 49946718 measured)
 fn test_report_open() {
     let world = setup();
@@ -1188,8 +1169,7 @@ fn test_report_open() {
 
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
-// gas: raised, BND-01: the zone checks' class set before the first gate or quotas, the gates
-// indexed
+// gas: raised, BND-01: the zone checks' class set, the gates indexed
 #[available_gas(l2_gas: 53041163)] // ceil(1.05 × 50515393 measured)
 fn test_report_refusals() {
     let world = setup();

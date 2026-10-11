@@ -128,6 +128,16 @@
    "mutation": "the dungeon floor gate 3 enters at chunk 112, (7, 7), made 7 × 7"
   },
   {
+   "case": "gate_entry_chunk",
+   "id": "R-43",
+   "code": "gate: entry chunk",
+   "checked_at": "GATE",
+   "reads": "GATE (its own chunks and tiles)",
+   "rule": "A gate's anchor and entry chunks and tiles are below 225 (D-258, BND-01), whatever its destination: R-41 reads the entry only against a destination with a map",
+   "mutation": "a gate whose entry chunk is 225",
+   "converter": "The converter writes authored zones only and cannot produce the record: GateRecord::pack refuses an entry chunk of 225 or more before any felt exists"
+  },
+  {
    "case": "pack_fewest_zero",
    "id": "R-42",
    "code": "pack: fewest is 0",

@@ -1312,21 +1312,39 @@ fn gate_entering_chunk(destination: u16, entry: u8) -> Span<felt252> {
     array![raw].span()
 }
 
-// R-41 at the board's edge (review t-0150 note 2): into a map destination, the entry chunk 225, the
-// first past the board, and 255, the last a byte holds, are outside its rectangle, a full 15 × 15
-// one included; 224, the last chunk, is inside.
+// R-43 (BND-01, D-258) and R-41 at the board's edge (review t-0150 note 2): an entry chunk of 225,
+// the first past the board, or 255, the last a byte holds, is refused whatever the destination (a
+// map, a hub, a location not yet written: R-41 alone reads only the first); 224, the last chunk,
+// is accepted.
 #[test]
-#[available_gas(l2_gas: 18583761)] // ceil(1.05 × 17698820 measured)
+#[available_gas(l2_gas: 40000000)]
 fn test_gate_entry_past_the_board() {
     let r = ZoneFixture::bare();
     r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 15, 15, 6).pack());
     r.admin.set_record(GATE, 1, gate_entering_chunk(2, 224));
-    r.refused(GATE, 2, gate_entering_chunk(2, 225), 'gate: entry outside rectangle');
-    r.refused(GATE, 2, gate_entering_chunk(2, 255), 'gate: entry outside rectangle');
+    // The town (1) is a hub; location 9 is not written
+    r.admin.set_record(GATE, 2, gate_entering_chunk(1, 224));
+    r.admin.set_record(GATE, 3, gate_entering_chunk(9, 224));
+    for destination in array![1_u16, 2, 9] {
+        r.refused(GATE, 4, gate_entering_chunk(destination, 225), 'gate: entry chunk');
+        r.refused(GATE, 4, gate_entering_chunk(destination, 255), 'gate: entry chunk');
+    }
     let small = plain(location_kind::DUNGEON, 8, 8, 6);
     r.admin.set_record(LOCATION, 3, small.pack());
-    r.refused(GATE, 2, gate_entering_chunk(3, 225), 'gate: entry outside rectangle');
-    r.refused(GATE, 2, gate_entering_chunk(3, 255), 'gate: entry outside rectangle');
+    r.refused(GATE, 4, gate_entering_chunk(3, 225), 'gate: entry chunk');
+    r.refused(GATE, 4, gate_entering_chunk(3, 255), 'gate: entry chunk');
+    // R-41 still reads a chunk on the board outside the rectangle
+    r.refused(GATE, 4, gate_entering_chunk(3, 224), 'gate: entry outside rectangle');
+}
+
+// R-43 as a case of the table: the Registry's alone (the converter's `GateRecord::pack` refuses
+// it).
+#[test]
+#[available_gas(l2_gas: 18000000)]
+#[should_panic(expected: 'gate: entry chunk')]
+fn test_refuse_gate_entry_chunk() {
+    let r = ZoneFixture::bare();
+    r.refuse(GATE, 1, gate_entering_chunk(1, 225));
 }
 
 /// A registry with no zone checks yet: the town only, as `bare` less its class and its packs.

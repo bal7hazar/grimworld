@@ -638,12 +638,16 @@ pub mod ZoneChecks {
             bridge.assert_clear(self.anchors(location, chunk, (g0, g1)));
         }
 
-        /// A `GATE` write: R-41, its entry within its destination's rectangle when the
-        /// destination exists and has a map (a later `LOCATION` write checks it the other way,
-        /// `gate_entries`); anchored in a chunk that holds a `ZONE_CHUNK`, R-18 (the anchor
-        /// walkable), R-25 (the chunk names the gate) and R-37 (not on a bridge).
+        /// A `GATE` write: R-43, its chunks and tiles on the board; R-41, its entry within its
+        /// destination's rectangle when the destination exists and has a map (a later `LOCATION`
+        /// write checks it the other way, `gate_entries`); anchored in a chunk that holds a
+        /// `ZONE_CHUNK`, R-18 (the anchor walkable), R-25 (the chunk names the gate) and R-37 (not
+        /// on a bridge).
         fn assert_gate(self: @ContractState, id: u32, record: Span<felt252>) {
             let gate = GateRecord::unpack(record);
+            // R-43 (BND-01): the record's own bounds, whatever the destination (R-41 reads the
+            // entry only against a destination with a map); `unpack` does not check them
+            gate.assert_valid();
             let destination = self.frame(gate.destination.into());
             if destination.map {
                 gate.assert_entry(destination.width, destination.height);

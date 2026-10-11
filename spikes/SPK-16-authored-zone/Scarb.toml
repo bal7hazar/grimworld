@@ -21,7 +21,10 @@ assert_macros = "2.20"
 sierra = true
 casm = true
 # The tests declare `Registry` to measure a record's write and read (ENG-08 deliverable 3).
-build-external-contracts = ["grimworld_persistent::systems::registry::Registry"]
+build-external-contracts = [
+    "grimworld_persistent::systems::registry::Registry",
+    "grimworld_persistent::systems::zone::ZoneChecks",
+]
 
 [lib]
 
