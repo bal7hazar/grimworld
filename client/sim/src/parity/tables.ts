@@ -89,6 +89,7 @@ import {
   readFeatures,
   readGround,
   readWords,
+  type Ground,
   writeContent,
   writeDone,
   writeGround,
@@ -419,10 +420,41 @@ function content(): Content {
   return content2;
 }
 
+/** The `trigger` calls of `segment2.jsonl` the port computed, each equal to its recording. */
+export const native = { triggers: 0 };
+
+const callFelts = (out: { words: Words; ground: Ground; triggered: boolean }): bigint[] => [
+  ...writeWords(out.words),
+  ...writeGround(out.ground),
+  ...bool(out.triggered),
+];
+
+/**
+ * The replayed classes with `trigger` computed by the port (`trap.ts`'s `triggerClass`): the
+ * replayer still takes the recorded call (its kind, its digest, its place in the span), and the
+ * port's result must equal it, words, ground and `triggered`; the port's is what `run` loads.
+ */
+function computed(replayed: ReturnType<typeof replayer>): ReturnType<typeof replayer> {
+  return {
+    ...replayed,
+    trigger(call) {
+      const recorded = callFelts(replayed.trigger(call));
+      const out = triggerClass(call);
+      const got = callFelts(out);
+      if (got.length !== recorded.length || got.some((felt, i) => felt !== recorded[i])) {
+        throw new Error(`trigger computed ${got}, recorded ${recorded}`);
+      }
+      native.triggers += 1;
+      return out;
+    },
+  };
+}
+
 /**
  * A `segment2` row: `run` on the case's words, area, level, ground, `owed`, `weight` and actions,
  * the classes replayed from the calls the row recorded (test scaffolding); the words, the ground
- * and `Done` after it.
+ * and `Done` after it. `TrapLibrary::trigger` is computed by the port (`computed`); `ticks` and `act`
+ * stay replayed (lots E and F).
  */
 const segment2Row: Mirror = (c) => {
   const read = new Felts(c);
@@ -434,7 +466,7 @@ const segment2Row: Mirror = (c) => {
   const actions = read.span(() => readAction(read));
   const calls = read.span(() => readCall(read));
   read.end();
-  const classes = replayer(calls);
+  const classes = computed(replayer(calls));
   const out = runSegment(
     { words, content: content(), area, level, ground, owed, weight, actions },
     classes,

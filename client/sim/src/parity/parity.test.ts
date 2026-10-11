@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { Felts, readAction, readArea, readCall, readGround, readWords } from "../segment/serde";
 import { replay } from "./replay";
 import { readTable } from "./table";
-import { TABLES } from "./tables";
+import { TABLES, native } from "./tables";
 
 const table = (file: string) => TABLES.find((entry) => entry.file === file)!;
 
@@ -130,6 +131,29 @@ describe("parity with the Cairo code", () => {
   it("covers every fn of trap.jsonl with its count", () => {
     const counts = replay(table("trap.jsonl"), readTable("trap.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({ content: 1, trigger: 52, free: 10 });
+  });
+
+  it("computes segment2.jsonl's trap calls natively, each equal to its recording", () => {
+    // The rows that record a `TrapLibrary::trigger` call, from their spans of calls
+    const vectors = readTable("segment2.jsonl");
+    const recorded = vectors.flatMap((vector) => {
+      if (vector.fn === "content") return [];
+      const read = new Felts(vector.case);
+      readWords(read);
+      readArea(read);
+      read.u8();
+      readGround(read);
+      read.u8();
+      read.u8();
+      read.span(() => readAction(read));
+      const calls = read.span(() => readCall(read));
+      read.end();
+      return calls.filter((call) => call.kind === "trigger").map(() => vector.id);
+    });
+    expect(recorded).toEqual([26, 28, 43]);
+    const before = native.triggers;
+    replay(table("segment2.jsonl"), vectors);
+    expect(native.triggers - before).toBe(recorded.length);
   });
 
   it("covers every fn of packing.jsonl with its count", () => {

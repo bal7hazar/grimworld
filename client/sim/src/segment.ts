@@ -63,6 +63,7 @@ import {
   u32add,
 } from "./segment/words";
 import { KEPT, can_act, flag, regenerate } from "./segment/tick";
+import { locate, occupied } from "./trap";
 import { type World, world as reload, words as stored } from "./segment/world";
 import { FAR, HEIGHT, WIDTH, neighbor, shape, shapes } from "./window";
 
@@ -274,19 +275,6 @@ function placer(param: number): number | undefined {
   return param >= 0x8000 ? ((param - 0x8000) % 0x1000) + FIRST_GOBLIN : undefined;
 }
 
-/** `TrapTrait::locate`: the chunk and its tile of the window's `position`. */
-function locate(on: Board, at: number): [number, number] | undefined {
-  if (at >= FAR || at >= 240) return undefined;
-  const [dy, dx] = [Math.floor(at / 15), at % 15];
-  const [x, y] = [on.x + dx, on.y + dy];
-  if (x < ORIGIN || y < ORIGIN) return undefined;
-  const [cy, ly] = [Math.floor((y - ORIGIN) / 15), (y - ORIGIN) % 15];
-  const [cx, lx] = [Math.floor((x - ORIGIN) / 15), (x - ORIGIN) % 15];
-  const c = cy * 15 + cx;
-  if (c >= 225 || cx >= 15) return undefined;
-  return [c, ly * 15 + lx];
-}
-
 /**
  * `AiTrait::armed`: the unused trap (a terrain one, kind 4, or a placed one, 9) on the window's
  * `position` in the ground: `null` for a terrain trap, its placer's param for a placed one.
@@ -341,18 +329,6 @@ function trap(world: World, rules: Rules, at: number): void {
       world.goblins[index] = loadGoblin(goblin, rules.sheets);
     }
   }
-}
-
-/** `TrapTrait::occupied`: a living member or goblin on the window's `position`. */
-function occupied(world: World, on: Board, at: number): boolean {
-  for (const member of world.members) {
-    const { x, y } = place(member);
-    if (is_alive(member) && position(on, x, y) === at) return true;
-  }
-  return alive(world).some((goblin) => {
-    const { x, y } = goblinPlace(goblin);
-    return position(on, x, y) === at;
-  });
 }
 
 /** `SegmentTrait::movement`: whether the member holds a `MOVEMENT` effect at clock `c` (FX-18). */
