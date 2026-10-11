@@ -1249,6 +1249,70 @@ fn test_act_vectors_9() {
     finish(digest, ACT_DIGEST_9);
 }
 
+/// Goblin 8 East of the member, facing `facing` (0: the member in its front arc; 3: behind it),
+/// holding Brace (`BLOCK`) with `charges` to 300.
+fn bracing(facing: u8, charges: u8) -> Goblin {
+    let mut g = goblin(8, AT + 1, facing, 100);
+    GoblinWordsTrait::set_effect(
+        ref g, Held { carrier: BRACE, potion: false, charges, deadline: 300, rank: 12 }, 0,
+    );
+    g
+}
+
+// The struck target (track CV's trap port, #444): a blocked weapon hit spends a charge; a target
+// knocked down or asleep does not block; the block's cap at 63.
+#[test]
+#[available_gas(l2_gas: 395141493)] // ceil(1.05 × 376325231 measured)
+fn test_act_vectors_10() {
+    let t = table();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = ACT_PART_10;
+    // The sword on goblin 8 holding Brace, the member in its front arc: blocked, 2 charges to 1, 1
+    // to 0 (the effect ends, `D = t₀ − 1`); the member behind it: landed, the charges kept; the
+    // attack skill, blocked the same.
+    for (facing, charges) in array![(0_u8, 2_u8), (0, 1), (3, 2)] {
+        plain(
+            ref digest,
+            ref id,
+            @t,
+            alone(CLOCK, hero(@t, array![]), array![bracing(facing, charges)]),
+            Action::Attack(8),
+        );
+    }
+    let mut m = hero(@t, array![RAGE]);
+    m.adrenaline = 8;
+    plain(ref digest, ref id, @t, alone(CLOCK, m, array![bracing(0, 2)]), skill_on(0, 8));
+    // Knocked down to `t₀ = c + 1` (held: not blocked, critical), to `c` (lapsed: blocked).
+    for knocked in array![CLOCK + 1, CLOCK] {
+        let mut g = bracing(0, 2);
+        g.knocked = knocked;
+        plain(
+            ref digest, ref id, @t, alone(CLOCK, hero(@t, array![]), array![g]), Action::Attack(8),
+        );
+    }
+    // Asleep (not blocked: its first hit, D-179); on watch (blocked).
+    for (mind, awake) in array![(ai::ASLEEP, false), (ai::WATCH, false)] {
+        let mut g = bracing(0, 2);
+        g.ai = mind;
+        g.awake = awake;
+        plain(
+            ref digest, ref id, @t, alone(CLOCK, hero(@t, array![]), array![g]), Action::Attack(8),
+        );
+    }
+    // The cap (`MAX_BLOCK`, 63): 63 charges (on it: blocked, to 62), 62 (below: to 61). A goblin
+    // holds at most 63 (`GoblinWords` 240–245) and `act` strikes only goblins: no row above it.
+    for charges in array![63_u8, 62] {
+        plain(
+            ref digest,
+            ref id,
+            @t,
+            alone(CLOCK, hero(@t, array![]), array![bracing(0, charges)]),
+            Action::Attack(8),
+        );
+    }
+    finish(digest, ACT_DIGEST_10);
+}
+
 /// The first id of each part, and each part's digest.
 const ACT_PART_1: u32 = 27;
 const ACT_PART_2: u32 = 43;
@@ -1259,6 +1323,7 @@ const ACT_PART_6: u32 = 128;
 const ACT_PART_7: u32 = 144;
 const ACT_PART_8: u32 = 158;
 const ACT_PART_9: u32 = 177;
+const ACT_PART_10: u32 = 205;
 const ACT_DIGEST_0: felt252 =
     1030940271732062604804669110503688872228708044099169595645925593071242230283;
 const ACT_DIGEST_1: felt252 =
@@ -1279,3 +1344,5 @@ const ACT_DIGEST_8: felt252 =
     125427638892877233255178533104061449391953775311725324253266212463024105458;
 const ACT_DIGEST_9: felt252 =
     2720915314688875214492673004805861766276897858278301462922432372461233942929;
+const ACT_DIGEST_10: felt252 =
+    2161744668382002736604283308408713117091980477643056135990864466526928679814;

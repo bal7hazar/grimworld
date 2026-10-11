@@ -94,6 +94,7 @@ TABLES = {
         "grimworld_logic::types::action::tests::vectors::test_act_vectors_7",
         "grimworld_logic::types::action::tests::vectors::test_act_vectors_8",
         "grimworld_logic::types::action::tests::vectors::test_act_vectors_9",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_10",
     ],
 }
 

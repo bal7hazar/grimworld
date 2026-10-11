@@ -530,8 +530,8 @@ The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `rev
 
 ## `act.jsonl`: the adventurer's action, `ActionTrait::act` (RV-03b, D-257)
 
-Printed by `types::action::tests::vectors::test_act_vectors_0` to `_9` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
-107–127, 128–143, 144–157, 158–176, 177–204), split for snforge's step limit, each part with its digest. Where
+Printed by `types::action::tests::vectors::test_act_vectors_0` to `_10` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
+107–127, 128–143, 144–157, 158–176, 177–204, 205–214), split for snforge's step limit, each part with its digest. Where
 `segment2.jsonl` records the action class's result for a replay, this table tests a port of the class itself: each
 `act` row is one call of `ActionLibrary::act` (the real class, declared in the test), which loads the words through
 the content, runs `ActionTrait::act` for member 0 with `Delegate` rules whose carrier runs through the real
@@ -596,8 +596,9 @@ executor tests' member.
 | `act`, Item (14) | 144–157 | the bomb (belt slot 0, `TILE`, range 6, `DISC_1`): count 1 (to 0, both goblins on the disc hit, the member turned toward the tile), 2 (to 1), 0 (`Belt`); a tile at 6 (legal), at 7 and behind a wall (`Reach`) (144–149); belt slot 3, item 103, which the content lacks: count 1 and 0 (`Empty` first); slot 0's item 0 (the potion of id 0 not taken): `Empty` (150–152); the draught (slot 1, `SELF`): healed 25, the facing kept, any address (153); the dart (slot 2, `FOE`, range 4): a goblin at 4 (legal), at 5 (`Reach`), the member (`Target`), a tile's value read as an entity (`Target`) (154–157) |
 | `defence` (19) | 158–176 | a member: none held; its armor (`MemberBar` 232–247, −7) and guarded sums (`MemberKit` 184–191 in a stance 4, 192–199 enchanted −3); the shield (`ARMOR` 30, an enchantment) to `t` (held) and `t − 1` (lapsed); in two slots (summed); a potion held (neither stance nor enchanted); each `ARMOR` clamped to 0…255: the rust (−20: 0, a hex: neither stance nor enchanted), the bulwark (300: 255), both with the shield (285); Brace (`BLOCK`, a stance) with 2 charges in slot 2; 0 charges in slot 1 and 3 in slot 3 (the first with charges); 1 in slot 0 and 3 in slot 2 (the lowest slot); Sidestep (`EVADE`) (158–170). A goblin (its caste's armor 40): none; the shield to `t`, to `t − 1`; the rust (0); Brace; Sidestep (171–176) |
 | `offence` (28) | 177–204 | the member's sword, a plain weapon hit (scope 0): bonus 0, 5, 255; its requirement not met (`MemberStats` 176); a range of 3 (not melee); `LIFE_STEAL_ON_HIT` 3 and `ENERGY_ON_HIT` 2 (`MemberKit` 128, 136) (177–182); the passives (`MemberBar` 136, 160, 184 for scope 0: +10, −5, 3; 144, 168, 192 for 1: 20, 6, 4; 152, 176, 200 for 2: −30, 7, 5) and the call's penetration 7: a plain weapon hit, an attack skill (`Weapon`, scope 1), the fire entry (40 to 70) as a spell at ranks 0, 6, 12 (level 20: strength 60), a bomb (`Item`, scope 3: the potion's strength 30, no passives), a trap (`Trap`, scope 3), a cold entry of −20 (its base clamped to 0) (183–190); the edge (`PENETRATION` 20, `WEAPON`) and the focus (150 clamped to 100, `SPELL`) held to `t`: scopes 0, 1, 2, 3 (191–194); to `t − 1`: none (195–198); a goblin (a Hob of caste rank 12, a sword of 30, range 1, slashing, level 10): its weapon hit at bonus 0 and 5, a spell, a trap; holding the edge: its weapon hit, a spell (199–204) |
+| `act`, the struck target (10) | 205–214 | appended for track CV's trap port (#444): the sword on goblin 8 holding Brace (`BLOCK`), the member in its front arc (facing 0): blocked, 2 charges to 1, 1 to 0 (the effect ends) (205, 206); the member behind it (facing 3): landed, the charges kept (207); the attack skill: blocked, a charge spent (208); knocked down to `t₀ = c + 1` (held: landed, not blocked) and to `c` (lapsed: blocked) (209, 210); asleep (its first hit neither blocked nor evaded, D-179: landed) and on watch (blocked) (211, 212); 63 charges (the cap, `MAX_BLOCK`: blocked, to 62) and 62 (to 61) (213, 214) |
 
-Per `fn`: `content` 1, `act` 157, `defence` 19, `offence` 28.
+Per `fn`: `content` 1, `act` 167, `defence` 19, `offence` 28.
 
 **The inventory** (what the earlier tables already pin of `act`). `segment2.jsonl` reaches `ActionLibrary::act` in its
 combat rows, but through `ActionRecorder`: each row records the class's result for the segment to replay, so a mirror
@@ -618,6 +619,15 @@ is not `act`'s (the segment's Move): no row gives it. `ActionTrait::aim`, `energ
 the item's `Empty`, `Belt` and `aim` before its count. `types::action::tests::test_no_carry_before_a_refusal` pins it:
 the in-class executor behind a `Carry` that counts its calls, each refusal `act` gives is refused with no carry, and
 each legal combat action carries once. In this table, every refusal's words and ground are the case's.
+
+**Track CV's surviving mutants of the trap port (#444)**, killed by `act` rows only (a trap's hit is never blocked, so
+`trap.jsonl` cannot): `ExecutorTrait::strike`'s block spend (a blocked weapon hit spends one charge of the blocking
+slot) by 205, 206, 208, 210, 212, 213 and 214 (the charges before and after, and 206's effect ended); a knocked-down
+target (`Struck.knocked`, read at `t₀`) by 209 against 210; a sleeping target (`Struck.asleep`) by 211 against 212; the
+block's cap at 63 (`resolve`'s `defence.block > MAX_BLOCK`) by 213 (on the bound: 63, blocked) and 214 (below it: 62).
+Above the bound no `act` row can go: `act` strikes goblins only (a weapon's or an attack skill's foe), and a goblin's
+charges are 6 bits (`GoblinWords` 240–245), at most 63; a member's (7 bits) can pass 63, but only a goblin's hit
+strikes a member (RV-03c's ticks).
 
 **How the rows are sized for mutants** (as `hit.jsonl`): for every comparison, a row on each side of its bound (the
 clock at `LAST_TICK` and past it; knocked down to `c` and `c + 1`; `R` at `c` and `c + 1`; adrenaline at 4 × cost − 1
