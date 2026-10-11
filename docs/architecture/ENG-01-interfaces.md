@@ -1213,13 +1213,17 @@ goblin is **derived** (untouched, at its spawn, from its pack placement) or stor
 goblins a batch would load first, built by `play`'s own code (D-263 condition 1): `Instances` calls
 `PlayLibrary.goblins` by `library_call`, which runs `PlayTrait::window`, the same `roster`, `ground`,
 `goblins` and `sorted` that `play`'s read of the goblins runs. They are the roster's (through the
-masked pages) and those of the revealed chunks of the 3 × 3 around **each** member's tile (the
-area `play` loads for that member; the union for a party), a touched one or a roster one as stored,
+masked pages) and those of the revealed chunks of the 3 × 3 around the tile of **each member
+inside** (the area `play` loads for that member; the union for a party, each chunk once; a member
+down or gone adds nothing, since no batch loads for it), a touched one or a roster one as stored,
 an untouched one derived from its pack's placement at full health in its pack's state, in
 ascending entity id, in `GoblinWords`' layout. When the registry cannot load one of them (a caste, a
 caste skill or a held effect's skill missing), where `play` refuses the batch (`Stop::Invalid`), the
 list is the one marker `UNLOADABLE` (entity 0, which no goblin has, every word 0): the view never
-reverts for it. While no `PlayLibrary` is set (before `set_play_class`), the list is empty. A
+reverts for it, nor for the registry's bound: `PlayTrait::window` runs the shared `goblins` a chunk
+at a time, then on the roster 30 goblins at a time, with one `Book` carried between the calls, so
+each `bundle` stays within `MAX_READ` (32) however many chunks a party's windows span, and `play`'s
+own path is unchanged. While no `PlayLibrary` is set (before `set_play_class`), the list is empty. A
 goblin beyond those chunks (a chunk a batch enters after its first segment) is not listed: a client
 reads the view again once the batch has landed, or, for a chunk's packs, `instance_region` (its
 `RegionChunk.goblins` stay empty, ENG-05 Open question 5). `width`, `height` and `level_min` are the

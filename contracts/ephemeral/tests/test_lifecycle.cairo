@@ -2265,19 +2265,21 @@ fn test_play_unloadable_goblin_refused() {
 
 // ---- VIEW-01 (D-263): `instance_state`'s goblins are those `play` loads ----
 
-/// What `play`'s `[Read]` of the goblins builds for the member of slot 1 (play.cairo, `play`): its
-/// roster's records, then the goblins of the revealed chunks around the member (`ground`,
-/// `goblins`), `sorted`: `play`'s own steps, run in `Instances`' storage.
-fn play_loads(world: World) -> Array<grimworld_logic::models::index::GoblinWords> {
-    snforge_std::interact_with_state(world.instances, || loads(world.registry))
+/// What `play`'s `[Read]` of the goblins builds for member `member` of slot 1 (play.cairo,
+/// `play`): its roster's records, then the goblins of the revealed chunks around the member
+/// (`ground`, `goblins`), `sorted`: `play`'s own steps, run in `Instances`' storage.
+fn play_loads(world: World, member: u32) -> Array<grimworld_logic::models::index::GoblinWords> {
+    snforge_std::interact_with_state(world.instances, || loads(world.registry, member))
 }
 
-fn loads(registry: ContractAddress) -> Array<grimworld_logic::models::index::GoblinWords> {
+fn loads(
+    registry: ContractAddress, member: u32,
+) -> Array<grimworld_logic::models::index::GoblinWords> {
     let mut state =
         grimworld_ephemeral::systems::instances::Instances::contract_state_for_testing();
     let header = state.get_header(1);
     let words = state.get_member_words(1, header.members);
-    let (x, y) = PlayTrait::place(*words[0]);
+    let (x, y) = PlayTrait::place(*words[8 * member]);
     let revealed = state.get_revealed(1).model().bits;
     let ground = PlayTrait::ground(@state, 1, revealed, x, y, array![].span());
     let roster = PlayTrait::roster(@state, 1, header.roster_count);
@@ -2305,11 +2307,18 @@ fn loads(registry: ContractAddress) -> Array<grimworld_logic::models::index::Gob
     PlayTrait::sorted(goblins.span())
 }
 
-/// The view's goblins equal `play`'s loading, word for word and in order; each stored one equals
-/// its record and is not `derived`. Returns `(derived, stored)` counts.
+/// The view's goblins equal `play`'s loading for member 0, word for word and in order; each stored
+/// one equals its record and is not `derived`. Returns `(derived, stored)` counts.
 fn assert_view_is_play(world: World, id: u64) -> (u32, u32) {
+    assert_view_is(world, id, play_loads(world, 0))
+}
+
+/// The view's goblins equal `loaded`, word for word and in order (so none twice when `loaded`
+/// ascends strictly); each stored one equals its record and is not `derived`.
+fn assert_view_is(
+    world: World, id: u64, loaded: Array<grimworld_logic::models::index::GoblinWords>,
+) -> (u32, u32) {
     let view = play(world, 'alice').instance_state(id);
-    let loaded = play_loads(world);
     assert(view.goblins.len() == loaded.len(), 'as many goblins');
     let (mut derived, mut stored) = (0_u32, 0_u32);
     let mut i = 0;
@@ -2402,6 +2411,89 @@ fn test_view_goblins_are_plays() {
     records.set(LOCATION, header_of(world, 1).location.into(), wider.pack());
     let view = play(world, 'alice').instance_state(id);
     assert(view.width == 4 && view.height == 5 && view.level_min == 2, 'width, height, level');
+}
+
+/// `one` and `two` (each ascending) merged by entity, a goblin both hold once: the same words.
+fn union(
+    one: Span<grimworld_logic::models::index::GoblinWords>,
+    two: Span<grimworld_logic::models::index::GoblinWords>,
+) -> Array<grimworld_logic::models::index::GoblinWords> {
+    let mut out = array![];
+    let (mut i, mut j) = (0, 0);
+    while i < one.len() || j < two.len() {
+        if j == two.len() || (i < one.len() && *one[i].entity < *two[j].entity) {
+            out.append(*one[i]);
+            i += 1;
+        } else if i == one.len() || *two[j].entity < *one[i].entity {
+            out.append(*two[j]);
+            j += 1;
+        } else {
+            assert(*one[i] == *two[j], 'the same goblin, the same words');
+            out.append(*one[i]);
+            i += 1;
+            j += 1;
+        }
+    }
+    out
+}
+
+/// Member 1 of slot 1: member 0's words, on the tile `(x, y)` with the status `status`; the
+/// header counts two members.
+fn second_member(world: World, x: u8, y: u8, status: u8) {
+    let mut word: felt252 = 0;
+    while word != 8 {
+        let at = key(selector!("members"), array![1, 1]) + word;
+        write(world.instances, at, read(world.instances, member_word(1, word)));
+        word += 1;
+    }
+    let at = key(selector!("members"), array![1, 1]);
+    let state: MemberState = StorePacking::unpack(read(world.instances, at));
+    write(world.instances, at, StorePacking::pack(MemberState { x, y, status, ..state }));
+    let header = Header { members: 2, ..header_of(world, 1) };
+    write(world.instances, key(selector!("headers"), array![1]), StorePacking::pack(header));
+}
+
+// Fix loop 1 (minor 1, note 2): two members whose 3 × 3 windows overlap, member 0 on chunk 16's
+// (20, 22) and member 1 on chunk 17's (35, 22): the chunks both see are read once (`held`), chunk
+// 1's calm pack listed once; the view is the union of `play`'s loading for each member alone,
+// chunk 15's pack member 0's, chunk 3's member 1's. Member 1 gone: member 0's alone (no batch loads
+// for a member not inside).
+#[test]
+#[available_gas(l2_gas: 400000000)]
+fn test_view_goblins_two_members() {
+    let world = setup();
+    play_classes(world);
+    pack_content(world);
+    let id = create(world, 7, 'alice', 1, 0);
+    prepare_walk(world);
+    put_member(world, 20, 22);
+    open_chunk(world, 3);
+    let calm = grimworld_logic::models::index::PackPlacement {
+        tile: 2 * 15 + 7, template: 1, level: 1, count: 2, offsets: 9 + 8 * 32, alert: 0,
+    };
+    for chunk in array![1_u8, 3] {
+        let features = grimworld_logic::models::index::Features {
+            packs: [calm, Default::default()], objects: [Default::default(); 3], touched: 0,
+        };
+        write(world.instances, chunk_key(1, chunk) + 1, StorePacking::pack(features));
+    }
+    second_member(world, 35, 22, INSIDE);
+    let one = play_loads(world, 0);
+    let two = play_loads(world, 1);
+    let both = union(one.span(), two.span());
+    println!("two members: {} and {} alone, {} together", one.len(), two.len(), both.len());
+    assert(one.len() == 5 && two.len() == 4 && both.len() == 7, 'an overlap');
+    let mut i = 1;
+    while i < both.len() {
+        assert(*both[i - 1].entity < *both[i].entity, 'ascending, none twice');
+        i += 1;
+    }
+    let (derived, _) = assert_view_is(world, id, both);
+    assert(derived == 7, 'the union, derived');
+
+    second_member(world, 35, 22, GONE);
+    let (derived, _) = assert_view_is(world, id, one);
+    assert(derived == 5, 'a member gone adds nothing');
 }
 
 // A goblin the registry cannot load (caste 99): `play` refuses the batch, the view answers with
