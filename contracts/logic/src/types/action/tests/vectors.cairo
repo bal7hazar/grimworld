@@ -14,6 +14,7 @@ use crate::models::goblin::{Goblin, GoblinTrait, GoblinWordsTrait};
 use crate::models::member::{Member, MemberTrait, MemberWordsTrait};
 use crate::types::combat::{HitClass, damage, skill_kind, weapon};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
+use crate::types::executor::tests::body::{emit, finish};
 use crate::types::executor::tests::{
     AT, BRACE, SHIELD, SIDESTEP, SNARE, board, entry, goblin, skill,
 };
@@ -49,43 +50,6 @@ const BULWARK: u16 = 76;
 /// The belt: slot 0 the bomb (100), slot 1 a draught (101, a heal on `SELF`), slot 2 a dart (102,
 /// 20 piercing on a foe, range 4), slot 3 item 103, which the content does not hold.
 const DART_RANGE: u8 = 4;
-
-// ---- Printing: one JSON line a row, every felt in hex, a digest a part.
-
-fn hex(felts: Span<felt252>) -> ByteArray {
-    let mut out: ByteArray = "[";
-    let mut first = true;
-    for felt in felts {
-        if !first {
-            out.append(@",");
-        }
-        first = false;
-        let wide: u256 = (*felt).into();
-        out.append(@format!("\"0x{:x}\"", wide));
-    }
-    out.append(@"]");
-    out
-}
-
-fn emit(
-    ref digest: Array<felt252>,
-    ref id: u32,
-    name: ByteArray,
-    case: Span<felt252>,
-    ok: Span<felt252>,
-) {
-    println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
-    digest.append(core::poseidon::poseidon_hash_span(case));
-    digest.append(core::poseidon::poseidon_hash_span(ok));
-    id += 1;
-}
-
-/// A part's digest, against the one its constant holds.
-fn finish(digest: Array<felt252>, expected: felt252) {
-    let digest = core::poseidon::poseidon_hash_span(digest.span());
-    println!("digest {}", digest);
-    assert(digest == expected, 'vectors moved: regenerate');
-}
 
 // ---- The table's content, its classes and its world.
 
