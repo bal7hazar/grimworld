@@ -17,7 +17,7 @@ import type { FeatureKind, MapObject, Quota, QuotaKind } from "../objects";
 import { doorOffset, footprintOffsets, isPack, recordFor } from "../pack";
 import { BRIDGE_RUNS, bridgeAt, footprintAt, kindOf } from "../palette";
 import { type ExportFile, FORMAT, type Hex, type Manifest, VERSION, ID_BITS } from "./convert";
-import { LOCATION_KINDS, Refused } from "./records";
+import { LOCATION_KINDS, Refused, assertSize } from "./records";
 import { validate } from "./schema";
 
 /**
@@ -418,12 +418,69 @@ export function isExportText(raw: unknown): boolean {
   return typeof raw === "object" && raw !== null && (raw as { format?: unknown }).format === FORMAT;
 }
 
+const SIZE_MESSAGE =
+  "The manifest's location_sizes is not a table of names to [width, height] in 1..15 (export: location size).";
+
+/** A location's size is exactly two whole numbers from 1 to 15 (E-51, as `records.py` reads it). */
+const sizeOk = (v: unknown): boolean => {
+  try {
+    assertSize("", v);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Whether a `location_sizes` number is written as a float in the manifest's text (`3.0`, `1e1`):
+ * `JSON.parse` reads those as the integers 3 and 10, where `records.py` (`json.load`) reads floats
+ * and refuses them (E-51). `JSON.parse`'s reviver `context.source` would say it, but it needs
+ * Chrome 114 / Firefox 135 / Safari 18.4 and the app sets no browser target, so the text is
+ * scanned instead: strings are skipped, and a number at depth 2 or more under the root's
+ * `location_sizes` key must be digits with an optional `-`. The text is valid JSON here.
+ */
+function sizeFloatInText(text: string): boolean {
+  let depth = 0;
+  let key = "";
+  let last = "";
+  for (let i = 0; i < text.length;) {
+    const c = text[i]!;
+    if (c === '"') {
+      let j = i + 1;
+      while (text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
+      const isKey = depth === 1 && (last === "{" || last === ",");
+      if (isKey) key = JSON.parse(text.slice(i, j + 1)) as string;
+      i = j + 1;
+      last = '"';
+    } else if (c === "{" || c === "[") {
+      depth++;
+      last = c;
+      i++;
+    } else if (c === "}" || c === "]") {
+      depth--;
+      last = c;
+      i++;
+    } else if (/[-\d]/.test(c)) {
+      let j = i;
+      while (j < text.length && /[-+\d.eE]/.test(text[j]!)) j++;
+      if (depth >= 2 && key === "location_sizes" && !/^-?\d+$/.test(text.slice(i, j))) return true;
+      i = j;
+      last = "0";
+    } else {
+      if (!/\s/.test(c)) last = c;
+      i++;
+    }
+  }
+  return false;
+}
+
 /**
  * The manifest of a file's text, or why it is not one: tables of names to registry ids, each id a
  * whole number its records' fields hold (`ID_BITS`, review t-0147: a negative or over-wide id is
  * refused here, never packed); `pack_bounds`, each pack's `[min, max]`; `location_kinds`, each
  * location's kind (ENG-09: a gate into a dungeon may stand inside the zone); `location_sizes`, each
- * location's `[width, height]` in chunks, whole numbers (R-41, ENG-R1c-1).
+ * location's `[width, height]` in chunks, two whole numbers from 1 to 15 (E-51: the converter's
+ * own rule, `records.py` assert_size, R-41, ENG-R1c-1).
  */
 export function readManifest(text: string): Manifest | string {
   let raw: unknown;
@@ -435,6 +492,7 @@ export function readManifest(text: string): Manifest | string {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return "The manifest is not a JSON object of tables.";
   }
+  if (sizeFloatInText(text)) return SIZE_MESSAGE;
   for (const [table, value] of Object.entries(raw)) {
     if (table.startsWith("$")) continue;
     const entries = typeof value === "object" && value !== null ? Object.values(value) : null;
@@ -445,12 +503,16 @@ export function readManifest(text: string): Manifest | string {
         table === "pack_bounds"
           ? Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n))
           : table === "location_sizes"
-            ? Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n))
+            ? sizeOk(v)
             : table === "location_kinds"
               ? typeof v === "string" && Object.hasOwn(LOCATION_KINDS, v)
               : Number.isInteger(v),
       );
-    if (!ok) return `The manifest's ${table} is not a table of names.`;
+    if (!ok) {
+      return table === "location_sizes"
+        ? SIZE_MESSAGE
+        : `The manifest's ${table} is not a table of names.`;
+    }
     if (table === "pack_bounds" || table === "location_kinds" || table === "location_sizes") {
       continue;
     }

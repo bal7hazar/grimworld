@@ -96,6 +96,41 @@ export function assertId(what: string, value: unknown, bits: number): number {
   return value;
 }
 
+/**
+ * A manifest location's `[width, height]` in chunks (`location_sizes`, E-51, `records.py`
+ * assert_size): exactly two whole numbers, each from 1 to 15. A float, a string, a boolean or a
+ * third value is refused rather than compared by R-41.
+ */
+export function assertSize(what: string, size: unknown): readonly [number, number] {
+  const ok =
+    Array.isArray(size) &&
+    size.length === 2 &&
+    size.every((v) => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 15);
+  if (!ok) {
+    throw new Refused(
+      "export: location size",
+      `${what}: size ${JSON.stringify(size) ?? String(size)} is not [width, height] in 1..15`,
+    );
+  }
+  return [size[0] as number, size[1] as number];
+}
+
+/** Every entry of `location_sizes`, strictly, whether or not a gate leads there (`assert_sizes`). */
+export function assertSizes(sizes: unknown): Map<string, readonly [number, number]> {
+  if (typeof sizes !== "object" || sizes === null || Array.isArray(sizes)) {
+    throw new Refused(
+      "export: location size",
+      `location_sizes ${JSON.stringify(sizes) ?? String(sizes)} is not a mapping`,
+    );
+  }
+  return new Map(
+    Object.entries(sizes).map(([name, size]) => [
+      name,
+      assertSize(`location ${JSON.stringify(name)}`, size),
+    ]),
+  );
+}
+
 export const has = (bits: bigint, i: number): boolean => ((bits >> BigInt(i)) & 1n) === 1n;
 export const bit = (i: number): bigint => 1n << BigInt(i);
 
