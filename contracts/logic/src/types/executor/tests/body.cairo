@@ -17,7 +17,9 @@ use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::effect::{Entry, EntryTrait, kind};
 use crate::types::executor::{Unit, UnitBody};
 use crate::types::infliction::Infliction;
-use crate::types::tick::{CasteSheet, Content, ContentTrait, Held, PotionSheet, Sheets, ai, flag, status};
+use crate::types::tick::{
+    CasteSheet, Content, ContentTrait, Held, PotionSheet, Sheets, SkillSheetTrait, ai, flag, status,
+};
 use crate::types::world::fixtures::{Fixture, HOB, two};
 use super::at;
 
@@ -42,7 +44,11 @@ pub fn hex(felts: Span<felt252>) -> ByteArray {
 }
 
 pub fn emit(
-    ref digest: Array<felt252>, ref id: u32, name: ByteArray, case: Span<felt252>, ok: Span<felt252>,
+    ref digest: Array<felt252>,
+    ref id: u32,
+    name: ByteArray,
+    case: Span<felt252>,
+    ok: Span<felt252>,
 ) {
     println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
     digest.append(core::poseidon::poseidon_hash_span(case));
@@ -140,12 +146,13 @@ fn flag_felt(b: bool) -> felt252 {
 
 // ---- The table's content and its actors.
 
-/// The fixtures' content (`Fixture::content`: the bar's skills 1–8 at positions 0–7, the castes'
+/// The fixtures' content (`Fixture::content`: the bar's skills 1–8 at positions 0–7, the
+/// castes'
 /// 24–31 at 8–15), with: skill 1 an adrenaline cost of 5 strikes (a member's cap, 20 quarters),
 /// skill 3 a stance whose `REGENERATION` line is 1 to 4, skill 4 a stance, skill 5 an enchantment
-/// of −2 to −5 pips, skill 24 (Hob's slot 0) a cost of 5 (Hob's cap, 20); the belt's potions 100
-/// to 103 (pips 1, 3, −2, 0); the castes of armor 20, `ARMOR_VS` 5 against type 1 and 63 against
-/// type 9.
+/// of −2 to −5 pips, skill 24 (Hob's slot 0) a cost of 5 (Hob's cap, 20); the belt's potions
+/// 100 to 103 (pips 1, 3, −2, 0); the castes of armor 20, `ARMOR_VS` 5 against type 1 and 63
+/// against type 9.
 pub fn body_content() -> Content {
     let base = Fixture::content();
     let mut skills = array![];
@@ -437,8 +444,8 @@ fn reads(content: @Content, sheets: @Sheets) -> Array<(Unit, Op)> {
     let m = Unit::M(member(content));
     let g = Unit::G(goblin(content));
     let mut rows = array![
-        (m, Op::Health), (g, Op::Health), (m, Op::MaxHealth), (g, Op::MaxHealth),
-        (m, Op::IsMember), (g, Op::IsMember),
+        (m, Op::Health), (g, Op::Health), (m, Op::MaxHealth), (g, Op::MaxHealth), (m, Op::IsMember),
+        (g, Op::IsMember),
     ];
     // `place`: a member on (7, 9) facing 4, the goblin on (11, 3) facing 2.
     let mut placed = member(content);
@@ -515,7 +522,10 @@ fn reads(content: @Content, sheets: @Sheets) -> Array<(Unit, Op)> {
     for slot in array![1_u8, 2, 3] {
         rows.append((Unit::M(effects), Op::Effect(slot)));
     }
-    rows.append((Unit::G(g_holding(goblin(content), held(5, false, 2, 60, 12), sheets)), Op::Effect(0)));
+    rows
+        .append(
+            (Unit::G(g_holding(goblin(content), held(5, false, 2, 60, 12), sheets)), Op::Effect(0)),
+        );
     rows.append((g, Op::Effect(0)));
     rows
 }
@@ -556,8 +566,8 @@ fn health(content: @Content) -> Array<(Unit, Op)> {
     rows.append((g_with(content, ai::DEAD, 50, 0), Op::Heal(10)));
     rows.append((g_with(content, ai::ENGAGED, 0, 0), Op::Heal(10)));
     // `energize`, in energy (× 3 thirds), clamped to 0 and the max: the member's 30 of 60
-    // thirds by 10 (exactly the max), 11, 9, 0, −10 (exactly 0), −11, −9; the goblin's 0 of 30
-    // by 10, 11, 9, −1, and from 30 by −10, −11, −9.
+    // thirds by 10 (exactly the max), 11, 9, 0, −10 (exactly 0), −11, −9; the goblin's 0 of
+    // 30 by 10, 11, 9, −1, and from 30 by −10, −11, −9.
     for v in array![10_i32, 11, 9, 0, -10, -11, -9] {
         rows.append((m, Op::Energize(v)));
     }
@@ -596,9 +606,9 @@ fn hits(content: @Content) -> Array<(Unit, Op)> {
     rows.append((g_with(content, ai::DEAD, 50, 0), Op::Struck));
     rows.append((g_with(content, ai::RETURNING, 100, 0), Op::Struck));
     // `landed`, a member: 4 quarters, 8 on the N-th hit of `ADRENALINE_EVERY_N` (`MemberKit`
-    // 160–167; the `hits` counter at `MemberState` 112–119): N 0 (the counter stays 0); N 3 from
-    // 0, 1, 2 (the third: 8, the counter back to 0); N 1; capped at 20 from 17 (+4) and from 13
-    // on the N-th (+8); at the cap; at 0 health (no alive check).
+    // 160–167; the `hits` counter at `MemberState` 112–119): N 0 (the counter stays 0); N 3
+    // from 0, 1, 2 (the third: 8, the counter back to 0); N 1; capped at 20 from 17 (+4) and from
+    // 13 on the N-th (+8); at the cap; at 0 health (no alive check).
     rows.append((m_with(content, 400, 0, 0), Op::Landed));
     for hits in array![0_u8, 1, 2] {
         let mut m = member(content);
@@ -913,7 +923,13 @@ fn entries(ref digest: Array<felt252>, ref id: u32) {
     for entry in packed {
         let bits = entry.pack();
         emit(ref digest, ref id, "pack", entry_felts(@entry).span(), array![bits.into()].span());
-        emit(ref digest, ref id, "unpack", array![bits.into()].span(), entry_felts(@EntryTrait::unpack(bits)).span());
+        emit(
+            ref digest,
+            ref id,
+            "unpack",
+            array![bits.into()].span(),
+            entry_felts(@EntryTrait::unpack(bits)).span(),
+        );
     }
 }
 
@@ -978,12 +994,17 @@ fn test_body_vectors_4() {
 }
 
 /// The first id of each part, and each part's digest.
-const BODY_PART_1: u32 = 0;
-const BODY_PART_2: u32 = 0;
-const BODY_PART_3: u32 = 0;
-const BODY_PART_4: u32 = 0;
-const BODY_DIGEST_0: felt252 = 0;
-const BODY_DIGEST_1: felt252 = 0;
-const BODY_DIGEST_2: felt252 = 0;
-const BODY_DIGEST_3: felt252 = 0;
-const BODY_DIGEST_4: felt252 = 0;
+const BODY_PART_1: u32 = 52;
+const BODY_PART_2: u32 = 123;
+const BODY_PART_3: u32 = 173;
+const BODY_PART_4: u32 = 221;
+const BODY_DIGEST_0: felt252 =
+    251382024194373744949060254424679112427411048847036935103067442093017926402;
+const BODY_DIGEST_1: felt252 =
+    822755559781721334376966019348273462998371782871208343343980908972303218630;
+const BODY_DIGEST_2: felt252 =
+    450519756701183914306781957105965862106680085611770177740111989402173178090;
+const BODY_DIGEST_3: felt252 =
+    204783480972355102103941296066621439799057620292245381899642073046951479842;
+const BODY_DIGEST_4: felt252 =
+    3116694715749133080887387106960700414459042789108760740297312786033004326793;
