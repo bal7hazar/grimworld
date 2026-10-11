@@ -59,16 +59,17 @@ index and kind (`src/parity/replayer.test.ts`).
 Lots D to F replace the replayer with ports, class by class; the batch preview needs those ports,
 since it predicts batches nobody recorded (D-255).
 
-**Not mirrored**: two branches, which throw `NotMirrored` (`unported`,
+**Not mirrored**: one branch, which throws `NotMirrored` (`unported`,
 `src/segment/unported.test.ts`):
 
 - `EDGE`: a Move whose neighbour is missing (`LayoutTrait::neighbor` → `None`, the window's edge).
   `run` never reaches it: the adventurer stands at the window's column 7, and every direction has a
   neighbour.
-- `HEAVY_GROUND`: an Attack, a Skill or an Item refused as Heavy whose `act` call changed the
-  ground. `run` keeps that ground (an instant trap skill keeps its placed trap), a bug that game
-  fixes after RV-02 by restoring the input ground. When the call left the ground unchanged,
-  keeping and restoring agree, and the mirror goes on. No `segment2.jsonl` row reaches the throw.
+
+**A refusal leaves the ground as it was** (D-259, FIX-01): an Attack, a Skill or an Item refused as
+Illegal or Heavy restores the words and the ground; `SegmentTrait::combat` takes `ActionLibrary`'s
+ground only when the result is kept. Row 44 (an instant trap skill refused as Heavy) holds it, and
+the mutant "a Heavy refusal keeps ActionLibrary's ground" is killed by it.
 
 **Fail closed** (CLI-02g-B1): `world()` loads each goblin through `GoblinTrait::load`
 (`src/segment/goblin.ts`), as `WordsTrait::indexed` does, and panics with Cairo's string where

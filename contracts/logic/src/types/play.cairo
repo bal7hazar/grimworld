@@ -372,14 +372,16 @@ pub impl SegmentImpl of SegmentTrait {
     ) -> Result<u8, Halt> {
         let current = world;
         let words = current.store();
-        let ground = rules.ground;
+        let ground = rules.ground.clone();
         let (out, ground, result) = IActionLibraryLibraryDispatcher { class_hash: class }
             .act(words.clone(), rules.content, rules.board, rules.executor, ground, action);
-        rules.ground = ground;
+        // The ground follows the result (D-259): a refusal, `Heavy` or `Illegal`, leaves it as it
+        // was, like the words.
         let (kept, ran) = match result {
             Ok(ticks) => if ticks > weight || (ticks == 0 && weight == 0) {
                 (words, Err(Halt::Heavy))
             } else {
+                rules.ground = ground;
                 (out, Ok(ticks))
             },
             Err(illegal) => (words, Err(Halt::Illegal(illegal))),
@@ -646,8 +648,8 @@ mod tests {
     use crate::models::goblin::GoblinTrait;
     use crate::models::index::{GoblinWords, Object};
     use crate::models::member::{MemberSnapshotTrait, MemberWords, MemberWordsTrait};
-    use crate::types::combat::{Placer, PlacerTrait, skill_kind};
-    use crate::types::effect::{Entry, EntryTrait, kind, shape, target};
+    use crate::types::combat::{Placer, PlacerTrait, damage, skill_kind};
+    use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
     use crate::types::executor::{BoardTrait, Delegate};
     use crate::types::tick::{Content, ContentTrait, SkillSheet, ai, status};
     use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
@@ -1976,7 +1978,114 @@ mod tests {
                 }
             .pack();
         skills.append(haste);
+        // Skill 10: an instant trap skill (range 3, a TRAP entry, Snare's earth payload)
+        let none: Entry = Default::default();
+        let trap = EntryTrait::new(
+            kind::TRAP, 0, 0, 0, 0, 0, 0, target::TILE, shape::SINGLE, 0, 0, 0,
+        );
+        let earth = EntryTrait::new(
+            kind::DAMAGE,
+            damage::EARTH,
+            10,
+            40,
+            0,
+            0,
+            0,
+            target::FOE,
+            shape::SINGLE,
+            filter::FOES,
+            0,
+            0,
+        );
+        let mut snare = Fixture::skill(10, skill_kind::TRAP, 0, 20);
+        snare.range = 3;
+        snare.entry1 = trap.pack();
+        snare.entry2 = earth.pack();
+        snare.entry3 = none.pack();
+        skills.append(snare);
         Content { skills: skills.span(), ..base }
+    }
+
+    /// The fixture's adventurer on (22, 22) with the instant trap skill (10) on bar slot 0.
+    fn trapper() -> MemberWords {
+        let mut member = standing(22, 22);
+        member.bar += 9;
+        member
+    }
+
+    /// The ground `SegmentTrait::run` leaves after `actions` on `weight`, through the real
+    /// classes (no recorders), as `Serde` felts.
+    fn ground_after(
+        content: @Content, ground: Array<(u8, Features)>, weight: u8, actions: Array<Action>,
+    ) -> Array<felt252> {
+        let classes = declared();
+        let (mut world, sheets, index) = words(40, array![trapper()], array![]).indexed(content);
+        let mut rules = Delegate {
+            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+            cache: Default::default(),
+            executor: classes.executor,
+            content: *content,
+            index,
+            placed: array![],
+            ground,
+            ai: classes.ai,
+            trap: classes.trap,
+            level: 1,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        let segment = Classes {
+            executor: classes.executor,
+            ai: classes.ai,
+            trap: classes.trap,
+            action: classes.action,
+            tick: classes.tick,
+        };
+        let open = region(everything(), array![], array![], false);
+        SegmentTrait::run(
+            ref world, @sheets, ref rules, @open, @segment, actions.span(), 0, weight,
+        );
+        let mut felts: Array<felt252> = array![];
+        Serde::serialize(@rules.ground, ref felts);
+        felts
+    }
+
+    fn serialized(ground: @Array<(u8, Features)>) -> Array<felt252> {
+        let mut felts: Array<felt252> = array![];
+        Serde::serialize(ground, ref felts);
+        felts
+    }
+
+    /// The tile west of the adventurer: location (21, 22).
+    const WEST: u16 = 21 + 256 * 22;
+
+    // D-259: a `Heavy` refusal leaves the ground as it was. An instant trap skill left no weight
+    // (the Wait spent it) is refused as `Heavy`: it places no trap. Control: with weight to spare
+    // the same skill places it.
+    #[test]
+    #[available_gas(l2_gas: 25373161)] // ceil(1.05 × 24164915 measured)
+    fn test_heavy_trap_keeps_the_ground() {
+        let content = segment2_content();
+        let before = ground(16, FeaturesTrait::empty().objects, 0);
+        let trap = Action::Skill((0, Target::Tile(WEST)));
+        let placed = ground_after(@content, before.clone(), 5, array![trap]);
+        assert(placed != serialized(@before), 'control: trap placed');
+        let kept = ground_after(@content, before.clone(), 1, array![Action::Wait, trap]);
+        assert(kept == serialized(@before), 'heavy: ground kept');
+    }
+
+    // D-259: an `Illegal` refusal also leaves the ground as it was (the trap skill aimed at an
+    // entity, `Illegal::Target`).
+    #[test]
+    #[available_gas(l2_gas: 12242556)] // ceil(1.05 × 11659577 measured)
+    fn test_illegal_trap_keeps_the_ground() {
+        let content = segment2_content();
+        let before = ground(16, FeaturesTrait::empty().objects, 0);
+        let kept = ground_after(
+            @content, before.clone(), 5, array![Action::Skill((0, Target::Entity(264)))],
+        );
+        assert(kept == serialized(@before), 'illegal: ground kept');
     }
 
     /// The ground of chunk `chunk`: no pack, `objects`, the goblins of `touched` with a record.
@@ -2288,7 +2397,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 546403311)] // ceil(1.05 × 520384105 measured)
+    // gas: raised, FIX-01: row 44, an instant trap skill refused as Heavy (D-259)
+    #[available_gas(l2_gas: 601004825)] // ceil(1.05 × 572385547 measured)
     fn test_segment2_vectors_4() {
         let classes = declared();
         let content = segment2_content();
@@ -2460,6 +2570,22 @@ mod tests {
             10,
             array![Action::Move(0), wait],
         );
+        // `combat`, appended (D-259, FIX-01): an instant trap skill (10, on bar slot 0) left no
+        // weight by a Wait, refused as `Heavy`: the trap is not placed, the ground in `ok` is the
+        // one given
+        segment2_row(
+            ref digest,
+            ref id,
+            "combat",
+            @classes,
+            @content,
+            words(40, array![trapper()], array![]),
+            open,
+            ground(16, FeaturesTrait::empty().objects, 0),
+            0,
+            1,
+            array![wait, Action::Skill((0, Target::Tile(WEST)))],
+        );
         finish(digest, SEGMENT2_DIGEST_4);
     }
 
@@ -2477,7 +2603,7 @@ mod tests {
     const SEGMENT2_PART_3: u32 = 26;
     const SEGMENT2_PART_4: u32 = 31;
     const SEGMENT2_DIGEST_0: felt252 =
-        3479814075578699059359382331441625144490388763310038192844783950654332315345;
+        2159690998004408617869981141494228029476836004454470863912130403154357710753;
     const SEGMENT2_DIGEST_1: felt252 =
         154546367570478968348918423565440791434883414546497143718351671423613017282;
     const SEGMENT2_DIGEST_2: felt252 =
@@ -2485,7 +2611,7 @@ mod tests {
     const SEGMENT2_DIGEST_3: felt252 =
         831158116844835342533304973083382111519011951117211419705514572410899617998;
     const SEGMENT2_DIGEST_4: felt252 =
-        1681155497502350912411802618499527019840495848545915870103445535116834279411;
+        3328764434952181278406704823082450934319092084677733316168517828370428409126;
 
     const DIGEST: felt252 =
         927113589772750725131747890767271916714351212897433227864916371620935306790;

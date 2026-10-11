@@ -77,7 +77,7 @@ describe("parity with the Cairo code", () => {
     const counts = replay(table("segment2.jsonl"), readTable("segment2.jsonl"));
     expect(Object.fromEntries(counts)).toEqual({
       content: 1,
-      combat: 11,
+      combat: 12,
       ticks: 4,
       fits: 7,
       defeated: 3,
