@@ -20,6 +20,7 @@ import {
   writeGround,
   writeWords,
 } from "./serde";
+import { load as loadGoblin, store as storeGoblin } from "./goblin";
 import { load, sheets, store } from "./words";
 
 const TABLE = readTable("segment2.jsonl");
@@ -63,9 +64,15 @@ describe("the segment2 codecs", () => {
       const done = readDone(out);
       out.end();
       expect([...writeWords(after), ...writeGround(left), ...writeDone(done)]).toEqual(vector.ok);
-      // A member's load and store leave its words as they are
-      for (const member of [...words.members, ...after.members]) {
-        expect(store(load(member, sheets(CONTENT)))).toEqual(member);
+      // A member's and a goblin's load and store leave its words as they are: in the case, in the
+      // words after and in every recorded call
+      const index = sheets(CONTENT);
+      const everywhere = [words, after, ...calls.map((call) => call.words)];
+      for (const each of everywhere) {
+        for (const member of each.members) expect(store(load(member, index))).toEqual(member);
+        for (const goblin of each.goblins) {
+          expect(storeGoblin(loadGoblin(goblin, index))).toEqual(goblin);
+        }
       }
     });
   }

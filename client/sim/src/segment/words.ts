@@ -5,13 +5,14 @@
 // offsets are ENG-01's frozen ones, the Cairo modules' documentation; a field is read and written
 // with `packing.ts`, and a word is changed as Cairo changes it, by a delta in the field.
 //
-// A goblin is kept as its words: `run` only reads a goblin (its place, its AI state, its words for
-// the records of `fits`), and the classes write it, so a goblin's load is its words read where
-// they are needed. Not mirrored, as no row reaches them: `GoblinTrait::load`'s refusal of a caste
-// or a caste skill the content does not hold, and `WorldAssert::assert_awake` (at most 8 awake).
+// A goblin is kept as its words in the world `run` threads (`run` only reads a goblin: its place,
+// its AI state, its words for the records of `fits`); `world()` loads each one through
+// `segment/goblin.ts` (`GoblinTrait::load`) as `WordsTrait::indexed` does, which refuses what
+// Cairo refuses, and `words()` stores the words back.
 
 import { P, add, narrow, panic, u16, u32, u8 } from "../felt";
 import { field, limbs, peel } from "../packing";
+import { from16 } from "../signed";
 
 /** A member's stored words (`models::index::MemberWords`). */
 export type MemberWords = {
@@ -131,6 +132,7 @@ const MAX_SKILLS = 0xffff;
 
 export const errors = {
   NO_SKILL: "tick: skill not in content",
+  NO_CASTE: "tick: caste not in content",
   NO_POTION: "tick: potion not in content",
   SKILLS: "tick: more skills than ids",
   REGEN: "member: regeneration above i8",
@@ -143,9 +145,6 @@ const small = (value: bigint): number => Number(value);
 /** `TickMathTrait::delta`: `(new − old) × shift`, the felt that rewrites a field in place. */
 export const delta = (old: number, next: number, shift: bigint): bigint =>
   felt(BigInt(next - old) * shift);
-
-/** `SignedTrait::from16`: a 16-bit field as an `i16`. */
-const from16 = (bits: bigint): number => Number(bits >= 0x8000n ? bits - 0x10000n : bits);
 
 /** `EntryTrait::unpack`: the entry of 97 bits. */
 export function unpack(bits: bigint): Entry {
@@ -214,9 +213,17 @@ export function sheets(content: Content): Sheets {
   return { ...content, kits, entries, potion_entries, index };
 }
 
-function skillAt(sheets: Sheets, id: number): number {
+/** `IndexTrait::skill`: the position of skill `id`, or the panic of a skill not in the content. */
+export function skillAt(sheets: Sheets, id: number): number {
   const at = sheets.index.skills.get(id);
   if (at === undefined) panic(errors.NO_SKILL);
+  return at;
+}
+
+/** `IndexTrait::caste`: the position of caste `id`, or the panic of a caste not in the content. */
+export function casteAt(sheets: Sheets, id: number): number {
+  const at = sheets.index.castes.get(id);
+  if (at === undefined) panic(errors.NO_CASTE);
   return at;
 }
 
@@ -434,8 +441,17 @@ export function crippled(member: Member): number {
   return small(field(high, two(32), two(32)));
 }
 
-/** A held effect as its word stores it (`types::tick::Held`), slot 0–3 (`MemberWordsTrait::held`). */
-export function held(effects: bigint, slot: number) {
+/** A held effect as its word stores it (`types::tick::Held`). */
+export type Held = {
+  carrier: number;
+  charges: number;
+  potion: boolean;
+  deadline: number;
+  rank: number;
+};
+
+/** `MemberWordsTrait::held`: the effect in slot 0–3 of the effects word. */
+export function held(effects: bigint, slot: number): Held {
   const [low, high] = limbs(effects);
   const limb = slot < 2 ? low : high;
   const shift = slot % 2 === 0 ? 1n : two(56);
@@ -455,56 +471,9 @@ export const is_alive = (member: Member): boolean => member.status === 0 && memb
 export const downs = (member: Member): number =>
   member.status === 0 && member.health === 0 ? 1 : 0;
 
-/** `GoblinPlaceTrait::at`: a goblin's tile and facing (`GoblinState` 0–23). */
-export function goblinPlace(state: bigint): { x: number; y: number; facing: number } {
-  const [low] = limbs(state);
-  return {
-    x: small(low % 0x100n),
-    y: small((low / 0x100n) % 0x100n),
-    facing: small((low / 0x10000n) % 0x100n),
-  };
-}
-
-/** A goblin's AI state (`GoblinState` 24–31). */
-export function goblinAi(state: bigint): number {
-  const [low] = limbs(state);
-  return small((low / two(24)) % 0x100n);
-}
-
 /** `ai::DEAD`, and `GoblinTrait::is_alive`: below it. */
 export const DEAD = 6;
 export const ENGAGED = 3;
-
-/** The world a segment runs over (`types::world::World`), its goblins as their words. */
-export type World = {
-  clock: number;
-  members: Member[];
-  goblins: GoblinWords[];
-  killed: number[];
-  defeated: boolean;
-};
-
-/** `WordsTrait::load` (and `SegmentTrait::reload`): the world of `words`, each member loaded. */
-export function world(words: Words, sheets: Sheets): World {
-  return {
-    clock: words.clock,
-    members: words.members.map((member) => load(member, sheets)),
-    goblins: words.goblins.map((goblin) => ({ ...goblin })),
-    killed: [...words.killed],
-    defeated: words.defeated,
-  };
-}
-
-/** `WorldStoreTrait::store`: the words of the world. */
-export function words(world: World): Words {
-  return {
-    clock: world.clock,
-    members: world.members.map(store),
-    goblins: world.goblins.map((goblin) => ({ ...goblin })),
-    killed: [...world.killed],
-    defeated: world.defeated,
-  };
-}
 
 /** `u32` and `u16` adds that panic on overflow, as Cairo's. */
 export const u32add = (a: number, b: number): number => Number(add(u32, BigInt(a), BigInt(b)));

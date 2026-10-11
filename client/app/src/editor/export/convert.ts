@@ -211,6 +211,7 @@ export interface BuiltZone extends R.Zone {
 /** The records of an authored zone (`build_zone`), before the checks. */
 export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
   const table = KIND_TABLE;
+  const sizes = R.assertSizes(manifest.location_sizes === undefined ? {} : manifest.location_sizes);
   const plane = new Plane(e);
   const blocked = new Set<string>();
   const footprints: [kind: string, foot: Set<string>, door: G][] = [];
@@ -380,8 +381,7 @@ export function buildZone(e: ExportFile, manifest: Manifest): BuiltZone {
     });
     // R-41: the destination's rectangle, when the manifest gives it (`location_sizes`) and the
     // destination has a map (a hub has none)
-    const sizes = manifest.location_sizes ?? {};
-    const size = Object.hasOwn(sizes, gt.to) ? sizes[gt.to] : undefined;
+    const size = sizes.get(gt.to);
     if (size !== undefined && destination !== "town" && destination !== "outpost") {
       destinations.set(gates.get(gid)!.destination, size);
     }

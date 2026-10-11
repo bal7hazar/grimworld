@@ -28,6 +28,13 @@ import { ORIGIN, board as origin_board, move_ticks, origin, position } from "./m
 import { chunks as sight } from "./reveal";
 import type { Classes } from "./segment/classes";
 import {
+  type Goblin,
+  is_alive as is_goblin_alive,
+  load as loadGoblin,
+  place as goblinPlace,
+  store as storeGoblin,
+} from "./segment/goblin";
+import {
   type Action,
   type Area,
   type Board,
@@ -38,19 +45,14 @@ import {
 } from "./segment/serde";
 import {
   ABSENT_LANE,
-  DEAD,
   ENGAGED,
   type Content,
-  type GoblinWords,
   type Member,
   NO_SLOT,
   type Sheets,
   type Words,
-  type World,
   crippled,
   downs,
-  goblinAi,
-  goblinPlace,
   held,
   is_alive,
   kind,
@@ -60,22 +62,16 @@ import {
   set_place,
   sheets as index,
   store,
-  u16add,
   u32add,
-  world as reload,
-  words as stored,
 } from "./segment/words";
+import { KEPT, can_act, flag, regenerate } from "./segment/tick";
+import { type World, world as reload, words as stored } from "./segment/world";
 import { FAR, HEIGHT, WIDTH, neighbor, shape, shapes } from "./window";
 
-export { Illegal };
+export { Illegal, flag };
 
 /** An action may run only while the clock is at most this (`types::LAST_TICK`, E-4). */
 export const LAST_TICK = 0xfffffff - 0xffff - 10;
-
-/** `MemberState.flags` (`types::tick::flag`). */
-export const flag = { TURNED: 1, INSTANT: 2, HIT: 8, HALVED: 16 } as const;
-/** The flags a tick's step 0 keeps. */
-const KEPT = 0xff - flag.TURNED - flag.INSTANT - flag.HIT;
 
 /** `types::tick::status`. */
 export const status = { INSIDE: 0, DOWN: 1, GONE: 2 } as const;
@@ -208,12 +204,8 @@ function to_reveal(area: Area, world: World): boolean {
   );
 }
 
-/** `MemberConditionTrait::can_act`: not knocked down at `t0`. */
-const can_act = (member: Member, t0: number): boolean => !(t0 <= member.knocked);
-
 /** `WorldTrait::alive`: the goblins alive (`ai` below `DEAD`), with their index. */
-const alive = (world: World): GoblinWords[] =>
-  world.goblins.filter((goblin) => goblinAi(goblin.state) < DEAD);
+const alive = (world: World): Goblin[] => world.goblins.filter(is_goblin_alive);
 
 /** `WorldTrait::calm`: no goblin in the awake set and no member activating. */
 const calm = (world: World): boolean =>
@@ -224,34 +216,9 @@ const calm = (world: World): boolean =>
 function idle(world: World, on: Board): boolean {
   if (!calm(world)) return false;
   return alive(world).every((goblin) => {
-    const { x, y } = goblinPlace(goblin.state);
+    const { x, y } = goblinPlace(goblin);
     return position(on, x, y) >= FAR;
   });
-}
-
-/** `TickMathTrait::heal`: `health + 2 × clamp(pips, −10, 10)`, clamped to `[0, max]`. */
-function heal(health: number, pips: number, max: number): number {
-  const change = 2 * Math.min(10, Math.max(-10, pips));
-  if (change < 0) return -change >= health ? 0 : health - -change;
-  return Math.min(health + change, max);
-}
-
-/**
- * `MemberTickTrait::regenerate` out of combat (the fast path's): health by its pips (its own, the
- * degenerating conditions' −3, −4, −7, its `REGENERATION` effects' while they last), energy by its
- * regeneration up to its max, adrenaline decayed by 1.
- */
-function regenerate(member: Member, t: number): void {
-  let pips = member.health_regen;
-  if (t <= member.bleeding) pips -= 3;
-  if (t <= member.poison) pips -= 4;
-  if (t <= member.burning) pips -= 7;
-  member.effect_regen.forEach((regen, slot) => {
-    if (regen !== 0 && t <= member.effect_deadlines[slot]!) pips += regen;
-  });
-  member.health = heal(member.health, pips, member.max_health);
-  member.energy = Math.min(u16add(member.energy, member.energy_regen), member.max_energy);
-  member.adrenaline = member.adrenaline < 1 ? 0 : member.adrenaline - 1;
 }
 
 /** `TickTrait::check`: a member inside at 0 is down, and the adventurer defeated. */
@@ -274,7 +241,8 @@ function fast(world: World, n: number): void {
       world.clock = u32add(world.clock, 1);
       for (const member of world.members) member.flags &= KEPT;
       for (const member of world.members) {
-        if (member.status === status.INSIDE && member.health > 0) regenerate(member, world.clock);
+        if (member.status === status.INSIDE && member.health > 0)
+          regenerate(member, world.clock, false);
       }
     }
     check(world);
@@ -351,7 +319,7 @@ function trap(world: World, rules: Rules, at: number): void {
   if (found === undefined) return;
   const entity = found.param === null ? undefined : placer(found.param);
   const index = entity === undefined ? -1 : world.goblins.findIndex((g) => g.entity === entity);
-  const goblins = index < 0 ? [] : [{ ...world.goblins[index]! }];
+  const goblins = index < 0 ? [] : [storeGoblin(world.goblins[index]!)];
   const out = rules.classes.trigger({
     words: {
       clock: world.clock,
@@ -373,7 +341,9 @@ function trap(world: World, rules: Rules, at: number): void {
     world.members[m] = load(member, rules.sheets);
   });
   if (index >= 0) {
-    for (const goblin of out.words.goblins) world.goblins[index] = { ...goblin };
+    for (const goblin of out.words.goblins) {
+      world.goblins[index] = loadGoblin(goblin, rules.sheets);
+    }
   }
 }
 
@@ -384,7 +354,7 @@ function occupied(world: World, on: Board, at: number): boolean {
     if (is_alive(member) && position(on, x, y) === at) return true;
   }
   return alive(world).some((goblin) => {
-    const { x, y } = goblinPlace(goblin.state);
+    const { x, y } = goblinPlace(goblin);
     return position(on, x, y) === at;
   });
 }
@@ -504,12 +474,12 @@ function first(ground: Ground, entity: number): boolean {
 function fits(
   world: World,
   changed: number[],
-  before: readonly GoblinWords[],
+  before: readonly Goblin[],
   ground: Ground,
   cost: number,
   ran: boolean,
   weight: number,
-): { after: GoblinWords[]; weight: number } | undefined {
+): { after: Goblin[]; weight: number } | undefined {
   const fresh: number[] = [];
   let firsts = 0;
   world.goblins.forEach((now, i) => {
@@ -521,9 +491,9 @@ function fits(
     const untouched = first(ground, now.entity);
     // Its AI state moved to Engaged and nothing else: its pack's `alert` holds it, not a record
     const engaged =
-      goblinAi(now.state) === ENGAGED &&
+      now.ai === ENGAGED &&
       was.timers === now.timers &&
-      felt(now.state - was.state) === felt(BigInt(ENGAGED - goblinAi(was.state)) * (1n << 24n));
+      felt(now.state - was.state) === felt(BigInt(ENGAGED - was.ai) * (1n << 24n));
     if (untouched && engaged) return;
     if (untouched) firsts = u8add(firsts, 1);
     fresh.push(now.entity);

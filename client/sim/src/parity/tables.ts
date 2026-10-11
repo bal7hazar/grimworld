@@ -295,7 +295,6 @@ const batch: Record<string, Mirror> = {
   },
 };
 
-/** The felts of a `Serde`, read in order. */
 /** The member words of a `segment` row's adventurer: its place, status, health and timers. */
 type Standing = {
   x: number;
