@@ -65,6 +65,8 @@ export function locate(board: Board, position: number): [number, number] | undef
   const [dy, dx] = [Math.floor(position / 15), position % 15];
   // The location's tile: the board's origin is held plus `ORIGIN` (D-134)
   const [x, y] = [board.x + dx, board.y + dy];
+  // Cairo's guard, before its `x - ORIGIN` would underflow; its removal is not killed by any row
+  // (a table hole, RV-03a2: `mutants.test.ts`)
   if (x < ORIGIN || y < ORIGIN) return undefined;
   const [cy, ly] = [Math.floor((y - ORIGIN) / 15), (y - ORIGIN) % 15];
   const [cx, lx] = [Math.floor((x - ORIGIN) / 15), (x - ORIGIN) % 15];
