@@ -32,8 +32,8 @@ import { type ChainOutcome, Stop } from "./trace";
  *
  * The goblins are compared as sets, both ways, entity by entity, state and timers (VIEW-01, D-263).
  * The chain's side is the view after the batch: `instance_state`'s goblins, the roster's and those
- * of the revealed chunks of the 3 × 3 around each member's tile (instances.cairo :136-146, by
- * `PlayLibrary.goblins`, play's own code, play.cairo :338-349), derived ones included. The
+ * of the revealed chunks of the 3 × 3 around each inside member's tile (instances.cairo :136-146,
+ * by `PlayLibrary.goblins`, play's own code, play.cairo :341-356), derived ones included. The
  * mirror's is the world its segment ran on: the same window, taken before the batch. A goblin
  * listed on one side only is a mismatch, except when the controlled member ended in another window
  * (`Prediction.moved`): the view after lists the window it ended in, the mirror's world is the one

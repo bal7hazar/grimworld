@@ -34,9 +34,19 @@ sent batch equals its preview.
   (`instance_region`), the controlled member (`placement`) and the content. It gives no prediction
   for the view's `UNLOADABLE` marker (a goblin cannot load: the chain refuses the batch), for an
   empty goblin list where the roster or a pack of the area holds some (no `PlayLibrary` set), for
-  several members while goblins are listed, and on any call to `TickLibrary`, `ActionLibrary` or
-  `TrapLibrary`, which client/sim does not port yet: it predicts the fast path (no goblin in the
-  window, no combat, no trap). The reconciliation compares the goblin sets both ways.
+  several members while goblins are listed, where no content is given and the segment reads a
+  sheet (a goblin's caste or skill, a bar's skill: `... not in content`), and on any call to
+  `TickLibrary`, `ActionLibrary` or `TrapLibrary`, which client/sim does not port yet: it predicts
+  the fast path (no living goblin in the window, no combat, no trap). Given content that lacks a
+  sheet the segment reads is a `grimworld.mirror-failure`, not a silent `NotMirrored`. The
+  reconciliation compares the goblin sets both ways.
+- `assembleContent(view, record)` (`content.ts`, CLI-10d) assembles that content as `PlayLibrary`
+  does (`play`'s first `bundle` and `goblins`, play.cairo): the members' bar skills, belt items and
+  held effects' skills, the castes of the view's goblins (the derived ones first) and the skills
+  of those castes and of the stored goblins' effects it does not hold yet, each read by one
+  `Registry.record(kind, id)` and decoded as the Cairo `SkillSheet`, `PotionSheet` and
+  `CasteSheet` `read` do. A record the registry lacks is skipped, as `exists` skips it. It needs no
+  pack template: the view's goblins carry their caste. Two rounds of reads, each at once.
 - `createReader({ nodeUrl })` (`read.ts`) reads those views over `starknet_call`.
 - The default bounds (every price 0, an L2 gas amount) are accepted by starknet-devnet 0.10.0, and so
   are bounds all 0: under `SKIP_FEE_CHARGE` it does not bound the execution by them.
@@ -46,7 +56,8 @@ sent batch equals its preview.
 
 The unit tests fake the node with traces shaped by starknet-specs v0.8 (`src/preview/fixtures.ts`),
 and with traces recorded on starknet-devnet (`src/preview/recorded.ts`: a Wait, a revert, and the
-state before them; no key). No unit test touches the network.
+state before them, in a world with no goblin; `src/preview/recorded-goblins.ts`: the same in a world
+whose view lists one goblin, with the Registry records read; no key). No unit test touches the network.
 
 The node test (`src/preview/preview.node.test.ts`, its own script, never in `pnpm test`) runs on the
 game that OPS-01a's `scripts/devnet_deploy.py` deploys. From the repository root, after the classes
@@ -60,8 +71,11 @@ scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with
 It previews a Wait with the mirror, sends the same two calls, and checks that the real trace's
 outcome and the state after equal the preview. It also checks a revert (`not controller`), an
 admission refusal, the bounds and the account's two calls, and it times 10 simulations of a few
-batches. `PREVIEW_RECORD=<file>` rewrites `recorded.ts`. The world is drawn from the deployment's
-entropy, so it differs from run to run: the run prints one line saying whether the mirror predicted
-(`mirror: predicted ...` or `mirror: not mirrored: <reason> ...`), and the assertions that depend
-on the world (a Wait plays 1 with `Stop.None`, one Move direction is illegal) hold only where the
-world observed allows them. CI runs it as the `client-node` job.
+batches and 10 assemblies of the content (the number of `Registry.record` calls and the time).
+`PREVIEW_RECORD=<file>` writes a recording in their form, with the records read and the seed's
+castes, skill and potion, which the decoders' unit test checks against
+`contracts/seed/test-region.json`. The world is drawn from the deployment's entropy, so it
+differs from run to run: the run prints one line saying whether the mirror predicted
+(`mirror: predicted ...` or `mirror: <reason> ...`, the reason as the mirror gives it), and the
+assertions that depend on the world (a Wait plays 1 with `Stop.None`, one Move direction is
+illegal) hold only where the world observed allows them. CI runs it as the `client-node` job.

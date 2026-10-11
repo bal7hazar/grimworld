@@ -24,19 +24,21 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  * batch loads first, instances.cairo :136-146, and the location's `width`, `height` and
  * `level_min`, :142-145), the region's chunks (`instance_region`: the view's `chunks` are gone,
  * the chunks are the region's), the controlled member (`Instances.placement`, `placement.member`,
- * play.cairo :186-187) and the content (the sheets of the members' skills and potions and of the
+ * play.cairo :187-188) and the content (the sheets of the members' skills and potions and of the
  * area goblins' castes and skills, as `PlayLibrary`'s `bundle` reads them), which the caller
- * passes decoded (CLI-10d). Where these do not hold what the segment needs, there is no
+ * assembles from the Registry's records (`assembleContent`, CLI-10d). Where these do not hold what the segment needs, there is no
  * prediction (`NotMirrored`), never a guess:
  * - a view whose goblins are the `UNLOADABLE` marker: `play` refuses the batch (`Stop::Invalid`
- *   before any action, play.cairo :285-300), the mirror does not predict a refusal;
+ *   before any action, play.cairo :286-301), the mirror does not predict a refusal;
  * - an empty goblin list where the roster or a pack of the area holds some: the view lists none
  *   while no `PlayLibrary` is set (instances.cairo :598);
- * - several members while the view lists goblins: it lists the goblins of every member's window at once
- *   (play.cairo :338-349, `window`), `play` loads those of the controlled member's alone, and the
- *   view cannot tell a window's goblins from a roster's;
+ * - several members while the view lists goblins: it lists the goblins of every inside member's
+ *   window at once (play.cairo :341-356, `window`), `play` loads those of the controlled member's
+ *   alone, and the view cannot tell a window's goblins from a roster's;
  * - a revealed chunk around the controlled member that the region does not give;
- * - a sheet the content lacks (a goblin's caste or skill): the segment panics `... not in content`.
+ * - no content given, where the segment reads a sheet (a goblin's caste or skill, a bar's skill):
+ *   it panics `... not in content`. Given content that lacks a sheet the segment reads is no such
+ *   case: the panic reaches `reconcile`'s `predict`, which logs it as a mirror failure.
  * The goblins are the view's as they are, derived ones included (at full health, in their pack's
  * state): `PlayLibrary` loads them by the same functions.
  * The three classes behind the seam (`TickLibrary::ticks`, `ActionLibrary::act`,
@@ -53,9 +55,11 @@ export interface MirrorState {
   readonly member: number;
   /** The instance's chunks, as `instance_region` gives them. */
   readonly region: readonly RegionChunk[];
-  readonly content: Content;
+  /** The batch's content (`assembleContent`); none given, the segment runs on an empty one. */
+  readonly content?: Content;
 }
 
+const EMPTY: Content = { skills: [], potions: [], castes: [] };
 /** `types::MAX_WEIGHT`. */
 const MAX_WEIGHT = 10;
 /** Every tile of a chunk (`play::TILES`). */
@@ -188,7 +192,7 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
       killed: [],
       defeated: false,
     },
-    content: state.content,
+    content: state.content ?? EMPTY,
     area,
     level: view.levelMin,
     ground,
@@ -222,10 +226,14 @@ export function mirrorOf(state: MirrorState, classes: Classes = unportedClasses)
     try {
       ran = runSegment({ ...segment, actions: [...actions] }, classes);
     } catch (error) {
-      // A sheet the caller's content lacks (a goblin's caste, a skill): the content is the caller's
-      // input (CLI-10d decodes it), so its gap is no prediction, not a parity bug
-      if (error instanceof Error && /not in content/.test(error.message)) {
-        throw new NotMirrored(`the content lacks a sheet the segment reads (${error.message})`);
+      // A sheet read with no content given is no prediction; with content given, its gap is a
+      // mirror failure (review t-0194 of #439)
+      if (
+        state.content === undefined &&
+        error instanceof Error &&
+        /not in content/.test(error.message)
+      ) {
+        throw new NotMirrored(`no content given, the segment reads a sheet (${error.message})`);
       }
       throw error;
     }

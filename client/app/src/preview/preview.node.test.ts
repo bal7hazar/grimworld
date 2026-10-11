@@ -4,6 +4,7 @@ import { LOCAL_ACCOUNT_CLASS, createStarknetChain } from "../account/starknet";
 import type { Call, ExecutionStatus } from "../account/types";
 import type { PlayAction } from "./actions";
 import { previewCalls, selector } from "./calls";
+import { CASTE, ITEM, type RecordRead, SKILL, assembleContent } from "./content";
 import { mirrorOf } from "./mirror";
 import { previewBatch } from "./preview";
 import { createReader } from "./read";
@@ -23,7 +24,8 @@ import { ChunkKind, type InstanceView, encodeInstanceView } from "./view";
 //   scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
 //     GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node:preview'
 // A script of its own: the burner's `test:node` restarts the node, which would drop the deployment.
-// `PREVIEW_RECORD=<file>` also writes the traces of `recorded.ts` there. Without a deployment (the
+// `PREVIEW_RECORD=<file>` also writes a recording there, in the form of `recorded.ts` (a quiet
+// world, CLI-10c) and `recorded-goblins.ts` (a world whose view lists a goblin, CLI-10d). Without a deployment (the
 // ordinary `pnpm test`), skipped.
 const env = import.meta.env as Record<string, string | undefined>;
 const deploymentPath = env.GRIMWORLD_DEPLOYMENT;
@@ -92,6 +94,19 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
   /** The mirror's inputs before the Wait, as felts: the view, the controlled member, the region. */
   let mirrored = "";
   let inputs: { view: string[]; member: number; region: unknown[] } | undefined;
+  /** The Registry records read, `[kind, id, parts]`: the content's, and the seed's sheets. */
+  const records = new Map<string, [number, number, string[]]>();
+  /** `Registry.record`, each answer kept for `recorded.ts`. */
+  const recording =
+    (registry: string): RecordRead =>
+    async (kind, id) => {
+      const parts = await reader().record(registry, kind, id);
+      records.set(`${kind}:${id}`, [kind, id, parts.map((p) => `0x${p.toString(16)}`)]);
+      return parts;
+    };
+  /** Whether the view before the Wait listed goblins, and the content's size. */
+  let listed = 0;
+  let sheets = "";
   /** What the deployment's entropy drew, observed before the Wait. */
   let world = { quiet: false };
   /** No goblin in the roster nor in the window, none unloadable: a Wait plays 1 and stops on nothing. */
@@ -118,7 +133,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     const read = reader();
     const before = await read.instanceState(deployment.contracts.instances, instanceId());
     // The location's extent is the view's (VIEW-01); the member the adventurer controls is the
-    // chain's (`placement`, play.cairo :186-187), the area's centre
+    // chain's (`placement`, play.cairo :187-188), the area's centre
     const { member } = await read.placement(
       deployment.contracts.instances,
       deployment.adventurer_id,
@@ -143,13 +158,17 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     world = quiet(before);
     const parity: ParityRecord[] = [];
     const input = { ...(await target()), actions: [WAIT] };
-    // The deployed adventurer has an empty build and no belt: its content is empty
-    const predict = mirrorOf({
-      view: before,
-      member,
-      region,
-      content: { skills: [], potions: [], castes: [] },
-    });
+    // The content as `PlayLibrary` assembles it (CLI-10d): the deployed adventurer has an empty
+    // build and no belt, so it holds the castes of the goblins listed and their skills
+    const { content, calls } = await assembleContent(
+      before,
+      recording(deployment.contracts.registry),
+    );
+    listed = before.goblins.length;
+    sheets =
+      `content ${content.skills.length} skills, ${content.potions.length} potions, ` +
+      `${content.castes.length} castes in ${calls} records`;
+    const predict = mirrorOf({ view: before, member, region, content });
     const sim = simulator();
     let simulated: InvokeTrace | undefined;
     const preview = await previewBatch(input, {
@@ -176,13 +195,15 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     // Where the mirror predicts, no mismatch (the goblin sets too); where it does not, the reason
     expect(preview.mismatches).toEqual([]);
     expect(parity).toEqual([]);
-    // One line a run saying which it was (review t-0190, note 1)
-    mirrored =
-      preview.mirror.kind === "predicted" ? "predicted" : `not mirrored: ${preview.mirror.reason}`;
+    // One line a run saying which it was (review t-0190, note 1), the reason as it is
+    mirrored = preview.mirror.kind === "predicted" ? "predicted" : preview.mirror.reason;
     console.info(
       `mirror: ${mirrored} (world: ${world.quiet ? "quiet" : "goblins"}, ${before.goblins.length} listed, ` +
-        `member ${member}, ${before.width}x${before.height})`,
+        `member ${member}, ${before.width}x${before.height}; ${sheets})`,
     );
+    // With the content assembled, no sheet is missing: a gap would be a mirror failure (above)
+    // or, without content, `NotMirrored` naming it
+    expect(mirrored).not.toMatch(/not in content/);
     // The account's `__execute__` makes exactly the preview's two calls (review t-0186)
     const execute = simulated!.execute_invocation as FunctionInvocation;
     expect(execute.calls.map((c) => BigInt(c.entry_point_selector!))).toEqual([
@@ -328,10 +349,33 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
     }
   }, 120_000);
 
+  it("times the content's batch read: 10 assemblies (CLI-10d)", async () => {
+    const read = reader();
+    const view = await read.instanceState(deployment.contracts.instances, instanceId());
+    const registry = deployment.contracts.registry;
+    const times: number[] = [];
+    let calls = 0;
+    for (let run = 0; run < 10; run++) {
+      const start = performance.now();
+      ({ calls } = await assembleContent(view, (kind, id) => read.record(registry, kind, id)));
+      times.push(performance.now() - start);
+    }
+    console.info(
+      `content read: ${calls} Registry.record calls (${view.goblins.length} goblins listed), ` +
+        `median ${median(times).toFixed(1)} ms, max ${Math.max(...times).toFixed(1)} ms`,
+    );
+    // The seed's sheets (contracts/seed/test-region.json: castes 1-3, skill 1; devnet_deploy.py's
+    // potion 1), kept for the decoders' unit test whatever the world drew
+    const seed = recording(registry);
+    for (const id of [1, 2, 3]) await seed(CASTE, id);
+    await seed(SKILL, 1);
+    await seed(ITEM, 1);
+  }, 60_000);
+
   it("writes the recorded traces when asked, with no key in them", () => {
     expect(Object.keys(recorded).sort()).toEqual(["played", "reverted"]);
     expect(inputs).toBeDefined();
-    const text = JSON.stringify({ recorded, inputs });
+    const text = JSON.stringify({ recorded, inputs, records: [...records.values()] });
     for (const k of keys) {
       expect(text.toLowerCase()).not.toContain(k.toString(16));
       expect(text).not.toContain(k.toString());
@@ -343,7 +387,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
       [
         "// Recorded by preview.node.test.ts (PREVIEW_RECORD) on starknet-devnet, OPS-01a's deployment:",
         "// a Wait of adventurer 1 at sequence 0, and the same batch for adventurer 2, which reverts.",
-        `// The world is the deployment's (its entropy); the mirror on it: ${mirrored}.`,
+        `// The world is the deployment's (its entropy), goblins listed: ${listed}; the mirror on it: ${mirrored}.`,
         "// Trimmed to what extractOutcome reads; no key (the test checks). Do not edit by hand.",
         'import type { InvokeTrace } from "./trace";',
         "",
@@ -353,6 +397,13 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
         "",
         "/** The mirror's inputs before the Wait: the view's felts, the controlled member, the chunks not void. */",
         `export const recordedBefore = ${JSON.stringify(inputs, null, 2)};`,
+        "",
+        "/** The Registry records read (`[kind, id, parts]`): the content's before the Wait, the seed's sheets. */",
+        `export const recordedRecords: [number, number, string[]][] = ${JSON.stringify(
+          [...records.values()].sort(([k1, i1], [k2, i2]) => k1 - k2 || i1 - i2),
+          null,
+          2,
+        )};`,
         "",
       ].join("\n"),
     );
