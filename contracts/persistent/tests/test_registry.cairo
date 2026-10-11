@@ -338,7 +338,7 @@ fn test_set_record_id_zero_refused() {
 // Sequential kinds are append-only: a new id is `last_id + 1`, never a gap.
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 4352009)] // ceil(1.05 × 4144770 measured)
+#[available_gas(l2_gas: 4243355)] // ceil(1.05 × 4041290 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = Fixture::deploy();
@@ -782,7 +782,7 @@ fn next_id(r: Registry, kind: u8) -> u32 {
 // content version rises twice for each. Kinds in order, so that `LOCATION` 1 exists before the
 // composite kinds that name it.
 #[test]
-#[available_gas(l2_gas: 56201786)] // ceil(1.05 × 53525510 measured)
+#[available_gas(l2_gas: 54088088)] // ceil(1.05 × 51512464 measured)
 fn test_inputs_version_every_other_kind() {
     let r = Fixture::deploy();
     let mut others: u32 = 0;

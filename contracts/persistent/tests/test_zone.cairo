@@ -322,7 +322,7 @@ fn test_sample_registered() {
 // without the Heart frees them, one that names them again binds them (`heart_packs`).
 #[test]
 // gas: raised, ENG-R1c-1: the fixture's gates indexed, its writes under the shared bounds
-#[available_gas(l2_gas: 60399179)] // ceil(1.05 × 57523027 measured)
+#[available_gas(l2_gas: 60245469)] // ceil(1.05 × 57376637 measured)
 fn test_heart_index_binds_every_location() {
     let r = ZoneFixture::deploy();
     let empty = Pack {
@@ -805,7 +805,7 @@ fn test_refuse_candidates_rewrite_tile() {
 // R-27's reverse check: the raiders, which the Heart quota names, rewritten empty at their fewest.
 #[test]
 // gas: raised, ENG-R1c-1: the fixture's gates indexed, its writes under the shared bounds
-#[available_gas(l2_gas: 53209581)] // ceil(1.05 × 50675791 measured)
+#[available_gas(l2_gas: 53189778)] // ceil(1.05 × 50656931 measured)
 #[should_panic(expected: 'zone: heart template')]
 fn test_refuse_pack_rewrite_heart() {
     let r = ZoneFixture::deploy();
@@ -833,7 +833,7 @@ fn test_refuse_heart_template() {
 
 // R-42 (BND-01): a pack template whose castes' minimums sum to 0, new, is refused at registration.
 #[test]
-#[available_gas(l2_gas: 12000000)]
+#[available_gas(l2_gas: 7626413)] // ceil(1.05 × 7263250 measured)
 #[should_panic(expected: 'pack: fewest is 0')]
 fn test_refuse_pack_fewest_zero() {
     let r = ZoneFixture::bare();
@@ -1161,7 +1161,7 @@ fn test_refuse_generated_heart_template() {
 // R-27's reverse check for a generated zone: the cubs, which its Heart names, rewritten with one
 // goblin at their fewest accepted, with none refused.
 #[test]
-#[available_gas(l2_gas: 12865403)] // ceil(1.05 × 12252764 measured)
+#[available_gas(l2_gas: 12841673)] // ceil(1.05 × 12230164 measured)
 #[should_panic(expected: 'zone: heart template')]
 fn test_refuse_generated_pack_rewrite_heart() {
     let r = ZoneFixture::bare();
@@ -1316,7 +1316,7 @@ fn gate_entering_chunk(destination: u16, entry: u8) -> Span<felt252> {
 // first past the board, and 255, the last a byte holds, are outside its rectangle, a full 15 × 15
 // one included; 224, the last chunk, is inside.
 #[test]
-#[available_gas(l2_gas: 31714653)]
+#[available_gas(l2_gas: 18583761)] // ceil(1.05 × 17698820 measured)
 fn test_gate_entry_past_the_board() {
     let r = ZoneFixture::bare();
     r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 15, 15, 6).pack());
@@ -1346,7 +1346,7 @@ fn unchecked() -> Registry {
 
 // BND-01: a `GATE` is refused until `set_zone_checks`: `index` could not count it.
 #[test]
-#[available_gas(l2_gas: 12000000)]
+#[available_gas(l2_gas: 3928733)] // ceil(1.05 × 3741650 measured)
 #[should_panic(expected: 'registry: no zone checks')]
 fn test_refuse_gate_without_zone_checks() {
     let r = unchecked();
@@ -1355,7 +1355,7 @@ fn test_refuse_gate_without_zone_checks() {
 
 // BND-01: and so is a `QUOTAS` (`heart_packs`).
 #[test]
-#[available_gas(l2_gas: 12000000)]
+#[available_gas(l2_gas: 4070283)] // ceil(1.05 × 3876460 measured)
 #[should_panic(expected: 'registry: no zone checks')]
 fn test_refuse_quotas_without_zone_checks() {
     let r = unchecked();
@@ -1367,7 +1367,7 @@ fn test_refuse_quotas_without_zone_checks() {
 // produced: the first gate is refused, the other kinds are not, and once the class is set both
 // gates enter the chunk, the shrink is refused after either is rewritten away.
 #[test]
-#[available_gas(l2_gas: 60000000)]
+#[available_gas(l2_gas: 17061120)] // ceil(1.05 × 16248685 measured)
 fn test_unindexed_gate_cannot_hide_an_entry() {
     let r = unchecked();
     r.admin.set_record(LOCATION, 2, plain(location_kind::DUNGEON, 8, 8, 6).pack());

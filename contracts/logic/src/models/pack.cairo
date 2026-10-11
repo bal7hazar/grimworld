@@ -252,21 +252,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected: 'pack: fewest is 0')]
-    #[available_gas(l2_gas: 34703)]
-    fn test_pack_fewest_zero_refused() {
-        template(PackCaste { caste: 1, min: 0, max: 3 }, PackCaste { caste: 2, min: 0, max: 9 })
-            .assert_legal();
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 34703)]
-    fn test_pack_fewest_one_legal() {
-        template(PackCaste { caste: 1, min: 0, max: 3 }, PackCaste { caste: 2, min: 1, max: 9 })
-            .assert_legal();
-    }
-
-    #[test]
     #[should_panic(expected: 'pack: min above 5')]
     #[available_gas(l2_gas: 35858)] // ceil(1.05 × 34150 measured)
     fn test_pack_min_above_five_refused() {
