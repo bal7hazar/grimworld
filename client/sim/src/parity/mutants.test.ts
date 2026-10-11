@@ -1191,7 +1191,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "    before = fit.after;\n",
     to: "",
     survives:
-      "no row changes a goblin twice in a segment that one action left unrecorded (an untouched goblin engaged and nothing else, row 22's 249, which no later action changes): every other goblin changed is in `changed` already; rows 46 and 47 change one goblin by two actions, but the first records it",
+      "a goblin left unrecorded by an Engaged-only change (rows 22, 46, 47) is recorded by any later change, whether compared with the segment's start or with the words after the previous action (46), and skipped when nothing more changes (47); only a later action that puts its words back to the segment's start separates the two (its AI state back from Engaged, nothing else changed), which no row does",
   },
   {
     name: "a caste missing from the content is not refused (NO_CASTE)",
