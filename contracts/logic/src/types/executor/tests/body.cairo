@@ -936,7 +936,7 @@ fn entries(ref digest: Array<felt252>, ref id: u32) {
 // ---- The parts (a table too long for snforge's step limit is printed in parts, `check.py`).
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 468137187)] // ceil(1.05 × 445844940 measured)
 fn test_body_vectors_0() {
     let content = body_content();
     let sheets = content.sheets();
@@ -950,7 +950,7 @@ fn test_body_vectors_0() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 1134695389)] // ceil(1.05 × 1080662275 measured)
 fn test_body_vectors_1() {
     let content = body_content();
     let sheets = content.sheets();
@@ -962,7 +962,7 @@ fn test_body_vectors_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 756618118)] // ceil(1.05 × 720588683 measured)
 fn test_body_vectors_2() {
     let content = body_content();
     let sheets = content.sheets();
@@ -973,7 +973,7 @@ fn test_body_vectors_2() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 765947697)] // ceil(1.05 × 729473997 measured)
 fn test_body_vectors_3() {
     let content = body_content();
     let sheets = content.sheets();
@@ -985,7 +985,7 @@ fn test_body_vectors_3() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 106473117)] // ceil(1.05 × 101402968 measured)
 fn test_body_vectors_4() {
     let mut digest: Array<felt252> = array![];
     let mut id: u32 = BODY_PART_4;

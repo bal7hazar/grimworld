@@ -229,6 +229,166 @@ The cases (45):
 Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 7, `defeated` 3, `trap` 4, `occupied` 2, `companions` 3,
 `regeneration` 3, `movement` 2, `turn` 2, `follow` 2.
 
+## `trap.jsonl`: a trap's trigger, `TrapTrait::trigger` (RV-03a, D-257)
+
+Printed by `types::trap::tests::vectors::test_trap_vectors_0` to `_3` (ids 0–13, 14–23, 24–35, 36–58), split for
+snforge's step limit, each part with its digest. Where `segment2.jsonl` records the trap class's result for a replay,
+this table tests a port of the class itself: each row is one call of `TrapLibrary::trigger` (the real class, declared
+in the test), which loads the words through the content, finds the entrant by its entity
+(`ExecutorTrait::actor`: none, nothing triggers), runs `TrapTrait::trigger` with a fresh `Cache`, and stores the words
+back. One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every value its Cairo `Serde` (as `segment2.jsonl`).
+
+**Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content`: the executor tests' (`types::executor::tests::
+content(40, [])`: castes of armor 40, a sword of 30 at rank 12; Snare, skill 45: `TRAP`, earth 10 to 40, Crippled 3),
+with Hob's caste skill 26 (its slot 2) a trap skill of Snare's payload; skill 70, a terrain trap's (earth 10 to 40,
+Poison 4); 71, a pit (earth 30 to 60 guarded `BELOW_HALF`, Knocked down 2); 72, caltrops (Bleeding 10 to 22, no hit).
+
+**`trigger`**: `case` the call's arguments but the content: the `Words` (`clock` 305, the members' `MemberWords`, the
+goblins' `GoblinWords`, `killed`, `defeated`), the `Board` (`window`, `x`, `y`: the origin plus 15, D-134), the
+ground (`Array<(u8, Features)>`), the entrant's entity (a member's index 0–7, or a goblin's entity), the window's
+position, the level (the location band's lower level, a terrain trap's source). `ok` what it returns: the `Words`,
+the ground (the trap's object marked used, state 1), then whether it triggered (0 or 1).
+
+**`free`**: `TrapTrait::free`, the object index a placed trap takes (§5.11): `case` the chunk's `Features` and the
+tile, `ok` the `Option<u32>` (`[1]` none, `[0, k]`).
+
+The world, unless a row says otherwise: the trapper, member 0 on (7, 7) (level 20, health 400 of 480; its bar Snare in
+slot 0 at rank 12, the pit in slot 1 at rank 0, caltrops in slot 2 at rank 15, slot 7 empty), goblin 44 (the entrant,
+a Hob on the trap's tile, health 100, Engaged) and goblin 45 (a Hob, a placer); the board at origin 0, the trap on
+position 142, chunk 0's tile 142. A trap's hit is never blocked or evaded and has no arc (`ExecutorTrait::trap`): the
+"evaded or blocked" rows are the entrant holding a `BLOCK` or an `EVADE` effect, landed all the same.
+
+| `fn` | ids | what |
+|---|---|---|
+| `content` (1) | 0 | the table's content |
+| `trigger`, terrain (7) | 1–7 | a terrain trap (kind 4, `param` skill 70) on the member at levels 20, 1 and 40 (1–3); on a goblin, nothing (4: FX-34); a skill the content lacks (99), nothing, the trap left unused (5); used (state 1), nothing (6); the member at 1 health, killed, its Poison not applied (7) |
+| `trigger`, a member's (6) | 8–13 | Snare (slot 0, rank 12, level 20) on goblin 44: §10.10's 100 → 44, Crippled to 307 (8); on the member, its side, nothing (9); on a second member, nothing (10); placer member 1 of a world of one (`m ≥ count`), nothing (11); of two (12: it triggers, member 1's slot 0 holds skill 1, no entry, nothing applied); bar slot 7 empty (`ABSENT_LANE`), nothing (13) |
+| `trigger`, the source (10) | 14–23 | the pit's hit guarded `BELOW_HALF` on the placer (health × 2 < 480): at 400 and 240 not held (the knock-down alone, to 306), at 239 held (100 → 58) (14–16); caltrops at rank 15 (Bleeding 25: to 329), with `CONDITION_DURATION` Bleeding 33 % (337), 63 % (capped at 50: 341), Poison 33 % (another condition: 329) (17–20); `KNOCKDOWN_FLAT` 3 with the pit's hit held: 2 + 3, to 309 (21); Snare at rank 0 (100 → 86) and 15 (100 → 34) (22, 23) |
+| `trigger`, a goblin's (4) | 24–27 | goblin 45's trap (caste slot 2, rank 12, level 10) on the member (24); on goblin 44, its side, nothing (25); its placer dead, its record still the source (26); its placer not in the call (entity 46), nothing (27) |
+| `trigger`, the entrant (8) | 28–35 | under Snare: goblin 44 asleep (wakes, Engaged), on watch (wakes), at 1 health (killed, in `killed`, Crippled not applied) (28–30); the member under goblin 45's trap holding Brace (a `BLOCK` charge: not blocked, the charge kept), Sidestep (`EVADE`: not evaded), Knocked down (31–33); an entrant the call does not hold: entity 99, member 1 of one, nothing (34, 35) |
+| `trigger`, the lookup (13) | 36–48 | the object written: a chest on the tile at 0, the trap at 1 (36); a chunk of 3 objects, used traps on the tile at 0 and 1, the trap at 2 (37); the trap on another tile, nothing (38); chunk 0 the ground's second entry, entry 1 written (39); no chunk 0, nothing (40); chunk 0 twice, the trap in the second: only the first is read, nothing (41). The position: 240, outside, nothing (42); 239, chunk 15's tile 14 (43); a negative origin `(−5, 0)`: position 0 before the location, nothing, position 5 its tile (0, 0) (44, 45); origin x 210, position 14 chunk 14's tile 14 (46); origin x 240, chunk column 16, nothing (47); origin y 240, chunk row 16, nothing (48) |
+| `free` (10) | 49–58 | an empty chunk: 0 (49); a chest elsewhere at 0: 1 (50); a used placed trap, a used terrain trap at 0: 0 (51, 52); a chest on the tile, an unused trap on it: none (53, 54); a used trap on the tile at 1: 1 (55); full, a used vein at 1: none (56); full, a used trap at 2: 2 (57); an empty object (kind 0) whose tile is the tile: 0 (58) |
+
+Per `fn`: `content` 1, `trigger` 48, `free` 10. `place` and `spot` (placing, `free` with the window's checks) are not
+in this table (the trap unit tests `test_place` and `test_example_trap` hold them; RV-03b's `act` places).
+
+## `body.jsonl`: the `Body` operations and the effect entry's (RV-03a, D-257)
+
+Printed by `types::executor::tests::body::test_body_vectors_0` to `_4` (ids 0–51, 52–122, 123–172, 173–220,
+221–311), split for snforge's step limit, each part with its digest. One line: `{"id", "fn", "case", "ok"}`, every
+felt in hex (a negative integer `P − |v|`).
+
+**Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`body_content`): the fixtures' (`Fixture::
+content`: the bar's skills 1–8 at positions 0–7, the castes' 24–31 at 8–15), with skill 1 of adrenaline cost 5 (a
+member's cap: 20 quarters), skill 3 a stance whose `REGENERATION` line is 1 to 4, skill 4 a stance, skill 5 an
+enchantment of −2 to −5 pips, skill 24 (Hob's slot 0) of cost 5 (Hob's cap, 20); the belt's potions 100 to 103 (pips
+1, 3, −2, 0); the castes of armor 20, `ARMOR_VS` 5 against type 1 and 63 against type 9. Every actor is loaded through
+it (`MemberTrait::load`, `GoblinTrait::load`), its hot fields written back into its words (`store`).
+
+**The actor** is `Unit`'s layout: `0` then a `Member`'s 35 fields, or `1` then a `Goblin`'s 21, each in its struct's
+declaration order (`contracts/logic/src/models/index.cairo`): what `#[derive(Serde)]` would write (the structs derive
+none). A `Member`: `status`, `health`, `energy`, `adrenaline`, `flags`, `act_slot`, `act_target`, `act_tile`,
+`act_deadline`, `bleeding`, `poison`, `burning`, `knocked`, `effect_deadlines` (4), `effect_regen` (4, signed),
+`max_health`, `max_energy`, `health_regen` (signed), `energy_regen`, `adrenaline_cap`, `bar_at`, `effect_at`, then
+`words` (`MemberWords`: `state`, `timers`, `effects`, `recharges`, `stats`, `bar`, `kit`). A `Goblin`: `entity`,
+`awake`, `ai`, `health`, `energy`, `adrenaline`, `caste`, `act_slot`, `act_target`, `act_deadline`, `bleeding`,
+`poison`, `burning`, `knocked`, `effect_deadline`, `effect_regen` (signed), `max_health`, `caste_at`, `effect_at`,
+`state`, `timers`. The operations run through `UnitBody` (the executor's dispatch, CBT-05a route (c)).
+
+**`case`** is the actor, then the operation's arguments in its signature's order (the sheets are the content's);
+**`ok`** a read's value, or a write's actor after:
+
+| `fn` | arguments | `ok` |
+|---|---|---|
+| `health`, `max_health`, `is_member`, `alive`, `asleep`, `halves`, `enchant_percent`, `slots` | none | the value (a boolean 0 or 1) |
+| `place` | none | `x`, `y`, `facing` |
+| `knocked` | `t` | the boolean |
+| `armor_vs` | the damage type | the armor |
+| `infliction` | none | `Infliction`: `condition`, `percent`, `knockdown` |
+| `effect` | the slot | `Held` (`carrier`, `potion`, `charges`, `deadline`, `rank`), then the carrier's position (`ABSENT`, `2^32 − 1`, for none) |
+| `wound`, `heal` | the amount (`u16`) | the actor |
+| `energize` | `v` in energy (`i32`; × 3 thirds) | the actor |
+| `struck`, `landed`, `halved` | none | the actor |
+| `inflict` | the condition 1–5, `v` (`i32`), the source's `Infliction`, `t` | the actor |
+| `cure` | the condition, `t` | the actor |
+| `hold` | `Held`, the carrier's position `at`, `stance`, `t` | the actor |
+| `spend` | the slot, `t` | the actor |
+
+The effect entry's rows (`types/effect.cairo`, `EntryTrait`), no actor:
+
+| `fn` | `case` | `ok` |
+|---|---|---|
+| `line` | `v0`, `v12` (`i16`), the rank | `v0 + (v12 − v0) × rank / 12`, truncated toward zero (`i32`) |
+| `value` | `Entry`, the rank | `value`: the line on its `v0`, `v12` |
+| `duration` | `Entry`, the rank | the line on its `d0`, `d12` |
+| `class` | the kind | `Option<KindClass>` (`[1]` none; `[0, c]`: 0 `Hit`, 1 `HitModifier`, 2 `Holding`, 3 `Instant`, 4 `Placement`), then `is_holding`, `is_hit_modifier` |
+| `pack` | `Entry` | its 97 bits |
+| `unpack` | the bits | `Entry` |
+
+`Entry` is its `Serde`: `kind`, `param`, `v0`, `v12`, `d0`, `d12`, `charges`, `target`, `shape`, `filter`, `guard`,
+`scope`.
+
+The actors, unless a row says otherwise: the fixtures' member (health 400 of 480, energy 30 of 60 thirds, adrenaline
+0 of its cap 20, no condition, no effect); goblin 264, a Hob (Engaged, health 100 of 280, energy 0 of 30 thirds,
+adrenaline 0 of 20). `T`, the `t` of every operation that takes one, is 50.
+
+| `fn` | ids | what |
+|---|---|---|
+| `content` (1) | 0 | the table's content |
+| `health`, `max_health`, `is_member`, `place` (8) | 1–8 | one a kind; `place`: the member on (7, 9) facing 4, the goblin on (11, 3) facing 2 |
+| `alive` (9) | 9–17 | a member inside at 1, at 0, down at 50, gone; a goblin Engaged at 1, at 0, Returning (the last state below `DEAD`), Dead at 50, Looted |
+| `knocked` (6) | 18–23 | Knocked down to 50, at `t` 49, 50 (held: `t ≤ D`), 51; member, goblin |
+| `asleep` (3) | 24–26 | a goblin asleep, on watch; a member |
+| `halves` (4) | 27–30 | `HALVE_FIRST_HEAVY_HIT` held (`MemberKit` bit 202), spent (`HALVED`), not held; a goblin |
+| `armor_vs` (10) | 31–40 | a member's per-type armors 5, 6, 7, 63 (types 1, 2, 3, 9: `MemberStats` 48, 54, 200, 236) at types 0, 1, 2, 3, 9, 10; the goblin's caste at 0, 1, 9, 10 |
+| `infliction`, `enchant_percent` (4) | 41–44 | a member's kit (Burning 33 %, `KNOCKDOWN_FLAT` 1, `ENCHANT_DURATION` 15 %); a goblin's none |
+| `slots`, `effect` (7) | 45–51 | 4 and 1; a member's slot holding skill 5 (2 charges, rank 12), an empty slot, a slot holding belt potion 2; the goblin holding skill 5, empty |
+| `wound` (10) | 52–61 | 400 by 0, 399, 400, 401, 65,535; at 0 by 0; the goblin's 100 by 99, 100, 101; a dead goblin at 50 (no alive check) |
+| `heal` (13) | 62–74 | 400 of 480 by 0, 79, 80, 81, 65,535; at the max by 1; at 0, down: nothing; the goblin to its max − 1, its max, past it; dead, at 0: nothing |
+| `energize` (14) | 75–88 | the member's 30 of 60 thirds by 10 (exactly the max), 11, 9, 0, −10 (exactly 0), −11, −9; the goblin's 0 of 30 by 10, 11, 9, −1, and from 30 by −10, −11, −9 |
+| `struck` (16) | 89–104 | a member: the `HIT` flag and 1 quarter from 0, at 0 health (the flag only), from 19 (to the cap), at 20, above it (25: kept), with `TURNED \| HIT` set; a goblin Engaged from 0, 19, 20, 21; asleep and on watch (engages); Alerted (stays); asleep at 0 health (nothing); dead (nothing); Returning |
+| `landed` (15) | 105–119 | a member: 4 quarters with `ADRENALINE_EVERY_N` 0 (`MemberKit` 160–167: the `hits` counter, `MemberState` 112–119, stays 0); N 3 from `hits` 0, 1, 2 (the third: 8, the counter back to 0); N 1 (8 each); from 17 (+4 capped at 20) and 13 on the N-th (+8 capped); at the cap; at 0 health (no alive check). A goblin, 4 quarters capped at 20: from 0, 15, 16, 17, 20, 21 |
+| `halved` (3) | 120–122 | a member's `HALVED` flag, already set; a goblin, nothing |
+| `inflict` (50) | 123–172 | each condition 1–5 on each kind, the value 3: `D = 52` (123–132); the value's clamp on Bleeding, 0, −1, 1, 2, 32,767, 32,768 (133–144); the refresh by `max` over a later deadline (53: kept) and an earlier one (51), on Bleeding and on Crippled (in the timers word) (145–152); Knocked down (2: `D = 51`) interrupting an activation (the member's bar slot 1, recharge 12: `R = 61`; the goblin's caste slot 2), with none held and over a later one (60: kept, interrupted all the same); over an earlier one (50); a goblin recovering keeps its recovery (153–159); the source's `CONDITION_DURATION` Bleeding 33 % (10 → 13), on Poison (10), 49 % (14), 50 % (15), 63 % (capped at 50: 15), `KNOCKDOWN_FLAT` 3 on Knocked down (2 → 5), on Crippled (2), 4 (capped at 3), a goblin with Bleeding 33 % (160–168); not alive, through `apply` and through `knock` (169–172) |
+| `cure` (19) | 173–191 | each condition held to 60 on each kind: to 49 (173–182); Bleeding to 50 (held at `T`: to 49), 48 (not held: kept), 0 (183–188); a member at 0, down, a dead goblin: nothing (189–191) |
+| `hold` (22) | 192–213 | a member: skill 5 into slot 0; held in slot 0 to 60, again to 70 (replaced), 55 (kept), 60 at rank 0 (a tie: replaced); held to 49, lapsed (slot 0 free again); held to 50 (`T`: held), skill 6 takes slot 1; lapsed, skill 6 takes slot 0; spell 6 in slot 0 and stance 4 in slot 1: stance 3 takes slot 1, not as a stance slot 2; both lapsed: slot 0; every slot held (70, 55, 60, 55): the earliest, the lowest of the tie, slot 1; potion belt slot 1 held in slot 2 (the same item: slot 2); skill 1 held, potion 1 is not it (slot 1); not alive (192–205). A goblin's one slot: empty; held to 60, again to 55 (kept), 60 at rank 0 (replaced); held to 50, again to 49 (kept); held to 49, again to 40 (lapsed: replaced); skill 6 over it; a potion (never held); dead (206–213) |
+| `spend` (7) | 214–220 | 2 charges to 1, 1 to 0 (the effect ending at `T − 1`), 0 (nothing), on a member's slot 0 and the goblin; a member's slot 3, the other slots' pips kept |
+| `line` (36) | 221–256 | `(v0, v12)` (10, 40), (40, 10), (0, 7), (0, −7), (−32,768, 32,767), (32,767, −32,768), each at ranks 0, 1, 11, 12, 13, 15 |
+| `value` (3) | 257–259 | earth 10 to 40 at rank 7; energy −5 to −17 at 7 and 15 |
+| `duration` (16) | 260–275 | `(d0, d12)` (5, 17), (17, 5), (0, 43,688), (43,688, 0), each at ranks 0, 1, 12, 15 |
+| `class` (26) | 276–301 | every kind 0–24, and 255 |
+| `pack`, `unpack` (10) | 302–311 | each in turn on: the empty entry, earth 10 to 40, energy −5 to −17, every field at its layout's maximum (the durations at `MAX_BASE_DURATION`), `scope` alone |
+
+Per `fn`: `content` 1, `health` 2, `max_health` 2, `is_member` 2, `place` 2, `alive` 9, `knocked` 6, `asleep` 3,
+`halves` 4, `armor_vs` 10, `infliction` 2, `enchant_percent` 2, `slots` 2, `effect` 5, `wound` 10, `heal` 13,
+`energize` 14, `struck` 16, `landed` 15, `halved` 3, `inflict` 50, `cure` 19, `hold` 22, `spend` 7, `line` 36,
+`value` 3, `duration` 16, `class` 26, `pack` 5, `unpack` 5.
+
+**The inventory** (what the earlier tables already pin of these operations). `hit.jsonl` pins `HitTrait::resolve`,
+which reads `knocked`, `asleep`, `halves`, `armor_vs` and the target's health as inputs, but no `Body` function
+itself. `segment.jsonl` calls no class. `segment2.jsonl` reaches `wound`, `struck`, `landed`, `energize`, `inflict`,
+`hold` and the trap's trigger inside `ActionLibrary`, `TickLibrary` and `TrapLibrary` calls whose results it records:
+a mirror replaying it takes those results and runs none of these operations. So no table pinned any of them as a port,
+and every one is vectored here. Two are not: `defence` and `offence` build a hit's `Defence` and `Offence` from the
+executor's `Context`, its lever and its cache, the carrier's side of a hit, and go with `act` (RV-03b). Adrenaline's
+decay is not a `Body` operation: it is the tick's step 3 (`MemberTickTrait::regenerate`, `GoblinTickTrait::
+regenerate`, D-157 E), RV-03c's (`ticks`); `segment2.jsonl`'s fast path reaches it only on the member. The entry's
+checks (`EntryAssertTrait`: `assert_valid`, `assert_legal`, `assert_carrier`) panic and run in the content pipeline,
+not in play: they are not vectored (`pack`'s rows are valid entries).
+
+**How the rows are sized for mutants** (as `hit.jsonl`): for every comparison, a row on each side of its bound and, for
+`≥` against `>`, on it (`wound`'s `damage ≥ health` at health − 1, health, health + 1; `heal`'s max at max − 1, max,
+max + 1; `energize`'s clamp exactly at 0 and the max and one past each; `knocked`'s `t ≤ D` at `D − 1`, `D`, `D + 1`;
+the adrenaline caps from cap − 1, cap, cap + 1; the `hits` counter reaching `N`; the refresh's `max` over an earlier
+and a later deadline (an equal one would hide a mutant `≥`/`>`: both give the same deadline); `cure`'s `old ≥ t` at
+`T` and below; `hold`'s `deadline ≥ t` at `T − 1` and `T`, and its tie; the value's clamp at 0, 1, 2 and 32,767,
+32,768; the percent's cap at 49, 50, 63). For every arithmetic step, a row whose result tells the operator apart
+(`line`'s truncation toward zero on a negative slope at rank 1 and 11; `refreshed`'s `t0 + d − 1`; `spend`'s
+`t − 1`; the thirds of `energize`). Each kind has its own rows wherever its code differs (a member's `alive` reads its
+status, a goblin's its AI state; a goblin's `heal` and `cure` guard on alive, a member's `wound` and `landed` do not;
+Crippled lives in the timers word). Each branch of a dispatch has a row (each condition 1–5, each `KindClass`, every
+step of §5.7's slot choice). Track CV names further cases for surviving mutants; they are appended, as `hit.jsonl`'s.
+
 ## `hit.jsonl`: one hit (CBT-03a)
 
 Printed by `types::hit::tests::test_vectors_0` to `test_vectors_4` (ids 0–40, 41–81, 82–122, 123–163, 164–202; FND-23), each part with its digest. One line: `{"id", "case", "ok"}`.
