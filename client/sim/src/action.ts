@@ -194,7 +194,13 @@ export function carry(
       const unit = executor.unitOf(world, source);
       if ((guards(unit, [first]) & 1) === 0) return "Skipped";
       const by = placer(world, source, slot);
-      const ground = placeTrap(rules.ground, world, rules.board, executor.tile(rules.board, address), by);
+      const ground = placeTrap(
+        rules.ground,
+        world,
+        rules.board,
+        executor.tile(rules.board, address),
+        by,
+      );
       if (ground === undefined) return "Illegal";
       rules.ground = ground;
       return "Place";
@@ -294,7 +300,13 @@ export function consume(member: Member, mask: number, c: number): void {
  * `ActionTrait::act`: §5.3 steps 1–4 for member `i`'s `action` at the clock `c = world.clock`: its
  * tick cost, or why it is illegal (then nothing is written).
  */
-export function act(world: World, sheets: Sheets, rules: Rules, i: number, action: Action): Outcome {
+export function act(
+  world: World,
+  sheets: Sheets,
+  rules: Rules,
+  i: number,
+  action: Action,
+): Outcome {
   const refused = (illegal: Illegal): Outcome => ({ illegal });
   const c = world.clock;
   if (c > LAST_TICK) return refused(Illegal.Clock);

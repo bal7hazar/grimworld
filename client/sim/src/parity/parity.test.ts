@@ -178,7 +178,7 @@ describe("parity with the Cairo code", () => {
       read.end();
       return calls.filter((call) => call.kind === "act").map(() => vector.id);
     });
-    expect(recorded.length).toBeGreaterThan(0);
+    expect(recorded).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 44]);
     const before = native.acts;
     replay(table("segment2.jsonl"), vectors);
     expect(native.acts - before).toBe(recorded.length);

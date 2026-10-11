@@ -59,10 +59,11 @@ only if it checks every digest and consumes every recorded call (D-255): a call 
 other inputs, a call the row lacks or a recorded call left unused fails the row, naming the call's
 index and kind (`src/parity/replayer.test.ts`).
 Lots D to F replace the replayer with ports, class by class; the batch preview needs those ports,
-since it predicts batches nobody recorded (D-255). `TrapLibrary::trigger` is ported (lot D, below):
-on a `segment2.jsonl` row the replayer still takes each recorded trap call (its kind, its digest,
-its place in the span), and the port's result, words, ground and `triggered`, must equal it; the
-port's is what `run` loads. `ticks` and `act` stay replayed (lots E and F).
+since it predicts batches nobody recorded (D-255). `TrapLibrary::trigger` (lot D) and
+`ActionLibrary::act` (lot E) are ported (below): on a `segment2.jsonl` row the replayer still
+takes each recorded trap or action call (its kind, its digest, its place in the span), and the
+port's result, felt for felt, must equal it; the port's is what `run` loads. `ticks` stays
+replayed (lot F).
 
 **Not mirrored**: one branch, which throws `NotMirrored` (`unported`,
 `src/segment/unported.test.ts`):
@@ -92,17 +93,17 @@ and on a goblin through one dispatch, as `UnitBody` (`Unit`: `{ kind: "M", membe
 `knocked`, `asleep`, `halves`, `armor_vs`, `infliction`, `enchant_percent`, `slots`, `effect`) and
 the writes (`wound`, `heal`, `energize`, `struck`, `landed`, `halved`, `inflict`, `cure`, `hold`,
 `spend`), each in place on the unit, as Cairo's `ref self` (`copyUnit` for a caller that keeps its
-input). `src/effect.ts` is the effect entry. `defence` is `src/executor.ts`'s (lot D); `offence`
-comes with `act` (RV-03b).
+input). `src/effect.ts` is the effect entry. `defence` (lot D) and `offence` (lot E) are
+`src/executor.ts`'s, held by `act.jsonl`'s `defence` and `offence` rows.
 `src/body/serde.ts` reads and writes a unit, a `Held` and an `Infliction` as the table records
 them. Lot D (the trap's path) builds on `body/index.ts`, `body/member.ts` (`interrupt`, `hold`,
 `put`, `apply`, `knock`), `body/goblin.ts`, `body/infliction.ts` and `effect.ts`.
 
 `body.jsonl`'s rows are its README's: row 0 the content every actor is loaded through, then one
-operation a row. Four mutants survive, holes of the table reported to track game: `hold`'s step 1
+operation a row. Three mutants survive, holes of the table reported to track game: `hold`'s step 1
 at a carrier held to exactly `T`; a potion compared by its belt slot rather than its item (the
-table's belt holds four different items); the recharge lanes of bar slots 4–7 and a goblin
-activating caste slot 3, which no knock-down row reaches.
+table's belt holds four different items); a goblin activating caste slot 3, which no knock-down row
+reaches. A fourth, the recharge lanes of bar slots 4–7, is killed by `act.jsonl`'s row 44.
 
 **Fail closed** (CLI-02g-B1): `world()` loads each goblin through `GoblinTrait::load`
 (`src/segment/goblin.ts`), as `WordsTrait::indexed` does, and panics with Cairo's string where
@@ -135,28 +136,76 @@ while the entrant lives, and the entrant written back (a goblin at 0 killed, in 
 each) and 10 `free` rows. `segment2.jsonl`'s trap calls (rows 26, 28, 43) are computed by the port
 and equal their recordings (`src/parity/parity.test.ts`).
 
-Not ported here, for `act` (lot E, RV-03b): a carrier's `read`, `modifiers`, `penetration`, the
-target side of `on` and the source's `attack`, the actor sets (`actors`), a source's `offence` and
-`Naive`'s lever. `strike`'s `Blocked` branch and `resolve`'s weapon arc are ported whole, but only
-a weapon hit reaches them.
+A trap's one entrant is written back at once (`put` without `pending`, `Naive`'s write); the
+action's carrier is below.
 
 Both goblins of the table are Hobs of one caste, so a port reading another goblin's caste than the
 placer's passes every row (until RV-03c's row with distinct castes): `src/parity/trapcases.ts`
 holds that case, and that the class leaves its inputs as they were, run by `src/trap.test.ts` and,
 against each `trap` mutant, by `src/parity/mutants.test.ts`.
 
-Of the trap path's 65 mutants, 39 are killed by the tables and 3 by `trapcases.ts` (another
-goblin's kit, rank or level read for the placer's). 22 survive. Sixteen are holes of the table,
-reported to track game: a position, a chunk column or a chunk row past the location landing on a
-chunk no row's ground holds (rows 42, 47, 48); `locate`'s guard of a tile West of `ORIGIN`, which
-Cairo has too, not killed by any row (no row's board reaches there: RV-03a2); no goblin placer's
-payload guarded; no entrant with armor of its own, an `ARMOR_VS` of the payload's type, or an
-`ARMOR` effect (held, expired, negative); no payload's entry other than its hit guarded; no payload
-with a `HEAL`, `CURE` or holding entry; no dead goblin entering. Four read only a weapon hit
-(`strike`'s block, the knocked-down and sleeping target, the block's cap: `act`'s rows, lot E). Two
+Of the trap path's 65 mutants, 39 were killed by `trap.jsonl` and 3 by `trapcases.ts` (another
+goblin's kit, rank or level read for the placer's). Since `act.jsonl` (lot E), 10 of the 22
+survivors are killed by its rows: `strike`'s block spend (205), the knocked-down (209) and sleeping
+(211) target, a trap's damage of no type (`offence` 185), the cached and the expired defence (159,
+161, 173), an `ARMOR` effect below 0 (164), a `HEAL` and a holding entry (44, 215). 12 survive.
+Nine are holes of `trap.jsonl`, reported to track game: a position, a chunk column or a chunk row
+past the location landing on a chunk no row's ground holds (rows 42, 47, 48); `locate`'s guard of a
+tile West of `ORIGIN`, which Cairo has too, not killed by any row (RV-03a2); no goblin placer's
+payload guarded; no entrant holding an `ARMOR` effect on a trap's hit; no payload's entry other than
+its hit guarded; no payload with a `CURE` entry; no dead goblin entering. The block's cap at 63
+cannot be reached through `act`: `act` strikes goblins only, whose charges are 6 bits (at most 63,
+rows 213 and 214); a member's (7 bits) passes 63 only under a goblin's hit, the ticks' (lot F). Two
 are equivalent on the trap path: `trap`'s and `entries`' checks of a dead entrant mask each other.
 One is equivalent outright, marked `equivalent`: the same guard's South half, whose chunk is below
 0, which no ground holds.
+
+## The action
+
+`src/action.ts` is `ActionLibrary::act`, computed (CLI-02g-E, D-257): `actClass` loads the words
+through the content, runs `ActionTrait::act` for member 0 with `Delegate`'s rules and a fresh
+`Cache`, and returns the words stored back (or the words as they came on a refusal), the ground and
+the `Result`; `src/index.ts` exports it as `actionAct`, a `Classes.act`. `act` is the legality in
+its order (the clock, the adventurer, knocked down, then each arm's: Turn's flag; the skill's
+`Empty`, `Kind`, `Instant`, `Recharging`, `Adrenaline`, `Energy`, `aim`'s `Target` and `Reach`,
+`Trap`; the item's `Empty`, `Belt`, `aim`), the costs at once (energy after _Fieldcraft_ and the
+glyphs, consumed; adrenaline; the quick-cast counters; the belt's count), the facing, and the
+carrier now (`carry`) or an activation started (`A = c + n`), with its tick cost.
+
+`carry` is `Delegate`'s: a `TRAP` carrier is placed in the ground (`trap.ts`'s `spot`, `place`,
+`placer`) if its guard holds, before any sub-world; any other runs through `executor.ts`'s
+`execute`, on the whole world. `Delegate`'s sub-world (the goblins the carrier can reach, `wide`,
+`subcontent`) is the call's cost, not its result, and is not ported. `execute` is §5.14: the
+carrier's entries (`read`), their guards, each entry's `Op`, the hit modifiers (`modifiers`), the
+target sets (`actors`: every set's shape on its centre, the actors its filter takes, ascending
+position; a carrier of `SINGLE` entries reads its source and the addressed entity alone), the
+source's terms (`offence`: a member's weapon, passives and held `PENETRATION`, a goblin's caste
+weapon; `penetration`, `attack`), each actor in order (`on`: the hit, then the other entries), the
+source's side of a landed weapon hit, and each actor written back, a carrier's awake goblins
+gathered into one write of the awake set (`put` with `pending`, `flush`: `Levered`'s lever). Not
+here: `conclude` and `legal` (an activation's end) and the goblins' acts (lot F).
+
+`act.jsonl`'s rows are its README's: row 0 the content, 175 `act` rows (one call of the class
+each), 19 `defence` and 28 `offence` rows (`Body::defence`, `Body::offence` through `UnitBody`). On
+a refusal the words and the ground are the case's, felt for felt. `segment2.jsonl`'s `act` calls
+(rows 1 to 11 and 44) are computed by the port and equal their recordings
+(`src/parity/parity.test.ts`). The liveness reads are the class's own: `locate` reads a goblin's AI
+state and health, `TrapTrait::occupied` and a wide carrier's candidates its AI state alone (rows
+217 to 222 hold goblins dead by one field only).
+
+Of the action's 148 mutants, 129 are killed by the tables. 16 survive, holes of `act.jsonl`
+reported to track game: no attack skill on a slot other than 0 with that slot's (or slot 0's)
+weapon-required bit alone; no negative `NEXT_SPELL_COST`; no spell counting for a quick-cast pair
+from a bar slot above 0; no `act` row landing an attack skill with passives or a held
+`PENETRATION`; no `ATTACK_BONUS` or `HIT_PENETRATION` entry; no `PENETRATION` of scope `ALL` held
+(two mutants); no `ON_ATTACK_CONDITION`; no `act` row with `LIFE_STEAL_ON_HIT` or `ENERGY_ON_HIT`
+(only `offence` row 182 reads them); no hit whose filter takes the source's side; no `SINGLE`
+`TILE` entry reaching an actor; no wide carrier near a member at 0 health; no two actors of a
+carrier whose index order is not their position order; no carrier holding a hit and another entry
+whose set holds an actor the hit's does not. Three are `equivalent`: a refusal's words stored back
+(every refusal comes before any write, and a store of a load gives the words back); the awake
+goblins written at once rather than gathered (the mirror's world is one array); a trap placed on a
+wall (through `act`, `aim`'s reach refuses a walled tile first).
 
 ## Where the vectors come from
 

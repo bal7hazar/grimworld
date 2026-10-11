@@ -1469,8 +1469,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "body/member.ts",
     from: "base: two(28 * s + (s >= 4 ? 16 : 0))",
     to: "base: two(28 * s)",
-    survives:
-      "no row interrupts a member activating bar slot 4–7 (`inflict` 153–159 use bar slot 1): `recharge_at`'s high-limb lanes are not vectored",
   },
   {
     name: "a member's interrupt runs with no activation",
@@ -2282,8 +2280,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "executor.ts",
     from: "damage_type: e.param,",
     to: "damage_type: 0,",
-    survives:
-      "no entrant has an `ARMOR_VS` of the payload's type: a trap row on an entrant with earth armor",
   },
   {
     name: "a landed hit not struck (strike)",
@@ -2298,31 +2294,26 @@ const MUTANTS: readonly Mutant[] = [
     from: `    body.spend(target, defence.block_slot, t);
 `,
     to: "",
-    survives:
-      "only a weapon hit reads it (a trap's hit is never blocked or evaded, `ExecutorTrait::trap`): `act`'s rows (RV-03b, lot E)",
   },
   {
     name: "a knocked-down target read standing (strike)",
     file: "executor.ts",
     from: "knocked: body.knocked(target, t),",
     to: "knocked: false,",
-    survives:
-      "only a weapon hit reads it (a trap's hit is never blocked or evaded, `ExecutorTrait::trap`): `act`'s rows (RV-03b, lot E)",
   },
   {
     name: "a sleeping target read awake (strike)",
     file: "executor.ts",
     from: "asleep: body.asleep(target),",
     to: "asleep: false,",
-    survives:
-      "only a weapon hit reads it (a trap's hit is never blocked or evaded, `ExecutorTrait::trap`): `act`'s rows (RV-03b, lot E)",
   },
   {
     name: "the block's charges not capped (resolve)",
     file: "executor.ts",
     from: "const block = BigInt(defence.block) > MAX_BLOCK ? MAX_BLOCK : BigInt(defence.block);",
     to: "const block = BigInt(defence.block);",
-    survives: "a `BLOCK` above 63 charges, and a weapon hit: `act`'s rows (RV-03b, lot E)",
+    survives:
+      "a `BLOCK` above 63 charges, a member's (7 bits) under a goblin's weapon hit: `act` strikes goblins only, whose charges are 6 bits (at most 63, rows 213 and 214); a hit on a member is the ticks' (lot F)",
   },
   {
     name: "the target's ARMOR effects ignored (resolve)",
@@ -2336,30 +2327,24 @@ const MUTANTS: readonly Mutant[] = [
     file: "executor.ts",
     from: "if (c.at === t + 1 && c.member === index) return c.defence;",
     to: "if (c.member === index) return c.defence;",
-    survives:
-      "the table's members have no armor, stance or enchanted sum, and a trap's hit reads no block or evasion: a trap row on a member with armor",
   },
   {
     name: "an expired effect still defends (DefenceTrait::member)",
     file: "executor.ts",
     from: "if (held.deadline >= t && position !== ABSENT_LANE) {",
     to: "if (position !== ABSENT_LANE) {",
-    survives:
-      "no member entrant holds an expired effect whose holding entry is `ARMOR`: a trap row on one",
   },
   {
     name: "an expired effect still defends (DefenceTrait::goblin)",
     file: "executor.ts",
     from: "if (held.deadline >= t && goblin.effect_at !== ABSENT) {",
     to: "if (goblin.effect_at !== ABSENT) {",
-    survives: "no goblin entrant holds an `ARMOR` effect, expired or not: a trap row on one",
   },
   {
     name: "an ARMOR effect not clamped at 0 (DefenceTrait::add)",
     file: "executor.ts",
     from: "defence.effects += clamp(value(e, held.rank), 0, MAX_ARMOR_EFFECT);",
     to: "defence.effects += value(e, held.rank);",
-    survives: "no entrant holds an `ARMOR` effect: a trap row on an entrant holding a negative one",
   },
   {
     name: "an entrant dead after an entry takes the next (entries)",
@@ -2395,7 +2380,6 @@ const MUTANTS: readonly Mutant[] = [
     file: "executor.ts",
     from: "return { ...nothing(), kind: e.kind, v: clamp(value(e, r), 0, MAX_VALUE) };",
     to: "return nothing();",
-    survives: "no trap payload holds a `HEAL` entry",
   },
   {
     name: "a CURE entry applies nothing (ops)",
@@ -2411,7 +2395,6 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: `    if (false) {
 `,
-    survives: "no trap payload holds a holding entry",
   },
   {
     name: "BELOW_HALF held at exactly half (guards)",
@@ -2439,6 +2422,986 @@ const MUTANTS: readonly Mutant[] = [
     to: "if (goblin.health === 0) {",
     survives:
       "no goblin entrant is dead already: `actor` finds a dead goblin's record, a trap row with one entering",
+  },
+  // ---- The action class and the executor's carrier (CLI-02g-E, act.jsonl)
+  {
+    name: "the clock refused at LAST_TICK (act)",
+    file: "action.ts",
+    from: "if (c > LAST_TICK) return refused(Illegal.Clock);",
+    to: "if (c >= LAST_TICK) return refused(Illegal.Clock);",
+  },
+  {
+    name: "a dead adventurer acts (act)",
+    file: "action.ts",
+    from: "if (!is_alive(member)) return refused(Illegal.Absent);",
+    to: "",
+  },
+  {
+    name: "knocked down read at c, not t0 (act)",
+    file: "action.ts",
+    from: 'if (!can_act(member, t0) && action.kind !== "wait")',
+    to: 'if (!can_act(member, c) && action.kind !== "wait")',
+  },
+  {
+    name: "knocked down: Wait refused too (act)",
+    file: "action.ts",
+    from: 'if (!can_act(member, t0) && action.kind !== "wait")',
+    to: "if (!can_act(member, t0))",
+  },
+  {
+    name: "Wait costs 0 (act)",
+    file: "action.ts",
+    from: `case "wait":
+      return { ticks: 1 };`,
+    to: `case "wait":
+      return { ticks: 0 };`,
+  },
+  {
+    name: "a second Turn legal (act)",
+    file: "action.ts",
+    from: "if ((member.flags & flag.TURNED) !== 0) return refused(Illegal.Turned);",
+    to: "",
+  },
+  {
+    name: "Turn reads the whole flags byte (act)",
+    file: "action.ts",
+    from: "if ((member.flags & flag.TURNED) !== 0)",
+    to: "if (member.flags !== 0)",
+  },
+  {
+    name: "Turn does not set TURNED (act)",
+    file: "action.ts",
+    from: "member.flags |= flag.TURNED;",
+    to: "",
+  },
+  {
+    name: "Turn's facing not written (act)",
+    file: "action.ts",
+    from: `      set_facing(member, action.direction);
+      world.members[i] = member;`,
+    to: "      world.members[i] = member;",
+  },
+  {
+    name: "Turn costs 1 (act)",
+    file: "action.ts",
+    from: `      return { ticks: 0 };
+    }`,
+    to: `      return { ticks: 1 };
+    }`,
+  },
+  {
+    name: "Move and Interact legal (act)",
+    file: "action.ts",
+    from: `    case "interact":
+      return refused(Illegal.Kind);`,
+    to: `    case "interact":
+      return { ticks: 1 };`,
+  },
+  {
+    name: "an attack does not turn the adventurer (act)",
+    file: "action.ts",
+    from: `      set_facing(member, facing(from, aimed.to, facing0));
+      world.members[i] = member;`,
+    to: "      world.members[i] = member;",
+  },
+  {
+    name: "an attack does not carry (act)",
+    file: "action.ts",
+    from: `      carry(rules, world, sheets, source, 0, weapon, action.entity, t0);
+`,
+    to: "",
+  },
+  {
+    name: "an attack carried at c (act)",
+    file: "action.ts",
+    from: "carry(rules, world, sheets, source, 0, weapon, action.entity, t0);",
+    to: "carry(rules, world, sheets, source, 0, weapon, action.entity, c);",
+  },
+  {
+    name: "an attack costs 1 tick whatever k (act)",
+    file: "action.ts",
+    from: "return { ticks: weapon_ticks(member) };",
+    to: "return { ticks: 1 };",
+  },
+  {
+    name: "an attack skill without its weapon legal (Kind)",
+    file: "action.ts",
+    from: "if (attack && weapon_required(member, slot)) return refused(Illegal.Kind);",
+    to: "",
+  },
+  {
+    name: "any skill with the weapon-required bit refused (Kind)",
+    file: "action.ts",
+    from: "if (attack && weapon_required(member, slot))",
+    to: "if (weapon_required(member, slot))",
+  },
+  {
+    name: "the weapon-required bit of slot 0 read for every slot",
+    file: "action.ts",
+    from: "two(40 + slot), 2n)",
+    to: "two(40), 2n)",
+    survives:
+      "no row holds the bit of another slot than 0 alone with the attack skill on that slot: an attack skill on slot 1 with slot 0's bit only (legal), or with slot 1's (refused)",
+  },
+  {
+    name: "an attack skill of activation 0 counted instant (Instant)",
+    file: "action.ts",
+    from: "const instant = sheet.activation === 0 && !attack;",
+    to: "const instant = sheet.activation === 0;",
+  },
+  {
+    name: "a second instant skill legal (Instant)",
+    file: "action.ts",
+    from: "if (instant && (member.flags & flag.INSTANT) !== 0) return refused(Illegal.Instant);",
+    to: "",
+  },
+  {
+    name: "Instant reads the whole flags byte",
+    file: "action.ts",
+    from: "(member.flags & flag.INSTANT) !== 0)",
+    to: "member.flags !== 0)",
+  },
+  {
+    name: "the recharge's deadline inclusive (Recharging)",
+    file: "action.ts",
+    from: "if (c < m.recharge(member, slot))",
+    to: "if (c <= m.recharge(member, slot))",
+  },
+  {
+    name: "adrenaline's strikes in thirds, not quarters (Adrenaline)",
+    file: "action.ts",
+    from: "const adrenaline = sheet.adrenaline * 4;",
+    to: "const adrenaline = sheet.adrenaline * 3;",
+  },
+  {
+    name: "adrenaline refused at its cost (Adrenaline)",
+    file: "action.ts",
+    from: "if (member.adrenaline < adrenaline)",
+    to: "if (member.adrenaline <= adrenaline)",
+  },
+  {
+    name: "a hex is no spell (is_spell)",
+    file: "action.ts",
+    from: "k === skill_kind.SPELL || k === skill_kind.HEX || k === skill_kind.ENCHANTMENT",
+    to: "k === skill_kind.SPELL || k === skill_kind.ENCHANTMENT",
+  },
+  {
+    name: "an enchantment is no spell (is_spell)",
+    file: "action.ts",
+    from: "k === skill_kind.SPELL || k === skill_kind.HEX || k === skill_kind.ENCHANTMENT",
+    to: "k === skill_kind.SPELL || k === skill_kind.HEX",
+  },
+  {
+    name: "glyphs taken off any skill (act)",
+    file: "action.ts",
+    from: "spell ? glyphs(member, sheets, c) : [0, 0]",
+    to: "glyphs(member, sheets, c)",
+  },
+  {
+    name: "energy refused at its cost (Energy)",
+    file: "action.ts",
+    from: "if (member.energy < cost)",
+    to: "if (member.energy <= cost)",
+  },
+  {
+    name: "the carrier at slot 0's rank (act)",
+    file: "action.ts",
+    from: "rank: rank(member, slot) };",
+    to: "rank: rank(member, 0) };",
+  },
+  {
+    name: "a trap's tile never checked (Trap)",
+    file: "action.ts",
+    from: "entry(sheets, position, 0).kind === kind.TRAP &&",
+    to: "false &&",
+  },
+  {
+    name: "energy not paid (act)",
+    file: "action.ts",
+    from: `  member.energy -= cost;
+`,
+    to: "",
+  },
+  {
+    name: "adrenaline not paid (act)",
+    file: "action.ts",
+    from: `  member.adrenaline -= adrenaline;
+`,
+    to: "",
+  },
+  {
+    name: "glyphs not consumed (act)",
+    file: "action.ts",
+    from: `  consume(member, mask, c);
+`,
+    to: "",
+  },
+  {
+    name: "quick cast counts a skill that is no spell (act)",
+    file: "action.ts",
+    from: "if (spell && n >= 1) {",
+    to: "if (n >= 1) {",
+  },
+  {
+    name: "quick cast counts an instant spell (act)",
+    file: "action.ts",
+    from: "if (spell && n >= 1) {",
+    to: "if (spell && n >= 0) {",
+  },
+  {
+    name: "the first counter not written (act)",
+    file: "action.ts",
+    from: `    set_casts(member, 0, c0);
+`,
+    to: "",
+  },
+  {
+    name: "the second counter not written (act)",
+    file: "action.ts",
+    from: `    set_casts(member, 1, c1);
+`,
+    to: "",
+  },
+  {
+    name: "the bonus kept at 1 only above n (act)",
+    file: "action.ts",
+    from: "n = quick >= n ? 1 : n - quick;",
+    to: "n = quick > n ? 1 : n - quick;",
+  },
+  {
+    name: "the bonus not taken off (act)",
+    file: "action.ts",
+    from: "n = quick >= n ? 1 : n - quick;",
+    to: "n = quick >= n ? 1 : n;",
+  },
+  {
+    name: "a skill does not turn the adventurer (act)",
+    file: "action.ts",
+    from: `  set_facing(member, facing(from, aimed.to, facing0));
+  // 4. Now`,
+    to: "  // 4. Now",
+  },
+  {
+    name: "an instant skill's recharge not set (act)",
+    file: "action.ts",
+    from: `    use_instant(member, slot, c, sheets);
+`,
+    to: "",
+  },
+  {
+    name: "an instant skill's recharge from c (use_instant)",
+    file: "action.ts",
+    from: "recharge_deadline(c + 1, r)",
+    to: "recharge_deadline(c, r)",
+  },
+  {
+    name: "INSTANT not set (act)",
+    file: "action.ts",
+    from: "if (instant) member.flags |= flag.INSTANT;",
+    to: "",
+  },
+  {
+    name: "INSTANT set by an attack skill too (act)",
+    file: "action.ts",
+    from: "if (instant) member.flags |= flag.INSTANT;",
+    to: "member.flags |= flag.INSTANT;",
+  },
+  {
+    name: "a skill now does not carry (act)",
+    file: "action.ts",
+    from: `    carry(rules, world, sheets, source, slot, carrier, aimed.address, c + 1);
+`,
+    to: "",
+  },
+  {
+    name: "an attack skill now costs 0 ticks (act)",
+    file: "action.ts",
+    from: "return { ticks: attack ? weapon_ticks(member) : 0 };",
+    to: "return { ticks: 0 };",
+  },
+  {
+    name: "an activation not started (act)",
+    file: "action.ts",
+    from: `  start(member, slot, aimed.address, n, c);
+`,
+    to: "",
+  },
+  {
+    name: "an activation's deadline A = c + n - 1 (start)",
+    file: "action.ts",
+    from: "BigInt(c), BigInt(n === 0 ? 1 : n)",
+    to: "BigInt(c), BigInt(n === 0 ? 0 : n - 1)",
+  },
+  {
+    name: "a tile's activation without act_tile (act)",
+    file: "action.ts",
+    from: "if (address.tile) member.act_tile = 1;",
+    to: "",
+  },
+  {
+    name: "an activated attack skill costs n, not max(k, n) (act)",
+    file: "action.ts",
+    from: "return { ticks: attack && k > n ? k : n };",
+    to: "return { ticks: n };",
+  },
+  {
+    name: "belt slot 0's item 0 takes the potion of id 0 (Empty)",
+    file: "action.ts",
+    from: "id !== 0 && sheet.id === id",
+    to: "sheet.id === id",
+  },
+  {
+    name: "a belt count of 0 legal (Belt)",
+    file: "action.ts",
+    from: "if (left === 0) return refused(Illegal.Belt);",
+    to: "",
+  },
+  {
+    name: "every potion addressed as a tile (act)",
+    file: "action.ts",
+    from: "executor.potion_entry(sheets, position).target === target.TILE",
+    to: "true",
+  },
+  {
+    name: "the belt's count not taken (act)",
+    file: "action.ts",
+    from: `  set_belt_count(member, slot, left - 1);
+`,
+    to: "",
+  },
+  {
+    name: "an item does not turn the adventurer (act)",
+    file: "action.ts",
+    from: `  set_facing(member, facing(from, aimed.to, facing0));
+  world.members[source.i] = member;
+  carry(rules, world, sheets, source, slot, carrier, aimed.address, world.clock + 1);`,
+    to: `  world.members[source.i] = member;
+  carry(rules, world, sheets, source, slot, carrier, aimed.address, world.clock + 1);`,
+  },
+  {
+    name: "an item does not carry (act)",
+    file: "action.ts",
+    from: `  carry(rules, world, sheets, source, slot, carrier, aimed.address, world.clock + 1);
+`,
+    to: "",
+  },
+  {
+    name: "an item costs 0 ticks (act)",
+    file: "action.ts",
+    from: `  return { ticks: 1 };
+}`,
+    to: `  return { ticks: 0 };
+}`,
+  },
+  {
+    name: "the belt count of slot 0 read for every slot (belt_count)",
+    file: "action.ts",
+    from: "two(8 * slot), 0x100n)",
+    to: "two(0), 0x100n)",
+  },
+  {
+    name: "a tile for an entity carrier (aim)",
+    file: "action.ts",
+    from: "if (addressing !== target.TILE) return Illegal.Target;",
+    to: "",
+  },
+  {
+    name: "an entity for a tile carrier (aim)",
+    file: "action.ts",
+    from: "if (addressing === target.TILE) return Illegal.Target;",
+    to: "",
+  },
+  {
+    name: "a wrong-side target (aim)",
+    file: "action.ts",
+    from: 'if ((actor.kind === "M") !== (addressing === target.ALLY)) return Illegal.Target;',
+    to: "",
+  },
+  {
+    name: "a dead target (aim)",
+    file: "action.ts",
+    from: "if (!alive) return Illegal.Target;",
+    to: "",
+  },
+  {
+    name: "out of reach legal (aim)",
+    file: "action.ts",
+    from: "if (!reach(board.open, from, to, range)) return Illegal.Reach;",
+    to: "",
+  },
+  {
+    name: "the reach one tile longer (aim)",
+    file: "action.ts",
+    from: "reach(board.open, from, to, range)",
+    to: "reach(board.open, from, to, range + 1)",
+  },
+  {
+    name: "Fieldcraft on a Warden's skill of any profession (energy)",
+    file: "action.ts",
+    from: "first === WARDEN && profession === WARDEN",
+    to: "first === WARDEN",
+  },
+  {
+    name: "Fieldcraft on a Warden skill of any primary (energy)",
+    file: "action.ts",
+    from: "first === WARDEN && profession === WARDEN",
+    to: "profession === WARDEN",
+  },
+  {
+    name: "Fieldcraft 2 a rank (energy)",
+    file: "action.ts",
+    from: "export const FIELDCRAFT_PER_RANK = 1;",
+    to: "export const FIELDCRAFT_PER_RANK = 2;",
+  },
+  {
+    name: "the energy in whole points, not thirds (energy)",
+    file: "action.ts",
+    from: "(cost - off) * ENERGY_THIRDS",
+    to: "(cost - off) * 2",
+  },
+  {
+    name: "the glyphs not taken off (energy)",
+    file: "action.ts",
+    from: "const off = fieldcraft + glyph;",
+    to: "const off = fieldcraft;",
+  },
+  {
+    name: "a potion held counted a glyph (glyphs)",
+    file: "action.ts",
+    from: "!held.potion && c < held.deadline",
+    to: "c < held.deadline",
+  },
+  {
+    name: "a glyph held to c still counts (glyphs)",
+    file: "action.ts",
+    from: "c < held.deadline",
+    to: "c <= held.deadline",
+  },
+  {
+    name: "a negative NEXT_SPELL_COST added (glyphs)",
+    file: "action.ts",
+    from: "if (v > 0) off += v;",
+    to: "off += v;",
+    survives:
+      "no glyph's `NEXT_SPELL_COST` is negative at its rank: a glyph of a negative value held with a spell",
+  },
+  {
+    name: "a glyph's slot not in the mask (glyphs)",
+    file: "action.ts",
+    from: `          mask |= b;
+`,
+    to: "",
+  },
+  {
+    name: "a glyph at rank 12, not its own (glyphs)",
+    file: "action.ts",
+    from: "line(e.v0, e.v12, held.rank)",
+    to: "line(e.v0, e.v12, 12)",
+  },
+  {
+    name: "a glyph ends at c + 1 (consume)",
+    file: "action.ts",
+    from: "deadline: c };",
+    to: "deadline: c + 1 };",
+  },
+  {
+    name: "a pair's bonus one cast late (count)",
+    file: "action.ts",
+    from: "return count + 1 >= n ? [0, 1] : [count + 1, 0];",
+    to: "return count + 1 > n ? [0, 1] : [count + 1, 0];",
+  },
+  {
+    name: "a pair of N 0 counts (count)",
+    file: "action.ts",
+    from: "if (n === 0 || !matches) return [count, 0];",
+    to: "if (!matches) return [count, 0];",
+  },
+  {
+    name: "pair 1 reads pair 0's bit (count)",
+    file: "action.ts",
+    from: "(matches & 2) !== 0",
+    to: "(matches & 1) !== 0",
+  },
+  {
+    name: "the weapon's k of 0 costs 0 (weapon_ticks)",
+    file: "action.ts",
+    from: "return k === 0 ? 1 : k;",
+    to: "return k;",
+  },
+  {
+    name: "pair 1 read at pair 0's lane (quick_casts)",
+    file: "action.ts",
+    from: "pair(field(high, two(92), 0x1000n))",
+    to: "pair(field(high, two(80), 0x1000n))",
+  },
+  {
+    name: "a pair's attribute and N swapped (quick_casts)",
+    file: "action.ts",
+    from: "[small(bits % 0x10n), small(bits / 0x10n)]",
+    to: "[small(bits / 0x10n), small(bits % 0x10n)]",
+  },
+  {
+    name: "a slot's pairs one bit a slot (quick_cast_matches)",
+    file: "action.ts",
+    from: "40 + 2 * slot",
+    to: "40 + slot",
+    survives:
+      "no spell counts for a quick-cast pair from a bar slot above 0: the fire spell on slot 1 with `MemberStats` 170 set",
+  },
+  {
+    name: "the second counter at the first's lane (casts)",
+    file: "action.ts",
+    from: "field(high, two(40), 0x100n)",
+    to: "field(high, two(48), 0x100n)",
+  },
+  {
+    name: "the primary's rank read as its profession (primary)",
+    file: "action.ts",
+    from: "small(field(low, two(80), 0x100n))]",
+    to: "small(field(low, two(72), 0x100n))]",
+  },
+  {
+    name: "a guarded trap placed whatever its guard (carry)",
+    file: "action.ts",
+    from: 'if ((guards(unit, [first]) & 1) === 0) return "Skipped";',
+    to: "",
+  },
+  {
+    name: "a trap placed but the ground not kept (carry)",
+    file: "action.ts",
+    from: `      rules.ground = ground;
+`,
+    to: "",
+  },
+  {
+    name: "a TRAP carrier through the executor (carry)",
+    file: "action.ts",
+    from: "if (first.kind === kind.TRAP) {",
+    to: "if (false) {",
+  },
+  {
+    name: "a refusal returns the words stored back (actClass)",
+    file: "action.ts",
+    from: '"illegal" in outcome ? call.words : store(world)',
+    to: "store(world)",
+    equivalent:
+      "every refusal comes before any write (FIX-01), and the store of a load gives its words back: no field `act` reads is rewritten by `store`",
+  },
+  {
+    name: "a goblin at 0 health and Engaged located alive (locate)",
+    file: "executor.ts",
+    from: "goblinModel.is_alive(goblin) && goblin.health > 0, boardPosition",
+    to: "goblinModel.is_alive(goblin), boardPosition",
+  },
+  {
+    name: "a DEAD goblin above 0 located alive (locate)",
+    file: "executor.ts",
+    from: "goblinModel.is_alive(goblin) && goblin.health > 0, boardPosition",
+    to: "goblin.health > 0, boardPosition",
+  },
+  {
+    name: "an attack skill addressed by its entry (addressing)",
+    file: "executor.ts",
+    from: `    if (sheet.kind === skill_kind.ATTACK) return [target.FOE, weapon_range(world, sheets, source)];
+`,
+    to: "",
+  },
+  {
+    name: "a skill's range one longer (addressing)",
+    file: "executor.ts",
+    from: "return [entry(sheets, carrier.at, 0).target, sheet.range];",
+    to: "return [entry(sheets, carrier.at, 0).target, sheet.range + 1];",
+  },
+  {
+    name: "a potion's range one longer (addressing)",
+    file: "executor.ts",
+    from: "at(sheets.potions, carrier.at).range];",
+    to: "at(sheets.potions, carrier.at).range + 1];",
+  },
+  {
+    name: "a weapon attack without its hit (read)",
+    file: "executor.ts",
+    from: "return { entries: [], context, weapon: true };",
+    to: "return { entries: [], context, weapon: false };",
+  },
+  {
+    name: "an attack skill's scope a spell's (read)",
+    file: "executor.ts",
+    from: "scope: attack ? 1 : 2,",
+    to: "scope: 2,",
+    survives:
+      "no `act` row lands an attack skill with passives or a held `PENETRATION` of scope `WEAPON` or `ATTACK_SKILL` (the `offence` rows set the scope themselves): the attack skill with the passives of 183–190, or holding the edge",
+  },
+  {
+    name: "ATTACK_BONUS ignored (modifiers)",
+    file: "executor.ts",
+    from: "if (e.kind === kind.ATTACK_BONUS) bonus = clamp(value(e, rank), 0, MAX_VALUE);",
+    to: "if (false) bonus = clamp(value(e, rank), 0, MAX_VALUE);",
+    survives: "no skill of the content holds an `ATTACK_BONUS` entry: an attack skill with one",
+  },
+  {
+    name: "HIT_PENETRATION ignored (modifiers)",
+    file: "executor.ts",
+    from: "      else if (e.kind === kind.HIT_PENETRATION) {",
+    to: "      else if (false) {",
+    survives:
+      "no skill of the content holds a `HIT_PENETRATION` entry: an attack skill with one, on an armored goblin",
+  },
+  {
+    name: "a bomb or a trap takes held penetration (penetration)",
+    file: "executor.ts",
+    from: `  if (cls === 3) return 0;
+`,
+    to: "",
+    survives:
+      "no `PENETRATION` effect of scope `ALL` is held: the bomb (scope 3) thrown holding one, which it must not take",
+  },
+  {
+    name: "an attack skill does not take WEAPON (penetration)",
+    file: "executor.ts",
+    from: "(cls < 2 && s === scope.WEAPON)",
+    to: "(cls === 0 && s === scope.WEAPON)",
+  },
+  {
+    name: "a spell does not take SPELL (penetration)",
+    file: "executor.ts",
+    from: "(cls === 2 && s === scope.SPELL) ||",
+    to: "",
+  },
+  {
+    name: "an effect of ALL not taken (penetration)",
+    file: "executor.ts",
+    from: "s === scope.ALL ||",
+    to: "",
+    survives: "no `PENETRATION` effect of scope `ALL` is held: a weapon hit or a spell holding one",
+  },
+  {
+    name: "a PENETRATION effect not capped at 100 (penetration)",
+    file: "executor.ts",
+    from: `BigInt(clamp(value(e, held.rank), 0, MAX_PERCENT))));
+        }`,
+    to: `BigInt(value(e, held.rank))));
+        }`,
+  },
+  {
+    name: "a PENETRATION effect held to t lapsed (penetration)",
+    file: "executor.ts",
+    from: `  if (cls === 3) return 0;
+  let sum = 0;
+  for (let slot = 0; slot < body.slots(source); slot++) {
+    const { held, at: position } = body.effect(source, slot);
+    if (held.deadline >= t`,
+    to: `  if (cls === 3) return 0;
+  let sum = 0;
+  for (let slot = 0; slot < body.slots(source); slot++) {
+    const { held, at: position } = body.effect(source, slot);
+    if (held.deadline > t`,
+  },
+  {
+    name: "the member's passive penetration left out (offence)",
+    file: "executor.ts",
+    from: "const pen = u16add(u16add(sum, held), carried);",
+    to: "const pen = u16add(held, carried);",
+  },
+  {
+    name: "the carrier's penetration left out (offence)",
+    file: "executor.ts",
+    from: "const pen = u16add(u16add(sum, held), carried);",
+    to: "const pen = u16add(sum, held);",
+  },
+  {
+    name: "the member's held penetration left out (offence)",
+    file: "executor.ts",
+    from: "const pen = u16add(u16add(sum, held), carried);",
+    to: "const pen = u16add(sum, carried);",
+  },
+  {
+    name: "the goblin's held penetration left out (offence)",
+    file: "executor.ts",
+    from: "const pen = u16add(held, carried);",
+    to: "const pen = carried;",
+  },
+  {
+    name: "a ranged weapon read melee (offence)",
+    file: "executor.ts",
+    from: "melee: w.range === range.TOUCH,",
+    to: "melee: true,",
+  },
+  {
+    name: "a weapon's requirement read met (offence)",
+    file: "executor.ts",
+    from: "weapon_base(BigInt(w.damage), w.met, extra())",
+    to: "weapon_base(BigInt(w.damage), true, extra())",
+  },
+  {
+    name: "a weapon hit's bonus left out (offence)",
+    file: "executor.ts",
+    from: "weapon_base(BigInt(w.damage), w.met, extra())",
+    to: "weapon_base(BigInt(w.damage), w.met, 0n)",
+  },
+  {
+    name: "a bomb at the level's strength (offence)",
+    file: "executor.ts",
+    from: `    cls === HitClass.Item
+`,
+    to: `    false
+`,
+  },
+  {
+    name: "a goblin's weapon strength off a rank (offence)",
+    file: "executor.ts",
+    from: "weapon_strength(BigInt(caste.rank), 255n)",
+    to: "weapon_strength(BigInt(caste.rank + 1), 255n)",
+  },
+  {
+    name: "a goblin's weapon always melee (offence)",
+    file: "executor.ts",
+    from: "melee: caste.weapon_range === range.TOUCH,",
+    to: "melee: false,",
+  },
+  {
+    name: "a member's passives of scope 0 for any class (offence)",
+    file: "executor.ts",
+    from: "s < 3 ? passives(member, s)",
+    to: "s < 3 ? passives(member, 0)",
+  },
+  {
+    name: "ENERGY_ON_HIT read as the life steal's byte (on_hit)",
+    file: "executor.ts",
+    from: "energy: small(field(high, two(8), 0x100n))",
+    to: "energy: small(field(high, two(0), 0x100n))",
+  },
+  {
+    name: "the ABOVE_HALF percent at the unguarded lane (passives)",
+    file: "executor.ts",
+    from: "above: from8(field(high, shift * two(24), 0x100n)),",
+    to: "above: from8(field(high, shift, 0x100n)),",
+  },
+  {
+    name: "the passive penetration at the ABOVE_HALF lane (passives)",
+    file: "executor.ts",
+    from: "sum: small(field(high, shift * two(48), 0x100n)),",
+    to: "sum: small(field(high, shift * two(24), 0x100n)),",
+  },
+  {
+    name: "the weapon's damage type at the next byte (weapon)",
+    file: "executor.ts",
+    from: "damage_type: small(field(high, two(32), 0x100n)),",
+    to: "damage_type: small(field(high, two(40), 0x100n)),",
+  },
+  {
+    name: "the weapon's requirement at the next byte (weapon)",
+    file: "executor.ts",
+    from: "met: field(high, two(48), 0x100n) !== 0n,",
+    to: "met: field(high, two(56), 0x100n) !== 0n,",
+  },
+  {
+    name: "the weapon's range at the tick cost's byte (weapon)",
+    file: "executor.ts",
+    from: "range: small(field(low, two(112), 0x100n)),",
+    to: "range: small(field(low, two(104), 0x100n)),",
+  },
+  {
+    name: "an ON_ATTACK_CONDITION not gathered (attack)",
+    file: "executor.ts",
+    from: `        conditions.push([e.param, value(e, held.rank)]);
+`,
+    to: "",
+    survives:
+      "no effect of the content is an `ON_ATTACK_CONDITION`: the sword's hit holding one (and one with charges, spent on a landed hit)",
+  },
+  {
+    name: "a landed weapon hit not counted (on)",
+    file: "executor.ts",
+    from: `      gain.landed = true;
+`,
+    to: "",
+  },
+  {
+    name: "LIFE_STEAL_ON_HIT ignored (on)",
+    file: "executor.ts",
+    from: "if (steal > 0 && body.alive(unit)) {",
+    to: "if (false) {",
+    survives:
+      "no `act` row lands a weapon hit with `LIFE_STEAL_ON_HIT` (`MemberKit` 128; only `offence` row 182 reads it): the sword on goblin 8 with it set, the member below its max health",
+  },
+  {
+    name: "a stopped hit does not stop the carrier (on)",
+    file: "executor.ts",
+    from: "if (!strike(c, unit, actor, shot, health, max_health, t, sheets)) return gain;",
+    to: "strike(c, unit, actor, shot, health, max_health, t, sheets);",
+  },
+  {
+    name: "a member taken for a goblin's foe (actors)",
+    file: "executor.ts",
+    from: "const foe = is_member !== member_source;",
+    to: "const foe = is_member === member_source;",
+  },
+  {
+    name: "the source in its own hit's set (actors)",
+    file: "executor.ts",
+    from: "const own_hit = b === HIT_BIT && same(candidate, actor);",
+    to: "const own_hit = false;",
+    survives:
+      "no hit's filter takes the source's side (every `DAMAGE` entry is `FOES`): a `DAMAGE` entry of filter `ALLIES` on a disc around the source",
+  },
+  {
+    name: "a weapon hit addresses no entity (actors)",
+    file: "executor.ts",
+    from: "let targets_entity = damage === 3;",
+    to: "let targets_entity = false;",
+  },
+  {
+    name: "an ALLY entry addresses no entity (actors)",
+    file: "executor.ts",
+    from: "if (e.target === target.FOE || e.target === target.ALLY) targets_entity = true;",
+    to: "if (e.target === target.FOE) targets_entity = true;",
+  },
+  {
+    name: "a SINGLE TILE entry read narrow (actors)",
+    file: "executor.ts",
+    from: "if (e.shape !== shapes.SINGLE || e.target === target.TILE) wide = true;",
+    to: "if (e.shape !== shapes.SINGLE) wide = true;",
+    survives:
+      "no `SINGLE` `TILE` entry reaches an actor (Snare and the instant trap are `TRAP`s, the bomb a `DISC_1`): a potion or a skill of `SINGLE` on a goblin's tile",
+  },
+  {
+    name: "a SELF entry centred on the address (actors)",
+    file: "executor.ts",
+    from: "e.target === target.SELF ? source_at",
+    to: "e.target === target.SELF ? addressed_at",
+  },
+  {
+    name: "a DAMAGE entry's set not the hit's (actors)",
+    file: "executor.ts",
+    from: "e.kind === kind.DAMAGE ? HIT_BIT : bit(k)",
+    to: "bit(k)",
+  },
+  {
+    name: "a dead member a candidate of a wide carrier (actors)",
+    file: "executor.ts",
+    from: `      if (is_alive(member)) {
+        const { x, y } = memberPlace(member);`,
+    to: `      if (true) {
+        const { x, y } = memberPlace(member);`,
+    survives:
+      "no wide carrier reaches a member at 0 health: the bomb's disc holding member 1 at 0 health, with an `ALLIES` entry",
+  },
+  {
+    name: "a DEAD goblin a candidate of a wide carrier (actors)",
+    file: "executor.ts",
+    from: `      if (goblinModel.is_alive(goblin)) {
+        const { x, y } = goblinModel.place(goblin);`,
+    to: `      if (true) {
+        const { x, y } = goblinModel.place(goblin);`,
+  },
+  {
+    name: "the actors not in ascending position (actors)",
+    file: "executor.ts",
+    from: "return ascending(found);",
+    to: "return found;",
+    survives:
+      "no carrier's actors differ by order (the bomb's two goblins are in index order and position order alike, and nothing between them reads the other): a bomb that kills two goblins whose index order is not their position order (`killed`'s order)",
+  },
+  {
+    name: "a bomb's hit of class Spell (run)",
+    file: "executor.ts",
+    from: "cls = context.scope === 2 ? HitClass.Spell : HitClass.Item;",
+    to: "cls = HitClass.Spell;",
+  },
+  {
+    name: "a DAMAGE entry not the hit (run)",
+    file: "executor.ts",
+    from: `    if (e.kind === kind.DAMAGE) damage = k;
+`,
+    to: "",
+  },
+  {
+    name: "the hit given to every set's actor (run)",
+    file: "executor.ts",
+    from: "hit: (bits & HIT_BIT) !== 0 && hit_held,",
+    to: "hit: hit_held,",
+    survives:
+      "no carrier holds a hit and another entry whose set holds an actor the hit's does not: a fire spell on a foe with a `DISC_1` `CONDITION` around it, a second goblin in the disc",
+  },
+  {
+    name: "the source's own entries not applied (run)",
+    file: "executor.ts",
+    from: `      apply(c, source, actor, list, bits, held, context, sheets);
+      continue;`,
+    to: "      continue;",
+  },
+  {
+    name: "the source's adrenaline not gained on a landed hit (run)",
+    file: "executor.ts",
+    from: `    body.landed(source, sheets);
+`,
+    to: "",
+  },
+  {
+    name: "ENERGY_ON_HIT not gained (run)",
+    file: "executor.ts",
+    from: `    if (terms.energy > 0) body.energize(source, terms.energy, sheets);
+`,
+    to: "",
+    survives:
+      "no `act` row lands a weapon hit with `ENERGY_ON_HIT` (`MemberKit` 136; only `offence` row 182 reads it): the sword on goblin 8 with it set, the member below its max energy",
+  },
+  {
+    name: "the awake goblins never gathered (put)",
+    file: "executor.ts",
+    from: "if (pending !== undefined && goblin.awake && at(world.goblins, actor.i).awake) {",
+    to: "if (false) {",
+    equivalent:
+      "the mirror's world holds its goblins in one array: a write gathered for the awake set's one rebuild lands where a write at once does, and nothing between them reads it (`run` reads each actor once)",
+  },
+  {
+    name: "the awake goblins never written (execute)",
+    file: "executor.ts",
+    from: `    flush(world, pending);
+    if (source.kind === "M")`,
+    to: '    if (source.kind === "M")',
+  },
+  {
+    name: "the source member not written back (execute)",
+    file: "executor.ts",
+    from: `    if (source.kind === "M") world.members[source.i] = unit.member;
+`,
+    to: "",
+  },
+  {
+    name: "a trap placed on an occupied tile (spot)",
+    file: "trap.ts",
+    from: `  if (occupied(world, board, position)) return undefined;
+`,
+    to: "",
+  },
+  {
+    name: "a trap placed on a wall (spot)",
+    file: "trap.ts",
+    from: `  if (executor.near(board.open, shapes.SINGLE, position) === 0n) return undefined;
+`,
+    to: "",
+    equivalent:
+      "through `act`, `aim`'s reach asks the tile walkable first (sight, D-174): a walled tile is refused `Reach` before `spot`; the trap unit tests' `place` (not a table) holds it",
+  },
+  {
+    name: "a trap placed where the chunk has no free index (spot)",
+    file: "trap.ts",
+    from: "  return index === undefined ? undefined : { entry, index, tile };",
+    to: "  return { entry, index: index ?? 0, tile };",
+  },
+  {
+    name: "a placed trap's param without its slot (param)",
+    file: "trap.ts",
+    from: "return placer.member + placer.slot * 8;",
+    to: "return placer.member;",
+  },
+  {
+    name: "a placed trap starts used (place)",
+    file: "trap.ts",
+    from: "kind: object.PLACED_TRAP, state: 0,",
+    to: "kind: object.PLACED_TRAP, state: 1,",
   },
 ];
 

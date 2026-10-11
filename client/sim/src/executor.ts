@@ -19,15 +19,7 @@ import type { Unit } from "./body";
 import * as m from "./body/member";
 import { type Infliction, effective_duration } from "./body/infliction";
 import { skill_kind } from "./combat";
-import {
-  type Entry,
-  duration,
-  is_hit_modifier,
-  is_holding,
-  kind,
-  unpack,
-  value,
-} from "./effect";
+import { type Entry, duration, is_hit_modifier, is_holding, kind, unpack, value } from "./effect";
 import { add, arg, mul, panic, u16, u32 } from "./felt";
 import {
   HitClass,
@@ -284,7 +276,10 @@ export function on_hit(member: Member): { steal: number; energy: number } {
  * attack skill, 2 spell), unguarded and `ABOVE_HALF`, and its `PENETRATION` sum of the class
  * (`MemberBar` 136 + 8 (3 g + s), 184 + 8 s).
  */
-export function passives(member: Member, s: number): { percent: number; above: number; sum: number } {
+export function passives(
+  member: Member,
+  s: number,
+): { percent: number; above: number; sum: number } {
   const high = limbs(member.words.bar)[1];
   const shift = at([two(8), two(16), two(24)], s);
   return {
@@ -882,7 +877,9 @@ export function modifiers(
     if ((held & b) !== 0) {
       if (e.kind === kind.ATTACK_BONUS) bonus = clamp(value(e, rank), 0, MAX_VALUE);
       else if (e.kind === kind.HIT_PENETRATION) {
-        penetration = Number(add(u16, BigInt(penetration), BigInt(clamp(value(e, rank), 0, MAX_PERCENT))));
+        penetration = Number(
+          add(u16, BigInt(penetration), BigInt(clamp(value(e, rank), 0, MAX_PERCENT))),
+        );
       }
     }
     b *= 2;
@@ -1229,7 +1226,20 @@ export function run(
       target_at: p,
     };
     const unit = unitOf(world, target_actor);
-    const got = on(c, unit, target_actor, shot, onAttack, health, max_health, list, bits, held, context, sheets);
+    const got = on(
+      c,
+      unit,
+      target_actor,
+      shot,
+      onAttack,
+      health,
+      max_health,
+      list,
+      bits,
+      held,
+      context,
+      sheets,
+    );
     gain = {
       landed: gain.landed || got.landed,
       stolen: Number(add(u16, BigInt(gain.stolen), BigInt(got.stolen))),
