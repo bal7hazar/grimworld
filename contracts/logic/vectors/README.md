@@ -172,6 +172,18 @@ member (two potions 101 in belt slot 1) on (22, 22) of chunk 16 of the 3 × 3 lo
 chunk revealed, at clock 40, unless a row says otherwise; goblin 264 is chunk 16's first (`8 + 16 chunk + k`), the
 fixture's Hob (Engaged, awake, health 100).
 
+**Three behaviours of `run` a mirror reproduces** (track CV's replay, D-255):
+- A refused combat action (`Illegal` or `Heavy`) restores the words but keeps the ground `ActionLibrary` returned
+  (`play.cairo`, `SegmentTrait::combat`: `rules.ground = ground` before the result is read). For `Illegal` this is
+  the ground it was given: every refusal of `ActionTrait::act` comes before its first `carry`, the only step that
+  changes the ground. For `Heavy` the action has already resolved, so a ground it changed (a trap placed by an
+  instant trap skill) is kept: an open question (RV-02's report), not a rule to rely on; no row here reaches it.
+- The fast path's ticks (`TickTrait::idle`) regenerate the members as a tick's step does in `TickLibrary`
+  (`MemberTrait::regenerate`): health, energy up to its max, and adrenaline decaying (not engaged), not only health.
+- The trap call carries the clock, the members and the placer goblin, with `killed` empty and `defeated` false
+  whatever the world holds: the trap reads neither, and `run` reads back only the members and the placer goblin
+  (a defeat is found by the next tick's step 5). The digest of a `trigger` call is over those words.
+
 **Not reached:** `LayoutTrait::neighbor` → `None` (a Move off the window's edge). The window is assembled around the
 adventurer after every Move that does not end the segment, and nothing else moves it, so a Move always starts at
 the window's centre (`movement.jsonl`'s `origin`: position 112 or 127), and every neighbour of the centre exists.

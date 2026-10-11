@@ -872,6 +872,10 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::infliction::tests::test_infliction_duration` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::infliction::tests::test_infliction_duration_edges` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::play::tests::test_batch_vectors` | 23110939 | 24266486 | 2026-10-10 | c6633cb |
+| grimworld_logic | `types::play::tests::test_board_centred_0` | 481733560 | 505819188 | 2026-10-11 | fde8a90 |
+| grimworld_logic | `types::play::tests::test_board_centred_1` | 484562410 | 508789481 | 2026-10-11 | fde8a90 |
+| grimworld_logic | `types::play::tests::test_board_centred_2` | 488798560 | 513237438 | 2026-10-11 | fde8a90 |
+| grimworld_logic | `types::play::tests::test_move_keeps_board_centred` | 435651314 | 457433880 | 2026-10-11 | fde8a90 |
 | grimworld_logic | `types::play::tests::test_segment2_vectors_0` | 726895047 | 763239800 | 2026-10-11 | fde8a90 |
 | grimworld_logic | `types::play::tests::test_segment2_vectors_1` | 675340232 | 709107244 | 2026-10-11 | fde8a90 |
 | grimworld_logic | `types::play::tests::test_segment2_vectors_2` | 125814209 | 132104920 | 2026-10-11 | fde8a90 |
