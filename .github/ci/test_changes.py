@@ -93,6 +93,23 @@ class ClassifyTest(unittest.TestCase):
 
     def test_unknown_base_runs_everything(self):
         self.assertEqual(outputs([], base_known=False)["client"], "true")
+        self.assertEqual(outputs([], base_known=False)["client_node"], "true")
+
+    def test_client_node_follows_the_app_the_mirror_the_game_and_the_deployment(self):
+        for path in ("client/app/src/preview/preview.node.test.ts", "client/sim/src/segment.ts",
+                     "contracts/ephemeral/src/systems/instances.cairo", "contracts/seed/test-region.json",
+                     "contracts/tools/seed_records.py", "scripts/devnet_deploy.py", "scripts/with-node.sh",
+                     ".tool-versions", "pnpm-lock.yaml"):
+            self.assertTrue(on([path], "client_node"), path)
+
+    def test_client_node_skips_documents_and_other_packages(self):
+        for path in ("client/app/README.md", "contracts/ephemeral/GAS.md", "services/funder/src/index.ts",
+                     "indexer/src/db.ts", "tools/map-format/checks.json", "scripts/lock.sh", "docs/a.md"):
+            self.assertFalse(on([path], "client_node"), path)
+
+    def test_client_node_on_push_follows_the_diff(self):
+        self.assertEqual(outputs(["PLAN.md"], event="push")["client_node"], "false")
+        self.assertEqual(outputs(["client/app/src/App.tsx"], event="push")["client_node"], "true")
 
 
 if __name__ == "__main__":

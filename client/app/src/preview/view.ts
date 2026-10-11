@@ -183,6 +183,14 @@ export function decodeInstanceView(felts: readonly bigint[]): InstanceView {
   return view;
 }
 
+/** `instance_region`'s result: a `Span<RegionChunk>`, every felt read. */
+export function decodeRegion(felts: readonly bigint[]): RegionChunk[] {
+  const r = new Felts(felts);
+  const chunks = r.span(() => readChunk(r));
+  r.end();
+  return chunks;
+}
+
 /** The view's `Serde` felts: the inverse of `decodeInstanceView`, for tests and fixtures. */
 export function encodeInstanceView(view: InstanceView): bigint[] {
   const goblin = (g: GoblinView) => [BigInt(g.entity), g.derived ? 1n : 0n, g.state, g.timers];

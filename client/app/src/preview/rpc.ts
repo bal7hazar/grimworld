@@ -23,8 +23,10 @@ export interface RpcSimulatorConfig {
   /** The block the batch runs on; `pre_confirmed` (RPC 0.9+) by default. */
   block?: string;
   /**
-   * The v3 bounds. Nothing is charged (`SKIP_FEE_CHARGE`) and every price is 0 by default; the L2
-   * gas amount bounds the execution. Part 2 checks these on starknet-devnet.
+   * The v3 bounds. Nothing is charged (`SKIP_FEE_CHARGE`) and every price is 0 by default, with an
+   * L2 gas amount. starknet-devnet 0.10.0 accepts them (CLI-10b, review t-0184 note 6), and accepts
+   * every amount 0 as well: under `SKIP_FEE_CHARGE` it neither charges nor bounds the execution by
+   * them (preview.node.test.ts). A public node may bound by the amount: the default keeps it.
    */
   bounds?: { l1Gas: ResourceBound; l2Gas: ResourceBound; l1DataGas: ResourceBound };
   /** Every request goes through it (tests answer offline). */
@@ -54,14 +56,13 @@ const ZERO: ResourceBound = { maxAmount: 0n, maxPricePerUnit: 0n };
  */
 const DEFAULT_L2: ResourceBound = { maxAmount: 1n << 40n, maxPricePerUnit: 0n };
 
-export function createRpcSimulator(config: RpcSimulatorConfig): Simulator {
-  const nodeUrl = String(config.nodeUrl);
-  const sender = hex(BigInt(config.sender));
-  const block = config.block ?? "pre_confirmed";
-  const bounds = config.bounds ?? { l1Gas: ZERO, l2Gas: DEFAULT_L2, l1DataGas: ZERO };
-  const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
+/** A JSON-RPC client of one node: a method and its params in, the result out. */
+export type Rpc = (method: string, params: unknown) => Promise<unknown>;
+
+/** The node's JSON-RPC; an error it answers is a `SimulationError` with its code. */
+export function createRpc(nodeUrl: string, fetchImpl: typeof fetch): Rpc {
   let id = 0;
-  const rpc = async (method: string, params: unknown): Promise<unknown> => {
+  return async (method, params) => {
     const response = await fetchImpl(nodeUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -81,6 +82,13 @@ export function createRpcSimulator(config: RpcSimulatorConfig): Simulator {
     if (body.result === undefined) throw new SimulationError(`${method}: no result`);
     return body.result;
   };
+}
+
+export function createRpcSimulator(config: RpcSimulatorConfig): Simulator {
+  const sender = hex(BigInt(config.sender));
+  const block = config.block ?? "pre_confirmed";
+  const bounds = config.bounds ?? { l1Gas: ZERO, l2Gas: DEFAULT_L2, l1DataGas: ZERO };
+  const rpc = createRpc(String(config.nodeUrl), config.fetch ?? globalThis.fetch.bind(globalThis));
   return {
     async simulate(calls) {
       const nonce = await rpc("starknet_getNonce", { block_id: block, contract_address: sender });
