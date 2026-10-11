@@ -62,6 +62,8 @@ def main():
     assert dep["adventurer_id"] == 1
     for k in ("node_url", "chain_id", "commit", "account", "classes", "contracts"):
         assert dep[k], k
+    # FIX-02b: the goblin loader's class, `set_play_class` key 6 (`play_class::GOBLINS`)
+    assert dep["classes"].get("goblins_library"), "no GoblinsLibrary"
     secret = os.environ["NODE_ACCOUNT_PRIVATE_KEY"].lower().removeprefix("0x").lstrip("0")
     assert secret and secret not in json.dumps(dep).lower(), "the JSON holds the private key"
     for bad in ("http://127.0.0.1@evil.example:80", "http://evil.example\\@127.0.0.1:80",

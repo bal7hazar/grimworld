@@ -24,6 +24,9 @@ pub mod play_class {
     pub const EXECUTOR: u8 = 4;
     /// `SegmentLibrary`: the batch's segments (D-236).
     pub const SEGMENT: u8 = 5;
+    /// `GoblinsLibrary`: the goblin loader of `play`'s content rounds and of the view (FIX-02b,
+    /// D-269).
+    pub const GOBLINS: u8 = 6;
 }
 pub use errors::{NOT_ADMIN, ZERO_ADMIN};
 
@@ -36,7 +39,7 @@ pub mod errors {
     pub const PAGE: felt252 = 'region: page above 16';
     /// `set_admin` to the zero address would leave the role to nobody.
     pub const ZERO_ADMIN: felt252 = 'admin is zero';
-    /// `set_play_class` with a key past `play_class::SEGMENT` (t-0109, note 6).
+    /// `set_play_class` with a key past `play_class::GOBLINS` (t-0109, note 6).
     pub const PLAY_CLASS: felt252 = 'play class: no such key';
 }
 
@@ -130,7 +133,7 @@ pub struct InstanceView {
     /// (`models::instance::RosterTrait::mask`).
     /// Pages beyond `⌈roster_count / 15⌉` are not returned.
     pub roster: Span<felt252>,
-    /// The goblins a batch would load first (VIEW-01, D-263; `PlayLibrary.goblins`, by `play`'s
+    /// The goblins a batch would load first (VIEW-01, D-263; `GoblinsLibrary.window`, by `play`'s
     /// own code): the roster's (read through masked pages only) and those of the revealed chunks
     /// of the 3 × 3 around each member's tile, the touched ones stored, the untouched ones derived
     /// from their pack's placement (at full health, in their pack's state), in ascending entity
@@ -242,7 +245,7 @@ pub trait IInstancesAdmin<T> {
     fn set_admin(ref self: T, admin: ContractAddress);
     /// One of the classes `play` calls (ENG-07, D-233 to D-236), by its key (`play_class`):
     /// `PlayLibrary` (`play`'s body, by `library_call`), `TickLibrary`, `AiLibrary`,
-    /// `ActionLibrary`, `ExecutorLibrary`, `SegmentLibrary`.
+    /// `ActionLibrary`, `ExecutorLibrary`, `SegmentLibrary`, `GoblinsLibrary`.
     fn set_play_class(ref self: T, key: u8, class: ClassHash);
     /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
     fn upgrade(ref self: T, class_hash: ClassHash);
@@ -287,6 +290,7 @@ pub mod Instances {
     };
     use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
     use crate::store::InstancesStoreTrait;
+    use crate::systems::goblins::{IGoblinsLibraryDispatcherTrait, IGoblinsLibraryLibraryDispatcher};
     use crate::systems::play::{IPlayLibraryDispatcherTrait, IPlayLibraryLibraryDispatcher};
     use super::{
         InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, UNLOADABLE, VERSION, errors,
@@ -345,7 +349,9 @@ pub mod Instances {
         /// West seams, 2 its open North seams (`Outline`); never read in a zone.
         pub outline: Map<(u32, u8), felt252>,
         /// The classes `play` calls (ENG-07, D-233 to D-235): `PLAY` (`PlayLibrary`, called by
-        /// `library_call` with `play`'s body), `TICK`, `AI`, `ACTION`, `EXECUTOR` (`play_classes`).
+        /// `library_call` with `play`'s body), `TICK`, `AI`, `ACTION`, `EXECUTOR`, `SEGMENT`, `GOBLINS`
+        /// (`GoblinsLibrary`, called by `library_call` from `PlayLibrary` and `instance_state`)
+        /// (`play_classes`).
         pub play_classes: Map<u8, ClassHash>,
     }
 
@@ -554,8 +560,8 @@ pub mod Instances {
         /// whose generation is not the slot's current one answers nothing (every word 0, every
         /// list empty); task pages up to `⌈tasks / 4⌉`; the members' eight words; roster pages
         /// up to `⌈roster_count / 15⌉`, masked (F-13); the goblins a batch would load first,
-        /// `PlayLibrary`'s by `library_call` (VIEW-01, D-263: `play`'s own code), or the
-        /// `UNLOADABLE` marker, none while no `PlayLibrary` is set; the location's extent and
+        /// `GoblinsLibrary`'s by `library_call` (VIEW-01, D-263: `play`'s own loader, FIX-02b), or
+        /// the `UNLOADABLE` marker, none while no `GoblinsLibrary` is set; the location's extent and
         /// `level_min` from its record.
         fn instance_state(self: @ContractState, instance_id: InstanceId) -> InstanceView {
             let (slot, generation) = instance_parts(instance_id);
@@ -592,13 +598,13 @@ pub mod Instances {
                     );
             }
             // Before `set_play_class` (no batch can run), none: the view never reverts
-            let class_hash = self.get_play_class(play_class::PLAY);
+            let class_hash = self.get_play_class(play_class::GOBLINS);
             let unset: felt252 = class_hash.into();
             let goblins = if unset == 0 {
                 array![].span()
             } else {
-                let library = IPlayLibraryLibraryDispatcher { class_hash };
-                match library.goblins(instance_id) {
+                let library = IGoblinsLibraryLibraryDispatcher { class_hash };
+                match library.window(instance_id) {
                     Some(goblins) => goblins,
                     None => array![UNLOADABLE].span(),
                 }
@@ -789,7 +795,7 @@ pub mod Instances {
 
         fn set_play_class(ref self: ContractState, key: u8, class: ClassHash) {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
-            assert(key <= play_class::SEGMENT, errors::PLAY_CLASS);
+            assert(key <= play_class::GOBLINS, errors::PLAY_CLASS);
             self.store_play_class(key, class);
         }
 

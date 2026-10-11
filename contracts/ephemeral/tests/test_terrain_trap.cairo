@@ -124,6 +124,7 @@ fn play_classes(world: World) {
         *declare("ActionLibrary").unwrap().contract_class().class_hash,
         *declare("ExecutorLibrary").unwrap().contract_class().class_hash,
         *declare("SegmentLibrary").unwrap().contract_class().class_hash,
+        *declare("GoblinsLibrary").unwrap().contract_class().class_hash,
     ];
     start_cheat_caller_address(world.instances, addr(ADMIN));
     let admin = grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {

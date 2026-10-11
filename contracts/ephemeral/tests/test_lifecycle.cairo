@@ -23,6 +23,7 @@ use grimworld_ephemeral::systems::instances::{
     IInstancesDispatcher, IInstancesDispatcherTrait, IInstancesSafeDispatcher,
     IInstancesSafeDispatcherTrait, InstanceView, UNLOADABLE,
 };
+use grimworld_ephemeral::systems::goblins::GoblinsTrait;
 use grimworld_ephemeral::systems::play::{Book, PlayTrait};
 use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
 use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
@@ -1764,6 +1765,7 @@ fn play_classes(world: World) {
         *declare("ActionLibrary").unwrap().contract_class().class_hash,
         *declare("ExecutorLibrary").unwrap().contract_class().class_hash,
         *declare("SegmentLibrary").unwrap().contract_class().class_hash,
+        *declare("GoblinsLibrary").unwrap().contract_class().class_hash,
     ];
     start_cheat_caller_address(world.instances, addr(ADMIN));
     let admin = grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
@@ -2267,7 +2269,8 @@ fn test_play_unloadable_goblin_refused() {
 
 /// What `play`'s `[Read]` of the goblins builds for member `member` of slot 1 (play.cairo,
 /// `play`): its roster's records, then the goblins of the revealed chunks around the member
-/// (`ground`, `goblins`), `sorted`: `play`'s own steps, run in `Instances`' storage.
+/// (`ground`, then goblins.cairo's `goblins`), `sorted`: `play`'s own steps, run in `Instances`'
+/// storage.
 fn play_loads(world: World, member: u32) -> Array<grimworld_logic::models::index::GoblinWords> {
     snforge_std::interact_with_state(world.instances, || loads(world.registry, member))
 }
@@ -2294,7 +2297,7 @@ fn loads(
             );
     }
     let mut book = Book { packs: array![], castes: array![], skills: array![], potions: array![] };
-    let goblins = PlayTrait::goblins(
+    let goblins = GoblinsTrait::goblins(
         ref state,
         1,
         grimworld_logic::interface::IRegistryReadDispatcher { contract_address: registry },
@@ -2302,6 +2305,7 @@ fn loads(
         ground.span(),
         stored,
         roster.span(),
+        true,
     )
         .unwrap();
     PlayTrait::sorted(goblins.span())
@@ -2597,7 +2601,7 @@ fn test_set_play_class_key_refused() {
         grimworld_ephemeral::systems::instances::IInstancesAdminDispatcher {
             contract_address: world.instances,
         },
-        6,
+        7,
         *declare("TickLibrary").unwrap().contract_class().class_hash,
     );
 }

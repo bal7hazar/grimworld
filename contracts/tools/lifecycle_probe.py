@@ -552,7 +552,7 @@ if OPTIONS.get("--floor") == "on":
            hub, "enter", 1, 7)
 
 # ENG-07 (`--play on`, D-235, D-236): `play` on the node. The classes `play` calls are declared and
-# registered (`set_play_class`, keys `PLAY` … `SEGMENT`); adventurer 1, inside the zone (`fifth`),
+# registered (`set_play_class`, keys `PLAY` … `GOBLINS`); adventurer 1, inside the zone (`fifth`),
 # looks for an open direction from its entry tile with one-Move batches (a wall refuses the Move:
 # `BatchPlayed` with `Stop::Invalid`, nothing written), then plays the exploration batch: 10 Moves
 # back and forth across that edge, its ticks on the fast path, the chunks sight touches revealed
@@ -560,7 +560,8 @@ if OPTIONS.get("--floor") == "on":
 # `ChunkRevealed` go with it.
 if OPTIONS.get("--play") == "on":
     keys = [("ephemeral", "PlayLibrary"), ("logic", "TickLibrary"), ("logic", "AiLibrary"),
-            ("logic", "ActionLibrary"), ("logic", "ExecutorLibrary"), ("logic", "SegmentLibrary")]
+            ("logic", "ActionLibrary"), ("logic", "ExecutorLibrary"), ("logic", "SegmentLibrary"),
+            ("ephemeral", "GoblinsLibrary")]
     for key, (package, name) in enumerate(keys):
         invoke(f"set_play_class {name}", instances, "set_play_class", key, declare(package, name),
                record=False)
