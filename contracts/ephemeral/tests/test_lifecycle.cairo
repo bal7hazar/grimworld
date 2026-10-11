@@ -2341,7 +2341,7 @@ fn assert_view_is_play(world: World, id: u64) -> (u32, u32) {
 // the member (records, `touched`, the roster for those that leave chunk 15) and the calm one stays
 // untouched. Both times the view lists what `play` loads; then the location's record.
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 165369006)] // ceil(1.05 × 157494291 measured)
 fn test_view_goblins_are_plays() {
     let world = setup();
     play_classes(world);
@@ -2407,7 +2407,7 @@ fn test_view_goblins_are_plays() {
 // A goblin the registry cannot load (caste 99): `play` refuses the batch, the view answers with
 // the one `UNLOADABLE` marker and the rest of the instance, never a revert.
 #[test]
-#[available_gas(l2_gas: 400000000)]
+#[available_gas(l2_gas: 59034127)] // ceil(1.05 × 56222978 measured)
 fn test_view_unloadable_goblin_marker() {
     let world = setup();
     play_classes(world);
