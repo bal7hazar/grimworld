@@ -648,6 +648,7 @@ mod tests {
     use crate::models::goblin::GoblinTrait;
     use crate::models::index::{GoblinWords, Object};
     use crate::models::member::{MemberSnapshotTrait, MemberWords, MemberWordsTrait};
+    use crate::types::action::Illegal;
     use crate::types::combat::{Placer, PlacerTrait, damage, skill_kind};
     use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
     use crate::types::executor::{BoardTrait, Delegate};
@@ -656,7 +657,7 @@ mod tests {
     use crate::types::world::fixtures::{Fixture, HOB, MemberSpec, two};
     use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait, WorldTrait};
     use crate::types::{LAST_TICK, Target};
-    use super::{Area, Classes, SegmentTrait};
+    use super::{Area, Classes, Done, SegmentTrait};
 
     mod recorder;
 
@@ -2014,10 +2015,10 @@ mod tests {
     }
 
     /// The ground `SegmentTrait::run` leaves after `actions` on `weight`, through the real
-    /// classes (no recorders), as `Serde` felts.
+    /// classes (no recorders), as `Serde` felts, and its `Done`.
     fn ground_after(
         content: @Content, ground: Array<(u8, Features)>, weight: u8, actions: Array<Action>,
-    ) -> Array<felt252> {
+    ) -> (Array<felt252>, Done) {
         let classes = declared();
         let (mut world, sheets, index) = words(40, array![trapper()], array![]).indexed(content);
         let mut rules = Delegate {
@@ -2043,12 +2044,12 @@ mod tests {
             tick: classes.tick,
         };
         let open = region(everything(), array![], array![], false);
-        SegmentTrait::run(
+        let done = SegmentTrait::run(
             ref world, @sheets, ref rules, @open, @segment, actions.span(), 0, weight,
         );
         let mut felts: Array<felt252> = array![];
         Serde::serialize(@rules.ground, ref felts);
-        felts
+        (felts, done)
     }
 
     fn serialized(ground: @Array<(u8, Features)>) -> Array<felt252> {
@@ -2069,10 +2070,13 @@ mod tests {
         let content = segment2_content();
         let before = ground(16, FeaturesTrait::empty().objects, 0);
         let trap = Action::Skill((0, Target::Tile(WEST)));
-        let placed = ground_after(@content, before.clone(), 5, array![trap]);
+        let (placed, done) = ground_after(@content, before.clone(), 5, array![trap]);
         assert(placed != serialized(@before), 'control: trap placed');
-        let kept = ground_after(@content, before.clone(), 1, array![Action::Wait, trap]);
+        assert(!done.heavy && done.illegal.is_none() && done.played == 1, 'control: played');
+        let (kept, done) = ground_after(@content, before.clone(), 1, array![Action::Wait, trap]);
         assert(kept == serialized(@before), 'heavy: ground kept');
+        // The refusal is `Heavy` (#433's review, note 2): the trap skill stopped, not refused.
+        assert(done.heavy && done.illegal.is_none() && done.played == 1, 'heavy: refused heavy');
     }
 
     // D-259: an `Illegal` refusal also leaves the ground as it was (the trap skill aimed at an
@@ -2082,10 +2086,13 @@ mod tests {
     fn test_illegal_trap_keeps_the_ground() {
         let content = segment2_content();
         let before = ground(16, FeaturesTrait::empty().objects, 0);
-        let kept = ground_after(
+        let (kept, done) = ground_after(
             @content, before.clone(), 5, array![Action::Skill((0, Target::Entity(264)))],
         );
         assert(kept == serialized(@before), 'illegal: ground kept');
+        // The refusal is `Illegal::Target` (#433's review, note 2), not `Heavy`.
+        assert(done.illegal == Some(Illegal::Target) && !done.heavy, 'illegal: refused target');
+        assert(done.played == 0, 'illegal: nothing played');
     }
 
     /// The ground of chunk `chunk`: no pack, `objects`, the goblins of `touched` with a record.
