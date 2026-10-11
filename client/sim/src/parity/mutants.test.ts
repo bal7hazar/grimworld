@@ -3414,6 +3414,33 @@ const MUTANTS: readonly Mutant[] = [
     to: "return false;",
     act: true,
   },
+  {
+    name: "a SELF-first carrier with a TILE entry runs on the whole world (mixed's SELF arm)",
+    file: "action.ts",
+    from: "return tile && (entity || (!attack && first === target.SELF));",
+    to: "return tile && (entity || false);",
+    act: true,
+  },
+  {
+    name: "a SELF entry counted a TILE one: SELF with FOE refused (mixed)",
+    file: "action.ts",
+    from: "if (e.target === target.TILE) tile = true;",
+    to: "if (e.target === target.TILE || e.target === target.SELF) tile = true;",
+  },
+  {
+    name: "an ALLY entry counted a TILE one: FOE with ALLY refused (mixed)",
+    file: "action.ts",
+    from: "if (e.target === target.TILE) tile = true;",
+    to: "if (e.target === target.TILE || e.target === target.ALLY) tile = true;",
+    act: true,
+  },
+  {
+    name: "every carrier with a TILE entry refused: TILE first with SELF later too (mixed)",
+    file: "action.ts",
+    from: "return tile && (entity || (!attack && first === target.SELF));",
+    to: "return tile && (entity || !attack);",
+    act: true,
+  },
 ];
 
 const SRC = new URL("../", import.meta.url);
