@@ -1984,7 +1984,18 @@ mod tests {
             kind::TRAP, 0, 0, 0, 0, 0, 0, target::TILE, shape::SINGLE, 0, 0, 0,
         );
         let earth = EntryTrait::new(
-            kind::DAMAGE, damage::EARTH, 10, 40, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+            kind::DAMAGE,
+            damage::EARTH,
+            10,
+            40,
+            0,
+            0,
+            0,
+            target::FOE,
+            shape::SINGLE,
+            filter::FOES,
+            0,
+            0,
         );
         let mut snare = Fixture::skill(10, skill_kind::TRAP, 0, 20);
         snare.range = 3;
