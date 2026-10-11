@@ -41,7 +41,6 @@ import {
   type Done,
   type Ground,
   Illegal,
-  writeGround,
 } from "./segment/serde";
 import {
   ABSENT_LANE,
@@ -93,8 +92,6 @@ export class NotMirrored extends Error {
 /** The branches `NotMirrored` names. */
 export const unported = {
   EDGE: "Blocked by a missing neighbour (the window's edge)",
-  /** `combat` keeps `ActionLibrary`'s ground on a Heavy refusal: a bug, game's fix pending. */
-  HEAVY_GROUND: "heavy refusal with a changed ground: game fix pending",
 } as const;
 
 /** What a segment runs from: `SegmentLibrary::segment`'s inputs, the classes aside. */
@@ -422,7 +419,7 @@ function wait(world: World): Result {
 
 /**
  * `SegmentTrait::combat`: an Attack, a Skill or an Item through `ActionLibrary` with the whole
- * words: kept only if legal and within `weight`, else the words as they were.
+ * words: the words and the ground are kept only if legal and within `weight`, else both as they were.
  */
 function combat(world: World, rules: Rules, action: Action, weight: number): Result {
   const words = stored(world);
@@ -438,23 +435,15 @@ function combat(world: World, rules: Rules, action: Action, weight: number): Res
   if ("illegal" in out.outcome) {
     result = { halt: { illegal: out.outcome.illegal } };
   } else if (out.outcome.ticks > weight || (out.outcome.ticks === 0 && weight === 0)) {
-    // Cairo keeps the ground the call returned, where the fix restores the input ground: the two
-    // agree only when the call left it as it was
-    if (!same(out.ground, rules.ground)) throw new NotMirrored(unported.HEAVY_GROUND);
     result = { halt: "heavy" };
   } else {
+    // The ground follows the result (D-259): a refusal, Heavy or Illegal, leaves it as it was
     kept = out.words;
+    rules.ground = out.ground;
     result = { ticks: out.outcome.ticks };
   }
-  rules.ground = out.ground;
   into(world, kept, rules.sheets);
   return result;
-}
-
-/** Whether two grounds hold the same felts. */
-function same(a: Ground, b: Ground): boolean {
-  const [x, y] = [writeGround(a), writeGround(b)];
-  return x.length === y.length && x.every((felt, i) => felt === y[i]);
 }
 
 /** `SegmentTrait::first`: whether the goblin has no record yet (its chunk's `touched` bit clear). */
