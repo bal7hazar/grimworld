@@ -646,8 +646,8 @@ mod tests {
     use crate::models::goblin::GoblinTrait;
     use crate::models::index::{GoblinWords, Object};
     use crate::models::member::{MemberSnapshotTrait, MemberWords, MemberWordsTrait};
-    use crate::types::combat::{Placer, PlacerTrait, skill_kind};
-    use crate::types::effect::{Entry, EntryTrait, kind, shape, target};
+    use crate::types::combat::{Placer, PlacerTrait, damage, skill_kind};
+    use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
     use crate::types::executor::{BoardTrait, Delegate};
     use crate::types::tick::{Content, ContentTrait, SkillSheet, ai, status};
     use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
@@ -1976,7 +1976,90 @@ mod tests {
                 }
             .pack();
         skills.append(haste);
+        // Skill 10: an instant trap skill (range 3, a TRAP entry, Snare's earth payload)
+        let none: Entry = Default::default();
+        let trap = EntryTrait::new(
+            kind::TRAP, 0, 0, 0, 0, 0, 0, target::TILE, shape::SINGLE, 0, 0, 0,
+        );
+        let earth = EntryTrait::new(
+            kind::DAMAGE, damage::EARTH, 10, 40, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+        );
+        let mut snare = Fixture::skill(10, skill_kind::TRAP, 0, 20);
+        snare.range = 3;
+        snare.entry1 = trap.pack();
+        snare.entry2 = earth.pack();
+        snare.entry3 = none.pack();
+        skills.append(snare);
         Content { skills: skills.span(), ..base }
+    }
+
+    /// The fixture's adventurer on (22, 22) with the instant trap skill (10) on bar slot 0.
+    fn trapper() -> MemberWords {
+        let mut member = standing(22, 22);
+        member.bar += 9;
+        member
+    }
+
+    /// The ground `SegmentTrait::run` leaves after `actions` on `weight`, through the real
+    /// classes (no recorders), as `Serde` felts.
+    fn ground_after(
+        content: @Content, ground: Array<(u8, Features)>, weight: u8, actions: Array<Action>,
+    ) -> Array<felt252> {
+        let classes = declared();
+        let (mut world, sheets, index) = words(40, array![trapper()], array![]).indexed(content);
+        let mut rules = Delegate {
+            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+            cache: Default::default(),
+            executor: classes.executor,
+            content: *content,
+            index,
+            placed: array![],
+            ground,
+            ai: classes.ai,
+            trap: classes.trap,
+            level: 1,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        let segment = Classes {
+            executor: classes.executor,
+            ai: classes.ai,
+            trap: classes.trap,
+            action: classes.action,
+            tick: classes.tick,
+        };
+        let open = region(everything(), array![], array![], false);
+        SegmentTrait::run(
+            ref world, @sheets, ref rules, @open, @segment, actions.span(), 0, weight,
+        );
+        let mut felts: Array<felt252> = array![];
+        Serde::serialize(@rules.ground, ref felts);
+        felts
+    }
+
+    fn serialized(ground: @Array<(u8, Features)>) -> Array<felt252> {
+        let mut felts: Array<felt252> = array![];
+        Serde::serialize(ground, ref felts);
+        felts
+    }
+
+    /// The tile west of the adventurer: location (21, 22).
+    const WEST: u16 = 21 + 256 * 22;
+
+    // D-259: a `Heavy` refusal leaves the ground as it was. An instant trap skill left no weight
+    // (the Wait spent it) is refused as `Heavy`: it places no trap. Control: with weight to spare
+    // the same skill places it.
+    #[test]
+    #[available_gas(l2_gas: 800000000)]
+    fn test_heavy_trap_keeps_the_ground() {
+        let content = segment2_content();
+        let before = ground(16, FeaturesTrait::empty().objects, 0);
+        let trap = Action::Skill((0, Target::Tile(WEST)));
+        let placed = ground_after(@content, before.clone(), 5, array![trap]);
+        assert(placed != serialized(@before), 'control: trap placed');
+        let kept = ground_after(@content, before.clone(), 1, array![Action::Wait, trap]);
+        assert(kept == serialized(@before), 'heavy: ground kept');
     }
 
     /// The ground of chunk `chunk`: no pack, `objects`, the goblins of `touched` with a record.
