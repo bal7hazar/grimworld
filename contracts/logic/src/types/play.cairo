@@ -2397,8 +2397,8 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, FIX-01: row 44, an instant trap skill refused as Heavy (D-259)
-    #[available_gas(l2_gas: 601004825)] // ceil(1.05 × 572385547 measured)
+    // gas: raised, FIX-02b: row 45, a terrain trap whose skill only the trap names (D-266)
+    #[available_gas(l2_gas: 662441015)] // ceil(1.05 × 630896204 measured)
     fn test_segment2_vectors_4() {
         let classes = declared();
         let content = segment2_content();
@@ -2631,7 +2631,7 @@ mod tests {
     const SEGMENT2_DIGEST_3: felt252 =
         831158116844835342533304973083382111519011951117211419705514572410899617998;
     const SEGMENT2_DIGEST_4: felt252 =
-        3328764434952181278406704823082450934319092084677733316168517828370428409126;
+        3164130820830328315832409943377935499862779783129669591231607615987355173121;
 
     const DIGEST: felt252 =
         927113589772750725131747890767271916714351212897433227864916371620935306790;
