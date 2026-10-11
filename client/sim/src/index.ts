@@ -141,12 +141,44 @@ export {
   status,
   unported,
 } from "./segment";
+export type { Ran, Segment } from "./segment";
+// The seam of the classes a segment calls; their ports replace the parity tests' replayer
+export { digest as callDigest } from "./segment/classes";
+export type { ActCall, Classes, TicksCall, TriggerCall } from "./segment/classes";
+export {
+  Felts,
+  readAction,
+  readArea,
+  readCall,
+  readContent,
+  readDone,
+  readGround,
+  readWords,
+  writeAction,
+  writeArea,
+  writeBoard,
+  writeCall,
+  writeContent,
+  writeDone,
+  writeGround,
+  writeWords,
+} from "./segment/serde";
 export type {
   Action,
-  Adventurer,
   Area,
-  Done,
-  Place,
   Board as SegmentBoard,
-  World,
-} from "./segment";
+  Call,
+  Done,
+  Ground,
+  Outcome,
+  Target,
+} from "./segment/serde";
+export type {
+  CasteSheet,
+  Content,
+  GoblinWords,
+  MemberWords,
+  PotionSheet,
+  SkillSheet,
+  Words,
+} from "./segment/words";
