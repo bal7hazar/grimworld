@@ -12,6 +12,7 @@ the harness's reader.
 | `src/window.ts`                               | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02)                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `window.jsonl`                    | 2,065       |
 | `src/hit.ts`                                  | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `hit.jsonl`                       | 203         |
 | `src/body/`, `src/effect.ts`, `src/combat.ts` | the `Body` operations (`types/executor.cairo`'s `Body`, `MemberBody`, `GoblinBody` and the dispatch `UnitBody`, CLI-02g-C) and what they call of `models/member.cairo` and `models/goblin.cairo` (the snapshot's reads, the lifecycle, the conditions, the interrupt), `types/infliction.cairo`, `durations.cairo`; the effect entry (`EntryTrait`: `line`, `value`, `duration`, `class`, `pack`, `unpack`)                                                                                                                                 | `body.jsonl`                      | 327         |
+| `src/executor.ts`, `src/trap.ts`              | a trap's trigger (CLI-02g-D, D-257): `TrapLibrary::trigger` (`systems/trap.cairo`), `TrapTrait`'s lookup and source (`types/trap.cairo`: `locate`, `free`, `trigger`, `terrain`, `by_member`, `by_goblin`, `entries`, `occupied`, `write`) and the executor's trap path (`types/executor.cairo`: `trigger`, `trap`, `strike`, `resolve`, `entries`, `ops`, `hold`, `guards`, `spell`, `put`, `actor`, `DefenceTrait`, `holding`, `Levered`'s cache)                                                                                         | `trap.jsonl`, `segment2.jsonl`    | 63, 44      |
 | `src/fate.ts`                                 | `fate::domain`, `fate::derive` and the purposes (`contracts/logic/src/fate.cairo`), Poseidon through `@scure/starknet`                                                                                                                                                                                                                                                                                                                                                                                                                      | `fate.jsonl`                      | 227         |
 | `src/packing.ts`                              | `contracts/logic/src/packing.cairo`: `split`, `limbs`, `join`, `peel`, `fits`, the field readers, `Lanes32`, `Lanes16`, `Counter`, `Bitmap`                                                                                                                                                                                                                                                                                                                                                                                                 | `packing.jsonl`                   | 520         |
 | `src/movement.ts`                             | the moves of a played batch (ENG-07, CLI-02c): the window's board around the adventurer (`SegmentTrait::board`, `BoardTrait::position`, `AssemblyTrait::origin`), a Move's ticks (`TickMathTrait::move_ticks`), the tick's flood (`Bfs::flood`, `FloodTrait`) and step 0's awake set (`TickTrait::awake`)                                                                                                                                                                                                                                   | `movement.jsonl`                  | 94          |
@@ -58,7 +59,10 @@ only if it checks every digest and consumes every recorded call (D-255): a call 
 other inputs, a call the row lacks or a recorded call left unused fails the row, naming the call's
 index and kind (`src/parity/replayer.test.ts`).
 Lots D to F replace the replayer with ports, class by class; the batch preview needs those ports,
-since it predicts batches nobody recorded (D-255).
+since it predicts batches nobody recorded (D-255). `TrapLibrary::trigger` is ported (lot D, below):
+on a `segment2.jsonl` row the replayer still takes each recorded trap call (its kind, its digest,
+its place in the span), and the port's result, words, ground and `triggered`, must equal it; the
+port's is what `run` loads. `ticks` and `act` stay replayed (lots E and F).
 
 **Not mirrored**: one branch, which throws `NotMirrored` (`unported`,
 `src/segment/unported.test.ts`):
@@ -88,7 +92,8 @@ and on a goblin through one dispatch, as `UnitBody` (`Unit`: `{ kind: "M", membe
 `knocked`, `asleep`, `halves`, `armor_vs`, `infliction`, `enchant_percent`, `slots`, `effect`) and
 the writes (`wound`, `heal`, `energize`, `struck`, `landed`, `halved`, `inflict`, `cure`, `hold`,
 `spend`), each in place on the unit, as Cairo's `ref self` (`copyUnit` for a caller that keeps its
-input). `src/effect.ts` is the effect entry. `defence` and `offence` come with `act` (RV-03b).
+input). `src/effect.ts` is the effect entry. `defence` is `src/executor.ts`'s (lot D); `offence`
+comes with `act` (RV-03b).
 `src/body/serde.ts` reads and writes a unit, a `Held` and an `Infliction` as the table records
 them. Lot D (the trap's path) builds on `body/index.ts`, `body/member.ts` (`interrupt`, `hold`,
 `put`, `apply`, `knock`), `body/goblin.ts`, `body/infliction.ts` and `effect.ts`.
@@ -114,6 +119,41 @@ the durations are `src/body/`'s (below); the tick's rules (`GoblinTickTrait::reg
 `segment.jsonl`'s rows hold a simplified adventurer. Their decoder builds its words as the
 unit-test fixture's member (max health 480, no regeneration, no effect or skill), and its classes
 fail on any call: the table never reaches one.
+
+## The trap's trigger
+
+`src/trap.ts` is `TrapLibrary::trigger`, computed (CLI-02g-D, D-257): `triggerClass` loads the
+words through the content, finds the entrant by its entity (`ExecutorTrait::actor`), runs
+`TrapTrait::trigger` with a fresh `Cache` and stores the words back; `src/index.ts` exports it as
+`trapTrigger`, a `Classes.trigger`. `src/executor.ts` is the executor's path it runs: the payload's
+guards on the trap's source, the hit (class `TRAP`, strength `3 × level`, no arc, never blocked or
+evaded) on the target's defence through `Levered`'s cache, then the other entries in entry order
+while the entrant lives, and the entrant written back (a goblin at 0 killed, in `killed`).
+`segment.ts` takes `locate` and `occupied` from it.
+
+`trap.jsonl`'s rows are its README's: row 0 the content, 52 `trigger` rows (one call of the class
+each) and 10 `free` rows. `segment2.jsonl`'s trap calls (rows 26, 28, 43) are computed by the port
+and equal their recordings (`src/parity/parity.test.ts`).
+
+Not ported here, for `act` (lot E, RV-03b): a carrier's `read`, `modifiers`, `penetration`, the
+target side of `on` and the source's `attack`, the actor sets (`actors`), a source's `offence` and
+`Naive`'s lever. `strike`'s `Blocked` branch and `resolve`'s weapon arc are ported whole, but only
+a weapon hit reaches them.
+
+Both goblins of the table are Hobs of one caste, so a port reading another goblin's caste than the
+placer's passes every row (until RV-03c's row with distinct castes): `src/parity/trapcases.ts`
+holds that case, and that the class leaves its inputs as they were, run by `src/trap.test.ts` and,
+against each `trap` mutant, by `src/parity/mutants.test.ts`.
+
+Of the trap path's 63 mutants, 38 are killed by the tables and 3 by `trapcases.ts` (another
+goblin's kit, rank or level read for the placer's). 21 survive. Fifteen are holes of the table,
+reported to track game: a position, a chunk column or a chunk row past the location landing on a
+chunk no row's ground holds (rows 42, 47, 48); no goblin placer's payload guarded; no entrant with
+armor of its own, an `ARMOR_VS` of the payload's type, or an `ARMOR` effect (held, expired,
+negative); no payload's entry other than its hit guarded; no payload with a `HEAL`, `CURE` or
+holding entry; no dead goblin entering. Four read only a weapon hit (`strike`'s block, the
+knocked-down and sleeping target, the block's cap: `act`'s rows, lot E). Two are equivalent on the
+trap path: `trap`'s and `entries`' checks of a dead entrant mask each other.
 
 ## Where the vectors come from
 

@@ -83,10 +83,13 @@ import {
   Felts,
   readAction,
   readArea,
+  readBoard,
   readCall,
   readContent,
+  readFeatures,
   readGround,
   readWords,
+  type Ground,
   writeContent,
   writeDone,
   writeGround,
@@ -95,6 +98,7 @@ import {
 import { type Content, type MemberWords, type Words, sheets as indexed } from "../segment/words";
 import type { Entry, Mirror } from "./replay";
 import { replayer } from "./replayer";
+import { free, triggerClass } from "../trap";
 import { readTable } from "./table";
 
 /** The felts of a case, exactly `count` of them. */
@@ -416,10 +420,41 @@ function content(): Content {
   return content2;
 }
 
+/** The `trigger` calls of `segment2.jsonl` the port computed, each equal to its recording. */
+export const native = { triggers: 0 };
+
+const callFelts = (out: { words: Words; ground: Ground; triggered: boolean }): bigint[] => [
+  ...writeWords(out.words),
+  ...writeGround(out.ground),
+  ...bool(out.triggered),
+];
+
+/**
+ * The replayed classes with `trigger` computed by the port (`trap.ts`'s `triggerClass`): the
+ * replayer still takes the recorded call (its kind, its digest, its place in the span), and the
+ * port's result must equal it, words, ground and `triggered`; the port's is what `run` loads.
+ */
+function computed(replayed: ReturnType<typeof replayer>): ReturnType<typeof replayer> {
+  return {
+    ...replayed,
+    trigger(call) {
+      const recorded = callFelts(replayed.trigger(call));
+      const out = triggerClass(call);
+      const got = callFelts(out);
+      if (got.length !== recorded.length || got.some((felt, i) => felt !== recorded[i])) {
+        throw new Error(`trigger computed ${got}, recorded ${recorded}`);
+      }
+      native.triggers += 1;
+      return out;
+    },
+  };
+}
+
 /**
  * A `segment2` row: `run` on the case's words, area, level, ground, `owed`, `weight` and actions,
  * the classes replayed from the calls the row recorded (test scaffolding); the words, the ground
- * and `Done` after it.
+ * and `Done` after it. `TrapLibrary::trigger` is computed by the port (`computed`); `ticks` and `act`
+ * stay replayed (lots E and F).
  */
 const segment2Row: Mirror = (c) => {
   const read = new Felts(c);
@@ -431,7 +466,7 @@ const segment2Row: Mirror = (c) => {
   const actions = read.span(() => readAction(read));
   const calls = read.span(() => readCall(read));
   read.end();
-  const classes = replayer(calls);
+  const classes = computed(replayer(calls));
   const out = runSegment(
     { words, content: content(), area, level, ground, owed, weight, actions },
     classes,
@@ -626,10 +661,57 @@ const bodyFns: Record<string, Mirror> = {
   unpack: (c) => writeEntry(unpack(onEntry(c, (r) => fromFelt(u128, r.felt())))),
 };
 
+/** `trap.jsonl`'s content: its row 0's `ok`, which every `trigger` row's words are loaded through. */
+let trapContent: Content | undefined;
+function contentOfTrap(): Content {
+  if (trapContent === undefined) {
+    const read = new Felts(readTable("trap.jsonl")[0]!.ok!);
+    trapContent = readContent(read);
+    read.end();
+  }
+  return trapContent;
+}
+
+const trap: Record<string, Mirror> = {
+  // The table's content, decoded and encoded again: what every `trigger` row reads
+  content: (c) => {
+    args(c, 0);
+    return writeContent(contentOfTrap());
+  },
+  // `TrapLibrary::trigger` on the case's words, board, ground, entrant, position and level
+  trigger: (c) => {
+    const read = new Felts(c);
+    const words = readWords(read);
+    const board = readBoard(read);
+    const ground = readGround(read);
+    const [entrant, position, level] = [read.u16(), read.u8(), read.u8()];
+    read.end();
+    const out = triggerClass({
+      words,
+      content: contentOfTrap(),
+      board,
+      ground,
+      entrant,
+      position,
+      level,
+    });
+    return [...writeWords(out.words), ...writeGround(out.ground), ...bool(out.triggered)];
+  },
+  free: (c) => {
+    const read = new Felts(c);
+    const features = readFeatures(read);
+    const tile = read.u8();
+    read.end();
+    const found = free(features, tile);
+    return found === undefined ? [1n] : [0n, BigInt(found)];
+  },
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
   { file: "body.jsonl", floor: 327, fns: bodyFns },
+  { file: "trap.jsonl", floor: 63, fns: trap },
   { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
   { file: "movement.jsonl", floor: 81, fns: movement },

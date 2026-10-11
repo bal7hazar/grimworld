@@ -10,7 +10,9 @@
 // (`parity/refusals.ts`, the list `segment/goblin.test.ts` runs) must. A mutant of the seam of the
 // classes (`seam`, CLI-02g-C) is the same: no row records an Illegal refusal whose call changed the
 // ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
-// `segment/unported.test.ts` runs) must kill it.
+// `segment/unported.test.ts` runs) must kill it. So is a mutant of the trap class (`trap`,
+// CLI-02g-D) that reads another goblin's caste than the placer's: the table's goblins share one
+// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it.
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -25,6 +27,8 @@ type Mutant = {
   refusal?: true;
   /** A case of the seam no row records: the tables must not kill it, `parity/seam.ts` must. */
   seam?: true;
+  /** A case of the trap class no row records: the tables must not kill it, `parity/trapcases.ts` must. */
+  trap?: true;
 };
 
 const MUTANTS: readonly Mutant[] = [
@@ -1028,15 +1032,15 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     name: "a companion does not block a Move (companions)",
-    file: "segment.ts",
-    from: "    if (is_alive(member) && position(on, x, y) === at) return true;",
-    to: "    if (member === world.members[0] && position(on, x, y) === at) return true;",
+    file: "trap.ts",
+    from: "    if (is_alive(member) && boardPosition(board, x, y) === position) return true;",
+    to: "    if (member === world.members[0] && boardPosition(board, x, y) === position) return true;",
   },
   {
     name: "a companion down blocks a Move (companions)",
-    file: "segment.ts",
-    from: "    if (is_alive(member) && position(on, x, y) === at) return true;",
-    to: "    if (position(on, x, y) === at) return true;",
+    file: "trap.ts",
+    from: "    if (is_alive(member) && boardPosition(board, x, y) === position) return true;",
+    to: "    if (boardPosition(board, x, y) === position) return true;",
   },
   {
     name: "only the adventurer regenerates on the fast path (companions)",
@@ -1963,6 +1967,441 @@ const MUTANTS: readonly Mutant[] = [
     to: "    words,",
     seam: true,
   },
+
+  {
+    name: "the window's last position read as inside (locate)",
+    file: "trap.ts",
+    from: "if (position >= FAR || position >= 240) return undefined;",
+    to: "if (position > 240) return undefined;",
+    survives:
+      "position 240 (row 16) lands on chunk 15's tile 15, which no row's ground holds: row 42 with chunk 15 holding a trap on tile 15",
+  },
+  {
+    name: "a chunk column past the location is in it (locate)",
+    file: "trap.ts",
+    from: "if (chunk >= MAX_CHUNKS || cx >= CHUNK_SIDE) return undefined;",
+    to: "if (chunk >= MAX_CHUNKS) return undefined;",
+    survives:
+      "column 16 wraps to the next row's chunk, which no row's ground holds: row 47 with chunk 16 (cy 0, cx 16) holding a trap on its tile",
+  },
+  {
+    name: "a chunk row past the location is in it (locate)",
+    file: "trap.ts",
+    from: "if (chunk >= MAX_CHUNKS || cx >= CHUNK_SIDE) return undefined;",
+    to: "if (cx >= CHUNK_SIDE) return undefined;",
+    survives:
+      "chunk row 16 is chunk 240 and up, which no row's ground holds: row 48 with chunk 240 holding a trap on its tile",
+  },
+  {
+    name: "the chunk's tile transposed (locate)",
+    file: "trap.ts",
+    from: "return [chunk, ly * CHUNK_SIDE + lx];",
+    to: "return [chunk, lx * CHUNK_SIDE + ly];",
+  },
+  {
+    name: "any used object is spent, not only a trap (free)",
+    file: "trap.ts",
+    from: "const spent = is_trap(o) && o.state === USED;",
+    to: "const spent = o.state === USED;",
+  },
+  {
+    name: "an empty object on the tile refuses it (free)",
+    file: "trap.ts",
+    from: "if (o.kind !== object.NONE && !spent && o.tile === tile) return undefined;",
+    to: "if (!spent && o.tile === tile) return undefined;",
+  },
+  {
+    name: "the highest free index, not the lowest (free)",
+    file: "trap.ts",
+    from: "if (found === undefined && (o.kind === object.NONE || spent)) found = k;",
+    to: "if (o.kind === object.NONE || spent) found = k;",
+  },
+  {
+    name: "a used trap's index is not free (free)",
+    file: "trap.ts",
+    from: "if (found === undefined && (o.kind === object.NONE || spent)) found = k;",
+    to: "if (found === undefined && o.kind === object.NONE) found = k;",
+  },
+  {
+    name: "a terrain trap is no trap (is_trap)",
+    file: "trap.ts",
+    from: "o.kind === object.TRAP || o.kind === object.PLACED_TRAP",
+    to: "o.kind === object.PLACED_TRAP",
+  },
+  {
+    name: "the chunk's last entry in the ground, not its first (trigger)",
+    file: "trap.ts",
+    from: "const at = ground.findIndex(([c]) => c === chunk);",
+    to: "const at = ground.findLastIndex(([c]) => c === chunk);",
+  },
+  {
+    name: "a used trap triggers again (trigger)",
+    file: "trap.ts",
+    from: "(o) => is_trap(o) && o.state !== USED && o.tile === tile,",
+    to: "(o) => is_trap(o) && o.tile === tile,",
+  },
+  {
+    name: "a trap on another tile of the chunk triggers (trigger)",
+    file: "trap.ts",
+    from: "(o) => is_trap(o) && o.state !== USED && o.tile === tile,",
+    to: "(o) => is_trap(o) && o.state !== USED,",
+  },
+  {
+    name: "a terrain trap triggers on a goblin (FX-34)",
+    file: "trap.ts",
+    from: `    if (!on_member) return untouched;
+    source = terrain(`,
+    to: "    source = terrain(",
+  },
+  {
+    name: "a member's trap triggers on its own side",
+    file: "trap.ts",
+    from: `      if (on_member) return untouched;
+`,
+    to: "",
+  },
+  {
+    name: "a goblin's trap triggers on its own side",
+    file: "trap.ts",
+    from: `      if (!on_member) return untouched;
+      source = by_goblin(`,
+    to: "      source = by_goblin(",
+  },
+  {
+    name: "the trigger's clock is not the world's",
+    file: "trap.ts",
+    from: `    world.clock,
+`,
+    to: `    0,
+`,
+  },
+  {
+    name: "the trap not marked used",
+    file: "trap.ts",
+    from: "write(ground, at, index, { ...trap, state: USED })",
+    to: "write(ground, at, index, { ...trap })",
+  },
+  {
+    name: "the object written at index 0 whatever its index (write)",
+    file: "trap.ts",
+    from: "(i === Math.min(index, 2) ? o : old)",
+    to: "(i === 0 ? o : old)",
+  },
+  {
+    name: "the call's level, not the source's",
+    file: "trap.ts",
+    from: `    source.level,
+`,
+    to: `    level,
+`,
+  },
+  {
+    name: "a terrain trap's level fixed, not the band's (terrain)",
+    file: "trap.ts",
+    from: "return { payload, rank: 0, level, held: ALL_HELD, infliction: NONE };",
+    to: "return { payload, rank: 0, level: 20, held: ALL_HELD, infliction: NONE };",
+  },
+  {
+    name: "a skill the content lacks is the last (terrain)",
+    file: "trap.ts",
+    from: `  if (payload < 0) return undefined;
+`,
+    to: "",
+  },
+  {
+    name: "a placer member past the world's count (by_member)",
+    file: "trap.ts",
+    from: "if (i >= world.members.length) return undefined;",
+    to: "if (i > world.members.length) return undefined;",
+  },
+  {
+    name: "an empty bar slot is a payload (by_member)",
+    file: "trap.ts",
+    from: `  if (payload === ABSENT_LANE) return undefined;
+`,
+    to: "",
+  },
+  {
+    name: "a member placer's rank of slot 0, not of its slot (by_member)",
+    file: "trap.ts",
+    from: "rank: executor.rank(member, slot),",
+    to: "rank: executor.rank(member, 0),",
+  },
+  {
+    name: "a member placer adds nothing to conditions (by_member)",
+    file: "trap.ts",
+    from: "infliction: m.infliction(member),",
+    to: "infliction: NONE,",
+  },
+  {
+    name: "a member placer's guards all held (by_member)",
+    file: "trap.ts",
+    from: 'const held = guards({ kind: "M", member }, entries(sheets, payload));',
+    to: "const held = 7;",
+  },
+  {
+    name: "a goblin placer the call does not carry (by_goblin)",
+    file: "trap.ts",
+    from: `  if (i === undefined) return undefined;
+  const goblin`,
+    to: "  const goblin",
+  },
+  {
+    name: "the kit of another goblin's caste, not the placer's (by_goblin)",
+    file: "trap.ts",
+    from: "const kit = sheets.kits[goblin.caste_at];",
+    to: "const kit = sheets.kits[world.goblins[0]!.caste_at];",
+    trap: true,
+  },
+  {
+    name: "the rank of another goblin's caste, not the placer's (by_goblin)",
+    file: "trap.ts",
+    from: "const rank = sheets.castes[goblin.caste_at]!.rank;",
+    to: "const rank = sheets.castes[world.goblins[0]!.caste_at]!.rank;",
+    trap: true,
+  },
+  {
+    name: "the level of another goblin, not the placer's (by_goblin)",
+    file: "trap.ts",
+    from: "level: goblinLevel(goblin),",
+    to: "level: goblinLevel(world.goblins[0]!),",
+    trap: true,
+  },
+  {
+    name: "a goblin placer's guards all held (by_goblin)",
+    file: "trap.ts",
+    from: 'const held = guards({ kind: "G", goblin }, entries(sheets, payload));',
+    to: "const held = 7;",
+    survives:
+      "no goblin placer's payload is guarded: a row with a `BELOW_HALF` caste trap skill, its placer above and below half",
+  },
+  {
+    name: "a goblin placer's caste slot fixed at 2 (from_param)",
+    file: "trap.ts",
+    from: "slot: Math.floor(rest / 0x1000),",
+    to: "slot: 2,",
+  },
+  {
+    name: "a member placer is member 0 (from_param)",
+    file: "trap.ts",
+    from: 'return { kind: "M", member: param % 8, slot };',
+    to: 'return { kind: "M", member: 0, slot };',
+  },
+  {
+    name: "an entrant past the members is member (actor)",
+    file: "executor.ts",
+    from: 'return entity < world.members.length ? { kind: "M", i: entity } : undefined;',
+    to: 'return entity <= world.members.length ? { kind: "M", i: entity } : undefined;',
+  },
+  {
+    name: "the goblins' search turned the wrong way (find)",
+    file: "executor.ts",
+    from: "if (found < entity) low = middle + 1;",
+    to: "if (found > entity) low = middle + 1;",
+  },
+  {
+    name: "a guarded hit lands whatever its guard (trigger)",
+    file: "executor.ts",
+    from: "if ((held & bit(k)) !== 0) damage = e;",
+    to: "damage = e;",
+  },
+  {
+    name: "every entry after the hit is entry 0's set (trigger)",
+    file: "executor.ts",
+    from: "bits += bit(k);",
+    to: "bits += 1;",
+  },
+  {
+    name: "the hit's strength from the rank, not the level (trigger)",
+    file: "executor.ts",
+    from: "level_strength(BigInt(level))",
+    to: "level_strength(BigInt(rank))",
+  },
+  {
+    name: "an entrant killed by the hit takes the other entries (trap)",
+    file: "executor.ts",
+    from: `  return body.alive(target);
+`,
+    to: `  return true;
+`,
+    survives:
+      "equivalent alone: `entries` stops at a dead entrant too, so either check masks the other (rows 7 and 30 kill the two together); `on` (lot E) runs `entries` without `trap`'s check",
+  },
+  {
+    name: "a trap's hit of class Weapon (blocked, evaded, arced)",
+    file: "executor.ts",
+    from: "spell(HitClass.Trap, strength, damage, 0, 0, 0, context)",
+    to: "spell(HitClass.Weapon, strength, damage, 0, 0, 0, context)",
+  },
+  {
+    name: "a trap's base at rank 0 (spell)",
+    file: "executor.ts",
+    from: "base: clamp(value(e, context.rank), 0, MAX_VALUE),",
+    to: "base: clamp(value(e, 0), 0, MAX_VALUE),",
+  },
+  {
+    name: "a trap's damage of no type (spell)",
+    file: "executor.ts",
+    from: "damage_type: e.param,",
+    to: "damage_type: 0,",
+    survives:
+      "no entrant has an `ARMOR_VS` of the payload's type: a trap row on an entrant with earth armor",
+  },
+  {
+    name: "a landed hit not struck (strike)",
+    file: "executor.ts",
+    from: `    body.struck(target, sheets);
+`,
+    to: "",
+  },
+  {
+    name: "a block's charge not spent (strike)",
+    file: "executor.ts",
+    from: `    body.spend(target, defence.block_slot, t);
+`,
+    to: "",
+    survives:
+      "only a weapon hit reads it (a trap's hit is never blocked or evaded, `ExecutorTrait::trap`): `act`'s rows (RV-03b, lot E)",
+  },
+  {
+    name: "a knocked-down target read standing (strike)",
+    file: "executor.ts",
+    from: "knocked: body.knocked(target, t),",
+    to: "knocked: false,",
+    survives:
+      "only a weapon hit reads it (a trap's hit is never blocked or evaded, `ExecutorTrait::trap`): `act`'s rows (RV-03b, lot E)",
+  },
+  {
+    name: "a sleeping target read awake (strike)",
+    file: "executor.ts",
+    from: "asleep: body.asleep(target),",
+    to: "asleep: false,",
+    survives:
+      "only a weapon hit reads it (a trap's hit is never blocked or evaded, `ExecutorTrait::trap`): `act`'s rows (RV-03b, lot E)",
+  },
+  {
+    name: "the block's charges not capped (resolve)",
+    file: "executor.ts",
+    from: "const block = BigInt(defence.block) > MAX_BLOCK ? MAX_BLOCK : BigInt(defence.block);",
+    to: "const block = BigInt(defence.block);",
+    survives: "a `BLOCK` above 63 charges, and a weapon hit: `act`'s rows (RV-03b, lot E)",
+  },
+  {
+    name: "the target's ARMOR effects ignored (resolve)",
+    file: "executor.ts",
+    from: "armor_effects: BigInt(defence.effects),",
+    to: "armor_effects: 0n,",
+    survives: "no entrant holds an `ARMOR` effect: a trap row on an entrant holding one",
+  },
+  {
+    name: "the member's cached defence read whatever the tick (Levered)",
+    file: "executor.ts",
+    from: "if (c.at === t + 1 && c.member === index) return c.defence;",
+    to: "if (c.member === index) return c.defence;",
+    survives:
+      "the table's members have no armor, stance or enchanted sum, and a trap's hit reads no block or evasion: a trap row on a member with armor",
+  },
+  {
+    name: "an expired effect still defends (DefenceTrait::member)",
+    file: "executor.ts",
+    from: "if (held.deadline >= t && position !== ABSENT_LANE) {",
+    to: "if (position !== ABSENT_LANE) {",
+    survives:
+      "no member entrant holds an expired effect whose holding entry is `ARMOR`: a trap row on one",
+  },
+  {
+    name: "an expired effect still defends (DefenceTrait::goblin)",
+    file: "executor.ts",
+    from: "if (held.deadline >= t && goblin.effect_at !== ABSENT) {",
+    to: "if (goblin.effect_at !== ABSENT) {",
+    survives: "no goblin entrant holds an `ARMOR` effect, expired or not: a trap row on one",
+  },
+  {
+    name: "an ARMOR effect not clamped at 0 (DefenceTrait::add)",
+    file: "executor.ts",
+    from: "defence.effects += clamp(value(e, held.rank), 0, MAX_ARMOR_EFFECT);",
+    to: "defence.effects += value(e, held.rank);",
+    survives: "no entrant holds an `ARMOR` effect: a trap row on an entrant holding a negative one",
+  },
+  {
+    name: "an entrant dead after an entry takes the next (entries)",
+    file: "executor.ts",
+    from: `      if (!body.alive(target)) break;
+`,
+    to: "",
+    survives:
+      "no trap payload holds an entry that kills before a later one: only the hit kills, and `trap` stops the entries after it",
+  },
+  {
+    name: "an entry's guard ignored (entries)",
+    file: "executor.ts",
+    from: "if ((bits & held & b) !== 0 && op.kind !== kind.EMPTY) {",
+    to: "if ((bits & b) !== 0 && op.kind !== kind.EMPTY) {",
+    survives:
+      "no payload holds a guarded entry other than its hit: a trap skill whose condition is `BELOW_HALF`, its placer above half",
+  },
+  {
+    name: "a condition through no infliction (entries)",
+    file: "executor.ts",
+    from: "body.inflict(target, op.param, op.v, context.infliction, t, sheets);",
+    to: "body.inflict(target, op.param, op.v, { condition: 0, percent: 0, knockdown: 0 }, t, sheets);",
+  },
+  {
+    name: "a condition's value at rank 0 (ops)",
+    file: "executor.ts",
+    from: "return { ...nothing(), kind: e.kind, param: e.param, v: value(e, r) };",
+    to: "return { ...nothing(), kind: e.kind, param: e.param, v: value(e, 0) };",
+  },
+  {
+    name: "a HEAL entry applies nothing (ops)",
+    file: "executor.ts",
+    from: "return { ...nothing(), kind: e.kind, v: clamp(value(e, r), 0, MAX_VALUE) };",
+    to: "return nothing();",
+    survives: "no trap payload holds a `HEAL` entry",
+  },
+  {
+    name: "a CURE entry applies nothing (ops)",
+    file: "executor.ts",
+    from: "if (e.kind === kind.CURE) return { ...nothing(), kind: e.kind, param: e.param };",
+    to: "if (e.kind === kind.CURE) return nothing();",
+    survives: "no trap payload holds a `CURE` entry",
+  },
+  {
+    name: "a holding entry applies nothing (ops)",
+    file: "executor.ts",
+    from: `    if (is_holding(e)) {
+`,
+    to: `    if (false) {
+`,
+    survives: "no trap payload holds a holding entry",
+  },
+  {
+    name: "BELOW_HALF held at exactly half (guards)",
+    file: "executor.ts",
+    from: "health * 2 < max)) held += b;",
+    to: "health * 2 <= max)) held += b;",
+  },
+  {
+    name: "BELOW_HALF never held (guards)",
+    file: "executor.ts",
+    from: "if (e.guard === guard.ALWAYS || (e.guard === guard.BELOW_HALF && health * 2 < max)) held += b;",
+    to: "if (e.guard === guard.ALWAYS) held += b;",
+  },
+  {
+    name: "a goblin killed by a trap not in killed (put)",
+    file: "executor.ts",
+    from: `    world.killed.push(goblin.entity);
+`,
+    to: "",
+  },
+  {
+    name: "a dead goblin at 0 health killed again (put)",
+    file: "executor.ts",
+    from: "if (goblinModel.is_alive(goblin) && goblin.health === 0) {",
+    to: "if (goblin.health === 0) {",
+    survives:
+      "no goblin entrant is dead already: `actor` finds a dead goblin's record, a trap row with one entering",
+  },
 ];
 
 const SRC = new URL("../", import.meta.url);
@@ -1979,6 +2418,7 @@ type Parity = {
   TABLES: typeof import("./tables").TABLES;
   refusals: typeof import("./refusals");
   seam: typeof import("./seam");
+  trapcases: typeof import("./trapcases");
 };
 
 /** A copy of `src/` with the mutant's one replacement, in `.mutants/<index>/`. */
@@ -1996,12 +2436,13 @@ async function copy(mutant: Mutant, index: number): Promise<Parity> {
     writeFileSync(target, source);
   }
   const load = (name: string) => import(/* @vite-ignore */ new URL(`parity/${name}.ts`, root).href);
-  const [replay, table, tables, refusals, seam] = await Promise.all([
+  const [replay, table, tables, refusals, seam, trapcases] = await Promise.all([
     load("replay"),
     load("table"),
     load("tables"),
     load("refusals"),
     load("seam"),
+    load("trapcases"),
   ]);
   return {
     replay: replay.replay,
@@ -2009,6 +2450,7 @@ async function copy(mutant: Mutant, index: number): Promise<Parity> {
     TABLES: tables.TABLES,
     refusals,
     seam,
+    trapcases,
   };
 }
 
@@ -2048,6 +2490,18 @@ function seamKiller(parity: Parity): string | undefined {
   return undefined;
 }
 
+/** The first case of `parity/trapcases.ts` the copy no longer holds, or `undefined`. */
+function trapKiller(parity: Parity): string | undefined {
+  for (const check of parity.trapcases.CHECKS) {
+    try {
+      parity.trapcases.holds(check);
+    } catch {
+      return `trap: ${check.name}`;
+    }
+  }
+  return undefined;
+}
+
 describe("the mutation check", () => {
   const results: string[] = [];
 
@@ -2075,8 +2529,12 @@ describe("the mutation check", () => {
     const known = mutant.survives;
     it(`${known === undefined ? "kills" : "a known survivor"}: ${mutant.name}`, async () => {
       const parity = await copy(mutant, index);
-      if (mutant.refusal || mutant.seam) {
-        const found = mutant.seam ? seamKiller(parity) : refusalKiller(parity);
+      if (mutant.refusal || mutant.seam || mutant.trap) {
+        const found = mutant.trap
+          ? trapKiller(parity)
+          : mutant.seam
+            ? seamKiller(parity)
+            : refusalKiller(parity);
         results.push(`| ${index + 1} | ${mutant.name} | ${found ?? "**survives**"} |`);
         expect(killer(parity), `${mutant.name}: the tables record no such case`).toBeUndefined();
         expect(found, `${mutant.name} survived the unit tests' cases`).toBeDefined();
