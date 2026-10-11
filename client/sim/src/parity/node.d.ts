@@ -17,12 +17,50 @@ declare class URL {
 // the measurements alone.
 declare const console: { log(...data: unknown[]): void };
 declare const performance: { now(): number };
+// The pool's deadline of a batch (`mutants.test.ts`).
+declare function setTimeout(callback: () => void, ms: number): unknown;
+declare function clearTimeout(timer: unknown): void;
 
 declare module "node:fs" {
   export function existsSync(path: URL): boolean;
   export function readFileSync(path: URL, encoding: "utf8"): string;
-  export function writeFileSync(path: URL, data: string): void;
-  export function mkdirSync(path: URL, options: { recursive: true }): void;
   export function readdirSync(path: URL, options: { recursive: true }): string[];
-  export function rmSync(path: URL, options: { recursive: true; force: true }): void;
+}
+
+// The mutation check's pool of workers (`mutants.test.ts`) and the worker's module hooks
+// (`mutate.ts`), as much as they use.
+declare module "node:os" {
+  export function availableParallelism(): number;
+}
+
+declare module "node:worker_threads" {
+  export class Worker {
+    constructor(url: URL);
+    postMessage(value: unknown): void;
+    on(event: "message", listener: (value: never) => void): this;
+    on(event: "error", listener: (error: Error) => void): this;
+    on(event: "exit", listener: (code: number) => void): this;
+    terminate(): Promise<number>;
+  }
+  export const parentPort: {
+    on(event: "message", listener: (value: never) => void): void;
+    postMessage(value: unknown): void;
+  } | null;
+}
+
+declare module "node:module" {
+  type Resolved = { url: string; format?: string; shortCircuit?: boolean };
+  type Loaded = { format: string; source?: string; shortCircuit?: boolean };
+  export function registerHooks(hooks: {
+    resolve(
+      specifier: string,
+      context: { parentURL?: string },
+      nextResolve: (specifier: string, context: { parentURL?: string }) => Resolved,
+    ): Resolved;
+    load(url: string, context: object, nextLoad: (url: string, context: object) => Loaded): Loaded;
+  }): void;
+  export function stripTypeScriptTypes(
+    code: string,
+    options: { mode: "strip" | "transform"; sourceUrl?: string },
+  ): string;
 }
