@@ -158,8 +158,10 @@ past the location landing on a chunk no row's ground holds (rows 42, 47, 48); `l
 tile West of `ORIGIN`, which Cairo has too, not killed by any row (RV-03a2); no goblin placer's
 payload guarded; no entrant holding an `ARMOR` effect on a trap's hit; no payload's entry other than
 its hit guarded; no payload with a `CURE` entry; no dead goblin entering. The block's cap at 63
-cannot be reached through `act`: `act` strikes goblins only, whose charges are 6 bits (at most 63,
-rows 213 and 214); a member's (7 bits) passes 63 only under a goblin's hit, the ticks' (lot F). Two
+is equivalent, marked `equivalent`: no state holds 64 charges. A member's are 6 bits
+(`MemberEffects` 16–21, read modulo 64), a goblin's too (rows 213 and 214), a `BLOCK` grant is
+clamped to `MAX_BLOCK` (`tick.jsonl` rows 72, 73 and 80: 63, 62, and 64 clamped to 63), and the
+defence takes one slot's charges, not a sum. Two
 are equivalent on the trap path: `trap`'s and `entries`' checks of a dead entrant mask each other.
 One is equivalent outright, marked `equivalent`: the same guard's South half, whose chunk is below
 0, which no ground holds.

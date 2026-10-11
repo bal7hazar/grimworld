@@ -1191,7 +1191,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "    before = fit.after;\n",
     to: "",
     survives:
-      "no row changes a goblin twice in a segment that one action left unrecorded (an untouched goblin engaged and nothing else, row 22's 249, which no later action changes): every other goblin changed is in `changed` already",
+      "no row changes a goblin twice in a segment that one action left unrecorded (an untouched goblin engaged and nothing else, row 22's 249, which no later action changes): every other goblin changed is in `changed` already; rows 46 and 47 change one goblin by two actions, but the first records it",
   },
   {
     name: "a caste missing from the content is not refused (NO_CASTE)",
@@ -2316,8 +2316,8 @@ const MUTANTS: readonly Mutant[] = [
     file: "executor.ts",
     from: "const block = BigInt(defence.block) > MAX_BLOCK ? MAX_BLOCK : BigInt(defence.block);",
     to: "const block = BigInt(defence.block);",
-    survives:
-      "a `BLOCK` above 63 charges, a member's (7 bits) under a goblin's weapon hit: `act` strikes goblins only, whose charges are 6 bits (at most 63, rows 213 and 214); a hit on a member is the ticks' (lot F)",
+    equivalent:
+      "nothing holds a `BLOCK` above 63: a member's charges are 6 bits (`MemberEffects` 16–21, read modulo 64 by `held`), a goblin's too (rows 213 and 214), `hold` clamps a `BLOCK` grant to `MAX_BLOCK` (tick.jsonl rows 72, 73 and 80: 63, 62 and a grant of 64 clamped to 63), and `defence.block` takes one slot's charges, never a sum",
   },
   {
     name: "the target's ARMOR effects ignored (resolve)",

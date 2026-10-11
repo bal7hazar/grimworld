@@ -80,7 +80,7 @@ describe("parity with the Cairo code", () => {
       content: 1,
       combat: 12,
       ticks: 4,
-      fits: 7,
+      fits: 9,
       defeated: 3,
       trap: 5,
       occupied: 2,
