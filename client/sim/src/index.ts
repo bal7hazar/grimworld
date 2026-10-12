@@ -158,6 +158,7 @@ export {
   Felts,
   readAction,
   readArea,
+  readBoard,
   readCall,
   readContent,
   readDone,
@@ -191,3 +192,43 @@ export type {
   SkillSheet,
   Words,
 } from "./segment/words";
+// What the combat UI reads of a world (CLI-05a): the loaders, and each figure's own function, so
+// that the client reads what client/sim stores and never re-derives it
+export { world as loadWorld } from "./segment/world";
+export type { World } from "./segment/world";
+export {
+  ABSENT,
+  ABSENT_LANE,
+  NO_SLOT,
+  crippled as memberCrippled,
+  held as heldEffect,
+  load as loadMember,
+  place as memberPlace,
+  sheets as indexSheets,
+} from "./segment/words";
+export type { Held, Member, Sheets } from "./segment/words";
+export {
+  crippled as goblinCrippled,
+  effect_of as goblinEffect,
+  place as goblinPlace,
+  recharge as goblinRecharge,
+} from "./segment/goblin";
+export { MAX_CLOCK, addressing, filter, holding, rank as barRank, target } from "./executor";
+export type { Actor, Carrier } from "./executor";
+export {
+  aim,
+  belt_count,
+  energy,
+  glyphs,
+  is_spell,
+  mixed,
+  skill_kind as skillKind,
+  weapon_required,
+} from "./action";
+export { belt_item as beltItem, recharge as memberRecharge } from "./body/member";
+export { ai as aiState, degeneration, effect_pips, heal, held } from "./segment/tick";
+export { target as aiTarget } from "./ai";
+export { object as groundObject, spot } from "./trap";
+export { activation, condition } from "./combat";
+export { kind } from "./effect";
+export type { Entry } from "./effect";
