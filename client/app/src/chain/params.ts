@@ -1,8 +1,8 @@
 /**
  * The chain mode's switch (CLI-11 §2.1, D-273): `?chain=<node url>`. Absent or empty, the app is the
  * sandbox. Present, the value must be an `http:` or `https:` URL with no user information, on this
- * machine (part 1: `127.0.0.1`, `localhost`, `[::1]`, as `createNodeFunder` requires). The mode reads
- * no other parameter: no key, account or address ever comes from the URL.
+ * machine (part 1: `127.0.0.1`, `localhost`, `[::1]`, as the local node's funder requires). The mode
+ * reads no other parameter: no key, account or address ever comes from the URL.
  *
  * A refusal names the rule broken, never the value of the parameter, so a refused
  * `?chain=http://user:pass@host` writes no credential anywhere (neither on screen nor in the
