@@ -22,7 +22,7 @@ sent batch equals its preview.
   prompt. It speaks JSON-RPC itself: starknet.js stays inside `src/account/` (ADR-0005).
 - The chain wins. A field that differs from the mirror's is a parity bug, logged as one
   `grimworld.parity` record (the console for now). There is no prediction (`not-mirrored`), and
-  never a mismatch, in these cases: the mirror reaches an unported class (`NotMirrored`), a Move
+  never a mismatch, in these cases: the mirror reaches what it does not mirror (`NotMirrored`), a Move
   reveals a chunk in the mirror, the batch is refused at admission or before its first segment, or
   the play reverts. Any other error of the mirror is no prediction either, logged as one
   `grimworld.mirror-failure` record. The fields not compared, and why, are listed in
@@ -35,15 +35,14 @@ sent batch equals its preview.
   for the view's `UNLOADABLE` marker (a goblin cannot load: the chain refuses the batch), for an
   empty goblin list where the roster or a pack of the area holds some (no `PlayLibrary` set), for
   several members while goblins are listed, where no content is given and the segment reads a
-  sheet (a goblin's caste or skill, a bar's skill: `... not in content`), and on any call to
-  `TickLibrary`, which client/sim does not port yet (a combat action followed by ticks, goblins
-  awake), or to `ActionLibrary` with a carrier that mixes a `TILE` target with an entity one
-  (client/sim's `MIXED`). It predicts the fast path (no living goblin in the window, no combat),
-  a combat action that needs no `ticks` (client/sim's `actionAct`, CLI-02g-E, CLI-10g), and a
-  segment that enters a trap, which calls `TrapLibrary::trigger` directly (client/sim's
-  `trapTrigger`, CLI-10e). A trap reached through `TickLibrary`'s nested calls (a goblin's step
-  onto one) stays `ticks`' and is still not
-  mirrored. Given content that lacks a
+  sheet (a goblin's caste or skill, a bar's skill: `... not in content`), and for a carrier that
+  mixes a `TILE` target with an entity one (client/sim's `MIXED`, from `ActionLibrary` or in a
+  goblin's carrier of `TickLibrary`'s step 1 or 2). It predicts the fast path (no living goblin in
+  the window, no combat) and every segment of combat: the three classes behind the seam are
+  client/sim's own, `trapTrigger` (CLI-02g-D, CLI-10e), `actionAct` (CLI-02g-E, CLI-10g) and
+  `tickTicks` (CLI-02g-F, CLI-10j), so a combat action followed by ticks (goblins awake, a member
+  activating, a living goblin in the window) and a goblin's step onto a trap predict as well.
+  (client/sim's `EDGE`, a Move off the window's edge, is unreachable from `run`.) Given content that lacks a
   sheet the segment reads is a `grimworld.mirror-failure`, not a silent `NotMirrored`. The
   reconciliation compares the goblin sets both ways.
 - `assembleContent(view, record, ground?)` (`content.ts`, CLI-10d, CLI-10f) assembles that content as `PlayLibrary`
