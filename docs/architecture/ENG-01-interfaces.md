@@ -1310,6 +1310,19 @@ views: account_of, account, adventurer, known_skills, counters, balances, gold, 
        grimoire, rift_board, quests
 ```
 
+**`buy_skill`, the hub's skill trainer** (SKILL-01, D-275): the only way a skill becomes known; no
+administrator grants one. The caller owns the adventurer, which is in a hub (the ownership check of
+every entrypoint: `no adventurer`, `not owner`, `adventurer deleted`, `not in a hub`, the last also
+inside an instance). Then, each its own refusal: the skill has a `SKILL` record in the registry (one
+`record` call; `trainer: no skill`), the adventurer does not know it (`trainer: skill known`), the
+pack's gold pays its price (`trainer: not enough gold`). The price follows the skills the adventurer
+knows, counted on the skill's `known_skills` page (skill ids are below 250 in the MVP: one page):
+50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 350, 400, 475, 550, 625, 700, 800, 900 gold
+for the 1st to the 20th, 1,000 from the 21st on (design/15 gives the ends; the steps between are the
+baseline's, Guild Wars' trainers, proposed by SKILL-01 for the PM's decision, D-275). Writes: the
+pack's `gold` and the skill's `known_skills` page, overwritten (the page new at the first skill). No
+event.
+
 ### 4.4 `Market` (design/16)
 
 ```
