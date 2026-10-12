@@ -194,6 +194,34 @@ describe("the screens' keys", () => {
     }
   });
 
+  it("D-287: a shifted digit zooms when it prints a zoom character; an unshifted one never does", () => {
+    const zoomIn = { kind: "zoom", by: 1 };
+    // Turkish Q: Shift+Digit4 prints +
+    for (const screen of ["hub", "instance"] as const) {
+      expect(keyCommand(press("Digit4", { key: "+", shiftKey: true }), screen)).toEqual(zoomIn);
+      expect(keyCommand(press("Digit4", { key: "+" }), screen)?.kind).not.toBe("zoom");
+    }
+    // AZERTY: Shift+Digit6 prints 6, no zoom and no skill or service
+    for (const screen of SCREENS) {
+      expect(keyCommand(press("Digit6", { key: "6", shiftKey: true }), screen)).toBeNull();
+    }
+    // AZERTY: unshifted Digit6 printing - is still skill 6 and service 6
+    expect(keyCommand(press("Digit6", { key: "-" }), "instance")).toEqual({
+      kind: "skill",
+      slot: 5,
+    });
+    expect(keyCommand(press("Digit6", { key: "-" }), "hub")).toEqual({ kind: "service", index: 5 });
+    // A shifted digit is never a skill or a service, whatever it prints
+    for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      for (const key of ["+", "=", "-", String(n), "&"]) {
+        for (const screen of SCREENS) {
+          const kind = keyCommand(press(`Digit${n}`, { key, shiftKey: true }), screen)?.kind;
+          expect(kind === "skill" || kind === "service").toBe(false);
+        }
+      }
+    }
+  });
+
   it("AZERTY (D-284): zoom keeps a key by position: ) is Minus, = is Equal, the keypad's keys", () => {
     const zoomIn = { kind: "zoom", by: 1 };
     const zoomOut = { kind: "zoom", by: -1 };
