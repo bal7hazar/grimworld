@@ -277,7 +277,7 @@ verified by the cross-cutting audit.
 | CBT-08a | `set_build`: the bar, attributes, belt and equipment validated in one call; the belt's worst case measured (D-148). CBT-08's first part, pulled forward (D-150) | CBT-01, ENG-04, ENG-06 | Opus 5.5 | D S Q + GPT-6-Astra | done (2026-09-29, [#170](https://github.com/bal7hazar/grimworld/pull/170); [report](docs/reports/CBT-08a-set-build.md); D-158) |
 | CBT-08 | Attributes, build lock, skill bar | CBT-05 | Opus 5.5 | D S Q | todo |
 | CNT-01 | Seed data: 3 professions × 6 starter skills, 5 castes, MVP packs | CBT-05, CBT-07 | Sonnet 5 | D V | todo |
-| CLI-04 | Client simulation of combat + parity vectors | CBT-03…07 | Opus 5.5 | P Q | done in substance by CLI-02g-A to F (#428 to #459), on track game's RV-02 and RV-03 tables; CLI-10j (#461) runs the preview on it ([CLI-05 brief](docs/briefs/CLI-05-combat-ui.md), 2026-10-12) |
+| CLI-04 | Client simulation of combat + parity vectors | CBT-03…07 | Opus 5.5 | P Q | done in substance by CLI-02g-A to F (#428, #431, #443, #444, #450, #459), on track game's RV-02 and RV-03 tables; CLI-10j (#461) runs the preview on it ([CLI-05 brief](docs/briefs/CLI-05-combat-ui.md), 2026-10-12) |
 | CLI-05 | Combat UI: skill bar, targeting, telegraphs, conditions, combat log ([brief](docs/briefs/CLI-05-combat-ui.md)): lots CLI-05a to CLI-05d in the sandbox, then CLI-11d on chain | CLI-04 | Opus 5.5 | D Q | todo (brief) |
 | BAL-01 | Headless balance simulator: run builds against packs, report win rate and ticks | CLI-04 | Opus 5.5 | Q | todo |
 

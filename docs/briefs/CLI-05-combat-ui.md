@@ -1,7 +1,7 @@
 # CLI-05 — The combat UI: skill bar, belt, targeting, telegraphs, conditions, combat log
 
 **Status: CLI-05a and CLI-05b can start against this brief; CLI-05c and CLI-05d wait for CLI-05a;
-CLI-11d waits for CLI-05c and for track game's SEED-02 and OPS-01b.** Written by a thread of track
+CLI-11d waits for CLI-05c, CLI-05d and track game's SEED-02.** Written by a thread of track
 CV on 2026-10-12. This lot is the design and the split into lots; it writes no code. Nothing here
 decides a game rule: the chain decides, client/sim mirrors it, and the combat UI shows both (mandate
 `docs/briefs/ORCH-client-visual.md` §6). Every decision below has a default, the reason for it, and
@@ -22,6 +22,7 @@ played segment on the real world, with every class it calls ported and checked a
 vector tables:
 
 - CLI-02g-A (#428), the segment's codecs and the class seam, on RV-02's `segment2.jsonl` (#425);
+- CLI-02g-B1 (#431), the goblin's load, the shared tick functions and `SignedTrait`;
 - CLI-02g-C (#443) and CLI-02g-D (#444), the body operations, the effect entry and the trap path, on
   RV-03a's tables (#440);
 - CLI-02g-E (#450), the action class `ActionTrait::act`, on RV-03b's `act.jsonl` (#447);
@@ -31,7 +32,7 @@ vector tables:
 
 So CLI-04's two halves, the combat simulation and its parity vectors, exist. What PLAN's CLI-04
 named and is not there is BAL-01's headless runner, which is its own row. **Proposed status cell for
-CLI-04:** "done in substance by CLI-02g-A to F (#428 to #459), on track game's RV-02 and RV-03
+CLI-04:** "done in substance by CLI-02g-A to F (#428, #431, #443, #444, #450, #459), on track game's RV-02 and RV-03
 tables; CLI-10j (#461) runs the preview on it (CLI-05 brief, 2026-10-12)". This lot writes it.
 
 ### What main has
@@ -111,9 +112,11 @@ effect**; the pack's `Particle FX/` is not in the manifest (design/10 _Icons_: "
 icons").
 
 **Track game.** SKILL-01 (#472) added `Hub.buy_skill`. SEED-02 (running) adds an activation skill, a
-trap skill and a REGENERATION skill and potion to the seed. Then `scripts/devnet_deploy.py --build
-full` (OPS-01b) fills the bar with four skills and the belt with two potions. The registry's `Skill`
-and `Item` records hold **no name** (`contracts/logic/src/models/index.cairo`).
+trap skill and a REGENERATION skill and potion to the seed. `scripts/devnet_deploy.py --build full`
+(OPS-01b, on main) leaves the bar empty and the belt at healing potion ×2 today; once SEED-02 lands
+it puts four skills on the bar and a belt of healing potion ×2 plus a REGENERATION potion. The
+registry's `Skill` and `Item` records hold **no name** (`contracts/logic/src/models/index.cairo`),
+and none is planned (Q-1).
 
 ## 1. Scope
 
@@ -171,7 +174,7 @@ show a number.
 The figures come from client/sim, never from client/app's own arithmetic: the energy cost of a slot
 is client/sim's `energy` (`action.ts`, with Fieldcraft and a glyph's discount), and the ticks left
 are read from the stored deadline and the clock by one function of the combat model (§10, CLI-05a),
-tested on client/sim's reading of a deadline (`held` in `segment/tick.ts`: active while the clock has not passed the deadline).
+tested on client/sim's reading of a deadline (`held` in `segment/tick.ts`: active while the clock is below the deadline, so the ticks left are the deadline minus the clock).
 
 **Why.** Following `act`'s order means the bar never promises a skill the action class refuses.
 Using client/sim's cost keeps one source of truth (mandate §6).
@@ -179,23 +182,37 @@ Using client/sim's cost keeps one source of truth (mandate §6).
 **Reversed if** client/sim's `act` changes its order (the state order follows it), or the owner
 wants several states shown at once (for example recharging and short of energy).
 
-### 2.3 Keys, and the AZERTY question
+### 2.3 Keys, and the AZERTY question (D-284)
 
-**Default.**
+**Decided by the project manager (D-284, 2026-10-12), on this brief's proposal.** No digit key ever
+zooms. `Digit1` to `Digit8` are the skills in an instance and the services in a hub, on every
+layout. Zoom keeps `Minus` and `Equal` by code, AZERTY's `)` and the numeric keypad's minus. D-284 is
+reversed if a layout leaves zoom with no reachable key.
+
+**Default, as built by CLI-05b.**
 
 - Skills are read **by position**: `Digit1`–`Digit8` and `Numpad1`–`Numpad8`, on the instance screen
   only. The belt is `KeyZ`, `KeyX`, `KeyC`, `KeyV` by position (AZERTY's `W X C V`), as `keys.ts`
   already reserves them.
-- **A digit key never zooms.** `ZOOM_CHARS`' exception in `matches()` is removed: a `Digit*` code is
-  always the digit, on every screen (the instance's skills, the hub's services). So AZERTY's `6`
-  key, which prints `-`, is skill 6 in an instance and service 6 in a hub.
+- **A digit key never zooms.** Removing `ZOOM_CHARS`' exception in `matches()` is not enough: the
+  zoom row comes before the skills row in `BINDINGS` and its `{ key: "-" }`, `{ key: "+" }` and
+  `{ key: "=" }` matches are read by character, so `Digit6` with key `-` would still zoom. **The
+  guard moves into the zoom row's character matches:** a press whose `code` is a `Digit*` never
+  matches them. So AZERTY's `6` key, which prints `-`, is skill 6 in an instance and service 6 in a
+  hub.
 - **Zoom keeps a key on every layout**, by position as well as by character: zoom in is the key `+`,
-  the key `=`, the code `Equal` and `NumpadAdd`; zoom out is the key `-` when it does not come from a
-  digit code, the code `Minus` and `NumpadSubtract`. On AZERTY, zoom out is then the `)` key (code
-  `Minus`, where QWERTY has `-`) or the numeric keypad's `−`; zoom in is `=` (code `Equal`).
+  the key `=`, the code `Equal` and `NumpadAdd`; zoom out is the key `-` (not from a digit code), the
+  code `Minus` and `NumpadSubtract`. On AZERTY, zoom out is then the `)` key (code `Minus`, where
+  QWERTY has `-`) or the numeric keypad's `−`; zoom in is `=` (code `Equal`).
 - The key help (`?`) lists the skills and belt keys on the instance screen, and the zoom keys as
   "`+` / `−` (the keys right of `0`)".
 - Modifiers, repeat and composition stay refused, as today.
+
+**What it changes of CLI-03k.** design/11 _Desktop_'s row "Keyboard, outside combat (CLI-03k)" is a
+project manager's decision of 2026-10-03; D-284 amends its zoom and service keys. CLI-05b edits that
+row in its own PR, citing D-284, and rewrites the two tests of `client/app/src/input/keys.test.ts`
+that held the old behaviour: "AZERTY: the key printed - (Digit6) zooms out, the unshifted digit row
+keeps its services" and "the combat keys are reserved: nothing on an instance, listed as reserved".
 
 **Why.** CLI-03k already reads every position key by `event.code`, so the digits follow. Making
 the zoom yield only "in combat" would give one key two meanings on one screen depending on state,
@@ -203,8 +220,8 @@ which design/11 _Desktop_'s "each key the tap or button it stands for" and `keys
 bound key has one meaning per screen" both refuse. The code `Minus` is the same physical key as
 QWERTY's `-`, so zoom stays where a QWERTY player expects it and gains a key on AZERTY.
 
-**Reversed if** the owner, on a real AZERTY keyboard, wants `-` to zoom (then the instance's skill 6
-moves to `Numpad6` only), or a later lot needs `Minus` for something else.
+**Reversed if** a layout leaves zoom with no reachable key (D-284), or the owner, on a real AZERTY
+keyboard, wants `-` to zoom (then the instance's skill 6 moves to `Numpad6` only).
 
 ### 2.4 Taps
 
@@ -301,8 +318,13 @@ the tiles at distance ≤ range but out of sight are drawn greyed with a thin cr
 test is client/sim's `reach` on the board the mirror builds (`segmentBoard`); in the sandbox, the
 placeholders' `distance` and `tilesInSight` stand in, as every rule there does.
 
-**Why.** It is the exact rule `aim` applies (`Illegal.Reach` is distance and line of sight), so a
-tinted tile is a tile the action class accepts.
+**A TRAP skill** narrows the tint further: a tile in reach is tinted only if client/sim's `spot`
+(`trap.ts`) finds a place for the trap there (walkable, no actor on it, its chunk's ground with a free
+slot); the others in reach are greyed like tiles out of sight.
+
+**Why.** It is the exact rule `aim` applies (`Illegal.Reach` is distance and line of sight), and for
+a trap the rule `act` adds (`Illegal.Trap` when `spot` finds nothing), so a tinted tile is a tile the
+action class accepts.
 
 **Reversed if** the line-of-sight rule changes (design/04, D-174): the drawing follows `reach`.
 
@@ -328,7 +350,7 @@ The lines, in words the player reads (I-3: nothing about the chain):
 | `Adrenaline`                           | "Not enough adrenaline."                                                     |
 | `Target`                               | "Not a valid target."                                                        |
 | `Reach`                                | "Out of reach."                                                              |
-| `Trap`                                 | "A trap is already there."                                                   |
+| `Trap`                                 | "A trap cannot go there."                                                    |
 | `Clock`, `Absent`, `Turned`, `Blocked` | not reachable from a skill or an item tap; logged as a parity record if seen |
 
 A slot whose skill client/sim cannot mirror (`NotMirrored`, `unported.MIXED`: a carrier R-44 refuses)
@@ -338,8 +360,9 @@ written, so on main this cannot happen; the state exists so that the screen neve
 In the sandbox, the bar's states (§2.2) and the range (§4.3) are the only refusals; the placeholders
 grow no rule beyond them.
 
-**Why.** The mirror is already run at every input; asking it once more costs one segment run and
-gives exactly the refusal the chain would give. Refusing before the batch keeps a batch from
+**Why.** The mirror is already run at every input on the planned actions; the check is that same
+run once the new action is appended (§7.2's cost), and it gives exactly the refusal the chain would
+give. Refusing before the batch keeps a batch from
 stopping on `Stop.Invalid` for a mistake the client could see (I-5).
 
 **Reversed if** the per-input run proves too slow on a phone (then the slot states and the range
@@ -362,7 +385,9 @@ setting asks for a warning instead of a refusal.
 - **A stored deadline already passed** (a lapsed activation, design/19 §5.2) is read as none, as
   views and the client must.
 - **The adventurer activating**: the same ring around the adventurer, the slot's ring on the bar
-  (§2.2), and the target line to its target or the tinted area on its tile.
+  (§2.2), and the target line to its target or the tinted area on its tile. **In the sandbox only:**
+  in the chain mode the adventurer's activation resolves within its own action and is never at rest
+  between inputs (§9).
 
 **Why.** design/11 _What the rules need to show_: "a ring that fills tick by tick around the
 caster, with the skill's icon; on the adventurer too", and the interruptible highlight. The line to
@@ -438,34 +463,69 @@ runt").
 
 ### 7.2 Where a line comes from
 
-**Default.** Neither client/sim nor the chain gives per-hit records (§Context), so a line is the
-**difference of two states**, computed per action:
+Neither client/sim nor the chain gives per-hit records (§Context). Track game confirmed (2026-10-12)
+that no combat event is planned: an event would cost gas (D-144) and change ENG-01's frozen events.
+So the log is computed on the client, from the mirror, at two grains.
 
-1. **The mirror's prediction.** The combat model runs the mirror on each prefix of the batch (at
-   most 10 runs, `MAX_ACTIONS`) and compares the decoded words before and after each action:
-   health, conditions, held effects, activations, `killed`, `defeated`. That gives every line above
-   except the trap's.
-2. **The segment's records.** `Done` gives where the batch stopped (`played`, `illegal`, `heavy`);
-   the run's ground before and after (`Ran.ground`: a trap placed, or gone from its tile) gives "a
-   trap was placed" and "a trap was triggered".
-3. **The chain's events in the trace.** `extractOutcome`'s `Played` gives `GoblinKilled`,
+**Default.**
+
+1. **Per action: the difference of two states.** The words after action `k` are the end of the
+   mirror's run on the batch's first `k` actions. This is sound because `SegmentTrait::run`
+   (`client/sim/src/segment.ts`, `run`) plays each action and then its `n` ticks inside the same
+   loop turn (`ticks(world, rules, n)`), so the state after the loop's turn `k` depends only on the
+   state before the batch and actions 1 to `k`. A run on a prefix therefore ends where the full run
+   stood after action `k`. **The prefixes are cached:** appending an action leaves the earlier
+   prefixes unchanged, so an input adds one run, the run on the whole batch, which `createStages`
+   already makes; §4.4's check on the planned actions plus the new one is that same run. The
+   comparison gives the action's own lines: health, conditions, held effects, activations,
+   `killed`, `defeated`.
+2. **Per tick: hits attributed by replay.** Inside an action, the goblins act during its ticks. To
+   say who struck whom, the model replays each call of the tick class **one tick at a time**:
+   - the mirror's run is made through a recording wrapper of the native `Classes`, which keeps each
+     `ticks` call's input (`TicksCall`: words, content, board, level, ground, `n`);
+   - each recorded call is replayed as `n` calls of client/sim's native `tickTicks` with `n = 1`,
+     chained (the words and ground out of one are the input of the next); `tickTicks` is
+     deterministic on the words, board, ground and `n`;
+   - for each tick, the change of each actor's health, minus what step 3 gives it (its regeneration
+     and its conditions, read with client/sim's `degeneration` and `effect_pips`), is attributed to
+     the goblin that acted in that tick on it: an activation resolved, or an attack (its recovery or
+     recharge set). Its arc is client/sim's `arc` from the positions before the tick, which gives
+     the flank and critical marks of a goblin's hit;
+   - ticks played on the fast path (no goblin in the window: no class call) need no attribution;
+   - a tick the replay cannot attribute (two goblins that both struck one actor in one tick, or a
+     change no goblin's act explains) gets one line naming the goblins together, and a record
+     `grimworld.log-unattributed` with the call's input, so the case goes to track game with
+     figures.
+3. **The segment's records.** `Done` gives where the batch stopped (`played`, `illegal`, `heavy`);
+   the ground before and after (`Ran.ground`: a trap placed, or gone from its tile) gives "a trap
+   was placed" and "a trap was triggered".
+4. **The chain's events in the trace.** `extractOutcome`'s `Played` gives `GoblinKilled`,
    `ChunkRevealed`, `Defeated` and `InstanceClosed`, and the stop. When the sent stage reconciles,
    the lines of the actions the chain played are **confirmed**; if the chain differs, the chain
    wins: the predicted lines of the dropped actions are struck and one line says "The world
    corrected itself" (design/11 _The chain, unseen_).
 
 A line is predicted (drawn in a lighter tone, with no mark that speaks of the chain) until it is
-confirmed. Several hits within one action (a `RING_1` on three goblins) are one line per actor. A
-flank or critical mark on a **goblin's** hit is not shown: positions before and after do not say
-from which arc a goblin struck. It needs a hit record from client/sim, which is a later question
-(§11, Q-3).
+confirmed.
 
-**Why.** Diffing the decoded words needs no new rule and no contract change, and it reads exactly
-what the mirror and the chain agree on.
+**Cost per input.** With the prefixes cached, an input costs the one mirror run `createStages`
+already makes, plus `n` one-tick replays for each tick-class call of the new action (`n` is the
+action's ticks, at most the batch's weight left). The one-tick calls are the same work as the
+recorded call, split. **Not measured yet:** CLI-05a measures, on the tick table's heaviest row
+(`contracts/logic/vectors/`), the time of one input with and without the replay, and reports both.
 
-**Reversed if** client/sim gains a per-hit record (a recording `Classes` wrapper, or an output of
-the executor), or the contracts gain combat events: the log then reads them and gives each hit its
-own line, with its arc and type.
+**Why.** Diffing decoded words and replaying native ticks needs no new rule and no contract change,
+and it reads exactly what the mirror and the chain agree on.
+
+**Reversed if:**
+
+- the measured cost of an input with the replay is above one frame (16 ms) on the Mac's browser:
+  the replay then runs after the input is drawn, and the action's lines appear when it ends;
+- `n` one-tick calls do not give the words of one call of `n` on some row (CLI-05a's acceptance):
+  that row goes to track game with its figures, and the replay is off until it is answered;
+- the per-action prefix runs and the full run disagree (the soundness above is wrong): the log
+  falls back to one line per batch;
+- track game ever adds per-hit records or combat events: the log reads them instead.
 
 ### 7.3 How many lines, and where
 
@@ -484,20 +544,20 @@ client; the design document's row stays open for the owner).
 The pack has no skill, potion or condition icons (design/10 _Icons_). Every element below uses what
 the atlas has, or a named placeholder drawn by code, so the screens work before an icon set exists.
 
-| Element                                       | Asset                                                                                                                         | Placeholder (no asset, or without the atlas)                                                                                     |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| A bar or belt slot's frame                    | `square_blue` (packed; added to the client's loaded entries, regular and pressed)                                             | a bordered square in the chrome's colours (the plain look)                                                                       |
-| A skill's icon                                | none in the pack                                                                                                              | **a monogram**: the skill's two initials in Pixelify Sans, on a ground by skill kind (attack, spell, stance, shout, trap, other) |
-| A potion's icon                               | none in the pack                                                                                                              | **a flask outline** drawn by code, filled by the potion's effect (heal, regeneration, other), with its initials                  |
-| Adrenaline cost                               | `icon_sword`                                                                                                                  | `⚔`, as CLI-03l does                                                                                                             |
-| Energy cost                                   | none (CLI-03l found no lightning icon)                                                                                        | the figure alone, in the energy colour                                                                                           |
-| Condition and effect chips                    | none in the pack                                                                                                              | **a letter chip** (§6.1)                                                                                                         |
-| The bar's and belt's backing                  | `wood` (the chrome's nine-slice)                                                                                              | the dark panel                                                                                                                   |
-| The target zone                               | `paper_dark`; the pack's `Swords` plates are not packed yet                                                                   | the dark panel                                                                                                                   |
-| The target's health bar                       | CLI-03l's `Bar`, small, with a red fill (`bar_small` with a new `bar_small_fill_health` entry recoloured from `bar_big_fill`) | the plain bar                                                                                                                    |
-| The combat log                                | `paper` for the desktop panel                                                                                                 | the plain panel                                                                                                                  |
-| The activation ring, range, area, target line | drawn by code in the overlay, like the arcs                                                                                   | the same                                                                                                                         |
-| Hit marks and numbers                         | not in this brief: the pack's `Particle FX/` is not in the manifest                                                           | none: the log carries the numbers                                                                                                |
+| Element                                       | Asset                                                                                                                                              | Placeholder (no asset, or without the atlas)                                                                                     |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| A bar or belt slot's frame                    | `square_blue` (packed; added to the client's loaded entries, regular and pressed)                                                                  | a bordered square in the chrome's colours (the plain look)                                                                       |
+| A skill's icon                                | none in the pack                                                                                                                                   | **a monogram**: the skill's two initials in Pixelify Sans, on a ground by skill kind (attack, spell, stance, shout, trap, other) |
+| A potion's icon                               | none in the pack                                                                                                                                   | **a flask outline** drawn by code, filled by the potion's effect (heal, regeneration, other), with its initials                  |
+| Adrenaline cost                               | `icon_sword`                                                                                                                                       | `⚔`, as CLI-03l does                                                                                                             |
+| Energy cost                                   | none (CLI-03l found no lightning icon)                                                                                                             | the figure alone, in the energy colour                                                                                           |
+| Condition and effect chips                    | none in the pack                                                                                                                                   | **a letter chip** (§6.1)                                                                                                         |
+| The bar's and belt's backing                  | `wood` (the chrome's nine-slice)                                                                                                                   | the dark panel                                                                                                                   |
+| The target zone                               | `paper_dark`; the pack's `Swords` plates are not packed yet                                                                                        | the dark panel                                                                                                                   |
+| The target's health bar                       | CLI-03l's `Bar`, small, with a red fill (`bar_small` with a new `bar_small_fill_health` entry: the pack's small fill, already red, not recoloured) | the plain bar                                                                                                                    |
+| The combat log                                | `paper` for the desktop panel                                                                                                                      | the plain panel                                                                                                                  |
+| The activation ring, range, area, target line | drawn by code in the overlay, like the arcs                                                                                                        | the same                                                                                                                         |
+| Hit marks and numbers                         | not in this brief: the pack's `Particle FX/` is not in the manifest                                                                                | none: the log carries the numbers                                                                                                |
 
 The `Swords` plates, the pack's state glyphs made for skill buttons (`4`, `5`, `ActionPoint` in
 regular, pressed and disabled) and `Particle FX/` are the natural assets of a later art lot; this
@@ -510,22 +570,32 @@ slot by slot, with no layout change.
 
 **Default.**
 
-| Lot     | The sandbox (`?combat=fight`, fixed data)                                                                                                                                           | The chain mode (`?chain=`)                                                                                                                         |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CLI-05a | nothing visible (the model and its tests)                                                                                                                                           | nothing visible                                                                                                                                    |
-| CLI-05b | the new keys, in the key help                                                                                                                                                       | the same keys, given to the chain screen with no command yet                                                                                       |
-| CLI-05c | the bar in every state of §2.2, the belt with a count, an emptied slot and an empty slot, the chips, the target zone, the log with fixed lines; arming a slot and choosing a target | nothing                                                                                                                                            |
-| CLI-05d | the range, the areas, the activation rings and target lines, the goblins' letters, on the same fixture                                                                              | nothing                                                                                                                                            |
-| CLI-11d | unchanged                                                                                                                                                                           | the bar, belt and targeting on the deployment's adventurer, refusals before the batch, the telegraphs and chips from the mirror, the log from §7.2 |
+| Lot     | The sandbox (`?combat=fight`, fixed data)                                                                                                                                           | The chain mode (`?chain=`)                                                                                                                                      |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI-05a | nothing visible (the model and its tests)                                                                                                                                           | nothing visible                                                                                                                                                 |
+| CLI-05b | the new keys, in the key help                                                                                                                                                       | the same keys, given to the chain screen with no command yet                                                                                                    |
+| CLI-05c | the bar in every state of §2.2, the belt with a count, an emptied slot and an empty slot, the chips, the target zone, the log with fixed lines; arming a slot and choosing a target | nothing                                                                                                                                                         |
+| CLI-05d | the range, the areas, the activation rings and target lines, the goblins' letters, on the same fixture                                                                              | nothing                                                                                                                                                         |
+| CLI-11d | unchanged                                                                                                                                                                           | the bar, belt and targeting on the deployment's adventurer, refusals before the batch, the goblins' telegraphs and the chips from the mirror, the log from §7.2 |
 
-**The sandbox's fixture** (new, `?combat=fight`, in `sandbox/fixtures/`): Wren with the existing
-bar's five skills and three empty slots, given costs, recharges and kinds; the belt as today plus an
-emptied slot; Wren bleeding (4 ticks) and holding Brace (2 charges, 6 ticks) and a REGENERATION; a
-hobgoblin beside Wren activating Overhead Smash on Wren (2 ticks left), a shaman
-casting Mend Kin on a runt, a poisoned skirmisher. The bar shows at once one slot ready, one
-recharging, one short of energy, one short of adrenaline, one with the wrong weapon and three
-empty. Activating dims the rest of the bar (§2.2), so a second state of the fixture has Wren
-activating, for its own shot.
+**The adventurer's own activation is shown in the sandbox only.** In the chain mode it is never at
+rest: `SegmentTrait::run` plays an action's `n` ticks in the same loop turn as the action
+(`client/sim/src/segment.ts`, `run`), so an activation started by the adventurer has resolved before
+the next input, and an activation that does not fit the weight is not kept (`Done.heavy`). A goblin's
+activation does rest between inputs (its deadline passes the batch's end), so the goblins' telegraphs
+are shown in both modes. The adventurer's ring could be seen in the chain mode only if a later lot
+draws an action's ticks one by one (§7.2's replay gives the states); none is planned.
+
+**The sandbox's fixture** has one home, `client/app/src/combat/fixture.ts` (new, CLI-05a); CLI-05c's
+`?combat=fight` reads it, and `sandbox/fixtures/` is not touched. Wren keeps `ADVENTURER`'s bar
+(Cleave, Shield bash, Charge, Taunt, Second wind, three empty slots), given costs, recharges and
+kinds (Q-4); the belt as today plus an emptied slot. Wren is bleeding (4 ticks), holds a
+REGENERATION, and holds a BLOCK effect with 2 charges and 6 ticks: Shield bash is given the BLOCK
+entry in the fixture, so the chip comes from a skill on Wren's bar. A hobgoblin beside Wren
+activates Overhead Smash on Wren (2 ticks left), a shaman casts Mend Kin on a runt, a skirmisher is
+poisoned. The bar shows at once one slot ready, one recharging, one short of energy, one short of
+adrenaline, one with the wrong weapon and three empty. Activating dims the rest of the bar (§2.2),
+so a second state of the fixture has Wren activating Charge, for its own shot.
 
 **In the sandbox, playing a skill** spends its placeholder costs, starts its placeholder recharge
 and adds one log line; it applies no effect. These two placeholders join `sandbox/placeholders.ts`,
@@ -549,16 +619,39 @@ command is written here without that prefix.
 
 **Allowlist:**
 
-- `client/app/src/combat/` (new): `state.ts` (the `CombatState` the screens read: the adventurer's
-  bar with each slot's sheet, recharge and state, belt, gauges, activation, conditions and held
-  effects; the goblins' health, mark, activation, conditions and held effect; the clock),
-  `fromWords.ts` (a `CombatState` from `MirrorWords` and the content, through client/sim's loaders),
-  `bar.ts` (§2.2's state of a slot), `targeting.ts` (§4.1–§4.3: the addressing, the reach set, the
-  shape's tiles, the actors marked), `refusal.ts` (§4.4's lines), `chips.ts` (§6.1), `log.ts` (§7.2's
-  difference of two `CombatState`s, and §7.3's 100 lines), `fixture.ts` (§9's fixed fight), each with
-  its unit test;
-- `client/sim/src/index.ts`: new exports only, `load as loadMember`, `addressing`, `aim`, `energy`,
-  and the constants `target`, `condition` and `kind`;
+- `client/app/src/combat/` (new), each file with its unit test:
+  - `state.ts`: the `CombatState` the screens read (the adventurer's bar with each slot's sheet,
+    recharge and state, belt, gauges, activation, conditions and held effects; the goblins' health,
+    mark, activation, conditions and held effect; the traps on the ground; the clock);
+  - `fromWords.ts`: a `CombatState` from `MirrorWords`, the content and the ground. The `World` is
+    built by client/sim's own loader, `loadWorld(words, indexSheets(content))` (`segment/world.ts`'s
+    `world` and `segment/words.ts`'s `sheets`, exported below), never by client/app;
+  - `bar.ts` (§2.2's state of a slot), `targeting.ts` (§4.1–§4.3: the addressing, the reach set, a
+    TRAP skill's `spot` set, the shape's tiles, the actors marked), `refusal.ts` (§4.4's lines),
+    `chips.ts` (§6.1);
+  - `overlay.ts`: `CombatOverlay`, what the map draws (the range, its greyed tiles, the area, the
+    target marks, the goblins' activations with their ticks and targets, the condition letters, the
+    knocked-down actors), from a `CombatState` and the armed slot;
+  - `record.ts`: the recording wrapper of the native `Classes` (§7.2);
+  - `log.ts`: §7.2's lines (the cached prefixes, the one-tick replay and its attribution) and §7.3's
+    100 lines;
+  - `fixture.ts`: §9's fixed fight, both states;
+- `client/app/src/render/view.ts`: one optional field, `ViewState.combat?: CombatOverlay`, nothing
+  drawn;
+- `client/sim/src/index.ts`, new exports only:
+  - `segment/world.ts`: `world` as `loadWorld`, and the type `World`;
+  - `segment/words.ts`: `load` as `loadMember`, `sheets` as `indexSheets`, and the types `Member`
+    and `Sheets`;
+  - `executor.ts`: `addressing`, `target`, `filter`;
+  - `action.ts`: `aim`, `energy`, `glyphs`, `weapon_required`, `belt_count`, `mixed`;
+  - `body/member.ts`: `recharge` as `memberRecharge`;
+  - `segment/tick.ts`: `held`, `degeneration`, `effect_pips`;
+  - `trap.ts`: `spot`;
+  - `combat.ts`: `condition`; `effect.ts`: `kind`;
+
+  if another function proves needed to read a figure without re-deriving it, it is exported from
+  its own file the same way and named in the report;
+
 - `client/app/README.md`, a "Combat UI" subsection.
 
 **Acceptance:**
@@ -570,26 +663,42 @@ command is written here without that prefix.
   each `Illegal` a slot state names, a test runs client/sim's `actionAct` on the same words and gets
   that refusal;
 - targeting: a `SELF`, a `FOE`, an `ALLY` and a `TILE` carrier, a `RING_1` and a `DISC_1` potion,
-  each by a test; a tile out of sight is in the range's greyed set and refused by `aim` with `Reach`;
+  each by a test; a tile out of sight is in the range's greyed set and refused by `aim` with
+  `Reach`; a TRAP skill's tinted tiles are exactly those `spot` accepts, and an occupied tile in
+  reach is refused with `Trap`;
 - the ticks left of a condition and of a recharge, at the deadline and one tick before and after;
-- `log.ts`: a hit, a kill, a condition gained and ended, an activation started and interrupted;
-  the 101st line drops the first;
+- `log.ts`:
+  - **the last prefix's words equal the full run's**, on every action of a batch of 10 built from
+    the act and tick tables' rows;
+  - for every row of the tick table, `n` chained calls of `tickTicks` with `n = 1` give the words
+    and ground of one call with `n`; a row where they differ is reported to track game with its
+    figures, not skipped;
+  - a goblin's hit attributed to it with its arc, a kill, a condition gained and ended, an
+    activation started and interrupted, a trap triggered; two goblins striking in one tick give the
+    joint line and the `grimworld.log-unattributed` record;
+  - the 101st line drops the first;
+  - the measured time of one input, with and without the replay (§7.2), in the report;
 - `pnpm --filter @grimworld/app test`, `pnpm --filter @grimworld/app lint`,
   `pnpm --filter @grimworld/app typecheck` and `pnpm --filter @grimworld/sim test` pass.
 
-### CLI-05b — the combat keys
+### CLI-05b — the combat keys (D-284)
 
-**Profile:** `impl-sonnet`. §2.3 fixes the design.
+**Profile:** `impl-sonnet`. §2.3 and D-284 fix the design.
 
 **Allowlist:**
 
-- `client/app/src/input/keys.ts` and `keys.test.ts`: new commands `skill{slot}` for `Digit1`–`Digit8` and
+- `client/app/src/input/keys.ts`: new commands `skill{slot}` for `Digit1`–`Digit8` and
   `Numpad1`–`Numpad8` and `belt{slot}` for `KeyZ X C V` on the instance screen (the reserved rows
-  become bindings); `ZOOM_CHARS`' exception removed; zoom by `Equal`, `Minus` and the characters;
-  `cycle` and `go` kept on the instance screen for §4.1's targets;
+  become bindings); `ZOOM_CHARS`' exception in `matches()` removed and the digit guard put on the
+  zoom row's character matches; zoom by the codes `Equal` and `Minus` and the characters; `cycle`
+  and `go` kept on the instance screen for §4.1's targets;
+- `client/app/src/input/keys.test.ts`: the two tests §2.3 names, rewritten, and the new cases;
 - `client/app/src/editor/keys.test.ts`, only if the game's table it checks against changes;
 - `client/app/src/sandbox/loop/KeyHelp.tsx`, the help's rows;
-- `client/app/verify-keys.mjs`, its expectations for AZERTY.
+- `client/app/verify-keys.mjs`: **adds** AZERTY presses (it presses `Equal` and `Minus` today, no
+  AZERTY case);
+- `docs/design/11-interface.md`: the row "Keyboard, outside combat (CLI-03k)", its zoom and service
+  keys as D-284 says, citing D-284.
 
 **Acceptance:**
 
@@ -600,11 +709,12 @@ command is written here without that prefix.
 - "every bound key has one meaning per screen" still passes;
 - the screens that do not handle `skill` and `belt` yet ignore them (the sandbox's and the chain's
   instance screens), so nothing changes until CLI-05c;
+- design/11's row matches the bindings and cites D-284;
 - `pnpm --filter @grimworld/app test`, `pnpm --filter @grimworld/app lint`,
   `pnpm --filter @grimworld/app typecheck` pass; `pnpm --filter @grimworld/app verify:keys` passes
   where a browser runs.
 
-### CLI-05c — the combat screen in the sandbox (DOM)
+### CLI-05c — the combat screen in the sandbox (DOM and plumbing)
 
 **Profile:** `impl-opus`. A design for the owner's eye.
 
@@ -612,16 +722,23 @@ command is written here without that prefix.
 
 - `client/app/src/combat/` (new files): `SkillBar.tsx`, `Belt.tsx`, `Chips.tsx`, `TargetZone.tsx`,
   `CombatLog.tsx`, `controller.ts` (arming, §2.4, §3, §4.1's choices and `Esc`) and its test;
-- `client/app/src/sandbox/loop/InstanceScreen.tsx` and `Hud.tsx` (the chips row), `hudModel.ts` and
-  its test;
-- `client/app/src/sandbox/params.ts` and its test (`?combat=`), `client/app/src/sandbox/fixtures/`
-  (the fight fixture, §9);
-- `client/app/src/sandbox/placeholders.ts` and its test (§9's two placeholders), and `wiring.ts`
-  only to reach them;
-- `client/app/src/chrome/load.ts`, `Chrome.tsx`, `contrast.ts` and their tests (`square_blue`, the
-  health fill);
-- `tools/art/manifest.toml` (`bar_small_fill_health`, a recolour of `bar_big_fill`);
-- `client/app/verify-combat.mjs` (new) and its `package.json` script `verify:combat`;
+- **the plumbing, this lot only:** `client/app/src/sandbox/Sandbox.tsx`, `sandbox/controller.ts`,
+  `sandbox/session.ts` and their tests, carrying the `CombatState` and the armed slot from the
+  screen to the session; `sandbox/wiring.ts`, for `toView` to set `ViewState.combat` from
+  `combatOverlay` (CLI-05a) and to re-export §9's two placeholders;
+- `client/app/src/sandbox/loop/InstanceScreen.tsx`, `Hud.tsx` (the chips row), `hudModel.ts` and its
+  test;
+- `client/app/src/sandbox/params.ts` and its test (`?combat=`);
+- `client/app/src/sandbox/placeholders.ts` and its test (§9's two placeholders);
+- `client/app/src/chrome/load.ts`, `Chrome.tsx`, `contrast.ts` and their tests (`square_blue`,
+  `bar_small_fill_health`);
+- `tools/art/manifest.toml` (`bar_small_fill_health`: the pack's small fill, `SmallBar_Fill.png`,
+  which is already red, **not recoloured**), `tools/art/tests/test_build.py` (its set of `ui`
+  entries), `tools/art/README.md` (its list of entries), and `tools/art/check` if it pins the
+  entries;
+- `client/app/verify-combat.mjs` (new) and its `package.json` script `verify:combat`. The script
+  takes its options as **arguments**, not variables: `--shots <folder>` writes the shots there, and
+  `--plain` serves no art (the plain look);
 - `client/app/README.md`, its "Combat UI" subsection.
 
 **Acceptance:**
@@ -631,11 +748,14 @@ command is written here without that prefix.
   log its lines;
 - arming: a tap and a key arm a slot; a `SELF` skill plays on the second tap; `Esc` disarms in
   §4.1's order; a slot not ready says its line and arms nothing (controller tests with fakes);
-- `pnpm --filter @grimworld/app verify:combat` captures, at 1440×900 and 375×812, the screen at rest,
-  a slot armed on a `FOE` skill, and Wren activating; with the art and in the plain look
-  (`VERIFY_SHOTS=1`, shots into the thread's library folder, never committed or posted: D-73);
+- the shots, at 1440×900 and 375×812, of the screen at rest, a slot armed on a `FOE` skill, and
+  Wren activating, with the art and in the plain look, written into the thread's library folder,
+  never committed or posted (D-73), by these two commands:
+  - `pnpm --filter @grimworld/app verify:combat --shots <the thread's library folder>`
+  - `pnpm --filter @grimworld/app verify:combat --shots <the thread's library folder> --plain`
 - `pnpm --filter @grimworld/app test`, `pnpm --filter @grimworld/app lint`,
-  `pnpm --filter @grimworld/app typecheck` pass;
+  `pnpm --filter @grimworld/app typecheck` pass; `tools/art/.venv/bin/python -m unittest discover -s
+tools/art/tests` passes where the venv exists;
 - **for the owner's eye**: the shots go to the orchestrator, who shows them to the project manager.
 
 ### CLI-05d — the combat overlay on the map
@@ -644,13 +764,10 @@ command is written here without that prefix.
 
 **Allowlist:**
 
-- `client/app/src/render/view.ts` (new `ViewState` fields: the range, its greyed tiles, the area,
-  the target marks, activations with their ticks and targets, the goblins' condition letters, the
-  knocked-down actors), `render/shapes.ts` (`overlayPlan`, `drawOverlay`) and `render/renderer.ts`,
-  with their tests;
-- `client/app/src/combat/overlay.ts` (new): the new `ViewState` fields from a `CombatState` and the
-  armed slot, and its test;
-- `client/app/src/sandbox/wiring.ts`, only `toView`'s new input;
+- `client/app/src/render/shapes.ts` (`overlayPlan`, `drawOverlay`) and `render/renderer.ts`, with
+  their tests: drawing `ViewState.combat` (the range and its greyed tiles, the area, the target
+  marks, the activation rings with their ticks and target lines, the interruptible highlight, the
+  goblins' letters, a knocked-down actor laid flat);
 - `client/app/verify-combat.mjs`, its map shots, **only after CLI-05c has merged** (merge
   `origin/main`).
 
@@ -659,7 +776,8 @@ command is written here without that prefix.
 - `overlayPlan` tests: a `FOE` skill's range with an out-of-sight tile greyed, a `RING_1` on self,
   a `DISC_1` potion, a goblin's ring at 3, 2 and 1 tick left, the interruptible highlight, a target
   line, three letters and a `+`;
-- `verify:combat`'s shots show the range and the hobgoblin's ring and line;
+- the shots of `verify:combat` (the two commands of CLI-05c) show the range and the hobgoblin's ring
+  and line;
 - `pnpm --filter @grimworld/app test`, `pnpm --filter @grimworld/app lint`,
   `pnpm --filter @grimworld/app typecheck` pass.
 
@@ -669,16 +787,21 @@ CLI-11's brief (§8) names this lot and left its allowlist and acceptance to CLI
 
 **Profile:** `impl-sonnet`. The design is fixed by this brief and CLI-11's.
 
-**Waits for:** CLI-05c and CLI-05d merged; track game's SEED-02 and OPS-01b
-(`scripts/devnet_deploy.py --build full`, the deployment JSON's `build` key).
+**Waits for:** CLI-05c and CLI-05d merged, and track game's SEED-02. OPS-01b's
+`scripts/devnet_deploy.py --build full` is on main; today it leaves the bar empty and the belt at
+healing potion ×2, because the seed has no skill a player can learn and no REGENERATION potion (the
+script's header). Once SEED-02 lands, `--build full` puts four skills on the bar (an attack, an
+activation, a trap and a REGENERATION skill) and a belt of healing potion ×2 plus a REGENERATION
+potion, their ids under the deployment JSON's `build` key. (CLI-11's brief §8 says "two heals and
+one REGENERATION": the same belt.)
 
 **Allowlist:**
 
 - `client/app/src/chain/ChainController.ts`, `ChainScreen.tsx`, `ChainPanel.tsx`, `world.ts` and their
   tests: the combat screen's elements fed by `fromWords`, the skill and item actions, §4.4's refusal
   before the batch, `interact` on a tapped interactive tile;
-- `client/app/src/chain/stages.ts` and its test, only to run the mirror per action for §7.2 and to
-  confirm the log's lines at the sent stage;
+- `client/app/src/chain/stages.ts` and its test, only to run the mirror through `record.ts`'s
+  wrapper for §7.2 and to confirm the log's lines at the sent stage;
 - `client/app/src/preview/reconcile.ts` and its test, only for `Prediction` to carry the run's
   `ground` (§7.2);
 - `client/app/src/combat/names.ts` (new, Q-1) and its test;
@@ -688,12 +811,14 @@ CLI-11's brief (§8) names this lot and left its allowlist and acceptance to CLI
 
 **Acceptance:**
 
-- each input of §4.1 on the deployment's four skills and two potions gives its action (controller
-  tests with fakes);
+- each input of §4.1 on the deployment's four skills and two belt slots gives its action
+  (controller tests with fakes);
 - a skill on recharge, a potion with none left and a target out of reach are refused before the
   batch with §4.4's line, and the batch is unchanged;
 - after a send, the log's predicted lines are confirmed, or struck with "The world corrected itself"
   when the chain differs (a test with a fake trace);
+- `names.ts` names every skill and item id of the deployment's `build` key from SEED-02's table
+  (Q-1);
 - `pnpm --filter @grimworld/app test`, `pnpm --filter @grimworld/app lint`,
   `pnpm --filter @grimworld/app typecheck` pass; `pnpm --filter @grimworld/app test:node:devnet`
   passes where the node runs (classes built, as AGENTS.md's `client/app` row says);
@@ -701,39 +826,44 @@ CLI-11's brief (§8) names this lot and left its allowlist and acceptance to CLI
 
 ### Order and parallel work
 
-- **CLI-05a and CLI-05b run in parallel**: CLI-05a owns `client/app/src/combat/` and
-  `client/sim/src/index.ts`, CLI-05b owns `input/keys.ts` and the key help. They share only
-  `client/app/README.md`; CLI-05b does not touch it.
+- **CLI-05a and CLI-05b run in parallel**: CLI-05a owns `client/app/src/combat/`'s model files,
+  `render/view.ts`'s one field and `client/sim/src/index.ts`; CLI-05b owns `input/keys.ts`, its test,
+  the key help, `verify-keys.mjs` and design/11's row. CLI-05b does not touch `client/app/README.md`.
 - **CLI-05c and CLI-05d start when CLI-05a has merged, and run in parallel**: CLI-05c owns the DOM,
-  the sandbox's loop and fixtures, the chrome and `tools/art/manifest.toml`; CLI-05d owns `render/`,
-  `combat/overlay.ts` and `toView`. They share `verify-combat.mjs`, which CLI-05c creates and CLI-05d
-  extends only after CLI-05c's merge, and `sandbox/wiring.ts`, where CLI-05c adds only the
-  placeholders' re-exports and CLI-05d only `toView`'s input. CLI-05c also needs CLI-05b's commands to
-  bind its keys: if CLI-05b has not merged, CLI-05c binds the taps first and the keys after merging
-  `origin/main`.
+  all the plumbing (`Sandbox.tsx`, `sandbox/controller.ts`, `sandbox/session.ts`, `wiring.ts`),
+  the sandbox's loop, the chrome and `tools/art/`; CLI-05d owns `render/shapes.ts` and
+  `render/renderer.ts`. CLI-05a's `ViewState.combat` field is their contract: CLI-05c fills it,
+  CLI-05d draws it. They share only `verify-combat.mjs`, which CLI-05c creates and CLI-05d extends
+  only after CLI-05c's merge. CLI-05c also needs CLI-05b's commands to bind its keys: if CLI-05b has
+  not merged, CLI-05c binds the taps first and the keys after merging `origin/main`.
 - **Captures for the owner's eye:** CLI-05c and CLI-05d (`verify:combat`), shown together once both
   have merged. CLI-11d's capture is for the orchestrator and the project manager.
-- **CLI-11d** starts when CLI-05c, CLI-05d and track game's OPS-01b have merged.
+- **CLI-11d** starts when CLI-05c, CLI-05d and track game's SEED-02 have merged.
 
 ## 11. Open questions, each with its default
 
-- **Q-1, skill and potion names on chain.** The registry has no name field. **Decided:** the client
-  keeps a name table for the seed's ids, in CLI-11d (`client/app/src/combat/names.ts`, new), with
-  "Skill 12" for an id it does not know. **Reverse:** track game adds names to the content (a seed
-  file or a registry field), and the table reads them.
+- **Q-1, skill and potion names on chain. Answered by track game (2026-10-12):** no names on chain,
+  and none planned. SEED-02 adds to `contracts/seed/README.md` a table of the seed's skill and item
+  ids with their names. **Decided:** CLI-11d's `client/app/src/combat/names.ts` (new) reads or copies
+  that table, with "Skill 12" for an id it does not know. **Reverse:** the project manager wants
+  names in the content.
 - **Q-2, design/11's UI-3** (the log on phones). **Decided** for the client as §7.3 says; the design
   row stays open. **Reverse:** the owner's answer.
-- **Q-3, per-hit lines and arcs of goblins' hits.** **Decided:** not shown (§7.2). **Reverse:**
-  client/sim records hits (a CV lot, after the owner sees CLI-05c) or the contracts emit combat events
-  (track game; an event is part of ENG-01's frozen set, so the project manager decides).
+- **Q-3, per-hit lines and the arcs of goblins' hits. Answered by track game (2026-10-12):** no event
+  route (D-144's gas; ENG-01's frozen events). **Decided:** §7.2's one-tick replay with the native
+  `tickTicks` attributes the hits; a case it cannot attribute goes to track game with its figures.
+  **Reverse:** track game adds per-hit records.
 - **Q-4, the sandbox fixture's numbers** (costs, recharges, kinds of Wren's five skills). **Decided:**
   CLI-05a takes them from design/03's starter skills where named, and marks the rest as placeholders.
   **Reverse:** CNT-01's seed.
 
 ## 12. What CLI-05 needs from others
 
-- **Track game:** SEED-02 and OPS-01b for CLI-11d (§10). Nothing else: no contract change, no event.
-- **The project manager:** nothing to decide for CLI-05a to CLI-05d. Q-3's event route, if ever
-  taken, is theirs.
+- **Track game:** SEED-02 (its skills, its REGENERATION potion and its table of names) for CLI-11d.
+  No contract change and no event (Q-3). The one-tick replay's cases it cannot attribute, and any row
+  where `n` one-tick calls differ from one call of `n`, go to track game with their figures.
+- **The project manager:** D-284 (2026-10-12) decided the keys of §2.3. It amends the project
+  manager's decision of 2026-10-03 recorded in design/11 _Desktop_ ("Keyboard, outside combat
+  (CLI-03k)"); CLI-05b edits that row, citing D-284. Nothing else to decide for CLI-05a to CLI-05d.
 - **The owner:** no reserved act. The owner's eye on CLI-05c and CLI-05d's shots, through the project
   manager.
