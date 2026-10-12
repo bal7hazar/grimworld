@@ -37,9 +37,9 @@ the VPS after the build): deploys, asserts a second run refuses, reads `Instance
 play tests. The pack is funded the way the lifecycle probe does it, with `Hub.report`, the only call that credits a
 pack (the account is made the hub's `instances` for one Open report, then the real one again). The belt is the seed's
 healing potion (item 1) x2 and the pack holds twice that (`pack`), so the entry debits the belt and one re-entry with it
-is covered (`pack_after_entry`). The bar stays empty, and so do the activation, trap and REGENERATION skills and the
+is covered (`pack_after_entry`, derived by the script and listed in `build.derived`: no view reads a pack yet; the smoke test checks the pack on chain through `set_build`). The bar stays empty, and so do the activation, trap and REGENERATION skills and the
 REGENERATION potion: the seed has one skill (id 1, an instant attack) and only healing potions, and nothing on chain
 makes a skill known (`Hub.known_skills` is never written, `set_build` refuses an unknown skill, devnet has no
-set-storage), so those are named under `build.dropped` and `build.skills_wanted`. The JSON's `build` key carries
+set-storage), so those are named under `build.dropped` (with a `bar` entry) and `build.skills_wanted`. The JSON's `build` key carries
 `mode`, `bar` (8 skill ids by slot), `belt` and `pack` (`{item, count}`) and `dropped`; `--help` lists the same ids.
 The seed is not changed.

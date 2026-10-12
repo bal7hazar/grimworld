@@ -64,7 +64,10 @@ def check_full(dep, node):
         kept = [p["count"] for p in build["pack_after_entry"] if p["item"] == kind["item"]]
         assert funded == [2 * kind["count"]], (kind, build["pack"])
         assert kept and kept[0] >= kind["count"], f"no second entry in the pack: {build}"
-    assert build["dropped"].get("regeneration_potion"), "the dropped parts are not named"
+    # `pack_after_entry` is derived by the script (no pack view): the chain checks below are the proof
+    assert build["derived"] == ["pack_after_entry"], build
+    assert build["dropped"].get("regeneration_potion") and build["dropped"].get("bar"), \
+        "the dropped parts are not named"
     assert all(name in build["skills_wanted"] or name in build["dropped"]
                for name in ("instant_attack", "activation_skill", "trap", "regeneration_skill"))
     # on the chain: out of the instance (the belt's reserve comes back), the pack holds twice the belt

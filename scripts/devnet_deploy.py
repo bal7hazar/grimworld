@@ -51,7 +51,8 @@ read. Its keys, all strings of hex felts unless noted:
     slot              the instance's slot, `instance_id >> 32` (a number)
     build             what the adventurer was built with (OPS-01b; numbers): {mode, bar: the 8 skill
                        ids by slot (0 empty), belt: [{item, count}], pack: [{item, count}] funded
-                       before the entry, pack_after_entry: [{item, count}] what the entry left,
+                       before the entry, pack_after_entry: [{item, count}] what the entry left (derived, listed in
+                       `derived`: no view reads a pack yet),
                        dropped: {name: reason} for each part the seed or the chain cannot give}
 """
 import argparse
@@ -239,6 +240,9 @@ def build_plan():
             dropped[name] = f"the seed has no {what}"
     # every potion of the seed heals (`seed_records.item`): the first is the healing potion, and
     # there is no REGENERATION potion
+    if skills:  # found in the seed, but never on the bar
+        dropped["bar"] = ("no entrypoint makes a skill known (buy_skill is not implemented, D-275; "
+                          "devnet has no set-storage): the skills wanted are in `skills_wanted`")
     dropped["regeneration_potion"] = "the seed has no REGENERATION potion (every potion heals)"
     return {"skills": skills, "belt": [(POTIONS[0], 2)], "dropped": dropped}
 
@@ -272,10 +276,12 @@ def fund_pack(node, hub, instances, registry, fate, flatten, adventurer, credits
     `Instances` again and the adventurer leaves by the gate back to the start hub."""
     inside = entered(node.invoke(hub, "enter", adventurer, 1), instances)
     node.invoke(hub, "set_contracts", registry, node.address, 4, fate, flatten)
-    node.invoke(hub, "report", inside, 1, adventurer, 0, 0, len(credits),
-                *[f for item, count in credits for f in (item, count)],
-                0, 0, 0, 0, OPEN, 0, 0, 0, 0, 0, 0)
-    node.invoke(hub, "set_contracts", registry, instances, 4, fate, flatten)
+    try:
+        node.invoke(hub, "report", inside, 1, adventurer, 0, 0, len(credits),
+                    *[f for item, count in credits for f in (item, count)],
+                    0, 0, 0, 0, OPEN, 0, 0, 0, 0, 0, 0)
+    finally:  # the real `Instances` is restored even when the report fails
+        node.invoke(hub, "set_contracts", registry, instances, 4, fate, flatten)
     node.invoke(instances, "leave", inside, adventurer, 0, HUB_GATE_BACK)
 
 
@@ -359,6 +365,7 @@ def main(argv):
                   "belt": [{"item": i, "count": c} for i, c in belt],
                   "pack": [{"item": i, "count": c} for i, c in pack],
                   "pack_after_entry": [{"item": i, "count": c} for i, c in left],
+                  "derived": ["pack_after_entry"],  # computed here (no pack view yet), not read
                   "dropped": plan["dropped"] if args.build == "full" else {},
                   **({"skills_wanted": plan["skills"]} if args.build == "full" else {})},
     }
