@@ -9,6 +9,7 @@ import {
   type Segment,
   runSegment,
   split,
+  tickTicks,
   trapTrigger,
 } from "@grimworld/sim";
 import type { Predict } from "./reconcile";
@@ -46,13 +47,14 @@ import { ChunkKind, type InstanceView, type RegionChunk } from "./view";
  *   `reconcile`'s `predict`, which logs it as a mirror failure.
  * The goblins are the view's as they are, derived ones included (at full health, in their pack's
  * state): `PlayLibrary` loads them by the same functions.
- * Of the three classes behind the seam, `TrapLibrary::trigger` is client/sim's `trapTrigger`
- * (CLI-02g-D, CLI-10e) and `ActionLibrary::act` is its `actionAct` (CLI-02g-E, CLI-10g): a segment
- * that enters a trap, or whose combat action needs no `ticks`, predicts. `TickLibrary::ticks` has
- * no port yet: `unportedClasses` answers it with `NotMirrored`, so a combat action followed by
- * ticks (goblins awake) is not mirrored. Neither is a carrier that mixes a TILE target with an
- * entity one (client/sim's `MIXED`: `actionAct` answers it `NotMirrored`). A trap reached through
- * `TickLibrary`'s nested calls (a goblin's step onto one) stays `ticks`' and is still not mirrored.
+ * The three classes behind the seam are client/sim's own: `TrapLibrary::trigger` is `trapTrigger`
+ * (CLI-02g-D, CLI-10e), `ActionLibrary::act` is `actionAct` (CLI-02g-E, CLI-10g) and
+ * `TickLibrary::ticks` is `tickTicks` (CLI-02g-F, CLI-10j): a combat action followed by ticks
+ * (goblins awake, a member activating, a living goblin in the window) predicts, a goblin's step
+ * onto a trap included. What stays `NotMirrored`, besides the cases above:
+ * - `MIXED`, a carrier that mixes a TILE target with an entity one (`actionAct` answers it, and now
+ *   `tickTicks` too, in a goblin's carrier of step 1 or step 2);
+ * - `EDGE`, which no `run` reaches.
  */
 
 /** What the mirror runs from. */
@@ -234,30 +236,11 @@ export function segmentOf(state: MirrorState): Omit<Segment, "actions"> {
   };
 }
 
-/**
- * The classes client/sim does not port yet: each call is no prediction (`trigger` and `act` are
- * ported, `nativeClasses`; only `ticks` is left).
- */
-export const unportedClasses: Classes = {
-  ticks() {
-    throw new NotMirrored("TickLibrary::ticks (no port in client/sim yet)");
-  },
-  act() {
-    throw new NotMirrored("ActionLibrary::act (no port in client/sim yet)");
-  },
-  trigger() {
-    throw new NotMirrored("TrapLibrary::trigger (no port in client/sim yet)");
-  },
-};
-
-/**
- * The classes the preview runs: `ticks` unported, the trap and action classes client/sim
- * computes.
- */
+/** The classes the preview runs: the three client/sim computes. */
 export const nativeClasses: Classes = {
-  ...unportedClasses,
   trigger: trapTrigger,
   act: actionAct,
+  ticks: tickTicks,
 };
 
 /** The preview's `predict`: the segment of `state` with the batch's actions. */

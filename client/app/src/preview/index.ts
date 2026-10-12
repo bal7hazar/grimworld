@@ -25,7 +25,6 @@ export {
   segmentOf,
   unpackFeatures,
   unpackWalls,
-  unportedClasses,
 } from "./mirror";
 export type { Preview, PreviewDeps, PreviewInput, Refused } from "./preview";
 export { previewBatch, refusals } from "./preview";
