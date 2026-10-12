@@ -26,13 +26,13 @@ describe("KeyScope", () => {
     });
     expect(scope.press(press("KeyQ"))).toBe(false);
     const closeScreen = scope.push(layer("screen", "hub"));
-    expect(scope.press(press("Digit1"))).toBe(true);
+    expect(scope.press(press("Digit9"))).toBe(true);
     const closeDialog = scope.push(layer("dialog", "instance"));
-    // The dialog is on top: the hub's digit is read with the instance's bindings (reserved: none).
-    expect(scope.press(press("Digit1"))).toBe(false);
+    // The dialog is on top: the hub's digit is read with the instance's bindings (9 is a service only: none).
+    expect(scope.press(press("Digit9"))).toBe(false);
     expect(scope.press(press("Escape"))).toBe(true);
     closeDialog();
-    expect(scope.press(press("Digit1"))).toBe(true);
+    expect(scope.press(press("Digit9"))).toBe(true);
     expect(seen).toEqual(["screen:service", "dialog:none", "dialog:escape", "screen:service"]);
     closeScreen();
     expect(scope.top()).toBeNull();

@@ -120,13 +120,13 @@ describe("the guards", () => {
 });
 
 describe("the screens' keys", () => {
-  it("1–9 open the services in a hub only, by digit row and numpad", () => {
+  it("1–9 open the services in a hub (and 1–8 the skills on an instance), by digit row and numpad", () => {
     for (let n = 1; n <= 9; n++) {
       for (const code of [`Digit${n}`, `Numpad${n}`]) {
         expect(keyCommand(press(code), "hub")).toEqual({ kind: "service", index: n - 1 });
-        for (const screen of SCREENS.filter((s) => s !== "hub")) {
-          expect(keyCommand(press(code), screen)).toBeNull();
-        }
+        // On an instance 1–8 are the skills (D-284); 9 is a service only
+        const others = SCREENS.filter((s) => s !== "hub" && (s !== "instance" || n === 9));
+        for (const screen of others) expect(keyCommand(press(code), screen)).toBeNull();
       }
     }
   });
@@ -173,30 +173,68 @@ describe("the screens' keys", () => {
     expect(keyCommand(press("Numpad0"), "instance")).toEqual({ kind: "recentre" });
   });
 
-  it("AZERTY: the key printed - (Digit6) zooms out, the unshifted digit row keeps its services", () => {
-    const zoomOut = { kind: "zoom", by: -1 };
-    expect(keyCommand(press("Digit6", { key: "-" }), "hub")).toEqual(zoomOut);
-    expect(keyCommand(press("Digit6", { key: "-" }), "instance")).toEqual(zoomOut);
-    expect(keyCommand(press("Minus", { key: "-" }), "hub")).toEqual(zoomOut);
-    expect(keyCommand(press("NumpadSubtract", { key: "-" }), "hub")).toEqual(zoomOut);
-    expect(keyCommand(press("Digit1", { key: "&" }), "hub")).toEqual({ kind: "service", index: 0 });
+  it("AZERTY (D-284): Digit6 printing - is skill 6 on an instance and service 6 in a hub, never a zoom", () => {
+    expect(keyCommand(press("Digit6", { key: "-" }), "instance")).toEqual({
+      kind: "skill",
+      slot: 5,
+    });
+    expect(keyCommand(press("Digit6", { key: "-" }), "hub")).toEqual({ kind: "service", index: 5 });
     expect(keyCommand(press("Digit6", { key: "-" }), "gate")).toBeNull();
+    // The other digits print symbols unshifted; they are read by position too
+    expect(keyCommand(press("Digit1", { key: "&" }), "hub")).toEqual({ kind: "service", index: 0 });
+    expect(keyCommand(press("Digit1", { key: "&" }), "instance")).toEqual({
+      kind: "skill",
+      slot: 0,
+    });
+    // A digit code whose character is + or = never zooms either
+    for (const key of ["+", "="]) {
+      for (const screen of ["hub", "instance"] as const) {
+        expect(keyCommand(press("Digit5", { key }), screen)?.kind).not.toBe("zoom");
+      }
+    }
   });
 
-  it("the combat keys are reserved: nothing on an instance, listed as reserved", () => {
-    const reserved = [
-      ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `Digit${n}`),
-      "KeyZ",
-      "KeyX",
-      "KeyC",
-      "KeyV",
-      "Space",
-      "KeyR",
-    ];
-    // The chain mode reads Space and R (below); the sandbox's help still lists them as reserved
-    const chain = ["Space", "KeyR"];
-    for (const code of reserved) {
-      if (!chain.includes(code)) expect(keyCommand(press(code), "instance")).toBeNull();
+  it("AZERTY (D-284): zoom keeps a key by position: ) is Minus, = is Equal, the keypad's keys", () => {
+    const zoomIn = { kind: "zoom", by: 1 };
+    const zoomOut = { kind: "zoom", by: -1 };
+    for (const screen of ["hub", "instance"] as const) {
+      expect(keyCommand(press("Minus", { key: ")" }), screen)).toEqual(zoomOut);
+      expect(keyCommand(press("Equal", { key: "=" }), screen)).toEqual(zoomIn);
+      expect(keyCommand(press("NumpadSubtract", { key: "-" }), screen)).toEqual(zoomOut);
+      expect(keyCommand(press("NumpadAdd", { key: "+" }), screen)).toEqual(zoomIn);
+    }
+    for (const screen of OFF_MAP) {
+      expect(keyCommand(press("Minus", { key: ")" }), screen)).toBeNull();
+      expect(keyCommand(press("Equal", { key: "=" }), screen)).toBeNull();
+    }
+  });
+
+  it("the combat keys (D-284): skills 1–8 by digit row and keypad, belt Z X C V, on an instance only", () => {
+    for (let n = 1; n <= 8; n++) {
+      for (const code of [`Digit${n}`, `Numpad${n}`]) {
+        expect(keyCommand(press(code), "instance")).toEqual({ kind: "skill", slot: n - 1 });
+      }
+    }
+    for (const [slot, code] of ["KeyZ", "KeyX", "KeyC", "KeyV"].entries()) {
+      expect(keyCommand(press(code), "instance")).toEqual({ kind: "belt", slot });
+    }
+    // 9 is a service only; the belt and the skills are the hub's and the other screens' no more
+    expect(keyCommand(press("Digit9"), "instance")).toBeNull();
+    for (const screen of SCREENS.filter((s) => s !== "instance")) {
+      for (const code of ["KeyZ", "KeyX", "KeyC", "KeyV"]) {
+        expect(keyCommand(press(code), screen), `${screen} ${code}`).toBeNull();
+      }
+    }
+    for (const screen of SCREENS.filter((s) => s !== "instance" && s !== "hub")) {
+      for (let n = 1; n <= 8; n++) expect(keyCommand(press(`Digit${n}`), screen)).toBeNull();
+    }
+    // Shifted, they are nothing (a modifier is the browser's, Shift is not a skill)
+    expect(keyCommand(press("Digit1", { shiftKey: true, key: "1" }), "instance")).toBeNull();
+    expect(keyCommand(press("KeyZ", { shiftKey: true }), "instance")).toBeNull();
+  });
+
+  it("Space and R stay reserved in the game's table (the chain mode's table reads them)", () => {
+    for (const code of ["Space", "KeyR"]) {
       const listed = BINDINGS.find(
         (b) =>
           b.reserved && b.screens.includes("instance") && b.matches.some((m) => m.code === code),
