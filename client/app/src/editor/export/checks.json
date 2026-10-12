@@ -153,8 +153,28 @@
       "code": "carrier: mixed targets",
       "checked_at": "SKILL",
       "reads": "—",
-      "rule": "A carrier's non-TRAP entries do not put a TILE target after a SELF one: the first entry's addressing is SELF, so the cast address is never checked against the reach, yet the TILE entry reads it as a tile (D-272, CARRIER-01); TILE then SELF stays legal",
+      "rule": "A carrier's non-TRAP entries do not put a TILE target after a SELF one: the first entry's addressing is SELF, so the cast address is never checked against the reach, yet the TILE entry reads it as a tile (D-272, widened by D-276 to FOE and ALLY, CARRIER-01); TILE then SELF stays legal",
       "mutation": "a spell whose first entry is a HEAL on SELF and whose second is a CONDITION on a TILE",
+      "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
+    },
+    {
+      "case": "carrier_self_before_foe",
+      "id": "R-44",
+      "code": "carrier: mixed targets",
+      "checked_at": "SKILL",
+      "reads": "—",
+      "rule": "A carrier's non-TRAP entries do not put a SELF entry before a FOE: the first entry's addressing would be SELF, so the cast address is never checked against the reach, yet the FOE entry reads it (D-276); SELF entries after the addressed one stay legal",
+      "mutation": "a spell whose first entry is a HEAL on SELF and whose second is a CONDITION on a FOE",
+      "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
+    },
+    {
+      "case": "carrier_self_before_ally",
+      "id": "R-44",
+      "code": "carrier: mixed targets",
+      "checked_at": "SKILL",
+      "reads": "—",
+      "rule": "A carrier's non-TRAP entries do not put a SELF entry before an ALLY: the first entry's addressing would be SELF, so the cast address is never checked against the reach, yet the ALLY entry reads it (D-276); SELF entries after the addressed one stay legal",
+      "mutation": "a spell whose first entry is a HEAL on SELF and whose second is a CONDITION on an ALLY",
       "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
     },
     {
