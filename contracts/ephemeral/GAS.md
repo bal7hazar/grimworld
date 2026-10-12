@@ -103,6 +103,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_lifecycle::test_view_goblins_are_plays` | 161317241 | 165369006 | 2.51 % | 0 | 8448 | 2026-10-11 | 8c5e62b |
 | `test_lifecycle::test_view_goblins_two_members` | 81262878 | 84317487 | 3.76 % | 0 | 8928 | 2026-10-11 | 8c5e62b |
 | `test_lifecycle::test_view_unloadable_goblin_marker` | 56653158 | 58817134 | 3.82 % | 0 | 7872 | 2026-10-11 | 8c5e62b |
+| `test_play_limits::test_instance_state_goblins_class_unset` | 138271165 | 145184723 | 5.00 % | 0 | 19872 | 2026-10-12 | c659e52 |
 | `test_play_limits::test_play_changed_goblin_dropped` | 240375662 | 252394446 | 5.00 % | 0 | 12672 | 2026-10-11 | 8c5e62b |
 | `test_play_limits::test_play_first_records_and_alert` | 335596185 | 347616187 | 3.58 % | 0 | 15360 | 2026-10-11 | 8c5e62b |
 | `test_play_limits::test_play_records_cap` | 259038145 | 267185463 | 3.15 % | 0 | 19968 | 2026-10-11 | 8c5e62b |

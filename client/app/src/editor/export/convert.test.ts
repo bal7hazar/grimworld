@@ -432,6 +432,10 @@ describe("every case of checks.json, refused with its code", () => {
     for (const c of alone) expect(c.converter, c.case).toContain("authored zones only");
     expect(alone.map((c) => c.case).sort()).toEqual(
       [
+        "carrier_mixed_targets",
+        "carrier_self_before_ally",
+        "carrier_self_before_foe",
+        "carrier_self_before_tile",
         "floor_count_above_members",
         "generated_count_above_members",
         "generated_heart_template",

@@ -565,6 +565,7 @@ executor**; the hit pipeline (§5.5) resolves one hit and never iterates entries
 | Hit modifiers (`ATTACK_BONUS`, `HIT_PENETRATION`) only with a hit, with **the hit's addressing, shape and filter**; `ATTACK_BONUS` only in an attack skill | they modify the carrier's hit on each actor it reaches |
 | An attack skill's entries are all `FOE`, `SINGLE` | "replaces the next weapon attack" |
 | A `TRAP` entry is entry 1, `TILE`, `SINGLE`; the others (the **payload**) are `FOE`, `SINGLE` | §5.11 |
+| A carrier's other entries do not mix a `TILE` target with a `FOE` or `ALLY` one, and no `SELF` entry comes before a `TILE`, `FOE` or `ALLY` one (`SELF` after them is legal) ⟨D-271, D-276⟩ | one cast address: a tile or an entity id, read by every addressed entry; a `SELF` entry first would make the carrier's addressing `SELF`, so that address would never be checked against the reach |
 | A potion has one entry; `DISC_1` only in a potion's entry (FX-35) | ENG-01 `ITEM`; a bomb is a 1-tick action |
 
 **Execution**, for a carrier with its source, its address and its class:

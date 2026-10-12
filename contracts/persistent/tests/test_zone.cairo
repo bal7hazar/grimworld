@@ -7,7 +7,7 @@
 // here with its code). A rule between two records is refused at the write of either: the reverse
 // checks are tested from the other side.
 use grimworld_logic::content::{
-    BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, Record, ZONE_CHUNK,
+    BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, Record, SKILL, ZONE_CHUNK,
 };
 use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
@@ -23,8 +23,11 @@ use grimworld_logic::models::location::{
 use grimworld_logic::models::outline::{OutlineRecord, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota_kind};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
 use grimworld_logic::packing::{LIVE, Lanes16};
+use grimworld_logic::types::combat::{condition, damage, skill_kind};
+use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::reveal::Progress;
 use grimworld_logic::types::reveal::board::BoardTrait;
 use grimworld_persistent::systems::registry::{
@@ -845,6 +848,83 @@ fn test_refuse_pack_fewest_zero() {
         level: 1,
     };
     r.refuse(PACK, 3, none.pack());
+}
+
+// R-44 (CARRIER-01, D-271): a skill whose non-`TRAP` entries mix a `TILE` target with a `FOE` or
+// `ALLY` one, new, is refused at registration: the carry reads the cast address as one kind.
+#[test]
+#[available_gas(l2_gas: 7942039)] // ceil(1.05 × 7563846 measured)
+#[should_panic(expected: 'carrier: mixed targets')]
+fn test_refuse_carrier_mixed_targets() {
+    let r = ZoneFixture::bare();
+    let on = |
+        k: u8, param: u8, t: u8,
+    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    let entries = [
+        on(kind::DAMAGE, damage::FIRE, target::TILE),
+        on(kind::CONDITION, condition::BURNING, target::FOE), Default::default(),
+    ];
+    let mixed = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::FOE, false, entries,
+    );
+    r.refuse(SKILL, 1, mixed.pack());
+}
+
+// R-44 (D-272): a `SELF` entry before a `TILE` one is refused too, `TILE` then `SELF` stays legal.
+#[test]
+#[available_gas(l2_gas: 7942721)] // ceil(1.05 × 7564496 measured)
+#[should_panic(expected: 'carrier: mixed targets')]
+fn test_refuse_carrier_self_before_tile() {
+    let r = ZoneFixture::bare();
+    let on = |
+        k: u8, param: u8, t: u8,
+    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    let entries = [
+        on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::TILE),
+        Default::default(),
+    ];
+    let mixed = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
+    );
+    r.refuse(SKILL, 1, mixed.pack());
+}
+
+// R-44 (D-276): a `SELF` entry before a `FOE` one is refused, as before a `TILE` one.
+#[test]
+#[available_gas(l2_gas: 7942931)] // ceil(1.05 × 7564696 measured)
+#[should_panic(expected: 'carrier: mixed targets')]
+fn test_refuse_carrier_self_before_foe() {
+    let r = ZoneFixture::bare();
+    let on = |
+        k: u8, param: u8, t: u8,
+    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    let entries = [
+        on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::FOE),
+        Default::default(),
+    ];
+    let mixed = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
+    );
+    r.refuse(SKILL, 1, mixed.pack());
+}
+
+// R-44 (D-276): a `SELF` entry before an `ALLY` one is refused, as before a `TILE` one.
+#[test]
+#[available_gas(l2_gas: 7943120)] // ceil(1.05 × 7564876 measured)
+#[should_panic(expected: 'carrier: mixed targets')]
+fn test_refuse_carrier_self_before_ally() {
+    let r = ZoneFixture::bare();
+    let on = |
+        k: u8, param: u8, t: u8,
+    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    let entries = [
+        on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::ALLY),
+        Default::default(),
+    ];
+    let mixed = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
+    );
+    r.refuse(SKILL, 1, mixed.pack());
 }
 
 // R-28, a dungeon floor's bound (ENG-R1c's bound 4, built by ENG-09, applied by ENG-R1c-1 in

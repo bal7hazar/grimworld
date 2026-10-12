@@ -313,8 +313,8 @@ fn test_sources_accepted() {
 // CBT-3: an attack's hit modifier takes the attacked foe: `FOES`.
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 88169)] // ceil(1.05 × 83970 measured)
+// gas: raised, CARRIER-01: assert_carrier's R-44 check
+#[available_gas(l2_gas: 92810)] // ceil(1.05 × 88390 measured)
 fn test_attack_bonus_on_allies_refused() {
     let bonus = Fixture::modifier_on_foe(kind::ATTACK_BONUS);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..bonus });
@@ -322,8 +322,8 @@ fn test_attack_bonus_on_allies_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 88368)] // ceil(1.05 × 84160 measured)
+// gas: raised, CARRIER-01: assert_carrier's R-44 check
+#[available_gas(l2_gas: 93009)] // ceil(1.05 × 88580 measured)
 fn test_attack_hit_penetration_on_allies_refused() {
     let pierce = Fixture::modifier_on_foe(kind::HIT_PENETRATION);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..pierce });
