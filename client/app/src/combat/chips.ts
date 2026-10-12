@@ -55,7 +55,15 @@ const STANCE = 5;
 export function conditionChip(id: number, deadline: number, clock: number): Chip | null {
   if (!held(deadline, clock + 1)) return null;
   const { letter, name } = CONDITIONS.find((c) => c.id === id)!;
-  return { kind: "condition", letter, name, ticks: deadline - clock, charges: null, pips: null };
+  return {
+    kind: "condition",
+    letter,
+    name,
+    ticks: deadline - clock,
+    charges: null,
+    pips: null,
+    source: null,
+  };
 }
 
 /**
@@ -84,6 +92,7 @@ export function effectChip(
     ticks: deadline === MAX_CLOCK ? null : deadline - clock,
     charges: charges > 0 || entry.kind === kind.BLOCK ? charges : null,
     pips: entry.kind === kind.REGENERATION || pips !== 0 ? pips : null,
+    source: { potion, id: potion ? sheets.potions[at]!.id : sheets.skills[at]!.id },
   };
 }
 
@@ -103,7 +112,15 @@ export function memberChips(member: Member, sheets: Sheets, clock: number): Chip
     const at = member.effect_at[slot]!;
     if (at === ABSENT_LANE) return null;
     const h = heldEffect(member.words.effects, slot);
-    return effectChip(sheets, h.potion, at, h.deadline, h.charges, member.effect_regen[slot]!, clock);
+    return effectChip(
+      sheets,
+      h.potion,
+      at,
+      h.deadline,
+      h.charges,
+      member.effect_regen[slot]!,
+      clock,
+    );
   });
   return [...conditions, ...effects].filter(present);
 }
@@ -122,6 +139,14 @@ export function goblinChips(goblin: Goblin, sheets: Sheets, clock: number): Chip
   const effect =
     h.carrier === 0 || goblin.effect_at === ABSENT
       ? null
-      : effectChip(sheets, false, goblin.effect_at, h.deadline, h.charges, goblin.effect_regen, clock);
+      : effectChip(
+          sheets,
+          false,
+          goblin.effect_at,
+          h.deadline,
+          h.charges,
+          goblin.effect_regen,
+          clock,
+        );
   return [...conditions, effect].filter(present);
 }

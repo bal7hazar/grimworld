@@ -59,7 +59,8 @@ export function addressingName(t: number): Addressing {
 }
 
 /** Whether the member is knocked down at the next tick: `act` refuses with `Knocked` (`can_act`). */
-export const knockedAt = (member: Member, clock: number): boolean => held(member.knocked, clock + 1);
+export const knockedAt = (member: Member, clock: number): boolean =>
+  held(member.knocked, clock + 1);
 
 /** Whether the member activates now: a slot set and its deadline still ahead. */
 export const activating = (member: Member, clock: number): boolean =>

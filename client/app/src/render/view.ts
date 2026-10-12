@@ -8,6 +8,8 @@
  * shifted half a tile toward increasing `x` (see `input/coords.ts`).
  */
 
+import type { CombatOverlay } from "../combat/overlay";
+
 /** A tile of the location, in global offset coordinates. */
 export interface Tile {
   readonly x: number;
@@ -147,4 +149,10 @@ export interface ViewState {
    * and the tiles hidden are covered as unrevealed, once a step. Absent: `tiles` are baked.
    */
   readonly revealed?: readonly ViewTile[];
+  /**
+   * Combat on the map (CLI-05a): the armed slot's range and area, the target marks, the activations,
+   * the goblins' condition letters, the actors knocked down. CLI-05c fills it, CLI-05d draws it;
+   * absent, nothing of combat is drawn.
+   */
+  readonly combat?: CombatOverlay;
 }

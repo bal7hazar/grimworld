@@ -213,14 +213,7 @@ export {
   place as goblinPlace,
   recharge as goblinRecharge,
 } from "./segment/goblin";
-export {
-  MAX_CLOCK,
-  addressing,
-  filter,
-  holding,
-  rank as barRank,
-  target,
-} from "./executor";
+export { MAX_CLOCK, addressing, filter, holding, rank as barRank, target } from "./executor";
 export type { Actor, Carrier } from "./executor";
 export {
   aim,

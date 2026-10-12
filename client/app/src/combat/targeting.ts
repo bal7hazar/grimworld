@@ -213,7 +213,8 @@ export function areaOf(cw: CombatWorld, armed: Armed, centre: Tile): Area {
     filters.add(e.filter);
   }
   const tiles: Tile[] = [];
-  for (let p = 0; p < WINDOW; p++) if (((bits >> BigInt(p)) & 1n) === 1n) tiles.push(tileOf(cw.board, p));
+  for (let p = 0; p < WINDOW; p++)
+    if (((bits >> BigInt(p)) & 1n) === 1n) tiles.push(tileOf(cw.board, p));
   const marked = actorsOf(cw)
     .filter((a) => ((bits >> BigInt(a.at)) & 1n) === 1n)
     .filter((a) => filters.has(a.member ? filter.ALLIES : filter.FOES))

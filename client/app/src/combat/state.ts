@@ -93,10 +93,13 @@ export interface Chip {
   readonly charges: number | null;
   /** A REGENERATION's pips a tick, signed; null otherwise. */
   readonly pips: number | null;
+  /** An effect's carrier, a skill's or a potion's id; null for a condition. */
+  readonly source: { readonly potion: boolean; readonly id: number } | null;
 }
 
 /** What an activation is aimed at: an entity, or a tile (a member's `act_tile`). */
-export type Aimed = { readonly tile: false; readonly entity: number } | { readonly tile: true; readonly at: Tile };
+export type Aimed =
+  { readonly tile: false; readonly entity: number } | { readonly tile: true; readonly at: Tile };
 
 /** An activation in progress (§5). */
 export interface ActivationView {
@@ -186,4 +189,6 @@ export const DEFAULT_NAMES: Names = {
 };
 
 /** A slot armed on the bar or the belt (§2.4, §3). */
-export type Armed = { readonly kind: "skill"; readonly slot: number } | { readonly kind: "item"; readonly slot: number };
+export type Armed =
+  | { readonly kind: "skill"; readonly slot: number }
+  | { readonly kind: "item"; readonly slot: number };

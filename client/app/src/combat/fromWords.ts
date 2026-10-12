@@ -87,7 +87,8 @@ function shout(cw: CombatWorld, skill: number, at: Tile): Tile[] {
   if (!ring || p >= 240) return [];
   const bits = shape(cw.board.open, shapes.RING_1, p);
   const tiles: Tile[] = [];
-  for (let q = 0; q < 240; q++) if (((bits >> BigInt(q)) & 1n) === 1n) tiles.push(tileOf(cw.board, q));
+  for (let q = 0; q < 240; q++)
+    if (((bits >> BigInt(q)) & 1n) === 1n) tiles.push(tileOf(cw.board, q));
   return tiles;
 }
 
@@ -164,7 +165,9 @@ export function adventurerOf(cw: CombatWorld, names?: Names): CombatAdventurer {
   const clock = cw.world.clock;
   const { x, y } = memberPlace(member);
   const bar = barOf(member, cw.sheets, clock).map((slot) =>
-    slot.skill && names ? { ...slot, skill: { ...slot.skill, name: names.skill(slot.skill.id) } } : slot,
+    slot.skill && names
+      ? { ...slot, skill: { ...slot.skill, name: names.skill(slot.skill.id) } }
+      : slot,
   );
   const belt = beltOf(member, cw.sheets, clock).map((slot) =>
     slot.item !== null && names ? { ...slot, name: names.potion(slot.item) } : slot,
@@ -187,7 +190,11 @@ export function adventurerOf(cw: CombatWorld, names?: Names): CombatAdventurer {
 }
 
 /** The goblins the world holds, alive or not (§5, §6.2). */
-export function goblinsOf(cw: CombatWorld, ready: readonly number[], names?: Names): CombatGoblin[] {
+export function goblinsOf(
+  cw: CombatWorld,
+  ready: readonly number[],
+  names?: Names,
+): CombatGoblin[] {
   const clock = cw.world.clock;
   return cw.world.goblins.map((goblin) => {
     const { x, y } = goblinPlace(goblin);
