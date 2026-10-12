@@ -158,6 +158,12 @@ export type Sent =
   | { kind: "refused"; reason: string }
   /** Sent, and it did not succeed: `failed` (reverted), `unknown` (dropped) or still `pending`. */
   | { kind: "unsettled"; id: ExecutionId; status: Exclude<ExecutionStatus, "succeeded"> }
+  /**
+   * Sent, and what followed could not be read: the status, the trace, the receipt's block, the
+   * outcome or the state after. It may have played (it did, when `status` says `succeeded`): the
+   * caller reads the state again, never sends the same actions blindly.
+   */
+  | { kind: "unread"; id: ExecutionId; status: ExecutionStatus | undefined; error: string }
   /** Sent and settled: the chain's outcome, reconciled, and the state after. */
   | ({
       kind: "sent";
@@ -170,23 +176,27 @@ export type Sent =
 
 export const NO_FUNDS = "no funds";
 
-/** RPC errors of a fee the account cannot pay: `INSUFFICIENT_RESOURCES_FOR_VALIDATE`, `…_BALANCE`. */
-const FEE_CODES = new Set([53, 54]);
+/**
+ * The RPC error of a fee the account cannot pay: `INSUFFICIENT_ACCOUNT_BALANCE`, 54. Observed on
+ * starknet-devnet 0.10.0 through starknet.js 10.8.0 (`RpcError`, its `code` getter, which
+ * `createStarknetChain`'s `send` wraps as the `cause` of an `AccountError("refused")`), from an
+ * account drained below the fee starknet.js estimated: code 54, "Account balance is smaller than
+ * the transaction's maximal fee (calculated as the sum of each resource's limit x max price)" (CV
+ * t-0233, a scratch run). 53, `INSUFFICIENT_RESOURCES_FOR_VALIDATE` ("The transaction's resources
+ * don't cover validation or the minimal transaction fee"), was observed for bounds too low or
+ * priced past the balance, set by hand, from a funded account: it says the bounds, not the funds,
+ * so it is not "no funds". The code is enough; no message is read (a message mentioning a balance
+ * may come from anything).
+ */
+const NO_FUNDS_CODE = 54;
 
 /**
  * Why the provider refused an execution, in one line of the panel: "no funds" for a fee the burner
  * cannot pay (§3.3), the provider's own neutral message otherwise. The cause is not shown.
  */
 function refusalOf(error: unknown): string {
-  const cause = (error as { cause?: { code?: unknown; message?: unknown } } | undefined)?.cause;
-  const code = typeof cause?.code === "number" ? cause.code : undefined;
-  const message = typeof cause?.message === "string" ? cause.message : "";
-  if (
-    (code !== undefined && FEE_CODES.has(code)) ||
-    /insufficient|balance|max fee/i.test(message)
-  ) {
-    return NO_FUNDS;
-  }
+  const cause = (error as { cause?: { code?: unknown } } | undefined)?.cause;
+  if (cause?.code === NO_FUNDS_CODE) return NO_FUNDS;
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -211,8 +221,8 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Sends the batch, waits until it settles, and reads its outcome and the state after. The chain
- * check runs before `execute`; a refusal sends nothing. The node's or the provider's failures past
- * the send (an unreadable trace, a node that went away) throw.
+ * check runs before `execute`; a refusal sends nothing. Past a send it never throws: a failure to
+ * read what followed (the status, the trace, the receipt, the state after) is `unread`.
  */
 export async function sendBatch(input: SendInput, deps: SendDeps): Promise<Sent> {
   const calls = previewCalls(input.state.target, input.actions);
@@ -228,9 +238,32 @@ export async function sendBatch(input: SendInput, deps: SendDeps): Promise<Sent>
   } catch (error) {
     return { kind: "refused", reason: refusalOf(error) };
   }
+  let status: ExecutionStatus | undefined;
+  try {
+    return await settle(id, input, deps, (seen) => {
+      status = seen;
+    });
+  } catch (error) {
+    return {
+      kind: "unread",
+      id,
+      status,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/** What follows a send: its status, then, once it succeeded, its outcome and the state after. */
+async function settle(
+  id: ExecutionId,
+  input: SendInput,
+  deps: SendDeps,
+  seen: (status: ExecutionStatus) => void,
+): Promise<Sent> {
   let status: ExecutionStatus = "pending";
   for (let asked = 0; asked < (deps.polls ?? 600); asked++) {
     status = await deps.account.status(id);
+    seen(status);
     if (status === "succeeded" || status === "failed") break;
     await wait(deps.poll ?? 100);
   }

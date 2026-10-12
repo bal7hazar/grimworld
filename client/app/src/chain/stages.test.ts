@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Call, ExecutionId } from "../account/types";
+import type { Call, ExecutionId, ExecutionStatus } from "../account/types";
 import type { PlayAction } from "../preview/actions";
 import { INSTANCES, INSTANCE_ID, type Played, playedTrace, view } from "../preview/fixtures";
 import type { Prediction } from "../preview/reconcile";
@@ -355,7 +355,152 @@ describe("the send's refusals", () => {
     expect(model.get()).toMatchObject({
       phase: "ready",
       planned: [{ action: WAIT, path: false }],
-      line: `${lines.NOT_SENT}: failed`,
+      line: `${lines.NOT_PLAYED}: failed`,
     });
+  });
+
+  /** Sends `planned` from sequence 3; the sender answers `result`, the fresh read is at `sequence`. */
+  async function sentThen(
+    result: Sent | Error,
+    sequence: number | Error,
+    planned: [readonly PlayAction[], boolean][] = [[[WAIT, move(0), move(1)], false]],
+  ) {
+    const send = vi.fn(async () => {
+      if (result instanceof Error) throw result;
+      return result;
+    });
+    const load = vi.fn(async () => {
+      if (sequence instanceof Error) throw sequence;
+      return chainAt(sequence);
+    });
+    const { model, sim } = stages({ send, load });
+    for (const [actions, path] of planned) model.input(actions, { path });
+    model.send();
+    await vi.advanceTimersByTimeAsync(0);
+    await sim.answer({ played: 3, stop: Stop.None, sequence: 6, clock: 15 });
+    expect(send).toHaveBeenCalledTimes(1);
+    return { model, sim, load };
+  }
+  const unread = (
+    status: ExecutionStatus | undefined,
+    error = "trace: the node went away",
+  ): Sent => ({
+    kind: "unread",
+    id: ID,
+    status,
+    error,
+  });
+
+  it("drops the actions that played, from the sequence's move, when a succeeded send is unread", async () => {
+    const { model, load } = await sentThen(unread("succeeded"), 5);
+    expect(load).toHaveBeenCalledTimes(1);
+    // Two of three played: the third stays, on the state read again; never "not sent"
+    expect(model.get()).toMatchObject({
+      phase: "ready",
+      planned: [{ action: move(1), path: false }],
+      chain: { target: { sequence: 5 } },
+      line: `${lines.UNREADABLE}: trace: the node went away`,
+      sent: { result: { kind: "unread" } },
+    });
+    // Previewed again from where the chain is
+    expect(model.get().simulation).toMatchObject({ status: "pending", actions: [move(1)] });
+  });
+
+  it("drops a tapped path's steps not played after an unread send, as after any send", async () => {
+    const { model } = await sentThen(unread("succeeded"), 4, [
+      [[move(0), move(1)], true],
+      [[WAIT], false],
+    ]);
+    expect(model.get().planned).toEqual([{ action: WAIT, path: false }]);
+  });
+
+  it("drops nothing when an unread send's sequence did not move, the execution settled", async () => {
+    const { model } = await sentThen(unread("succeeded", "the receipt names no block"), 3);
+    expect(model.get().planned).toHaveLength(3);
+    expect(model.get().line).toBe(`${lines.UNREADABLE}: the receipt names no block`);
+  });
+
+  it("drops the whole plan when how far an unread send played cannot be known", async () => {
+    // Every action played
+    expect((await sentThen(unread("succeeded"), 6)).model.get().planned).toEqual([]);
+    // The read fails
+    const failed = (await sentThen(unread("succeeded"), new Error("load: the node went away")))
+      .model;
+    expect(failed.get()).toMatchObject({
+      phase: "ready",
+      planned: [],
+      line: `${lines.UNREADABLE}: load: the node went away`,
+    });
+    // A move the batch cannot explain (another session played)
+    expect((await sentThen(unread("succeeded"), 9)).model.get()).toMatchObject({
+      planned: [],
+      line: lines.UNREADABLE,
+    });
+    // Unsettled, the sequence unmoved: it may yet play
+    expect(
+      (await sentThen(unread(undefined, "status: the node went away"), 3)).model.get(),
+    ).toMatchObject({ planned: [], line: lines.UNREADABLE });
+    expect(
+      (await sentThen({ kind: "unsettled", id: ID, status: "pending" }, 3)).model.get(),
+    ).toMatchObject({ planned: [], line: lines.UNREADABLE });
+  });
+
+  it("reads again and drops what played when the sender itself throws", async () => {
+    const { model } = await sentThen(new Error("sender: lost"), 4);
+    expect(model.get()).toMatchObject({
+      phase: "ready",
+      planned: [
+        { action: move(0), path: false },
+        { action: move(1), path: false },
+      ],
+      line: `${lines.UNREADABLE}: sender: lost`,
+    });
+  });
+});
+
+describe("the model's own resets", () => {
+  it("ends the instance on a preview's Stop.Closed, the simulation reset", async () => {
+    const { model, sim } = stages();
+    model.input([WAIT]);
+    await vi.advanceTimersByTimeAsync(300);
+    await sim.answer({ played: 0, stop: Stop.Closed, sequence: 3, clock: 12 });
+    expect(model.get()).toMatchObject({
+      phase: "closed",
+      planned: [],
+      mirror: undefined,
+      simulation: undefined,
+      line: lines.CLOSED,
+    });
+    expect(model.input([WAIT])).toBe(false);
+    expect(model.send()).toBe(false);
+  });
+
+  it("does not preview again after a failed read until the next input or B", async () => {
+    const { model, sim, deps } = stages();
+    model.input([WAIT]);
+    await vi.advanceTimersByTimeAsync(300);
+    // A stale sequence, and the read again fails
+    await sim.answer({ played: 0, stop: Stop.Sequence, sequence: 3, clock: 12 });
+    expect(deps.load).toHaveBeenCalledTimes(1);
+    expect(model.get()).toMatchObject({ phase: "ready", simulation: undefined });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(sim.pending).toHaveLength(0);
+    // B previews again, at once
+    model.send();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sim.pending).toHaveLength(1);
+  });
+
+  it("refuses install while a batch is in flight", async () => {
+    const { model, sim, results } = stages();
+    results.push(sentOf({ played: 1, stop: Stop.None, sequence: 4, clock: 13 }));
+    model.input([WAIT]);
+    model.send();
+    expect(model.install(chainAt(0))).toBe(false);
+    await vi.advanceTimersByTimeAsync(0);
+    await sim.answer({ played: 1, stop: Stop.None, sequence: 4, clock: 13 });
+    expect(model.get().chain.target.sequence).toBe(4);
+    expect(model.install(chainAt(0))).toBe(true);
+    expect(model.get().chain.target.sequence).toBe(0);
   });
 });

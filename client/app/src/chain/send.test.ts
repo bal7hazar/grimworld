@@ -202,24 +202,97 @@ describe("sendBatch", () => {
     ]);
   });
 
-  it("says 'no funds' when the provider refuses a fee the burner cannot pay", async () => {
+  it("says 'no funds' for code 54 alone, as observed on starknet-devnet 0.10", async () => {
     const state = await recordedState();
-    const cause = Object.assign(new Error("Account balance is smaller than the max fee"), {
-      code: 54,
+    const simulated = extractOutcome(goblins.recordedPlayed);
+    /** A refusal whose cause is an RPC error with this code and message. */
+    const refusedWith = async (code: number | undefined, message: string) => {
+      const cause = Object.assign(new Error(message), code === undefined ? {} : { code });
+      const { account: provider } = account([], new AccountError("refused", { cause }));
+      return sendBatch({ state, actions: [WAIT], simulated }, deps({ account: provider }));
+    };
+    // The node's own words, from an account drained below the fee (`NO_FUNDS_CODE`)
+    expect(
+      await refusedWith(
+        54,
+        "Account balance is smaller than the transaction's maximal fee (calculated as the sum of each resource's limit x max price)",
+      ),
+    ).toEqual({ kind: "refused", reason: NO_FUNDS });
+    const refused = new AccountError("refused").message;
+    // 53 says the bounds, not the funds
+    expect(
+      await refusedWith(
+        53,
+        "The transaction's resources don't cover validation or the minimal transaction fee",
+      ),
+    ).toEqual({ kind: "refused", reason: refused });
+    // A message mentioning a balance, with no fee code, is not "no funds"
+    expect(await refusedWith(undefined, "Account balance is low: insufficient max fee")).toEqual({
+      kind: "refused",
+      reason: refused,
     });
-    const { account: provider } = account([], new AccountError("refused", { cause }));
-    const result = await sendBatch(
-      { state, actions: [WAIT], simulated: extractOutcome(goblins.recordedPlayed) },
-      deps({ account: provider }),
-    );
-    expect(result).toEqual({ kind: "refused", reason: NO_FUNDS });
+    expect(await refusedWith(41, "Account balance is smaller than the max fee")).toEqual({
+      kind: "refused",
+      reason: refused,
+    });
     const other = account([], new AccountError("unavailable")).account;
     expect(
-      await sendBatch(
-        { state, actions: [WAIT], simulated: extractOutcome(goblins.recordedPlayed) },
-        deps({ account: other }),
-      ),
+      await sendBatch({ state, actions: [WAIT], simulated }, deps({ account: other })),
     ).toEqual({ kind: "refused", reason: new AccountError("unavailable").message });
+  });
+
+  it("never throws past a send: what follows unread is `unread`, with its status", async () => {
+    const state = await recordedState();
+    const simulated = extractOutcome(goblins.recordedPlayed);
+    const fail = (message: string) => () => Promise.reject(new Error(message));
+    const cases: [string, Partial<SendDeps>, ExecutionStatus | undefined][] = [
+      [
+        "trace: the node went away",
+        { reads: { trace: fail("trace: the node went away"), blockOf: async () => BLOCK } },
+        "succeeded",
+      ],
+      [
+        "the receipt names no block",
+        {
+          reads: {
+            trace: async () => goblins.recordedPlayed,
+            blockOf: fail("the receipt names no block"),
+          },
+        },
+        "succeeded",
+      ],
+      [
+        "region: the node went away",
+        {
+          readerAt: (block) => ({
+            ...recordedReader([], block),
+            region: fail("region: the node went away"),
+          }),
+        },
+        "succeeded",
+      ],
+      [
+        "status: the node went away",
+        {
+          account: {
+            execute: async () => ID,
+            status: fail("status: the node went away"),
+          },
+        },
+        undefined,
+      ],
+    ];
+    for (const [error, over, status] of cases) {
+      const { account: provider, events } = account(["succeeded"]);
+      const d = deps({ account: provider, ...over });
+      expect(await sendBatch({ state, actions: [WAIT], simulated }, d)).toEqual({
+        kind: "unread",
+        id: ID,
+        status,
+        error,
+      });
+      if (over.account === undefined) expect(events).toEqual(["execute", "status"]);
+    }
   });
 
   it("reports an execution that failed or never settled, and reads nothing after it", async () => {

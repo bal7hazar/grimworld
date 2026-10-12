@@ -100,16 +100,34 @@ draws them.
   makes the batch full, and the action that did not fit opens the next one. `Stop.Invalid` drops
   the refused action and every one after it. `Stop.Sequence` and `Stop.Version` keep every action
   and read the state again. A defeat or a closing ends the instance. After a send, the steps of a
-  tapped path that did not play are dropped.
+  tapped path that did not play are dropped. One exception: after a weight stop, the action that
+  did not fit is kept even when it is a path's step, so a lone step of a path can open the next
+  batch; the path's later steps are dropped.
 - `stages.ts` (`createStages`) is the model the panel reads. Stage 1 is the mirror, run at every
   input. Stage 2 is `previewBatch`, run 300 ms after the last input and at once on `send()` (`B`).
   Each batch takes a request number, and an older answer is discarded. `send()` waits for the
   simulation of the exact batch shown. One batch is in flight at a time, and no input is taken
-  until it settles. Stage 3 is the sent batch, beside the simulation it was sent on.
+  until it settles. Stage 3 is the sent batch, beside the simulation it was sent on. `install(state)`
+  (entering again) is refused while a batch is in flight or the state is being read. A read that
+  fails leaves the batch unpreviewed until the next input or `B`.
 - `send.ts` (`sendBatch`) awaits the injected `assertChain` before `execute`, so a mainnet chain id
   sends nothing, whoever built the account provider. It sends the preview's two calls and waits for
   them to settle. Then it reads the trace through the same `extractOutcome`, and reconciles it with
   the same prediction. A sent outcome that differs from the simulated one is logged as one
   `grimworld.sent-differs` record, with the fields that differ and both outcomes. The state after
   is the trace's view. The region and the content version are read at the receipt's block hash
-  (`createReader({ block: { blockHash } })`). A fee the burner cannot pay reads "no funds".
+  (`createReader({ block: { blockHash } })`).
+- Past a send, `sendBatch` never throws. A send whose status, trace, receipt or state after cannot
+  be read is `unread`, and the model reads the state again. It drops the actions that played,
+  counted from the sequence's move. When that count cannot be known, because the read fails, the
+  execution has not settled, or the move is more than the batch, the whole plan is dropped. The
+  panel then says "sent, result unreadable", never that the batch was not sent, so `B` never plays
+  the same actions twice.
+- "No funds" is the provider's refusal with RPC code 54, `INSUFFICIENT_ACCOUNT_BALANCE`, and
+  nothing else. It was observed on starknet-devnet 0.10.0 through starknet.js 10.8.0 (`RpcError`,
+  the `cause` of the burner's `AccountError("refused")`), from an account drained below the fee:
+  "Account balance is smaller than the transaction's maximal fee (calculated as the sum of each
+  resource's limit x max price)". Code 53, "The transaction's resources don't cover validation or
+  the minimal transaction fee", came from bounds set too low or priced past the balance from a
+  funded account. It says the bounds, not the funds, so it reads as a plain refusal. No message is
+  read.

@@ -84,8 +84,11 @@ export interface Stages {
   input(actions: readonly PlayAction[], options?: { path?: boolean }): boolean;
   /** `B`: sends the batch once its simulation answered. False when there is nothing to send. */
   send(): boolean;
-  /** A new chain state, the batch emptied (entering again after a closing, §3.4). */
-  install(chain: ChainState): void;
+  /**
+   * A new chain state, the batch emptied (entering again after a closing, §3.4). Refused (false)
+   * while a batch is in flight or the state is being read: what settles then would overwrite it.
+   */
+  install(chain: ChainState): boolean;
 }
 
 export const lines = {
@@ -93,7 +96,10 @@ export const lines = {
   FULL: "the batch is full: send it",
   STALE: "the state moved: read again, preview again",
   SIMULATION_FAILED: "the simulation failed",
-  NOT_SENT: "the batch was not sent",
+  /** Sent, and it reverted: nothing it did holds. */
+  NOT_PLAYED: "the batch did not play",
+  /** Sent, and how far it played could not be read: the plan is dropped, never sent twice. */
+  UNREADABLE: "sent, result unreadable",
 } as const;
 
 const quiet: ParityLog = () => undefined;
@@ -135,8 +141,11 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
     return mirror?.kind === "predicted" ? mirror.stop : undefined;
   }
 
-  /** The batch changed: stage 1 at once, stage 2 after the delay, a new request number. */
-  function plan(planned: Batch, extra: Partial<StagesState> = {}) {
+  /**
+   * The batch changed: stage 1 at once, stage 2 after the delay, a new request number. Unarmed
+   * (`arm` false), stage 2 waits for the next input or `B`.
+   */
+  function plan(planned: Batch, extra: Partial<StagesState> = {}, arm = true) {
     clearTimeout(timer);
     timer = undefined;
     request++;
@@ -146,6 +155,10 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
     }
     const actions = actionsOf(planned);
     const mirror = mirrorPredict(actions, predict, quiet);
+    if (!arm) {
+      set({ planned, mirror, simulation: undefined, ...extra });
+      return;
+    }
     set({ planned, mirror, simulation: { request, actions, status: "pending" }, ...extra });
     const mine = request;
     timer = setTimeout(() => void simulate(mine), debounce);
@@ -166,9 +179,39 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
       installChain(await deps.load());
       plan(planned, { phase: "ready" });
     } catch (error) {
-      // The read failed: the batch stays on the old state, the next `B` tries again
-      plan(planned, { phase: "ready", line: `${lines.STALE}: ${(error as Error).message}` });
+      // The read failed: the batch stays on the old state, unpreviewed until the next input or `B`
+      plan(planned, { phase: "ready", line: `${lines.STALE}: ${(error as Error).message}` }, false);
     }
+  }
+
+  /**
+   * After a send whose outcome is not known (§6.3: no recovery, play resumes from a fresh read):
+   * reads the state again and drops what played, from the sequence's move (`play` advances it by
+   * the actions played). `settled` says the execution can play no further (it succeeded, or it
+   * failed): an unmoved sequence then means nothing played. Unsettled, or with a read that fails or
+   * a move the batch cannot explain, how far it played is unknown: the whole plan is dropped, so
+   * that `B` never plays the same actions twice.
+   */
+  async function recover(planned: Batch, from: number, settled: boolean, line: string) {
+    clearTimeout(timer);
+    timer = undefined;
+    request++;
+    set({ phase: "reading", line });
+    let chain: ChainState;
+    try {
+      chain = await deps.load();
+    } catch (error) {
+      plan([], { phase: "ready", line: `${lines.UNREADABLE}: ${(error as Error).message}` });
+      return;
+    }
+    installChain(chain);
+    const played = chain.target.sequence - from;
+    if (played < 0 || played > planned.length || (played === 0 && !settled)) {
+      plan([], { phase: "ready", line: lines.UNREADABLE });
+      return;
+    }
+    // What played is gone; of the rest, as after any sent batch, the path's steps are dropped
+    plan(played === 0 ? planned : planned.slice(played).filter((p) => !p.path), { phase: "ready" });
   }
 
   async function simulate(mine: number) {
@@ -209,8 +252,7 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
         return;
       }
       if (batch.stop === Stop.Closed) {
-        clearTimeout(timer);
-        set({ phase: "closed", planned: [], mirror: undefined, line: lines.CLOSED });
+        close();
         return;
       }
       const kept = afterPreview(state.planned, batch);
@@ -223,8 +265,23 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
     if (state.phase === "sending") await execute(preview);
   }
 
+  /** The instance ended: nothing planned, no simulation kept, no input until `install`. */
+  function close() {
+    clearTimeout(timer);
+    timer = undefined;
+    request++;
+    set({
+      phase: "closed",
+      planned: [],
+      mirror: undefined,
+      simulation: undefined,
+      line: lines.CLOSED,
+    });
+  }
+
   async function execute(simulated: Preview & { kind: "simulated" }) {
     const planned = state.planned;
+    const from = state.chain.target.sequence;
     let result: Sent;
     try {
       result = await deps.send({
@@ -234,9 +291,9 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
         simulated: simulated.chain,
       });
     } catch (error) {
-      // Past the send (a trace or a read that failed): play resumes from a fresh read
+      // `sendBatch` does not throw past a send; a sender that does may have sent
       set({ sent: undefined });
-      await reread(planned, `${lines.NOT_SENT}: ${(error as Error).message}`);
+      await recover(planned, from, false, `${lines.UNREADABLE}: ${(error as Error).message}`);
       return;
     }
     set({ sent: { simulated, result } });
@@ -244,13 +301,27 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
       set({ phase: "ready", line: result.reason });
       return;
     }
+    if (result.kind === "unread") {
+      await recover(
+        planned,
+        from,
+        result.status === "succeeded" || result.status === "failed",
+        `${lines.UNREADABLE}: ${result.error}`,
+      );
+      return;
+    }
     if (result.kind === "unsettled") {
-      // Nothing it did holds, or it is unknown: the actions stay, the state is read again
-      await reread(planned, `${lines.NOT_SENT}: ${result.status}`);
+      if (result.status === "failed") {
+        // Reverted: nothing it did holds, the actions stay on a fresh read
+        await reread(planned, `${lines.NOT_PLAYED}: ${result.status}`);
+      } else {
+        // Still pending, or unknown to the node: it may yet play
+        await recover(planned, from, false, `${lines.UNREADABLE}: ${result.status}`);
+      }
       return;
     }
     if (result.chain.kind !== "played") {
-      await reread(planned, `${lines.NOT_SENT}: ${result.chain.reason}`);
+      await reread(planned, `${lines.NOT_PLAYED}: ${result.chain.reason}`);
       return;
     }
     const { batch, defeated, closed } = result.chain;
@@ -261,15 +332,7 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
     }
     installChain(result.after);
     if (ending.kind === "closed") {
-      clearTimeout(timer);
-      request++;
-      set({
-        phase: "closed",
-        planned: [],
-        mirror: undefined,
-        simulation: undefined,
-        line: lines.CLOSED,
-      });
+      close();
       return;
     }
     plan(ending.planned, { phase: "ready", line: undefined });
@@ -312,6 +375,7 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
     },
 
     install(chain) {
+      if (state.phase === "sending" || state.phase === "reading") return false;
       clearTimeout(timer);
       timer = undefined;
       request++;
@@ -324,6 +388,7 @@ export function createStages(initial: ChainState, deps: StagesDeps): Stages {
         sent: undefined,
         line: undefined,
       });
+      return true;
     },
   };
 }
