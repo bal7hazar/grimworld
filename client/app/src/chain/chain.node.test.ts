@@ -188,10 +188,20 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
   describe("the batch sent", () => {
     const parity: unknown[] = [];
     const sentLog: unknown[] = [];
+    /** The instance the adventurer stands in now: the one it entered again above, not `player`'s. */
+    let instanceId: bigint;
+    beforeAll(async () => {
+      const placement = await opened.reader.placement(
+        deployment.contracts.instances,
+        player.adventurerId,
+      );
+      expect(placement.inside).toBe(true);
+      instanceId = placement.instanceId;
+    });
     const ids = () => ({
       instances: deployment.contracts.instances,
       registry: deployment.contracts.registry,
-      instanceId: player.instanceId,
+      instanceId,
       adventurerId: player.adventurerId,
     });
     const load = () => readState(opened.reader, ids());
@@ -216,6 +226,7 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
       model.send();
       for (let i = 0; i < 1200; i++) {
         const now = model.get();
+        if (now.phase === "closed") throw new Error(`the instance closed: ${now.line}`);
         if (now.phase !== "sending" && now.phase !== "reading" && now.sent !== undefined) return;
         if (
           now.phase === "ready" &&
