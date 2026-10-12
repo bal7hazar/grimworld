@@ -179,7 +179,7 @@ export const NO_FUNDS = "no funds";
 /**
  * The RPC error of a fee the account cannot pay: `INSUFFICIENT_ACCOUNT_BALANCE`, 54. Observed on
  * starknet-devnet 0.10.0 through starknet.js 10.8.0 (`RpcError`, its `code` getter, which
- * `createStarknetChain`'s `send` wraps as the `cause` of an `AccountError("refused")`), from an
+ * the burner's chain's `send` wraps as the `cause` of an `AccountError("refused")`), from an
  * account drained below the fee starknet.js estimated: code 54, "Account balance is smaller than
  * the transaction's maximal fee (calculated as the sum of each resource's limit x max price)" (CV
  * t-0233, a scratch run). 53, `INSUFFICIENT_RESOURCES_FOR_VALIDATE` ("The transaction's resources
@@ -191,12 +191,17 @@ export const NO_FUNDS = "no funds";
 const NO_FUNDS_CODE = 54;
 
 /**
- * Why the provider refused an execution, in one line of the panel: "no funds" for a fee the burner
- * cannot pay (§3.3), the provider's own neutral message otherwise. The cause is not shown.
+ * Why the provider refused an execution, in one line of the panel. The chain mode's guard
+ * (`network.ts`'s guarded chain) refuses a send as `AccountError("unavailable")` whose `cause` is
+ * its `ChainRefused`: that reads as the guard's own line ("chain mode refused: <reason>"), never as
+ * unavailable or "no funds". A fee the burner cannot pay is "no funds" (§3.3). Any other refusal is
+ * the provider's own neutral message; its cause is not shown.
  */
 function refusalOf(error: unknown): string {
-  const cause = (error as { cause?: { code?: unknown } } | undefined)?.cause;
-  if (cause?.code === NO_FUNDS_CODE) return NO_FUNDS;
+  const cause = (error as { cause?: unknown } | undefined)?.cause;
+  // By name, as `NotMirrored` is read: `network.ts` brings the chain library with it
+  if (cause instanceof Error && cause.name === "ChainRefused") return cause.message;
+  if ((cause as { code?: unknown } | undefined)?.code === NO_FUNDS_CODE) return NO_FUNDS;
   return error instanceof Error ? error.message : String(error);
 }
 

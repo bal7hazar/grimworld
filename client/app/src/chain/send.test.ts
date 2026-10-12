@@ -5,6 +5,7 @@ import { INSTANCES, playedTrace, view as fixtureView } from "../preview/fixtures
 import { mirrorOf } from "../preview/mirror";
 import type { BlockId, Reader } from "../preview/read";
 import * as goblins from "../preview/recorded-goblins";
+import { ChainRefused } from "./network";
 import { type InvokeTrace, Stop, extractOutcome } from "../preview/trace";
 import { type InstanceView, type RegionChunk, decodeInstanceView } from "../preview/view";
 import {
@@ -239,6 +240,29 @@ describe("sendBatch", () => {
     expect(
       await sendBatch({ state, actions: [WAIT], simulated }, deps({ account: other })),
     ).toEqual({ kind: "refused", reason: new AccountError("unavailable").message });
+  });
+
+  it("reads the guard's refusal as refused, never as unavailable or 'no funds' (t-0236, note 3)", async () => {
+    const state = await recordedState();
+    const simulated = extractOutcome(goblins.recordedPlayed);
+    // The exact shape CLI-11a's guarded chain gives through the burner's provider
+    const guard = new AccountError("unavailable", { cause: new ChainRefused("not a test chain") });
+    const { account: provider } = account([], guard);
+    expect(
+      await sendBatch({ state, actions: [WAIT], simulated }, deps({ account: provider })),
+    ).toEqual({
+      kind: "refused",
+      reason: "chain mode refused: not a test chain",
+    });
+    // A guard refusal that also carried a fee code would still read as the guard's
+    const coded = Object.assign(new ChainRefused("not a test chain"), { code: 54 });
+    const { account: other } = account([], new AccountError("unavailable", { cause: coded }));
+    expect(
+      await sendBatch({ state, actions: [WAIT], simulated }, deps({ account: other })),
+    ).toEqual({
+      kind: "refused",
+      reason: "chain mode refused: not a test chain",
+    });
   });
 
   it("never throws past a send: what follows unread is `unread`, with its status", async () => {
