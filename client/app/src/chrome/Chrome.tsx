@@ -18,6 +18,7 @@ import "./fonts.css";
 import {
   type ChromeImages,
   ChromeSession,
+  type CombatEntryName,
   type HudImages,
   PORTRAITS,
   type PortraitSize,
@@ -49,6 +50,12 @@ const HudArt = createContext<{ readonly images: HudImages | null; readonly dpr: 
 
 /** Whether the HUD's art is shown: `plain` without it, even when the chrome has its own. */
 export const useHudMode = (): ChromeMode => (useContext(HudArt).images ? "atlas" : "plain");
+
+/** The combat screen's elements that were cut (CLI-05c): each one absent draws plain. */
+const CombatArt = createContext<ReadonlySet<CombatEntryName>>(new Set());
+
+/** Whether a combat screen's element is drawn from the art. */
+export const useCombatArt = (name: CombatEntryName): boolean => useContext(CombatArt).has(name);
 
 const currentDpr = () => window.devicePixelRatio || 1;
 
@@ -85,18 +92,21 @@ export function ChromeProvider({
   const mode: ChromeMode = images ? "atlas" : "plain";
   const hud = images?.hud ?? null;
   const hudArt = useMemo(() => ({ images: hud, dpr: images?.dpr ?? dpr }), [hud, images, dpr]);
+  const combat = useMemo(() => new Set(images?.combat.keys() ?? []), [images]);
   return (
     <Mode.Provider value={mode}>
       <HudArt.Provider value={hudArt}>
-        <div
-          {...rest}
-          style={images ? { ...style, ...(chromeProperties(images) as CSSProperties) } : style}
-          data-chrome={mode}
-          data-chrome-dpr={images ? images.dpr : undefined}
-          data-cursors={hud ? "" : undefined}
-        >
-          {children}
-        </div>
+        <CombatArt.Provider value={combat}>
+          <div
+            {...rest}
+            style={images ? { ...style, ...(chromeProperties(images) as CSSProperties) } : style}
+            data-chrome={mode}
+            data-chrome-dpr={images ? images.dpr : undefined}
+            data-cursors={hud ? "" : undefined}
+          >
+            {children}
+          </div>
+        </CombatArt.Provider>
       </HudArt.Provider>
     </Mode.Provider>
   );
@@ -309,13 +319,17 @@ const PLAIN_FILL: Record<"health" | "energy", CSSProperties> = {
   health: { background: "#e04848" },
   energy: { background: "#41919d" },
 };
+/** The small health bar's fill: the pack's small red fill, in place of the big bar's. */
+const SMALL_HEALTH_FILL = { "--fill": "var(--gw-bar-small-fill-health)" } as CSSProperties;
 
 /**
  * A bar (CLI-03l *The method* §2): the pack's wooden frame (`big`, health, the red fill) or its
- * thin one (`small`, energy, the fill recoloured blue), the fill inside the trough at
+ * thin one (`small`, energy, the fill recoloured blue; or health, the pack's small red fill
+ * `bar_small_fill_health`, the combat screen's target, CLI-05c), the fill inside the trough at
  * `fillWidth` whole device px of it; no fill element at 0. A `meter` with its figures in
  * `aria-*`; the visible figures sit beside it (the caller's). Without the HUD's art, CSS bars of
- * the same boxes. It renders again only on a resize of its trough or a change of its figures.
+ * the same boxes; the small health bar is plain also when its fill was not cut. It renders again
+ * only on a resize of its trough or a change of its figures.
  */
 export function Bar({
   size,
@@ -338,7 +352,9 @@ export function Bar({
   };
 }) {
   const { images, dpr } = useContext(HudArt);
-  const atlas = images !== null;
+  const smallHealth = size === "small" && tone === "health";
+  const smallFill = useCombatArt("bar_small_fill_health");
+  const atlas = images !== null && (!smallHealth || smallFill);
   const track = useRef<HTMLDivElement>(null);
   const [trackPx, setTrackPx] = useState(0);
   useLayoutEffect(() => {
@@ -374,7 +390,11 @@ export function Bar({
         {fill > 0 && (
           <div
             className="gw-bar-fill"
-            style={{ width: `${fill / dpr}px`, height: "100%", ...(atlas ? {} : PLAIN_FILL[tone]) }}
+            style={{
+              width: `${fill / dpr}px`,
+              height: "100%",
+              ...(atlas ? (smallHealth ? SMALL_HEALTH_FILL : {}) : PLAIN_FILL[tone]),
+            }}
             data-fill-px={fill}
           />
         )}
@@ -443,5 +463,43 @@ export function Portrait({
         </span>
       )}
     </span>
+  );
+}
+
+/**
+ * A slot of the skill bar or the belt (CLI-05 brief §2.1, §3, §8): the pack's small blue square
+ * button (`square_blue`) stretched to the slot, pressed while `pressed` (an armed slot), its
+ * content lifted by the button's edge; without the art, `plain` (a bordered square in the chrome's
+ * colours). At least 44 CSS px square (I-6), set by the caller's `style`.
+ */
+export function SlotFrame({
+  pressed,
+  plain,
+  style,
+  className,
+  children,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { pressed: boolean; plain?: CSSProperties }) {
+  const atlas = useCombatArt("square_blue");
+  const face = pressed ? "var(--gw-square-blue-pressed)" : "var(--gw-square-blue)";
+  const look: CSSProperties = atlas
+    ? {
+        border: "none",
+        borderRadius: 0,
+        background: `${face} center / 100% 100% no-repeat`,
+        imageRendering: "pixelated",
+        // The face's edge is below it; pressed, the face sits on it.
+        padding: pressed ? "var(--gw-square-blue-drop) 0 0" : "0 0 var(--gw-square-blue-drop)",
+      }
+    : { ...plain };
+  return (
+    <button
+      {...rest}
+      className={classes("gw-slot", className)}
+      data-slot-art={atlas ? "atlas" : "plain"}
+      style={{ ...look, ...style }}
+    >
+      {children}
+    </button>
   );
 }
