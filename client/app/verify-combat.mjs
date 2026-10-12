@@ -313,6 +313,23 @@ async function pass(browser, size) {
   m = await page.evaluate(measure);
   ok(!m.armed.some(Boolean), `${label}: Esc disarms`);
 
+  // Armed, a tap on an empty tile disarms (a FOE slot, CLI-05e), and a tap on a goblin is the
+  // controller's: Charge's marked foe plays it, any other says why and the slot stays armed.
+  if (size.desktop) await page.keyboard.press("3");
+  else await page.locator('[data-slot="2"]').click();
+  await tapHex(page, { x: HOBGOBLIN.x - 3, y: HOBGOBLIN.y + 2 });
+  m = await page.evaluate(measure);
+  ok(!m.armed.some(Boolean), `${label}: a tap on an empty tile disarms`);
+  if (size.desktop) await page.keyboard.press("3");
+  else await page.locator('[data-slot="2"]').click();
+  await tapHex(page, HOBGOBLIN);
+  m = await page.evaluate(measure);
+  const answered = m.armed[2]
+    ? m.said !== ""
+    : m.panelLines.concat(m.lastLine ?? "").some((l) => l?.includes("Charge"));
+  ok(answered, `${label}: a tap on a goblin plays or says why (${m.said})`);
+  await page.keyboard.press("Escape");
+
   // A potion addressed to Wren plays on the second tap.
   await page.locator('[data-belt-slot="0"]').click();
   await page.locator('[data-belt-slot="0"]').click();

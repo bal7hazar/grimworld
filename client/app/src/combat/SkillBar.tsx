@@ -123,6 +123,15 @@ export function usePress(onTap: () => void, onInspect: () => void) {
   const timer = useRef<number | undefined>(undefined);
   const pressed = useRef(false);
   const stop = () => window.clearTimeout(timer.current);
+  // A touch raises `pointerleave` after `pointerup` and before `click`: only a pointer that left or
+  // was cancelled while still down drops the press, so the click that ends a press stays swallowed.
+  const up = useRef(false);
+  const leave = () => {
+    stop();
+    if (!up.current) pressed.current = false;
+  };
+  // A touch long press already fired `onInspect`; the `contextmenu` it also raises must not repeat it.
+  const touched = useRef(false);
   return {
     onClick: () => {
       if (pressed.current) pressed.current = false;
@@ -130,18 +139,24 @@ export function usePress(onTap: () => void, onInspect: () => void) {
     },
     onContextMenu: (event: MouseEvent) => {
       event.preventDefault();
-      onInspect();
+      if (!(touched.current && pressed.current)) onInspect();
     },
     onPointerDown: (event: { pointerType: string }) => {
-      if (event.pointerType !== "touch") return;
+      up.current = false;
+      touched.current = event.pointerType === "touch";
+      if (!touched.current) return;
       pressed.current = false;
       timer.current = window.setTimeout(() => {
         pressed.current = true;
         onInspect();
       }, PRESS_MS);
     },
-    onPointerUp: stop,
-    onPointerLeave: stop,
+    onPointerUp: () => {
+      up.current = true;
+      stop();
+    },
+    onPointerLeave: leave,
+    onPointerCancel: leave,
   };
 }
 
@@ -363,7 +378,9 @@ const styles: Record<string, CSSProperties> = {
     width: 32,
     height: 32,
     borderRadius: 4,
-    font: "700 1.166875rem/1 var(--gw-display)",
+    // Not the pixel display font: its "Ch" reads "Oh" and its "SB" reads "3", the digit badge's face
+    font: "700 1rem/1 system-ui, sans-serif",
+    letterSpacing: "0.02em",
     color: "#fff",
   },
   key: {
@@ -432,9 +449,11 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    // Gold, in the pixel face, over the darkened monogram (its own face is a plain sans): a counter
+    // apart from the initials that sit under it
     font: "700 1.5rem/1 var(--gw-display)",
-    color: "#fff",
-    textShadow: "0 0 3px #000, 0 0 2px #000",
+    color: "#f2c94c",
+    textShadow: "0 0 3px #000, 0 0 2px #000, 0 1px 0 #000",
     fontVariantNumeric: "tabular-nums",
   },
   ring: {

@@ -206,6 +206,27 @@ describe("targets (§4.1)", () => {
     expect(c.view().log.at(-1)?.text).toBe("You used Charge on (21, 7)");
   });
 
+  it("a TILE skill previews a tile where a goblin stands, and plays on the second tap", () => {
+    const state = ready();
+    const at = state.goblins[0]!.tile;
+    const rules = fakes({ skill2: { addressing: "tile", reach: [at] } });
+    const c = controller(state, rules);
+    c.slot(CHARGE);
+    expect(c.tile(at)).toBe(true);
+    expect(c.view()).toMatchObject({ preview: at, said: "", armed: CHARGE });
+    c.tile(at);
+    expect(rules.played).toEqual([[CHARGE, { tile: true, at }]]);
+  });
+
+  it("a TILE skill previews the adventurer's own tile when it is in reach", () => {
+    const state = ready();
+    const at = state.adventurer.tile;
+    const c = controller(state, fakes({ skill2: { addressing: "tile", reach: [at] } }));
+    c.slot(CHARGE);
+    c.tile(at);
+    expect(c.view()).toMatchObject({ preview: at, said: "" });
+  });
+
   it("a TILE skill out of reach says so and previews nothing", () => {
     const c = controller(ready(), fakes({ skill2: { addressing: "tile", reach: [] } }));
     c.slot(CHARGE);

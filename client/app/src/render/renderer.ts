@@ -26,6 +26,7 @@ import {
   drawGhosts,
   drawMark,
   drawCombatLabels,
+  labelGrowth,
   drawOverlay,
   drawStructure,
   drawTerrain,
@@ -501,6 +502,8 @@ export class Renderer implements FrameClient {
   private readonly actorsLayer = new Container({ sortableChildren: true });
   /** Combat's figures and letters (CLI-05d), over the actors: no body hides them. */
   private readonly combatLabels = new Graphics();
+  /** The camera scale the combat labels were last drawn at (they keep their size on the screen). */
+  private labelScale = 1;
   /** The tiles of the actors knocked down (`ViewState.combat`): their body is laid flat. */
   private knocked: ReadonlySet<string> = new Set();
   private readonly nodes = new Map<number, ActorNode>();
@@ -644,7 +647,8 @@ export class Renderer implements FrameClient {
     if (terrainChanged || hiddenChanged || holeKey !== previousVoid || sightKey !== this.sightKey)
       this.syncFoam(hidden);
     this.drawOverlay();
-    drawCombatLabels(this.combatLabels, view);
+    this.labelScale = this.camera.scale;
+    drawCombatLabels(this.combatLabels, view, this.camera.scale);
     this.knocked = new Set((view.combat?.knocked ?? []).map((t) => `${t.x},${t.y}`));
     this.flushRetired();
     this.syncDropped(view, now);
@@ -931,9 +935,13 @@ export class Renderer implements FrameClient {
     // Chunks left to bake (`bakesPerFrame`): a frame more for them.
     if (this.bakesLeft) this.scheduler.invalidate();
     if (this.overlayDirty) this.drawOverlay();
+    const { centre, scale } = this.camera;
+    if (this.view?.combat && labelGrowth(scale) !== labelGrowth(this.labelScale)) {
+      this.labelScale = scale;
+      drawCombatLabels(this.combatLabels, this.view, scale);
+    }
     this.flushRetired();
     this.cullFoam();
-    const { centre, scale } = this.camera;
     const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
     if (!plan) {
       // Continuous, snap, or sharp falling back: the world drawn directly.

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { beltKeyLabels } from "../input/keys";
 import { SlotFrame } from "../chrome/Chrome";
 import { SLOT_BADGE } from "../chrome/contrast";
 import { SLOT_PX, initials, usePress } from "./SkillBar";
@@ -40,8 +41,8 @@ export function Belt({
   );
 }
 
-/** The belt's keys by position (CLI-05b): QWERTY's `Z X C V`, AZERTY's `W X C V`. */
-const KEYS = ["Z", "X", "C", "V"] as const;
+/** The belt's keys by position, read from CLI-05b's key table. */
+const KEYS = beltKeyLabels();
 
 /** The flask's fill by the potion's effect (§8): the pairs `contrast.ts`'s `SLOT_TEXT` checks. */
 export const FLASK_FILLS: Readonly<Record<PotionLook, string>> = {
