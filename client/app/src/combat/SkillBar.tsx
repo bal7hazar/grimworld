@@ -38,7 +38,7 @@ export function SkillBar({
   const busy = bar.some((s) => s.state === "not-now" || s.state === "activating");
   const rows = [bar.slice(0, 4), bar.slice(4, 8)];
   return (
-    <div role="group" aria-label="Skills" style={styles.bar} data-bar="">
+    <div role="group" aria-label="Skills" style={styles.bar} data-skill-bar="">
       {rows.map((row, r) => (
         <div key={r} style={styles.row}>
           {row.map((slot) => (
