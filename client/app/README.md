@@ -296,6 +296,10 @@ with the fight's actors (`sandbox/wiring.ts`'s `fightWorld`). The sandbox stays 
   `bar_small_fill_health`, its mark, chips and activation in words), at a fixed height;
   **`CombatLog.tsx`**: the desktop's right panel (12 lines, scrolling back) and the phone's last
   line with its drawer.
+- **Step keys while armed.** A step key is a tap on the adjacent hex, so while a slot is armed it
+  acts as that tap: on an empty hex it disarms the slot (a `TILE` slot previews the hex), on a
+  goblin it plays or says why. It does not walk. `Esc` or a second tap on the slot also disarm. A
+  `TILE` slot takes a tap on a tile whatever stands on it; `targeting.ts` decides if it is in reach.
 - **`controller.ts`**: arming (§2.4, §3), §4.1's choices (a marked actor, a `TILE` slot's preview
   then play, `F` / `Shift+F` and `Enter`) and `Esc` (an inspection, then the armed slot, before the
   walk and the selection). It decides no rule: `CombatRules.aim` and `play` are given, in the

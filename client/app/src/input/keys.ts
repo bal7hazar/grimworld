@@ -226,6 +226,12 @@ export const BINDINGS: readonly Binding[] = [
   },
 ];
 
+/** The belt slots' key labels, in slot order, from the table's `Belt, in order` row. */
+export function beltKeyLabels(): string[] {
+  const row = BINDINGS.find((b) => b.matches.some((m) => m.command?.kind === "belt"));
+  return row ? row.keys.split(" ") : [];
+}
+
 /**
  * The chain mode's keys (CLI-11c), read on the instance screen before `BINDINGS`: `Space` and `R`
  * are design/11 *Desktop*'s Wait and Turn, reserved above for the HUD lots and live here, `B` sends

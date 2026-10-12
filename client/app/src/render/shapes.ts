@@ -556,26 +556,46 @@ export function labelWidth(text: string): number {
  * A label centred on `(x, y)`: a dark backing, then each character's cells in the pixel font. A
  * character the font lacks is a full block, so that nothing is silently dropped.
  */
-export function drawLabel(g: Graphics, text: string, x: number, y: number, colour: number): void {
-  const width = labelWidth(text);
+export function drawLabel(
+  g: Graphics,
+  text: string,
+  x: number,
+  y: number,
+  colour: number,
+  k = 1,
+): void {
+  const cell = LABEL_CELL * k;
+  const pad = LABEL_PAD * k;
+  const width = labelWidth(text) * k;
   const left = x - width / 2;
-  const top = y - GLYPH_HEIGHT / 2 - LABEL_PAD;
-  g.rect(left, top, width, GLYPH_HEIGHT + 2 * LABEL_PAD).fill({
+  const top = y - (GLYPH_HEIGHT * k) / 2 - pad;
+  g.rect(left, top, width, (GLYPH_HEIGHT + 2 * LABEL_PAD) * k).fill({
     color: COLOURS.labelBack,
     alpha: 0.7,
   });
-  let at = left + LABEL_PAD;
+  let at = left + pad;
   for (const char of text) {
     const rows = GLYPHS[char] ?? ["111", "111", "111", "111", "111"];
     rows.forEach((row, j) => {
       for (let i = 0; i < row.length; i++) {
         if (row[i] !== "1") continue;
-        g.rect(at + i * LABEL_CELL, top + LABEL_PAD + j * LABEL_CELL, LABEL_CELL, LABEL_CELL);
+        g.rect(at + i * cell, top + pad + j * cell, cell, cell);
       }
     });
-    at += GLYPH_WIDTH + GLYPH_GAP;
+    at += (GLYPH_WIDTH + GLYPH_GAP) * k;
   }
   g.fill(colour);
+}
+
+/** The least height of a label's glyphs on the screen, in CSS px: below it the figure is unreadable. */
+export const MIN_GLYPH_PX = 10;
+
+/**
+ * How much a label grows so that its glyphs are at least `MIN_GLYPH_PX` tall on the screen when the
+ * camera's `scale` (CSS px per art px) is small; 1 when they already are.
+ */
+export function labelGrowth(scale: number): number {
+  return Math.max(1, MIN_GLYPH_PX / (GLYPH_HEIGHT * scale));
 }
 
 /** Where a ring's figure sits from its tile's centre: on the ring, down and right. */
@@ -591,19 +611,21 @@ export const LETTERS_BELOW = 25;
  * §4.2, §5, §6.1): the target marks, each ring's ticks left, and each goblin's condition letters
  * under its feet.
  */
-export function drawCombatLabels(g: Graphics, view: ViewState): void {
+export function drawCombatLabels(g: Graphics, view: ViewState, scale = 1): void {
   g.clear();
-  const plan = overlayPlan(view).combat;
-  if (!plan) return;
+  if (!view.combat) return;
+  const own = view.actors.find((a) => a.id === view.adventurerId)?.tile ?? null;
+  const plan = combatPlan(view.combat, own);
+  const k = labelGrowth(scale);
   for (const tile of plan.marks) drawTargetMark(g, tileToPixel(tile));
   for (const ring of plan.activations) {
     const c = tileToPixel(ring.tile);
     const colour = ring.interruptible ? COLOURS.interruptible : COLOURS.label;
-    drawLabel(g, String(ring.ticks), c.x + RING_FIGURE.x, c.y + RING_FIGURE.y, colour);
+    drawLabel(g, String(ring.ticks), c.x + RING_FIGURE.x, c.y + RING_FIGURE.y, colour, k);
   }
   for (const { tile, text } of plan.letters) {
     const c = tileToPixel(tile);
-    drawLabel(g, text, c.x, c.y + LETTERS_BELOW, COLOURS.label);
+    drawLabel(g, text, c.x, c.y + LETTERS_BELOW, COLOURS.label, k);
   }
 }
 

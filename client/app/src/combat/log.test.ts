@@ -439,7 +439,8 @@ describe("the cost of an input (§7.2), measured", () => {
     // frame is 16 ms)
     expect(withReplay).toBeLessThan(50);
     expect(inputWith).toBeLessThan(50);
-  });
+    // The timeout is vitest's, not the bound: a loaded machine slows the 41 + 33 runs, not one input
+  }, 30_000);
 });
 
 /** The replay's lines of one call and its recorded output. */

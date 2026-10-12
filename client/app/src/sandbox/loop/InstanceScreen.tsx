@@ -162,7 +162,8 @@ export function InstanceScreen({
     const now = fight?.controller.view();
     if (!fight || !now?.armed || intent.kind !== "tile") return intent;
     const entity = actorOn(now.state, intent.tile);
-    if (entity === null) fight.controller.tile(intent.tile);
+    // A TILE slot aims at a tile whatever stands on it; CLI-05a's targeting decides if it is taken.
+    if (entity === null || now.aim?.addressing === "tile") fight.controller.tile(intent.tile);
     else fight.controller.actor(entity);
     return null;
   };

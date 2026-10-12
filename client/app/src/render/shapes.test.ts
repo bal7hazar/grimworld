@@ -12,6 +12,8 @@ import {
   drawCombat,
   drawCombatLabels,
   drawLabel,
+  MIN_GLYPH_PX,
+  labelGrowth,
   drawOverlay,
   hasGlyph,
   labelWidth,
@@ -277,6 +279,21 @@ describe("overlayPlan: combat on the map (CLI-05d)", () => {
     expect(cells("BPF+").path.shapePath.shapePrimitives).toHaveLength(31);
     expect(cells("Z").path.shapePath.shapePrimitives).toHaveLength(15);
     expect(labelWidth("BPF+")).toBeGreaterThan(labelWidth("P"));
+  });
+
+  it("labels grow at a low zoom to keep their glyphs readable, and not otherwise (CLI-05e)", () => {
+    expect(labelGrowth(2)).toBe(1);
+    expect(labelGrowth(1)).toBe(1);
+    // zoom 0.27: 10 art px of glyph is 2.7 CSS px; the label grows to reach MIN_GLYPH_PX
+    const k = labelGrowth(0.27);
+    expect(k).toBeGreaterThan(3);
+    expect(10 * k * 0.27).toBeGreaterThanOrEqual(MIN_GLYPH_PX - 1e-9);
+    const rows = (text: string, grow: number) => {
+      const g = new Graphics();
+      drawLabel(g, text, 0, 0, 0xffffff, grow);
+      return g.bounds.height;
+    };
+    expect(rows("1", k)).toBeCloseTo(rows("1", 1) * k, 5);
   });
 
   it("the knocked down listed as tiles, for the renderer", () => {
