@@ -19,13 +19,7 @@ export {
   trapSkills,
 } from "./content";
 export type { MirrorState } from "./mirror";
-export {
-  featuresAround,
-  mirrorOf,
-  segmentOf,
-  unpackFeatures,
-  unpackWalls,
-} from "./mirror";
+export { featuresAround, mirrorOf, segmentOf, unpackFeatures, unpackWalls } from "./mirror";
 export type { Preview, PreviewDeps, PreviewInput, Refused } from "./preview";
 export { previewBatch, refusals } from "./preview";
 export type {

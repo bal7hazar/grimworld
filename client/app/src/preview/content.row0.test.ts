@@ -29,15 +29,17 @@ function skillParts(sheet: SkillSheet): bigint[] {
   const shifts = [0n, 16n, 24n, 32n, 40n, 56n, 72n];
   // attribute (bits 8–15), target (80–81) and elite (82): not in a sheet, the readers skip them
   const skipped = (0xa5n << 8n) + (3n << 80n) + (1n << 82n);
-  const header = skipped + [
-    sheet.profession,
-    sheet.kind,
-    sheet.energy,
-    sheet.adrenaline,
-    sheet.activation,
-    sheet.recharge,
-    sheet.range,
-  ].reduce((bits, value, k) => bits + (BigInt(value) << shifts[k]!), 0n);
+  const header =
+    skipped +
+    [
+      sheet.profession,
+      sheet.kind,
+      sheet.energy,
+      sheet.adrenaline,
+      sheet.activation,
+      sheet.recharge,
+      sheet.range,
+    ].reduce((bits, value, k) => bits + (BigInt(value) << shifts[k]!), 0n);
   return [join(header, sheet.entry1), join(sheet.entry2, sheet.entry3)];
 }
 
