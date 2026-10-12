@@ -121,8 +121,8 @@ with a dynamic `import()`, so the sandbox's bundle carries no starknet.js.
   missing (`register` with `create_adventurer`; `create_adventurer`; `travel` when its hub is not
   gate 1's source; `set_build` before every `enter`; `enter`), each its own execution, so a reload
   or a failed step resumes from the views. `enter` alone enters again after an instance closes.
-- **The screen** (`ChainScreen.tsx`), minimal in this lot: "adventurer N in instance M", or the
-  refusal's line over the sandbox.
+- **The screen** (`ChainScreen.tsx`): CLI-11a made it minimal ("adventurer N in instance M", or the
+  refusal's line over the sandbox); CLI-11c draws the instance (below). The refusal is unchanged.
 
 starknet-devnet 0.10 answers a browser's cross-origin requests (`access-control-allow-origin: *`,
 checked by CLI-11a), so the page talks to the node directly, with no proxy. To play, from the
@@ -144,10 +144,22 @@ repository's root while that file's node answers. The whole run on a fresh node,
 are built: `pnpm --filter @grimworld/app test:node:devnet`; against a deployment already made:
 `test:node:chain`.
 
+Three things the account and the guard do that a developer meets (review t-0236, deferred notes):
+
+- `assertTestChain` makes two RPC calls (`starknet_chainId` and `devnet_getPredeployedAccounts`)
+  before every send and every funding, and fails closed on any RPC error: a node that stops
+  answering sends nothing.
+- `?chain=` must be the link `serveDeployment` prints. It is compared with the deployment's
+  `node_url` as written, so `localhost` in place of `127.0.0.1`, or a trailing slash, is refused as
+  "deployment of another node".
+- A refusal of the guard reaches the screen as `AccountError` with the cause `ChainRefused`, and the
+  panel shows the guard's own line. A send never goes through `Opened.rpc`: every execution is the
+  guarded provider's.
+
 ### The batch and its preview (CLI-11b)
 
 The batch of the chain mode and the three stages of its preview, as logic with no screen. CLI-11c
-draws them.
+(below) draws them.
 
 - `batch.ts` holds the planned actions and applies where a batch ends. It counts nothing itself:
   10 actions is the encoding's bound, and the chain's stops come from the preview. `Stop.Weight`
@@ -176,7 +188,9 @@ draws them.
   counted from the sequence's move. When that count cannot be known, because the read fails, the
   execution has not settled, or the move is more than the batch, the whole plan is dropped. The
   panel then says "sent, result unreadable", never that the batch was not sent, so `B` never plays
-  the same actions twice.
+  the same actions twice. One consequence (review t-0237): after an `unread` send, `recover` drops
+  every path step of the rest, including an unfit one that `afterSend` would have kept; a send that
+  settled with the sequence unmoved keeps the whole plan.
 - "No funds" is the provider's refusal with RPC code 54, `INSUFFICIENT_ACCOUNT_BALANCE`, and
   nothing else. It was observed on starknet-devnet 0.10.0 through starknet.js 10.8.0 (`RpcError`,
   the `cause` of the burner's `AccountError("refused")`), from an account drained below the fee:
@@ -185,3 +199,43 @@ draws them.
   the minimal transaction fee", came from bounds set too low or priced past the balance from a
   funded account. It says the bounds, not the funds, so it reads as a plain refusal. No message is
   read.
+
+### The chain screen (CLI-11c)
+
+`ChainScreen.tsx` draws what 11a and 11b hold. `?chain=` opens the sandbox's own renderer on the
+instance the chain holds, and a panel under it. Nothing on the map speaks of the chain; the panel is
+a developer's tool and says "batch", "simulated" and "sent".
+
+- **The world** (`world.ts`, §6.2). `chainWorld` builds a `SandboxWorld` from the view and the
+  region: a revealed chunk's tiles from its walls, an unrevealed chunk as the sandbox's unrevealed
+  kind, a void chunk as wall over water, the members from their state words (tile and facing at
+  bits 32–55) and the goblins from theirs (bits 0–23, AI state at 24–31, caste at 64–79; the dead
+  are left out). The sight, the camera and the explored tiles are the sandbox's. The map is
+  mounted again only when a new chain state is installed (the start, each sent batch, entering
+  again); between two sends stage 1 is a layer of ghost markers over it: one ring per move of the
+  batch, and the tile and facing the mirror predicts for the adventurer. With no prediction, the
+  panel says "not mirrored: <reason>" in the mirror's words, and the map shows the rings only.
+- **Inputs** (`ChainController.ts`, §4.1). A tap on a floor tile far away is one `move` per step of
+  the wiring's path, planned on the world, from the tile where the batch's moves end; a tap on a
+  neighbour, or a step key (`Q W E A S D`, the arrows), is one `move`; `Space` is `wait`; `R` then a
+  step key is a `turn`; a first tap on a goblin selects it (the sandbox's arcs), a second one is
+  `attack` on its entity. The controller decides no legality: the preview says how far the batch
+  plays. `L` and the Fate actions do nothing, with one line. `sandbox/wiring.ts` exports the three
+  helpers the path needs (`planPath`, `tileToward`, `directionBetween`), so it stays the only
+  importer of `placeholders.ts`.
+- **Keys** (`input/keys.ts`). A table of its own, `CHAIN_BINDINGS`, read on the instance screen
+  before `BINDINGS`: `Space`, `R`, `B` (send) and `N` (enter again, once the instance closed). The
+  sandbox's own screens leave these commands to the page, and its key help does not list them.
+- **The panel** (`ChainPanel.tsx`, §5). The batch, then the three stages as each becomes known: the
+  mirror's at once, the simulation's 300 ms after the last input and at once on `B`, the sent
+  batch's beside it; the fields where the mirror, the simulation or the sent outcome differ; one
+  line (a refusal, "no funds", "the instance closed"). `B` sends only after the simulation of the
+  exact batch shown has answered. `describe` is the whole of what it says, as data.
+- **Not in part 1** (§6.3): no optimistic display, no rewind, no kept actions, no recovery beyond a
+  fresh read.
+
+To see it work, in a node that lives for one command, after the classes are built:
+`pnpm --filter @grimworld/app verify:chain`. `verify-chain.mjs` deploys, opens `?chain=`, plays a
+Wait with `Space`, sends it with `B`, checks the three stages (the sent outcome equal to the
+simulated one, no field differing) and that no log, page or URL holds the burner's key, and
+captures the panel at each stage into `VERIFY_SHOTS_DIR`.
