@@ -285,9 +285,10 @@ the instance is open) and an instance that is not a sealed Red Rift; it reads no
 tile. The seeded test zone meets them. It closes the instance (`Outcome::Returned`, through
 `Instances.close`) and puts the adventurer in its last hub, the start hub, which is gate 1's source,
 so the re-entry is `set_build` then `enter` with no `travel`. `travel_back` is a node-test step
-only: part 1's screen does not send it (`L` and travelling back stay out, §4.1). `leave` is not
-used, because it needs the adventurer on a hub gate's anchor (`can_leave`, `contracts/logic/src/models/gate.cairo`), which the seeded
-zone does not place it on.
+only: part 1's screen does not send it (`L` and travelling back stay out, §4.1). `leave` would
+work too: the seed puts the adventurer on gate 2's anchor at entry, so `can_leave`
+(`contracts/logic/src/models/gate.cairo`) holds before the first move. `travel_back` is used
+because it needs no position.
 
 **Why.** No key of the deployment is ever needed in the browser. The views make a reload resume
 without any state kept beside the key, and sending `set_build` before every `enter` is what makes a
