@@ -5,10 +5,14 @@
 // member, the header, the revealed set, each chunk's words and its goblin records) and the events
 // are equal (design/02: a batch is its actions sent as single batches). The registry, the
 // randomness and the hub are `test_lifecycle`'s doubles, declared by name.
+use core::num::traits::Zero;
 use grimworld_ephemeral::models::instance::Header;
 use grimworld_ephemeral::models::member::MemberState;
 use grimworld_ephemeral::probes::{IReuseProbeDispatcher, IReuseProbeDispatcherTrait};
-use grimworld_ephemeral::systems::instances::{IInstancesDispatcher, IInstancesDispatcherTrait};
+use grimworld_ephemeral::systems::instances::{
+    IInstancesAdminDispatcher, IInstancesAdminDispatcherTrait, IInstancesDispatcher,
+    IInstancesDispatcherTrait, play_class,
+};
 use grimworld_logic::actions::Action;
 use grimworld_logic::content::{CASTE, GATE, LOCATION, PACK, REGION};
 use grimworld_logic::interface::{IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait};
@@ -36,6 +40,7 @@ trait IRecords<T> {
 }
 
 const ADMIN: felt252 = 0xad;
+const GOBLINS: u8 = play_class::GOBLINS;
 const TOWN: u16 = 1;
 const ZONE: u16 = 2;
 /// The `Stop` variants `BatchPlayed` carries.
@@ -659,4 +664,28 @@ fn test_records_written_none_warm() {
 #[available_gas(l2_gas: 98762181)] // ceil(1.05 × 94059220 measured)
 fn test_records_written_96_warm() {
     warm_probe(96).write(0, 192, LIVE + 1);
+}
+
+/// `setup()`'s world with the goblin loader's class (`play_class::GOBLINS`, key 6) unset again.
+fn goblins_unset() -> World {
+    let world = world_of(0);
+    start_cheat_caller_address(world.instances, addr(ADMIN));
+    IInstancesAdminDispatcher { contract_address: world.instances }
+        .set_play_class(GOBLINS, Zero::zero());
+    world
+}
+
+// #448's review (note 1): while `play_class::GOBLINS` is unset, `instance_state` never reverts: it
+// lists no goblins (the control: with the class set, the same instance lists them). `play` itself
+// reverts there (its content round library-calls class 0), but snforge aborts the test on an
+// undeclared class, outside `should_panic` and the safe dispatcher alike: not testable here.
+#[test]
+#[available_gas(l2_gas: 145184723)] // ceil(1.05 × 138271165 measured)
+fn test_instance_state_goblins_class_unset() {
+    let world = world_of(0);
+    let view = IInstancesDispatcher { contract_address: world.instances }.instance_state(world.id);
+    assert(view.goblins.len() > 0, 'control: goblins listed');
+    let world = goblins_unset();
+    let view = IInstancesDispatcher { contract_address: world.instances }.instance_state(world.id);
+    assert(view.goblins.len() == 0, 'no goblins while unset');
 }

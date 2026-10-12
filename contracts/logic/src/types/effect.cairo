@@ -467,8 +467,9 @@ pub impl EntryAssert of EntryAssertTrait {
     /// entry); a `DAMAGE` entry before every other entry but `TRAP`; at most one holding entry;
     /// hit modifiers only with a hit and on its addressing, shape and filter, `ATTACK_BONUS` only
     /// in an attack; an attack's entries all `FOE`, `SINGLE`; a `TRAP` entry first, `TILE`,
-    /// `SINGLE`, its payload `FOE`, `SINGLE`; `DISC_1` only in a potion; no `DISC_2`, `DISC_3` in
-    /// the MVP's content; a potion's entry does not scale.
+    /// `SINGLE`, its payload `FOE`, `SINGLE`; no `TILE` entry
+    /// beside a `FOE` or `ALLY` one, `TRAP` and `SELF` aside (D-271); `DISC_1` only in a potion; no
+    /// `DISC_2`, `DISC_3` in the MVP's content; a potion's entry does not scale.
     fn assert_carrier(entries: Span<Entry>, carrier: Carrier) {
         let mut ended = false;
         let mut hit: Option<Entry> = Option::None;
@@ -476,6 +477,8 @@ pub impl EntryAssert of EntryAssertTrait {
         let mut modifier = false;
         let mut bonus = false;
         let mut trap = false;
+        let mut tiles = false;
+        let mut entities = false;
         let mut index: u32 = 0;
         for entry in entries {
             entry.assert_legal();
@@ -503,6 +506,14 @@ pub impl EntryAssert of EntryAssertTrait {
                     trap = true;
                 } else if trap {
                     assert(*entry.target == target::FOE && s == shape::SINGLE, errors::PAYLOAD);
+                }
+                // D-271: the cast address is a tile or an entity id, never both. `TRAP` (a tile
+                // by design) and `SELF` (the caster, whatever the address) do not read it.
+                if k != kind::TRAP {
+                    let t = *entry.target;
+                    tiles = tiles || t == target::TILE;
+                    entities = entities || t == target::FOE || t == target::ALLY;
+                    assert(!(tiles && entities), errors::MIXED_TARGETS);
                 }
                 if k == kind::DAMAGE {
                     assert(carrier != Carrier::Attack && hit.is_none(), errors::TWO_HITS);

@@ -1077,7 +1077,7 @@ fn spell_of(entries: [Entry; 3]) -> Span<felt252> {
 // kind); `SELF` resolves to the caster, whatever the address, so it mixes with `TILE`; a `TRAP`
 // with its `FOE` payload stays legal.
 #[test]
-#[available_gas(l2_gas: 20000000)]
+#[available_gas(l2_gas: 16750865)] // ceil(1.05 × 15953204 measured)
 fn test_set_record_mixed_targets() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1107,12 +1107,8 @@ fn test_set_record_mixed_targets() {
     assert_accepted(
         try_write(r, SKILL, spell_of([hit(target::TILE), inflict(target::TILE), none])),
     );
-    assert_accepted(
-        try_write(r, SKILL, spell_of([hit(target::FOE), heal(target::ALLY), none])),
-    );
-    assert_accepted(
-        try_write(r, SKILL, spell_of([hit(target::TILE), heal(target::SELF), none])),
-    );
+    assert_accepted(try_write(r, SKILL, spell_of([hit(target::FOE), heal(target::ALLY), none])));
+    assert_accepted(try_write(r, SKILL, spell_of([hit(target::TILE), heal(target::SELF), none])));
     assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), none])));
     assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), inflict(target::FOE)])));
 }

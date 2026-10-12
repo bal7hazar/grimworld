@@ -22,8 +22,8 @@ use grimworld_logic::models::location::{
 };
 use grimworld_logic::models::outline::{OutlineRecord, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
-use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota_kind};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
 use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::types::combat::{condition, damage, skill_kind};
@@ -853,7 +853,7 @@ fn test_refuse_pack_fewest_zero() {
 // R-44 (CARRIER-01, D-271): a skill whose non-`TRAP` entries mix a `TILE` target with a `FOE` or
 // `ALLY` one, new, is refused at registration: the carry reads the cast address as one kind.
 #[test]
-#[available_gas(l2_gas: 20000000)]
+#[available_gas(l2_gas: 7957831)] // ceil(1.05 × 7578886 measured)
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_mixed_targets() {
     let r = ZoneFixture::bare();

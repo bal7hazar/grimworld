@@ -138,6 +138,16 @@
    "converter": "The converter writes authored zones only and cannot produce the record: GateRecord::pack refuses an entry chunk of 225 or more before any felt exists"
   },
   {
+   "case": "carrier_mixed_targets",
+   "id": "R-44",
+   "code": "carrier: mixed targets",
+   "checked_at": "SKILL",
+   "reads": "—",
+   "rule": "A carrier's non-TRAP entries do not mix a TILE target with a FOE or ALLY one: the carry reads the cast address as a tile or as an entity id, not both (D-271, CARRIER-01); TRAP with its FOE payload, all-TILE, all-entity and TILE with SELF stay legal",
+   "mutation": "a spell whose first entry is a DAMAGE on a TILE and whose second is a CONDITION on a FOE",
+   "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
+  },
+  {
    "case": "pack_fewest_zero",
    "id": "R-42",
    "code": "pack: fewest is 0",
