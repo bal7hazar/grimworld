@@ -8,9 +8,10 @@ import type { Facing } from "../render/view";
  *
  * Positions are read from `event.code` (the physical key: an AZERTY keyboard gets the same block
  * and its digits without Shift), symbols from `event.key`. A digit by position never zooms
- * (D-284): where the key printed `-` is `Digit6` (AZERTY), it is skill 6 in an instance and
- * service 6 in a hub; zoom keeps `Minus`, `Equal` and the keypad's keys by code, and the
- * characters `+`, `-` and `=` from any other code. A key held with Ctrl, Meta or Alt is the
+ * (D-284, D-287): where the key printed `-` is `Digit6` (AZERTY), it is skill 6 in an instance
+ * and service 6 in a hub; a shifted digit is never a skill or a service, and zooms when it
+ * prints `+`, `-` or `=` (Turkish Q's Shift+`4`). Zoom keeps `Minus`, `Equal` and the keypad's
+ * keys by code, and the characters `+`, `-` and `=` from any other code. A key held with Ctrl, Meta or Alt is the
  * browser's; an auto-repeat or a composition is nothing (one press, one hex).
  */
 
@@ -172,7 +173,8 @@ export const BINDINGS: readonly Binding[] = [
     screens: MAP,
     matches: [
       // The character first, so a layout that prints `-` on the code `Equal` (Mac French and
-      // Belgian AZERTY, Turkish Q) zooms out; the codes are the fallback (AZERTY's `)` and `=`).
+      // Belgian AZERTY, Turkish Q) zooms out, and so does a shifted digit that prints `+`
+      // (Turkish Q's Shift+`4`, D-287); the codes are the fallback (AZERTY's `)` and `=`).
       { key: "+", command: { kind: "zoom", by: 1 } },
       { key: "=", command: { kind: "zoom", by: 1 } },
       { key: "-", command: { kind: "zoom", by: -1 } },
@@ -259,13 +261,16 @@ export const CHAIN_BINDINGS: readonly Binding[] = [
   },
 ];
 
-/** The characters that zoom; a press whose code is a digit never matches them (D-284). */
+/** The characters that zoom; an unshifted press whose code is a digit never matches them (D-287). */
 const ZOOM_CHARS = ["+", "-", "="];
 
 function matches(match: KeyMatch, event: KeyLike): boolean {
   if (match.key !== undefined) {
-    // AZERTY's `6` prints `-`: a digit by position is a skill or a service, never a zoom.
-    if (ZOOM_CHARS.includes(match.key) && event.code.startsWith("Digit")) return false;
+    // AZERTY's unshifted `6` prints `-`: an unshifted digit is a skill or a service, never a zoom.
+    // Shifted, the digit prints what it prints (Turkish Q's Shift+4 is `+`), and that zooms.
+    if (ZOOM_CHARS.includes(match.key) && event.code.startsWith("Digit") && !event.shiftKey) {
+      return false;
+    }
     return match.key === event.key;
   }
   return match.code === event.code && event.shiftKey === (match.shift ?? false);
