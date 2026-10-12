@@ -696,7 +696,9 @@ fn test_seed_written_and_read_back() {
     // SEED-02: the skills `buy_skill` sells to the devnet adventurer (a Vanguard, profession 1):
     // an activation skill, a trap and a REGENERATION skill, each a legal carrier.
     let wind = Record::<Skill>::unpack(felts.slice(24, 2));
-    assert(wind.profession == 1 && wind.activation >= 1 && wind.count() == 1, 'skill 2: activation');
+    assert(
+        wind.profession == 1 && wind.activation >= 1 && wind.count() == 1, 'skill 2: activation',
+    );
     let snare = Record::<Skill>::unpack(felts.slice(26, 2));
     assert(snare.kind == skill_kind::TRAP && snare.count() == 3, 'skill 3: a trap');
     let [trap, _, _] = snare.entries;
