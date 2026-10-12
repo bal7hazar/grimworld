@@ -320,7 +320,10 @@ blue row's portraits `portrait_vanguard` (Avatars 01, the Warrior's plumed helm)
 `portrait_warden` (Avatars 03, the Archer's nasal helm) and `portrait_cleric` (Avatars 04, the
 Monk's tonsure), and the desktop's cursors `cursor_arrow` and `cursor_hand`. A bar's `content` is
 its trough: the fill lies there. The client loads them apart (`HUD_ENTRIES`): a missing one drops
-only the HUD to its plain look, never the chrome.
+only the HUD to its plain look, never the chrome. The combat screen (CLI-05c) adds
+`bar_small_fill_health` (the same small fill in the pack's own red, not recoloured: the target's
+health) and uses `square_blue` for the bar's and belt's slots; the client loads each of these two
+on its own (`COMBAT_ENTRIES`): one missing draws only what uses it plain.
 
 To add one: describe its sheet's lattice, run the build, read the element's line (size, edge,
 centre colour), choose the smallest slices that keep the whole border and corner drawing, and use

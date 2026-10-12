@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { UiSlices } from "../render/sprites";
 import {
   CHROME_ENTRIES,
+  COMBAT_ENTRIES,
   HUD_ENTRIES,
   PORTRAIT_SIZES,
   type ChromeImages,
@@ -27,11 +28,11 @@ function fakeAtlas(names: readonly string[] = CHROME_ENTRIES) {
   const frames: Record<string, { frame: Frame }> = {};
   let x = 0;
   for (const name of names) {
-    const pressed = name.startsWith("button_") || name === "round_blue";
+    const pressed = name.startsWith("button_") || name === "round_blue" || name === "square_blue";
     const cell = name.startsWith("portrait_") ? { w: 197, h: 182 } : { w: 40 + x / 10, h: 30 };
     const ui: UiSlices = {
       kind:
-        /^(icon_|portrait_|cursor_|bar_.*_fill)/.test(name) || name === "round_blue"
+        /^(icon_|portrait_|cursor_|bar_.*_fill|square_)/.test(name) || name === "round_blue"
           ? "still"
           : "nine",
       fill: "stretch",
@@ -285,5 +286,44 @@ describe("the HUD's images (CLI-03l AC-3)", () => {
     expect(revoked).toEqual(first.urls);
     expect(applied[1]!.hud!.portraits.get("portrait_vanguard")!.get(48)!.w).toBe(144);
     session.destroy();
+  });
+
+  it("cuts the combat screen's elements apart from the chrome and the HUD (CLI-05c)", async () => {
+    const { loaders, cuts } = fakeLoaders(served([...ALL, ...COMBAT_ENTRIES]));
+    const images = (await loadChrome("/art/", 2, loaders))!;
+    expect([...images.entries.keys()]).toEqual([...CHROME_ENTRIES]);
+    expect(images.hud).not.toBeNull();
+    expect([...images.combat.keys()]).toEqual([...COMBAT_ENTRIES]);
+    expect(images.combat.get("square_blue")!.urls.pressed).toMatch(/^blob:/);
+    expect(cuts).toHaveLength(images.urls.length);
+    const css = chromeProperties(images);
+    expect(css["--gw-square-blue"]).toMatch(/^url\("blob:\d+"\)$/);
+    expect(css["--gw-square-blue-pressed"]).toMatch(/^url\("blob:\d+"\)$/);
+    expect(css["--gw-bar-small-fill-health"]).toMatch(/^url\("blob:\d+"\)$/);
+  });
+
+  it("keeps the chrome, the HUD and the other combat element when one is missing", async () => {
+    // The site's atlas before `bar_small_fill_health` is built: the slots keep their frame.
+    const { loaders } = fakeLoaders(served([...ALL, "square_blue"]));
+    const images = (await loadChrome("/art/", 1, loaders))!;
+    expect(images.entries.size).toBe(CHROME_ENTRIES.length);
+    expect(images.hud).not.toBeNull();
+    expect([...images.combat.keys()]).toEqual(["square_blue"]);
+    expect(chromeProperties(images)["--gw-bar-small-fill-health"]).toBeUndefined();
+  });
+
+  it("revokes only a failed combat element's URLs", async () => {
+    const json = served([...ALL, ...COMBAT_ENTRIES]);
+    const page = json["/art/atlas-ui-0.json"] as { frames: Record<string, { frame: Frame }> };
+    page.frames["square_blue/pressed/00"] = { frame: { x: 0, y: 0, w: 1, h: 1 } };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { loaders, cuts, revoked } = fakeLoaders(json);
+    const images = (await loadChrome("/art/", 2, loaders))!;
+    expect(images.hud).not.toBeNull();
+    expect([...images.combat.keys()]).toEqual(["bar_small_fill_health"]);
+    expect(revoked).toHaveLength(1);
+    expect(images.urls.length + revoked.length).toBe(cuts.length);
+    expect(String(error.mock.calls[0]?.[0])).toContain("square_blue could not be cut");
+    error.mockRestore();
   });
 });

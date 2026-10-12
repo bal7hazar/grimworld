@@ -50,6 +50,16 @@ export const HUD_ENTRIES = [
 
 export type HudEntryName = (typeof HUD_ENTRIES)[number];
 
+/**
+ * The combat screen's elements (CLI-05 brief §8): the bar's and belt's slot frame (`square_blue`,
+ * regular and pressed) and the target's small red fill (`bar_small_fill_health`). Each is loaded
+ * on its own: one missing or failing leaves only what draws it plain (a `sprites.json` built
+ * before `bar_small_fill_health` still frames the slots).
+ */
+export const COMBAT_ENTRIES = ["square_blue", "bar_small_fill_health"] as const;
+
+export type CombatEntryName = (typeof COMBAT_ENTRIES)[number];
+
 /** The portraits' entries by profession; the Arcanist has none (no caster in the pack, Q-12). */
 export const PORTRAITS: Readonly<Record<Profession, HudEntryName | null>> = {
   vanguard: "portrait_vanguard",
@@ -94,6 +104,8 @@ export interface ChromeImages {
   readonly entries: ReadonlyMap<ChromeEntryName, ChromeEntry>;
   /** The HUD's images, or null: the HUD draws plain (a stale `sprites.json`, a failed cut). */
   readonly hud: HudImages | null;
+  /** The combat screen's elements that were cut; one absent draws plain. */
+  readonly combat: ReadonlyMap<CombatEntryName, ChromeEntry>;
   /** Every object URL made, to revoke when the images are replaced or dropped. */
   readonly urls: readonly string[];
 }
@@ -168,7 +180,8 @@ export const browserLoaders: ChromeLoaders<HTMLImageElement> = {
  * The chrome's images at a pixel ratio, or null: no `sprites.json`, a refused one, no `ui` page,
  * an element of `CHROME_ENTRIES` missing, a frame that is not its element's whole cell, or a load
  * that fails. The URLs made before a failure are revoked. The HUD's (`HUD_ENTRIES`) follow in the
- * same pass; any of those failing leaves `hud` null and revokes only the HUD's URLs.
+ * same pass; any of those failing leaves `hud` null and revokes only the HUD's URLs. The combat
+ * screen's (`COMBAT_ENTRIES`) too, each on its own: one missing or failing is left out of `combat`.
  */
 export async function loadChrome<Image>(
   base: string,
@@ -292,12 +305,19 @@ export async function loadChrome<Image>(
       cursors: { arrow: (cursorValues as string[])[0]!, hand: (cursorValues as string[])[1]! },
     };
   }
+  // The combat screen's elements, each apart: its URLs are revoked alone when it fails.
+  const combatNames = COMBAT_ENTRIES.filter((name) => index.sprites[name]?.ui);
+  const combatUrls = combatNames.map(() => [] as string[]);
+  const combatLoad = Promise.allSettled(
+    combatNames.map((name, i) => element(combatUrls[i]!, name)),
+  );
   const [chromeDone, hudDone] = await Promise.allSettled([chrome, hudLoad]);
+  const combatDone = await combatLoad;
   if (chromeDone.status === "rejected") {
     console.error(
       `[chrome] the UI page could not be cut (${String(chromeDone.reason)}); plain look`,
     );
-    for (const url of [...chromeUrls, ...hudUrls]) loaders.revoke(url);
+    for (const url of [...chromeUrls, ...hudUrls, ...combatUrls.flat()]) loaders.revoke(url);
     return null;
   }
   const entries = new Map(CHROME_ENTRIES.map((name, i) => [name, chromeDone.value[i]!]));
@@ -310,7 +330,19 @@ export async function loadChrome<Image>(
   } else {
     hud = hudDone.value;
   }
-  return { dpr, entries, hud, urls: [...chromeUrls, ...(hud ? hudUrls : [])] };
+  const combat = new Map<CombatEntryName, ChromeEntry>();
+  const kept: string[] = [];
+  combatDone.forEach((done, i) => {
+    const name = combatNames[i]!;
+    if (done.status === "fulfilled") {
+      combat.set(name, done.value);
+      kept.push(...combatUrls[i]!);
+    } else {
+      console.error(`[chrome] ${name} could not be cut (${String(done.reason)}); drawn plain`);
+      for (const url of combatUrls[i]!) loaders.revoke(url);
+    }
+  });
+  return { dpr, entries, hud, combat, urls: [...chromeUrls, ...(hud ? hudUrls : []), ...kept] };
 }
 
 /**
@@ -334,11 +366,16 @@ const cssName = (name: string) => name.replace(/_/g, "-");
  * the image (`url(…)`) and `-pressed`, `-slice` (image px), `-width` and `-pad` (CSS px, top right
  * bottom left), `-w` and `-h` (the image's CSS size), `-drop`, `-min-w` and `-min-h` (the slices'
  * sums); and `--gw-px`, one device pixel. With the HUD's images, the same for its bars, fills and
- * sword, and `--gw-cursor-arrow` and `--gw-cursor-hand` (whole `cursor` values).
+ * sword, and `--gw-cursor-arrow` and `--gw-cursor-hand` (whole `cursor` values); the same for the
+ * combat screen's elements that were cut.
  */
 export function chromeProperties(images: ChromeImages): Record<string, string> {
   const out: Record<string, string> = { "--gw-px": px(1 / images.dpr) };
-  const all: [string, ChromeEntry][] = [...images.entries, ...(images.hud?.entries ?? [])];
+  const all: [string, ChromeEntry][] = [
+    ...images.entries,
+    ...(images.hud?.entries ?? []),
+    ...images.combat,
+  ];
   if (images.hud) {
     out["--gw-cursor-arrow"] = images.hud.cursors.arrow;
     out["--gw-cursor-hand"] = images.hud.cursors.hand;

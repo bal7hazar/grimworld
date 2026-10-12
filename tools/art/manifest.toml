@@ -1283,6 +1283,13 @@ origin = "Small bar, the fill recoloured blue (the big blue button's face)"
 recolour = { "#ff3e3e" = "#41919d" }
 
 [[ui]]
+name = "bar_small_fill_health"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Bars/SmallBar_Fill.png"
+origin = "Small bar, the fill in the pack's red, not recoloured: the combat screen's target (CLI-05c)"
+
+[[ui]]
 name = "icon_sword"
 role = "ui"
 kind = "still"
