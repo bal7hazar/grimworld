@@ -182,7 +182,7 @@ function SkillSlot({
   }
   const name = skill.name ?? `Skill ${skill.id}`;
   const greyed = state === "wrong-weapon" || state === "unavailable";
-  const dark = state === "recharging";
+  const dark = state === "recharging" || state === "activating";
   const ticks = slot.ticks ?? 0;
   const spent = activation ? (activation.total - activation.ticks) / activation.total : 0;
   const words = [

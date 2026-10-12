@@ -22,7 +22,8 @@
 // (phone) arms Charge, `Esc` disarms it; a potion addressed to Wren plays on the second tap (its
 // count drops by one and the log says so). Every slot is at least 44 CSS px; nothing passes the
 // viewport's sides; no page error. The shots: the screen at rest (the hobgoblin selected), a slot
-// armed on a FOE skill (Charge), and Wren activating Charge.
+// armed on a FOE skill (Charge), and Wren activating Charge; and the rest at the lowest zoom
+// (`far`), where the ring's digit must stay readable.
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -253,11 +254,53 @@ async function pass(browser, size) {
   await frames(page);
   await shot(page, "rest", size);
 
+  // The lowest zoom (the most tiles across): zoomed out by its key until the scale stops moving,
+  // the hobgoblin's ring and its digit drawn there (review t-0260, note 3).
+  const scaleOf = async () =>
+    Number(
+      (
+        await page
+          .locator('[data-screen="instance"] [data-camera]')
+          .first()
+          .getAttribute("data-camera")
+      ).split(" ")[2],
+    );
+  let scale = await scaleOf();
+  for (let i = 0; i < 40; i += 1) {
+    await page.keyboard.press("Minus");
+    await page.waitForTimeout(60);
+    const next = await scaleOf();
+    if (Math.abs(next - scale) < 1e-9) break;
+    scale = next;
+  }
+  await page.waitForTimeout(400);
+  await frames(page);
+  console.log(`  ${label}: lowest zoom, ${scale.toFixed(3)} CSS px per art px`);
+  await shot(page, "far", size);
+  if (args.shots) {
+    // The ring and its digit at that zoom, cropped around the hobgoblin, at the screen's own pixels.
+    const room = page.locator('[data-screen="instance"] [data-camera]').first();
+    const [x, y, k] = (await room.getAttribute("data-camera")).split(" ").map(Number);
+    const box = await room.boundingBox();
+    const p = tileToPixel(HOBGOBLIN);
+    const cx = box.x + x + p.x * k;
+    const cy = box.y + y + p.y * k;
+    const path = join(args.shots, `combat-far-ring-${size.name}${args.plain ? "-plain" : ""}.png`);
+    await page.screenshot({ path, clip: { x: cx - 60, y: cy - 60, width: 120, height: 120 } });
+    console.log(`  shot ${path}`);
+  }
+  // Back to the default zoom, the hobgoblin selected again.
+  await open(page, "fight");
+  await tapHex(page, HOBGOBLIN);
+  await page.locator('section[aria-label="Target"][data-target="8"]').waitFor({ timeout: 5000 });
+
   // A slot not ready says its line and arms nothing.
   await page.locator('[data-slot="1"]').click();
   m = await page.evaluate(measure);
   ok(m.said === "Recharging: 3 ticks.", `${label}: ${m.said}`);
   ok(!m.armed.some(Boolean), `${label}: nothing armed`);
+  // The refused slot keeps no focus ring in the next shot (it would read as a second armed slot).
+  await page.evaluate(() => document.activeElement?.blur?.());
 
   // Charge armed (a FOE skill): by its key on desktop, by a tap on the phone.
   if (size.desktop) await page.keyboard.press("3");
