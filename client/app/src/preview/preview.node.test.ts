@@ -247,8 +247,9 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
   }, 120_000);
 
   it("surfaces a reverted batch with the chain's own reason, and the real send is refused", async () => {
-    // Adventurer 2 does not exist: the admission's controller check panics
-    const input = { ...(await target(2)), actions: [WAIT] };
+    // Adventurer 1,000,000 does not exist (no test creates it; the chain mode's node test creates
+    // adventurer 2): the admission's controller check panics
+    const input = { ...(await target(1_000_000)), actions: [WAIT] };
     const sim = simulator();
     let simulated: InvokeTrace | undefined;
     const preview = await previewBatch(input, {
@@ -416,7 +417,7 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
       out,
       [
         "// Recorded by preview.node.test.ts (PREVIEW_RECORD) on starknet-devnet, OPS-01a's deployment:",
-        "// a Wait of adventurer 1 at sequence 0, and the same batch for adventurer 2, which reverts.",
+        "// a Wait of adventurer 1 at sequence 0, and the same batch for adventurer 1,000,000, which reverts.",
         `// The world is the deployment's (its entropy), goblins listed: ${listed}; the mirror on it: ${mirrored}.`,
         "// Trimmed to what extractOutcome reads; no key (the test checks). Do not edit by hand.",
         'import type { InvokeTrace } from "./trace";',

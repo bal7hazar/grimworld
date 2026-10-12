@@ -147,11 +147,11 @@ describe("the vendor stays inside", () => {
     expect(importers).toEqual(["./starknet.ts"]);
   });
 
-  it("nothing else in the app imports it but the chain door of NS-1", () => {
+  it("nothing else in the app imports it (CLI-11a deleted NS-1's chain door, src/chain.ts)", () => {
     const importers = Object.entries(app)
       .filter(([, text]) => IMPORTS_STARKNET.test(text))
       .map(([path]) => path);
-    expect(importers).toEqual(["../chain.ts"]);
+    expect(importers).toEqual([]);
   });
 
   it("no type the module exports reaches a type of the library", () => {
