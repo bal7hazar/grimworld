@@ -24,9 +24,14 @@ checks run on a stub node: it refuses a chain id that is not a local devnet's, a
 a non-local URL, and sends nothing then; on a devnet it credits exactly the four skills' price, restores
 `Hub.instances` and fails when the read-back is not the `Instances` address. The Keccak behind the storage
 key is checked against a known selector.
+
+SMOKE-CI (D-290): the potion words of the seed (`seed_records.item` and `regeneration_item`) are compared with
+`SEED_HEAL` and `SEED_REGEN`, parsed from `contracts/logic/src/types/action.cairo`; the job `devnet-smoke` of
+`.github/workflows/ci.yml` runs this file.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -141,12 +146,38 @@ def check_gold_harness():
         0x83afd3f4caedc6eebf44246fe54e38c95e3179a5ec9ea81740eca5b482d12e
     assert devnet_deploy.keccak256(b"").hex() == \
         "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
-    # SEED-02 fix loop 1: the potions' entries carry filter ALLIES (bit 91), the words
-    # `action.cairo`'s `test_seed_potions_drunk` drinks
+    # SEED-02 fix loop 1, SMOKE-CI (D-290): the potions' entries carry filter ALLIES (bit 91), the words
+    # `action.cairo`'s `test_seed_potions_drunk` drinks. They are parsed from the Cairo constants, so a seed
+    # drift (or an edit of the test's words) fails here, in CI.
     from seed_records import item, regeneration_item, POTION
-    assert item(POTION)[0] >> 128 & ((1 << 120) - 1) == 0x90000000000001400140003
-    assert regeneration_item()[0] >> 128 & ((1 << 120) - 1) == 0x90000280028000300030005
+    check_potion_words(item(POTION)[0], regeneration_item()[0], cairo_potion_words())
     print("devnet_deploy smoke (gold harness, stub nodes): ok")
+
+
+ACTION_CAIRO = os.path.join(ROOT, "contracts", "logic", "src", "types", "action.cairo")
+ALLIES = 1 << 91  # the filter bit of a potion's entry: the source is its own ally
+
+
+def cairo_potion_words():
+    """`SEED_HEAL` and `SEED_REGEN` of action.cairo (the drink test's hard-coded words), parsed."""
+    with open(ACTION_CAIRO, encoding="utf-8") as f:
+        text = f.read()
+    words = {}
+    for name in ("SEED_HEAL", "SEED_REGEN"):
+        found = re.findall(rf"const {name}: u128 = (0x[0-9a-fA-F_]+);", text)
+        assert len(found) == 1, f"{name} not found once in {ACTION_CAIRO}: {found}"
+        words[name] = int(found[0].replace("_", ""), 16)
+    return words
+
+
+def check_potion_words(heal, regen, cairo):
+    """The seed's potion entries (`seed_records.item` word 0 >> 128, 120 bits) against the Cairo constants,
+    and the ALLIES bit (91) set in both."""
+    mask = (1 << 120) - 1
+    for name, seed in (("SEED_HEAL", heal), ("SEED_REGEN", regen)):
+        word = seed >> 128 & mask
+        assert word == cairo[name], f"{name}: seed {word:#x}, action.cairo {cairo[name]:#x}"
+        assert word & ALLIES, f"{name} {word:#x}: bit 91 (ALLIES) is clear"
 
 
 def check_build(node, dep, mode):
