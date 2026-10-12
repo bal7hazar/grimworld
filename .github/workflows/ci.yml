@@ -43,6 +43,7 @@ jobs:
       art: ${{ steps.changes.outputs.art }}
       map_format: ${{ steps.changes.outputs.map_format }}
       client_node: ${{ steps.changes.outputs.client_node }}
+      devnet_smoke: ${{ steps.changes.outputs.devnet_smoke }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -343,10 +344,8 @@ jobs:
   # indexer/ (`discover` compares the tree with the base; D-153's grant), or when the base is
   # unknown, for a change to a workflow or a CI helper (FND-18: those run every job), or (orchestrator's
   # decision of 2026-10-03, FND-18) for what the emitter and the node depend on: contracts/persistent/**,
-  # contracts/logic/**, the root .tool-versions, scripts/with-node.sh (.github/ci/changes.py). A change to
-  # scripts/setup-toolchain.sh alone does NOT run it: it is checked by this job at the next change above,
-  # not before
-  # (widening the trigger is with the project manager). Every version comes from `discover` (validated
+  # contracts/logic/**, the root .tool-versions, scripts/with-node.sh, scripts/setup-toolchain.sh, where the
+  # devnet pin lives (.github/ci/changes.py; CI-PINS, D-291: a bump of that file alone runs this job). Every version comes from `discover` (validated
   # there) or is pinned here and checked against the repository's pins: starknet-devnet as
   # scripts/setup-toolchain.sh pins it, its release tarball verified by sha256 before it is
   # unpacked and its binary before it is run. No secret; the network is the package registries and
@@ -471,7 +470,7 @@ jobs:
   # contracts' Scarb (`sncast declare` builds them again, single-threaded, D-176), starknet-devnet is
   # the pinned release, its tarball and binary verified by sha256. It runs only when the change touches
   # what the test reads (`client_node` of .github/ci/changes.py: client/app, client/sim, contracts/,
-  # scripts/devnet_deploy.py, scripts/with-node.sh, the root .tool-versions and the workspace's root
+  # scripts/devnet_deploy.py, scripts/with-node.sh, scripts/setup-toolchain.sh, the root .tool-versions and the workspace's root
   # files), or for a workflow or a CI helper. No secret; the node listens on 127.0.0.1 only, its
   # predeployed keys are the node's own and never printed.
   client-node:
@@ -594,6 +593,98 @@ jobs:
           scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$RUNNER_TEMP/deployment.json" &&
             GRIMWORLD_DEPLOYMENT="$RUNNER_TEMP/deployment.json" pnpm --filter @grimworld/app test:node:preview'
 
+  # SMOKE-CI (D-290): the devnet deploy smoke test (`scripts/tests/devnet_deploy_smoke.py`: OPS-01a/b, SEED-02)
+  # in CI. Modelled on `client-node` (same devnet pins and checks, `with-node.sh`, the classes built once), without
+  # Node. Runs when `devnet_smoke` of .github/ci/changes.py says so: contracts/, the deploy scripts, with-node.sh,
+  # scripts/setup-toolchain.sh, the root .tool-versions, or a workflow. The node listens on 127.0.0.1; no secret, no key printed.
+  devnet-smoke:
+    needs: discover
+    if: needs.discover.outputs.devnet_smoke == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RAYON_NUM_THREADS: "1"
+      DEVNET_VERSION: 0.10.0
+      # The same pins as `indexer-node` (a devnet bump edits both jobs, setup-toolchain.sh and
+      # .tool-versions).
+      DEVNET_TARBALL_SHA256: 0d27863ec959dc74ec6de985c3ec8eb093d6670bacd7672b51dc71ec8528969b
+      DEVNET_BINARY_SHA256: 4e2e6479fa9502f2952ed26740d5cc8ebeb3695c16e752edcc560f6e736b167c
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Scarb and snforge (whose release carries sncast) of the contracts' job, validated by
+      # discover, and the devnet pins above against the repository's.
+      - name: pins
+        id: pins
+        env:
+          PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          set -euo pipefail
+          [ "$(uname -s) $(uname -m)" = "Linux x86_64" ] || { echo "not Linux x86_64" >&2; exit 1; }
+          read -r scarb snforge < <(python3 -c 'import json, os; p = next(p for p in json.loads(os.environ["PACKAGES"]) if p["dir"] == "contracts"); print(p["scarb"], p["snforge"])')
+          [[ $scarb =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "scarb $scarb" >&2; exit 1; }
+          [[ $snforge =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "snforge $snforge" >&2; exit 1; }
+          pinned=$(awk '$1 == "starknet-devnet" { print $2 }' .tool-versions)
+          [ "$pinned" = "$DEVNET_VERSION" ] || { echo ".tool-versions pins starknet-devnet $pinned, this job $DEVNET_VERSION" >&2; exit 1; }
+          grep -qF "starknet-devnet:$DEVNET_VERSION:amd64) echo $DEVNET_BINARY_SHA256 ;;" scripts/setup-toolchain.sh ||
+            { echo "scripts/setup-toolchain.sh pins another binary hash" >&2; exit 1; }
+          echo "scarb=$scarb" >> "$GITHUB_OUTPUT"
+          echo "snforge=$snforge" >> "$GITHUB_OUTPUT"
+
+      # A registry or release download that fails (HTTP 5xx) is tried once more (FND-13).
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        id: scarb_try1
+        continue-on-error: true
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        if: steps.scarb_try1.outcome == 'failure'
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+
+      # sncast, from snforge's release archive, SHA-256 pinned (the `cairo` job's installer).
+      - name: sncast
+        env:
+          SNFORGE: ${{ steps.pins.outputs.snforge }}
+        run: bash .github/ci/install-snforge.sh
+
+      - name: toolchain is the one of .tool-versions
+        env:
+          scarb_pin: ${{ steps.pins.outputs.scarb }}
+          snforge_pin: ${{ steps.pins.outputs.snforge }}
+        run: |
+          set -euo pipefail
+          echo "$(scarb --version | head -n 1), $(sncast --version)"
+          scarb --version | grep -q "^scarb $scarb_pin " || { echo "scarb is not $scarb_pin" >&2; exit 1; }
+          sncast --version | grep -qF "$snforge_pin" || { echo "sncast is not $snforge_pin" >&2; exit 1; }
+
+      - name: starknet-devnet
+        run: |
+          set -euo pipefail
+          dir=$RUNNER_TEMP/starknet-devnet
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 --retry-delay 5 --proto '=https' --tlsv1.2 -o "$dir/devnet.tar.gz" \
+            "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v${DEVNET_VERSION}/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$DEVNET_TARBALL_SHA256  $dir/devnet.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/devnet.tar.gz" -C "$dir" starknet-devnet
+          echo "$DEVNET_BINARY_SHA256  $dir/starknet-devnet" | sha256sum -c -
+          [ "$("$dir/starknet-devnet" --version)" = "starknet-devnet $DEVNET_VERSION" ] ||
+            { echo "starknet-devnet is not $DEVNET_VERSION" >&2; exit 1; }
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: classes
+        run: scarb --manifest-path contracts/Scarb.toml build
+
+      # The smoke test deploys on its own (twice: the default build on this node, `--build full` on a node
+      # of its own) and also checks the seed's potion words against action.cairo; it is run alone, not
+      # after devnet_deploy.py. It needs the classes built above. No key is printed.
+      - name: devnet_deploy_smoke
+        run: scripts/with-node.sh python3 scripts/tests/devnet_deploy_smoke.py
+
   # The art pipeline's tests (`python -m unittest discover -s tools/art/tests`), only when a path under
   # tools/art/ changed (`art` of .github/ci/changes.py). The `assets` submodule is private and never
   # checked out (D-73), and no test reads it: they build from synthetic images (D-73). The
@@ -657,7 +748,7 @@ jobs:
   # succeeded or was skipped (a job its paths did not concern).
   result:
     name: ci result
-    needs: [discover, cairo, class-artefacts, client, indexer-node, client-node, art, map-format]
+    needs: [discover, cairo, class-artefacts, client, indexer-node, client-node, devnet-smoke, art, map-format]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2

@@ -6,7 +6,7 @@ job of .github/workflows/tooling.yml. It lists the files that differ from the ba
 outputs that each test job's `if:` reads:
 
   ci:      cairo (JSON list of the discovered packages to run, [] when none), classes, client, indexer, art,
-           map_format, client_node
+           map_format, client_node, devnet_smoke
   tooling: tooling
 
 Every changed path is classified, never guessed: the paths a job depends on are the tables below; a
@@ -85,17 +85,25 @@ IGNORED_FILES = ("*.md", "LICENSE", ".gitmodules", "assets")
 
 # The indexer-node job: the indexer, and what its emitter and its node depend on (decided by the
 # orchestrator, 2026-10-03: the emitter builds from contracts/persistent and contracts/logic, the node
-# is the pinned devnet started by with-node.sh).
+# is the pinned devnet started by with-node.sh, whose pins scripts/setup-toolchain.sh holds: CI-PINS, D-291; the
+# client-node and devnet-smoke jobs below read the same file).
 INDEXER_PREFIXES = ("indexer/", "contracts/persistent/", "contracts/logic/")
 # contracts/Scarb.toml is the workspace manifest the members inherit from; the emitter and the spikes are
 # outside the workspace and resolve through their own Scarb.lock, so contracts/Scarb.lock is not an input.
-INDEXER_FILES = (".tool-versions", "scripts/with-node.sh", "contracts/Scarb.toml")
+INDEXER_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/setup-toolchain.sh", "contracts/Scarb.toml")
 # The client-node job (CLI-10b): the preview's node test on the game deployed on starknet-devnet. It reads
 # the app and the mirror (client/sim), the game's classes and its seed records (all of contracts/: the
 # deployment builds and declares the classes and writes contracts/seed/ through contracts/tools/), the
 # deployment script and the node's script, and the workspace's root files (CLIENT_ROOT_FILES).
 CLIENT_NODE_PREFIXES = ("client/app/", "client/sim/", "contracts/")
-CLIENT_NODE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/devnet_deploy.py")
+CLIENT_NODE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/setup-toolchain.sh",
+                     "scripts/devnet_deploy.py")
+# The devnet-smoke job (SMOKE-CI, D-290): scripts/tests/devnet_deploy_smoke.py, which deploys the game on a devnet
+# (scripts/devnet_deploy.py builds on the classes of contracts/: logic, persistent, ephemeral and the seed in
+# contracts/seed/ with contracts/tools/seed_records.py) and checks the seed's potion words against action.cairo.
+DEVNET_SMOKE_PREFIXES = ("contracts/",)
+DEVNET_SMOKE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/setup-toolchain.sh", "scripts/devnet_*",
+                      "scripts/tests/devnet_deploy_smoke.py")
 # prettier checks client/ and indexer/ whatever the file type, markdown included (decided by the
 # orchestrator, 2026-10-03; reversed by a later lot that adds a .prettierignore for *.md).
 PRETTIER_PREFIXES = ("client/", "indexer/")
@@ -157,7 +165,7 @@ def under(path, folder):
 
 def classify(path, packages, closures, pins):
     """The set of tags a changed path carries: ALL, 'classes', 'client', 'indexer', 'art', 'map_format',
-    'client_node', 'tooling' and 'pkg:<dir>'. An empty set is a path that runs nothing; None is unclassified (runs everything)."""
+    'client_node', 'devnet_smoke', 'tooling' and 'pkg:<dir>'. An empty set is a path that runs nothing; None is unclassified (runs everything)."""
     if path.startswith(".github/"):
         return {ALL}
     tags = set()
@@ -170,7 +178,7 @@ def classify(path, packages, closures, pins):
     if path == ".tool-versions":
         # every package whose Scarb or snforge pin is the root's, the pnpm jobs, the tooling checks
         tags |= {f"pkg:{p['dir']}" for p in packages if pins.get(p["dir"], True)}
-        tags |= {"classes", "client", "tooling", "indexer", "client_node"}
+        tags |= {"classes", "client", "tooling", "indexer", "client_node", "devnet_smoke"}
     if not is_markdown:
         for package in packages:
             root = package["dir"]
@@ -192,6 +200,8 @@ def classify(path, packages, closures, pins):
             tags.add("indexer")
         if path.startswith(CLIENT_NODE_PREFIXES) or path in CLIENT_NODE_FILES or matches(path, CLIENT_ROOT_FILES):
             tags.add("client_node")
+        if path.startswith(DEVNET_SMOKE_PREFIXES) or matches(path, DEVNET_SMOKE_FILES):
+            tags.add("devnet_smoke")
     if tags:
         return tags
     if path.startswith(IGNORED_PREFIXES) or matches(path, IGNORED_FILES):
@@ -230,6 +240,7 @@ def decide(files, packages, closures, pins, workflow, event, base_known):
         "art": str(event == "push" or everything or "art" in tags).lower(),
         "map_format": str(event == "push" or everything or "map_format" in tags).lower(),
         "client_node": str(everything or "client_node" in tags).lower(),
+        "devnet_smoke": str(everything or "devnet_smoke" in tags).lower(),
     }
     return outputs, notes
 
@@ -453,8 +464,29 @@ def self_test():
         assert not client_node([path]), path
     assert client_node([".github/workflows/ci.yml"]) and client_node([], base_known=False)
     assert not client_node(["PLAN.md"], event="push") and client_node(["client/app/src/App.tsx"], event="push")
+    # the devnet deploy smoke test (SMOKE-CI, D-290): contracts/, the deploy scripts, the pins
+    def devnet_smoke(files, event="pull_request", base_known=True):
+        outputs, _ = decide(files, packages, closures, pins, "ci", event, base_known)
+        return outputs["devnet_smoke"] == "true"
+
+    for path in ("contracts/logic/src/types/action.cairo", "contracts/persistent/src/lib.cairo",
+                 "contracts/ephemeral/src/lib.cairo", "contracts/Scarb.toml", "contracts/Scarb.lock",
+                 "contracts/seed/test-region.json", "contracts/tools/seed_records.py",
+                 "scripts/devnet_deploy.py", "scripts/tests/devnet_deploy_smoke.py",
+                 "scripts/with-node.sh", ".tool-versions"):
+        assert devnet_smoke([path]), path
+    for path in ("client/app/src/App.tsx", "contracts/logic/GAS.md", "indexer/src/db.ts", "scripts/lock.sh",
+                 "scripts/tests/other.py", "tools/art/build.py", "docs/devnet-deploy.md", "PLAN.md"):
+        assert not devnet_smoke([path]), path
+    assert devnet_smoke([".github/workflows/ci.yml"]) and devnet_smoke([], base_known=False)
+    assert not devnet_smoke(["PLAN.md"], event="push") and devnet_smoke(["contracts/seed/x.json"], event="push")
+    # CI-PINS (D-291): the devnet pins live in scripts/setup-toolchain.sh; a bump alone runs the three devnet jobs
+    pins_only = decide(["scripts/setup-toolchain.sh"], packages, closures, pins, "ci", "pull_request", True)[0]
+    for name in ("indexer", "client_node", "devnet_smoke"):
+        assert pins_only[name] == "true", name
+    assert run(["scripts/setup-toolchain.sh"], "tooling") is True
     # no change at all runs nothing
-    assert run([]) == nothing and not client_node([])
+    assert run([]) == nothing and not client_node([]) and not devnet_smoke([])
     print("changes.py self-test: ok")
 
 

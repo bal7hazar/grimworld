@@ -111,6 +111,29 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(outputs(["PLAN.md"], event="push")["client_node"], "false")
         self.assertEqual(outputs(["client/app/src/App.tsx"], event="push")["client_node"], "true")
 
+    def test_devnet_smoke_follows_the_contracts_the_deploy_scripts_and_the_pins(self):
+        for path in ("contracts/logic/src/types/action.cairo", "contracts/seed/test-region.json",
+                     "contracts/tools/seed_records.py", "contracts/Scarb.lock", "scripts/devnet_deploy.py",
+                     "scripts/tests/devnet_deploy_smoke.py", "scripts/with-node.sh", ".tool-versions"):
+            self.assertTrue(on([path], "devnet_smoke"), path)
+
+    def test_setup_toolchain_alone_runs_the_three_devnet_jobs_and_tooling(self):
+        for job in ("indexer", "client_node", "devnet_smoke"):
+            self.assertTrue(on(["scripts/setup-toolchain.sh"], job), job)
+        out, _ = changes.decide(["scripts/setup-toolchain.sh"], PACKAGES, CLOSURES, PINS, "tooling", "pull_request", True)
+        self.assertEqual(out["tooling"], "true")
+
+    def test_devnet_smoke_skips_documents_and_other_packages(self):
+        for path in ("contracts/ephemeral/GAS.md", "client/app/src/App.tsx", "indexer/src/db.ts",
+                     "scripts/lock.sh", "docs/devnet-deploy.md", "tools/art/build.py"):
+            self.assertFalse(on([path], "devnet_smoke"), path)
+
+    def test_devnet_smoke_workflow_unknown_base_and_push(self):
+        self.assertEqual(outputs([".github/workflows/ci.yml"])["devnet_smoke"], "true")
+        self.assertEqual(outputs([], base_known=False)["devnet_smoke"], "true")
+        self.assertEqual(outputs(["PLAN.md"], event="push")["devnet_smoke"], "false")
+        self.assertEqual(outputs(["contracts/seed/x.json"], event="push")["devnet_smoke"], "true")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -31,6 +31,12 @@ JSON keys: `node_url`, `chain_id`, `commit`, `account` (address only), `classes`
 Smoke test: `scripts/with-node.sh python3 scripts/tests/devnet_deploy_smoke.py` (about 2 minutes on
 the VPS after the build): deploys, asserts a second run refuses, reads `Instances.instance_state`.
 
+CI (SMOKE-CI, D-290): the job `devnet-smoke` of `.github/workflows/ci.yml` builds the classes and runs this smoke test alone
+(it deploys on its own, so `devnet_deploy.py` is not run before it), on the pinned devnet, and feeds `ci result`. It runs
+when `contracts/`, `scripts/devnet_*`, the smoke test, `scripts/with-node.sh` or the root `.tool-versions` change
+(`devnet_smoke` of `.github/ci/changes.py`). The smoke test also checks the seed's potion words against `SEED_HEAL` and
+`SEED_REGEN` in `contracts/logic/src/types/action.cairo`.
+
 ## `--build full` (OPS-01b, SEED-02)
 
 `--build full` (the default is `--build empty`, unchanged) builds the adventurer before its entry, for track CV's chain
