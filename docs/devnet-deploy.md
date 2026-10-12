@@ -30,3 +30,16 @@ JSON keys: `node_url`, `chain_id`, `commit`, `account` (address only), `classes`
 
 Smoke test: `scripts/with-node.sh python3 scripts/tests/devnet_deploy_smoke.py` (about 2 minutes on
 the VPS after the build): deploys, asserts a second run refuses, reads `Instances.instance_state`.
+
+## `--build full` (OPS-01b)
+
+`--build full` (the default is `--build empty`, unchanged) builds the adventurer before its entry, for track CV's chain
+play tests. The pack is funded the way the lifecycle probe does it, with `Hub.report`, the only call that credits a
+pack (the account is made the hub's `instances` for one Open report, then the real one again). The belt is the seed's
+healing potion (item 1) x2 and the pack holds twice that (`pack`), so the entry debits the belt and one re-entry with it
+is covered (`pack_after_entry`). The bar stays empty, and so do the activation, trap and REGENERATION skills and the
+REGENERATION potion: the seed has one skill (id 1, an instant attack) and only healing potions, and nothing on chain
+makes a skill known (`Hub.known_skills` is never written, `set_build` refuses an unknown skill, devnet has no
+set-storage), so those are named under `build.dropped` and `build.skills_wanted`. The JSON's `build` key carries
+`mode`, `bar` (8 skill ids by slot), `belt` and `pack` (`{item, count}`) and `dropped`; `--help` lists the same ids.
+The seed is not changed.
