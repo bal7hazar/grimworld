@@ -25,7 +25,7 @@ use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats};
 use grimworld_logic::types::passive::{PassiveTrait, id as passive_id};
-use grimworld_logic::types::{Outcome, instance_id};
+use grimworld_logic::types::{Outcome, instance_id, instance_parts};
 use grimworld_persistent::events::AdventurerLocated;
 use grimworld_persistent::models::account::{OwnerTrait, PACK};
 use grimworld_persistent::models::adventurer::errors::{
@@ -1094,6 +1094,56 @@ fn test_report_to_the_last_hub() {
                 ),
             ],
         );
+}
+
+// Re-entry after a defeat (RV-03a2, from track CV's CLI-11 Q-1): the adventurer enters with a
+// belt of 3 potions (item 8) that `set_build` stored, is defeated with 1 unused (credited back to
+// the pack: 1), and enters again through `Hub.enter`. The stored belt of 3 is more than the pack
+// holds (`NOT_ENOUGH`), so `set_build` stores a belt of 1 first; the new instance opens with it,
+// the slot reused with the next generation (the double's numbering: `instance_id(1, n)` for its
+// `n`-th `create`; the real `Instances` is `grimworld_ephemeral`'s).
+#[test]
+#[available_gas(l2_gas: 300000000)]
+fn test_reenter_after_a_defeat() {
+    let world = setup();
+    let id = adventurer(world);
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    // A potion heals its holder, the legal carrier the registry requires (D-166).
+    let heal = grimworld_logic::types::effect::Entry {
+        kind: grimworld_logic::types::effect::kind::HEAL,
+        v0: 20,
+        v12: 20,
+        target: grimworld_logic::types::effect::target::SELF,
+        shape: grimworld_logic::types::effect::shape::SINGLE,
+        ..Default::default(),
+    };
+    IRegistryAdminDispatcher { contract_address: world.registry }
+        .set_record(ITEM, 8, ItemTrait::new(item_class::POTION, 1, 0, 1, 0, heal, 0, 0).pack());
+    give(world, id, 8, 3);
+    let three: felt252 = StorePacking::pack(Lanes32 { lanes: [0, 8, 0, 0, 0x300, 0, 0] });
+    act(world, ALICE).set_build(id, EMPTY_BUILD, three - LIVE, 0);
+    let first = act(world, ALICE).enter(id, INTO_ZONE);
+    assert(balance(world, id, 8) == 0, 'reserved');
+    report(world, Results { belt: [0, 1, 0, 0], ..results(first, id, Outcome::Defeated) });
+    let home = AdventurerPlace { instance: 0, hub: TOWN, last_hub: TOWN, inside: 0, unlocked: 0x2 };
+    assert(place_of(world, id) == home, 'defeated: last hub');
+    assert(balance(world, id, 8) == 1, 'the unused one credited');
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), NOT_ENOUGH);
+    let one: felt252 = StorePacking::pack(Lanes32 { lanes: [0, 8, 0, 0, 0x100, 0, 0] });
+    act(world, ALICE).set_build(id, EMPTY_BUILD, one - LIVE, 0);
+    let second = act(world, ALICE).enter(id, INTO_ZONE);
+    assert(second != first, 'a new instance');
+    assert(instance_parts(first) == (1, 1), 'the first generation');
+    assert(instance_parts(second) == (1, 2), 'the slot, the next generation');
+    let inside = AdventurerPlace {
+        instance: second, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2,
+    };
+    assert(place_of(world, id) == inside, 'inside the new instance');
+    assert(balance(world, id, 8) == 0, 'the smaller belt reserved');
+    let opened = created(world);
+    assert(opened.count == 2 && opened.adventurer == id, 'created again');
+    assert(opened.snapshot.belt_counts == [0, 1, 0, 0], 'the belt of 1');
 }
 
 // Through a gate to a location: still inside, in the next instance; nothing credited (the reserve

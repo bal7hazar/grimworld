@@ -12,7 +12,7 @@ use crate::interface::{IActionLibraryDispatcherTrait, IActionLibraryLibraryDispa
 use crate::models::chunk::{Features, FeaturesTrait, Object, object};
 use crate::models::goblin::{Goblin, GoblinTrait, GoblinWordsTrait};
 use crate::models::member::{Member, MemberSnapshotTrait, MemberTrait, MemberWordsTrait};
-use crate::types::combat::{HitClass, damage, skill_kind, weapon};
+use crate::types::combat::{HitClass, condition, damage, skill_kind, weapon};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
 use crate::types::executor::tests::body::{emit, finish};
 use crate::types::executor::tests::{
@@ -1366,6 +1366,285 @@ fn test_act_vectors_11() {
     finish(digest, ACT_DIGEST_11);
 }
 
+// ---- Appended by RV-03a2 (D-257): track CV's surviving mutants of the act port (#450). Every
+// row from id 223 on reads the content of row 223, the last `content` row before it.
+
+/// Row 223's own skills: a glyph of `NEXT_SPELL_COST` −2; an attack skill holding `ATTACK_BONUS`
+/// 10; an enchantment holding `PENETRATION` 30 of scope `ALL`; two preparations holding an
+/// `ON_ATTACK_CONDITION` (Poison 4; Bleeding 6, 2 charges); an instant spell of fire 40 on
+/// `DISC_1` around its source, filter `ALLIES`; one of fire 40 on a `SINGLE` `TILE`; one of fire 40
+/// on a foe and Burning 3 on a `DISC_1` around it; an attack skill holding `HIT_PENETRATION` 50.
+const SAPPED: u16 = 77;
+const BONUS: u16 = 78;
+const EVERY: u16 = 79;
+const VENOM: u16 = 80;
+const COAT: u16 = 81;
+const BLAST: u16 = 82;
+const SPOT: u16 = 83;
+const SPREAD: u16 = 84;
+const PIERCER: u16 = 85;
+
+/// Row 223's content: row 0's (`act_content`), its skills 77–85 appended (none mixing `TILE`
+/// with `FOE` or `ALLY`, D-271), every instant (activation 0), no cost.
+fn act_content_2() -> Content {
+    let base = act_content();
+    let none: Entry = Default::default();
+    let mut skills = array![];
+    skills.append_span(base.skills);
+    let sapped = EntryTrait::new(
+        kind::NEXT_SPELL_COST,
+        0,
+        -2,
+        -2,
+        10,
+        10,
+        0,
+        target::SELF,
+        shape::SINGLE,
+        filter::ALLIES,
+        0,
+        0,
+    );
+    let mut sheet = skill(SAPPED, skill_kind::GLYPH, 0, [sapped, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let bonus = entry(kind::ATTACK_BONUS, 0, 10, 10, target::FOE, shape::SINGLE, filter::FOES);
+    let mut sheet = skill(BONUS, skill_kind::ATTACK, 1, [bonus, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let every = EntryTrait::new(
+        kind::PENETRATION,
+        0,
+        30,
+        30,
+        10,
+        10,
+        0,
+        target::SELF,
+        shape::SINGLE,
+        filter::ALLIES,
+        0,
+        scope::ALL,
+    );
+    let mut sheet = skill(EVERY, skill_kind::ENCHANTMENT, 0, [every, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let venom = EntryTrait::new(
+        kind::ON_ATTACK_CONDITION,
+        condition::POISON,
+        4,
+        4,
+        10,
+        10,
+        0,
+        target::SELF,
+        shape::SINGLE,
+        filter::ALLIES,
+        0,
+        0,
+    );
+    let mut sheet = skill(VENOM, skill_kind::PREPARATION, 0, [venom, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let coat = EntryTrait::new(
+        kind::ON_ATTACK_CONDITION,
+        condition::BLEEDING,
+        6,
+        6,
+        10,
+        10,
+        2,
+        target::SELF,
+        shape::SINGLE,
+        filter::ALLIES,
+        0,
+        0,
+    );
+    let mut sheet = skill(COAT, skill_kind::PREPARATION, 0, [coat, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let blast = entry(
+        kind::DAMAGE, damage::FIRE, 40, 40, target::SELF, shape::DISC_1, filter::ALLIES,
+    );
+    let mut sheet = skill(BLAST, skill_kind::SPELL, 0, [blast, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let spot = entry(kind::DAMAGE, damage::FIRE, 40, 40, target::TILE, shape::SINGLE, filter::FOES);
+    let mut sheet = skill(SPOT, skill_kind::SPELL, 6, [spot, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let fire = entry(kind::DAMAGE, damage::FIRE, 40, 40, target::FOE, shape::SINGLE, filter::FOES);
+    let burn = entry(
+        kind::CONDITION, condition::BURNING, 3, 3, target::FOE, shape::DISC_1, filter::FOES,
+    );
+    let mut sheet = skill(SPREAD, skill_kind::SPELL, 6, [fire, burn, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    let pierce = entry(
+        kind::HIT_PENETRATION, 0, 50, 50, target::FOE, shape::SINGLE, filter::FOES,
+    );
+    let mut sheet = skill(PIERCER, skill_kind::ATTACK, 1, [pierce, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    Content { skills: skills.span(), ..base }
+}
+
+fn table_2() -> Table {
+    let content = act_content_2();
+    Table {
+        action: class("ActionLibrary"),
+        executor: class("ExecutorLibrary"),
+        content,
+        sheets: content.sheets(),
+    }
+}
+
+// Row 223, the content; the skill's checks by slot (the weapon-required bit, the quick-cast pairs),
+// a negative glyph; the attack skill's scope, its hit modifiers.
+#[test]
+#[available_gas(l2_gas: 3000000000)]
+fn test_act_vectors_12() {
+    let t = table_2();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = ACT_PART_12;
+    let mut ok = array![];
+    Serde::serialize(@t.content, ref ok);
+    emit(ref digest, ref id, "content", array![].span(), ok.span());
+    let goblins = array![goblin(8, AT + 1, 0, 100)];
+    // The attack skill (2 strikes, 8 quarters held) on bar slot 1: with slot 0's weapon-required
+    // bit only (`MemberStats` 40), legal; with slot 1's (41), `Kind`.
+    for bit in array![40_u32, 41] {
+        let mut m = with_skill(@t, 1, RAGE);
+        m.adrenaline = 8;
+        m.words.stats += two(bit);
+        plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(1, 8));
+    }
+    // A glyph of −2 held in effect slot 0 to `c + 5`: it takes nothing off the fire spell (5,
+    // 15 thirds: legal), consumed all the same.
+    let mut m = hero(@t, array![FIRE]);
+    m.energy = 15;
+    holding(ref m, 0, SAPPED, false, 0, CLOCK + 5, 12);
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(0, 8));
+    // The fire spell on bar slot 1, which counts for pair 0 (`MemberStats` 170; pair 0 of N 5,
+    // its counter at 4): the bonus, activation 2.
+    let mut m = with_skill(@t, 1, FIRE);
+    m.energy = 30;
+    m.words.bar += 5 * two(212);
+    m.words.stats += two(170);
+    m.set_casts(0, 4);
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(1, 8));
+    // The attack skill (scope 1) landing on goblin 8 with the passives of every scope (`MemberBar`
+    // 136–200, as rows 183–190: scope 1's +20, 6, 4 taken); holding the edge (`PENETRATION` 20 of
+    // scope `WEAPON`, which an attack skill takes).
+    let mut m = hero(@t, array![RAGE]);
+    m.adrenaline = 8;
+    m.words.bar += 10 * two(136) + (256 - 5) * two(160) + 3 * two(184);
+    m.words.bar += 20 * two(144) + 6 * two(168) + 4 * two(192);
+    m.words.bar += (256 - 30) * two(152) + 7 * two(176) + 5 * two(200);
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(0, 8));
+    let mut m = hero(@t, array![RAGE]);
+    m.adrenaline = 8;
+    holding(ref m, 1, EDGE, false, 0, CLOCK + 5, 12);
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(0, 8));
+    // The attack skills holding `ATTACK_BONUS` 10 and `HIT_PENETRATION` 50 on goblin 8 (armor
+    // 40).
+    for skill in array![BONUS, PIERCER] {
+        plain(
+            ref digest,
+            ref id,
+            @t,
+            alone(CLOCK, hero(@t, array![skill]), goblins.clone()),
+            skill_on(0, 8),
+        );
+    }
+    finish(digest, ACT_DIGEST_12);
+}
+
+// The source's side of a weapon hit: the held `PENETRATION` of scope `ALL`, the
+// `ON_ATTACK_CONDITION`s, `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT`.
+#[test]
+#[available_gas(l2_gas: 3000000000)]
+fn test_act_vectors_13() {
+    let t = table_2();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = ACT_PART_13;
+    let goblins = array![goblin(8, AT + 1, 0, 100)];
+    // Holding `PENETRATION` 30 of scope `ALL` (effect slot 2, to `c + 5`): the bomb (belt slot 0,
+    // count 1, on goblin 8's tile: scope 3, none taken); the sword (taken); the instant spell
+    // (taken).
+    let mut m = hero(@t, array![BOLT]);
+    holding(ref m, 2, EVERY, false, 0, CLOCK + 5, 12);
+    m.set_belt_count(0, 1);
+    plain(
+        ref digest,
+        ref id,
+        @t,
+        alone(CLOCK, m, goblins.clone()),
+        Action::Item((0, tile(AT + 1))),
+    );
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), Action::Attack(8));
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(0, 8));
+    // The sword holding an `ON_ATTACK_CONDITION` (Poison 4, slot 0): goblin 8 poisoned; and one
+    // with 2 charges (Bleeding 6, slot 1) beside it: both applied, the charge spent (2 to 1).
+    let mut m = hero(@t, array![]);
+    holding(ref m, 0, VENOM, false, 0, CLOCK + 5, 12);
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), Action::Attack(8));
+    holding(ref m, 1, COAT, false, 2, CLOCK + 5, 12);
+    plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), Action::Attack(8));
+    // The sword with `LIFE_STEAL_ON_HIT` 3 (`MemberKit` 128), the member at 400 of 480: 3
+    // stolen; with `ENERGY_ON_HIT` 2 (136), at 30 thirds of 60: 6 thirds gained.
+    for kit in array![3 * two(128), 2 * two(136)] {
+        let mut m = hero(@t, array![]);
+        m.words.kit += kit;
+        plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), Action::Attack(8));
+    }
+    finish(digest, ACT_DIGEST_13);
+}
+
+// The target sets (`actors`): a hit of filter `ALLIES` around its source, a dead member in a wide
+// set, a `SINGLE` `TILE` entry, the actors' order, a set the hit's does not hold.
+#[test]
+#[available_gas(l2_gas: 3000000000)]
+fn test_act_vectors_14() {
+    let t = table_2();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = ACT_PART_14;
+    let goblins = array![goblin(8, AT + 1, 0, 100)];
+    // Fire 40 on `DISC_1` around the member, filter `ALLIES`: member 1 West of it (position 111)
+    // hit, the member not (never in its own hit's set); member 1 there at 0 health: not a
+    // candidate, nothing (no `HIT` flag).
+    for health in array![400_u16, 0] {
+        let mut friend = ally(AT - 1);
+        friend.health = health;
+        plain(
+            ref digest,
+            ref id,
+            @t,
+            words(CLOCK, array![hero(@t, array![BLAST]), friend], goblins.clone()),
+            skill_on(0, 0),
+        );
+    }
+    // Fire 40 on a `SINGLE` `TILE`, goblin 8's: hit.
+    plain(
+        ref digest,
+        ref id,
+        @t,
+        alone(CLOCK, hero(@t, array![SPOT]), goblins.clone()),
+        skill_at(0, AT + 1),
+    );
+    // The bomb (count 1) on position 113: goblin 8 on 114 and goblin 9 on 113, both at 1 health,
+    // killed in ascending position, 9 then 8 (`killed`), not in index order.
+    let mut m = hero(@t, array![]);
+    m.set_belt_count(0, 1);
+    let pair = array![goblin(8, AT + 2, 0, 1), goblin(9, AT + 1, 0, 1)];
+    plain(ref digest, ref id, @t, alone(CLOCK, m, pair), Action::Item((0, tile(AT + 1))));
+    // Fire 40 on goblin 8 (113) and Burning 3 on `DISC_1` around it: goblin 9 (114) burns, not
+    // hit.
+    let pair = array![goblin(8, AT + 1, 0, 100), goblin(9, AT + 2, 0, 100)];
+    plain(ref digest, ref id, @t, alone(CLOCK, hero(@t, array![SPREAD]), pair), skill_on(0, 8));
+    finish(digest, ACT_DIGEST_14);
+}
+
 /// The first id of each part, and each part's digest.
 const ACT_PART_1: u32 = 27;
 const ACT_PART_2: u32 = 43;
@@ -1378,6 +1657,9 @@ const ACT_PART_8: u32 = 158;
 const ACT_PART_9: u32 = 177;
 const ACT_PART_10: u32 = 205;
 const ACT_PART_11: u32 = 215;
+const ACT_PART_12: u32 = 223;
+const ACT_PART_13: u32 = 232;
+const ACT_PART_14: u32 = 239;
 const ACT_DIGEST_0: felt252 =
     1030940271732062604804669110503688872228708044099169595645925593071242230283;
 const ACT_DIGEST_1: felt252 =
@@ -1402,3 +1684,6 @@ const ACT_DIGEST_10: felt252 =
     2161744668382002736604283308408713117091980477643056135990864466526928679814;
 const ACT_DIGEST_11: felt252 =
     2143361324673287838917145131743092043867945749555276112912585183627383427359;
+const ACT_DIGEST_12: felt252 = 0;
+const ACT_DIGEST_13: felt252 = 0;
+const ACT_DIGEST_14: felt252 = 0;
