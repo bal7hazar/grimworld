@@ -27,12 +27,13 @@ use grimworld_persistent::models::account::{OwnerTrait, PACK, VAULT};
 use grimworld_persistent::models::adventurer::errors::{
     ADVENTURER_DELETED, BELT_NOT_IN_PACK, COUNT_WITHOUT_ITEM, DUPLICATE_ITEM, DUPLICATE_SKILL,
     ELITE_SLOT, NOT_A_POTION, NOT_IN_HUB, NOT_OWNER, NO_ADVENTURER, NO_ATTRIBUTE, NO_SKILL, POINTS,
-    RANK_ABOVE_12, SKILL_NOT_KNOWN, SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
+    RANK_ABOVE_12, SKILL_ALREADY_KNOWN, SKILL_NOT_KNOWN, SKILL_NOT_SOLD, SKILL_PRICE,
+    SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
 };
 use grimworld_persistent::models::adventurer::{AdventurerCore, Build, BuildTrait, NO_ELITE};
 use grimworld_persistent::models::item::errors::{A_COMPONENT, NOT_IN_PACK, UNIDENTIFIED};
 use grimworld_persistent::models::item::{
-    COMPONENT, IDENTIFIED, ItemBaseTrait, ItemMods, ItemModsTrait, Modifier,
+    COMPONENT, Gold, IDENTIFIED, ItemBaseTrait, ItemMods, ItemModsTrait, Modifier,
 };
 use grimworld_persistent::models::snapshot::StoredSnapshotTrait;
 use grimworld_persistent::models::stored_build::errors::{
@@ -212,7 +213,7 @@ fn set_profile(world: World, id: u32, level: u8, rank: u8, secondary: u8) {
         StorePacking::pack(AdventurerCore { level, rank, secondary, ..core }),
     );
 }
-/// Skills 1 to 12 known on page 0 (`buy_skill` is a later lot's).
+/// Skills 1 to 12 known on page 0, as fixtures (`buy_skill`'s own tests buy theirs).
 fn know_skills(world: World, id: u32) {
     let key = map_entry_address(selector!("known_skills"), array![id.into(), 0].span());
     write(world.hub, key, 0x1ffe + LIVE);
@@ -1152,4 +1153,146 @@ fn test_set_build_requests_the_input_kinds() {
         bit *= 2;
     }
     assert(requested == accepted, 'requested kinds != inputs');
+}
+
+// ---- `buy_skill`, the hub's skill trainer (SKILL-01, D-275)
+// --------------------------------------------------------------
+
+/// The budget of the `buy_skill` call alone in its worst case (a hub action's target is its
+/// measure, D-158 (c)): the 21st skill, the price's count at its cap. snforge, `get_available_gas`
+/// around the dispatcher call; ENG-01 §10's row is 1,227,323 initialised.
+const BUY_SKILL_CALL: u128 = 2000000;
+
+fn gold_key(id: u32) -> felt252 {
+    map_entry_address(selector!("gold"), array![OwnerTrait::key(PACK, id)].span())
+}
+/// `amount` gold in the pack of `id`, as a report credits it.
+fn set_gold(world: World, id: u32, amount: u64) {
+    write(world.hub, gold_key(id), StorePacking::pack(Gold { amount }));
+}
+fn gold_of(world: World, id: u32) -> u64 {
+    let gold: Gold = StorePacking::unpack(read(world.hub, gold_key(id)));
+    gold.amount
+}
+fn known_key(id: u32) -> felt252 {
+    map_entry_address(selector!("known_skills"), array![id.into(), 0].span())
+}
+/// Alice's Vanguard with `adventurer`'s fixtures, knowing no skill.
+fn learner(world: World) -> u32 {
+    let id = adventurer(world, VANGUARD);
+    write(world.hub, known_key(id), 0);
+    id
+}
+fn try_buy(world: World, who: felt252, id: u32, skill: u16) -> Result<(), Array<felt252>> {
+    #[feature("safe_dispatcher")]
+    let result = try_act(world, who).buy_skill(id, skill);
+    result
+}
+
+// Who may call (ENG-01 §4.3, design/16): the adventurer's owner, in a hub; nothing is written.
+#[test]
+#[available_gas(l2_gas: 200000000)]
+fn test_buy_skill_ownership_refusals() {
+    let world = setup();
+    let id = learner(world);
+    set_gold(world, id, 1000);
+    refused(try_buy(world, ALICE, 9, 1), NO_ADVENTURER);
+    refused(try_buy(world, BOB, id, 1), NOT_OWNER);
+    // Inside an instance, not in a hub: the trainer is a hub's (design/03).
+    let place = read(world.hub, adventurer_word(id, 1));
+    write(world.hub, adventurer_word(id, 1), place + 0x1000000000000000000000000);
+    refused(try_buy(world, ALICE, id, 1), NOT_IN_HUB);
+    write(world.hub, adventurer_word(id, 1), place);
+    let core = core_of(world, id);
+    write(
+        world.hub, adventurer_word(id, 0), StorePacking::pack(AdventurerCore { status: 1, ..core }),
+    );
+    refused(try_buy(world, ALICE, id, 1), ADVENTURER_DELETED);
+    write(world.hub, adventurer_word(id, 0), StorePacking::pack(core));
+    assert(gold_of(world, id) == 1000 && read(world.hub, known_key(id)) == 0, 'nothing written');
+    accepted(try_buy(world, ALICE, id, 1));
+}
+
+// The skill is in the registry's content (`SKILL`): a skill with no record is not sold.
+#[test]
+#[available_gas(l2_gas: 200000000)]
+fn test_buy_skill_not_in_content() {
+    let world = setup();
+    let id = learner(world);
+    set_gold(world, id, 1000);
+    refused(try_buy(world, ALICE, id, NO_RECORD), SKILL_NOT_SOLD);
+    refused(try_buy(world, ALICE, id, 0), SKILL_NOT_SOLD);
+    // Past page 255: no record either.
+    refused(try_buy(world, ALICE, id, 65000), SKILL_NOT_SOLD);
+    assert(gold_of(world, id) == 1000 && read(world.hub, known_key(id)) == 0, 'nothing written');
+}
+
+// A skill already known is not sold twice.
+#[test]
+#[available_gas(l2_gas: 200000000)]
+fn test_buy_skill_already_known() {
+    let world = setup();
+    let id = adventurer(world, VANGUARD); // knows 1 to 12
+    set_gold(world, id, 1000);
+    refused(try_buy(world, ALICE, id, 3), SKILL_ALREADY_KNOWN);
+    refused(try_buy(world, ALICE, id, ARCANIST_SKILL), SKILL_ALREADY_KNOWN);
+    assert(gold_of(world, id) == 1000 && read(world.hub, known_key(id)) == 0x1ffe + LIVE, 'kept');
+}
+
+// The pack's gold pays the price: one gold short is refused, the exact price bought.
+#[test]
+#[available_gas(l2_gas: 200000000)]
+fn test_buy_skill_not_affordable() {
+    let world = setup();
+    let id = learner(world);
+    refused(try_buy(world, ALICE, id, 1), SKILL_PRICE);
+    set_gold(world, id, 49);
+    refused(try_buy(world, ALICE, id, 1), SKILL_PRICE);
+    assert(gold_of(world, id) == 49 && read(world.hub, known_key(id)) == 0, 'nothing written');
+    set_gold(world, id, 50);
+    accepted(try_buy(world, ALICE, id, 1));
+    assert(gold_of(world, id) == 0, 'the exact price');
+}
+
+// Bought: the price debited, the skill known, and `set_build` puts it on the bar; the second skill
+// charges the second price (60).
+#[test]
+#[available_gas(l2_gas: 200000000)]
+fn test_buy_skill_then_set_build() {
+    let world = setup();
+    let id = learner(world);
+    set_gold(world, id, 110);
+    refused(try_set(world, id, bar([1, 0, 0, 0, 0, 0, 0, 0]), 0, 0), SKILL_NOT_KNOWN);
+    act(world, ALICE).buy_skill(id, 1);
+    assert(gold_of(world, id) == 60, 'first price 50');
+    assert(read(world.hub, known_key(id)) == 0x2 + LIVE, 'skill 1 known');
+    accepted(try_set(world, id, bar([1, 0, 0, 0, 0, 0, 0, 0]), 0, 0));
+    act(world, ALICE).buy_skill(id, 2);
+    assert(gold_of(world, id) == 0, 'second price 60');
+    assert(read(world.hub, known_key(id)) == 0x6 + LIVE, 'skills 1 and 2 known');
+    accepted(try_set(world, id, bar([1, 2, 0, 0, 0, 0, 0, 0]), 0, 0));
+    // The third costs 70.
+    refused(try_buy(world, ALICE, id, 3), SKILL_PRICE);
+}
+
+// The worst case: 20 skills known (the price's count at its cap), the 21st costs 1,000, and so
+// does the 22nd. The call alone carries its own budget.
+#[test]
+#[available_gas(l2_gas: 200000000)]
+fn test_buy_skill_worst_case() {
+    let world = setup();
+    let id = learner(world);
+    // Skills 12 to 31 known: 20 skills, none of the registry's 1 to 11.
+    write(world.hub, known_key(id), 0xfffff000 + LIVE);
+    set_gold(world, id, 2000);
+    let hub = act(world, ALICE);
+    let gas = get_available_gas();
+    hub.buy_skill(id, ARCANIST_SKILL);
+    let call = gas - get_available_gas();
+    println!("gas buy_skill, worst case (the 21st skill): {}", call);
+    assert(call <= BUY_SKILL_CALL, 'buy_skill over its budget');
+    assert(gold_of(world, id) == 1000, '21st price 1000');
+    hub.buy_skill(id, WARDEN_SKILL);
+    assert(gold_of(world, id) == 0, '22nd price 1000');
+    assert(read(world.hub, known_key(id)) == 0xfffff000 + 0xc00 + LIVE, '10 and 11 known');
 }

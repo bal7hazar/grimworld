@@ -50,6 +50,12 @@ pub mod errors {
     /// The bar: the same skill twice.
     pub const DUPLICATE_SKILL: felt252 = 'build: duplicate skill';
     pub const SKILL_NOT_KNOWN: felt252 = 'build: skill not known';
+    // `buy_skill`, the hub's skill trainer (design/03, design/15; D-275): one refusal per rule.
+    /// Not in the registry: no such skill to sell.
+    pub const SKILL_NOT_SOLD: felt252 = 'trainer: no skill';
+    pub const SKILL_ALREADY_KNOWN: felt252 = 'trainer: skill known';
+    /// The pack's gold is below the skill's price.
+    pub const SKILL_PRICE: felt252 = 'trainer: not enough gold';
     /// Not in the registry.
     pub const NO_SKILL: felt252 = 'build: no skill';
     /// Of neither its primary nor its secondary profession.
