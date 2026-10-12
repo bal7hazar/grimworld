@@ -171,11 +171,13 @@ export const BINDINGS: readonly Binding[] = [
     label: "Zoom in, out (the keys right of 0)",
     screens: MAP,
     matches: [
+      // The character first, so a layout that prints `-` on the code `Equal` (Mac French and
+      // Belgian AZERTY, Turkish Q) zooms out; the codes are the fallback (AZERTY's `)` and `=`).
       { key: "+", command: { kind: "zoom", by: 1 } },
       { key: "=", command: { kind: "zoom", by: 1 } },
+      { key: "-", command: { kind: "zoom", by: -1 } },
       { code: "Equal", command: { kind: "zoom", by: 1 } },
       { code: "NumpadAdd", command: { kind: "zoom", by: 1 } },
-      { key: "-", command: { kind: "zoom", by: -1 } },
       { code: "Minus", command: { kind: "zoom", by: -1 } },
       { code: "NumpadSubtract", command: { kind: "zoom", by: -1 } },
     ],

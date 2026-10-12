@@ -203,6 +203,10 @@ describe("the screens' keys", () => {
       expect(keyCommand(press("NumpadSubtract", { key: "-" }), screen)).toEqual(zoomOut);
       expect(keyCommand(press("NumpadAdd", { key: "+" }), screen)).toEqual(zoomIn);
     }
+    // Mac French, Belgian AZERTY and Turkish Q print - on the code Equal: the character wins
+    for (const screen of ["hub", "instance"] as const) {
+      expect(keyCommand(press("Equal", { key: "-" }), screen)).toEqual(zoomOut);
+    }
     for (const screen of OFF_MAP) {
       expect(keyCommand(press("Minus", { key: ")" }), screen)).toBeNull();
       expect(keyCommand(press("Equal", { key: "=" }), screen)).toBeNull();
