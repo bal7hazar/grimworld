@@ -184,12 +184,18 @@ export function createChainController(deps: ControllerDeps): ChainController {
         const at = goblinTile(entity);
         return at === undefined ? null : { kind: "tile", tile: at };
       };
-      if (result.kind === "attack") {
-        // The sandbox deselects a goblin tapped again, and turns nobody
-        if (onMap !== result.entity) return null;
-        onMap = null;
-        return toggle(result.entity);
+      // The sandbox deselects a goblin tapped again, and turns nobody. The controller has no
+      // selection after an attack, taken or refused: the map's follows, whatever the result says
+      if (state.selected === null && onMap !== null) {
+        const tapped = world().actors.find(
+          (a) => a.side === "goblin" && tileKey(a.tile) === tileKey(tile),
+        );
+        if (tapped?.id === onMap) {
+          onMap = null;
+          return toggle(tapped.id);
+        }
       }
+      if (result.kind === "attack") return null;
       if (result.kind !== "select") return null;
       const { chain } = tiles();
       const at = goblinTile(result.entity);

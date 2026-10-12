@@ -201,3 +201,10 @@ describe("the panel's line", () => {
     expect(panelOf(stagesState(), { ...own, turning: true }).turning).toBe(true);
   });
 });
+
+describe("the selection (CLI-11c2)", () => {
+  it("names the selected goblin, and nothing when none is", () => {
+    expect(panelOf(stagesState(), own).selected).toBeNull();
+    expect(panelOf(stagesState(), { ...own, selected: 8 }).selected).toBe(8);
+  });
+});

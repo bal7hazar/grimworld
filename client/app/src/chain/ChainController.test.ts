@@ -391,10 +391,26 @@ describe("the goblin's selection on the map (review t-0239, finding 1)", () => {
     ]);
   });
 
-  it("a floor tap, a wall tap and a refused attack tell the map nothing", () => {
+  it("a floor tap and a wall tap tell the map nothing", () => {
     const { controller } = setup();
     expect(controller.mapTap({ x: 40, y: 40 })).toBeNull();
     expect(controller.mapTap({ x: 0, y: 7 })).toBeNull();
+  });
+
+  it("a refused attack deselects the goblin on the map, in step with the controller", () => {
+    const { fake, controller } = setup();
+    // A full batch: the fake's input returns false
+    for (let i = 0; i < 10; i++) controller.wait();
+    expect(fake.actions()).toHaveLength(10);
+    expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
+    expect(controller.get().selected).toBe(8);
+    // The second tap is refused: the controller clears, and the map is told to deselect
+    expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
+    expect(controller.get().selected).toBeNull();
+    expect(fake.actions()).toHaveLength(10);
+    // The third tap selects on both
+    expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
+    expect(controller.get().selected).toBe(8);
   });
 
   it("never lets the map turn the drawn adventurer toward an adjacent goblin", () => {
