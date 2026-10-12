@@ -1,6 +1,6 @@
 # Agents' notes
 
-- Once per clone, enable the repository's hooks: `git config core.hooksPath .githooks`.
+- The clone's hooks (`core.hooksPath .githooks`) are set by the project's coordinator with clone-repair; never run `git config`.
 - Before every push, run `scripts/prepush.sh`. It decides from your diff which of CI's checks to run (format,
   script self-tests, the build of the Cairo packages you touched, the generated artefacts, the client) and prints
   each step's time. The pre-push hook runs it for you once the hooks are enabled.
