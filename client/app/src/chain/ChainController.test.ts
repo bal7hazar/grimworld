@@ -41,15 +41,20 @@ function fakeStages(initial: ChainState = recordedChain()) {
     mirror,
     simulation: undefined,
     sent: undefined,
-    line: undefined,
+    line,
   });
+  let line: string | undefined;
+  const listeners = new Set<(state: StagesState) => void>();
   let phase: Phase = "ready";
   let mirror: MirrorResult | undefined;
   const sent: number[] = [];
   const installed: ChainState[] = [];
   const stages: Stages = {
     get: state,
-    subscribe: () => () => undefined,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     input(actions, options) {
       if (phase !== "ready" || actions.length === 0 || planned.length >= 10) return false;
       planned = [
@@ -82,10 +87,32 @@ function fakeStages(initial: ChainState = recordedChain()) {
     setPhase: (next: Phase) => {
       phase = next;
     },
+    /** The stages' line changes, as it does when a send ends. */
+    setLine: (next: string | undefined) => {
+      line = next;
+      for (const listener of listeners) listener(state());
+    },
     setMirror: (next: MirrorResult | undefined) => {
       mirror = next;
     },
   };
+}
+
+/** A fake over a chain state whose view holds a goblin on the tile of `world`'s goblin. */
+function fakeWith(world: { actors: readonly { side: string; id: number; tile: Tile }[] }): Stages {
+  const chain = recordedChain();
+  const goblin = world.actors.find((a) => a.side === "goblin")!;
+  const view = chain.mirror.view;
+  const kept = view.goblins[0]!;
+  const state = (kept.state & ~0xffffn) | (BigInt(goblin.tile.y) << 8n) | BigInt(goblin.tile.x);
+  const moved = {
+    ...chain,
+    mirror: {
+      ...chain.mirror,
+      view: { ...view, goblins: [{ ...kept, entity: goblin.id, state }] },
+    },
+  };
+  return fakeStages(moved).stages;
 }
 
 function setup(enter: () => Promise<ChainState> = async () => recordedChain()) {
@@ -339,5 +366,123 @@ describe("stage 1 on the map (§5)", () => {
       },
     });
     expect(controller.ghosts().end).toEqual({ tile: { x: 3, y: 9 }, facing: 2 });
+  });
+});
+
+describe("the goblin's selection on the map (review t-0239, finding 1)", () => {
+  const goblin = { x: 12, y: 1 };
+
+  it("four taps in a row: the map's selection and the controller's stay in step", () => {
+    const { fake, controller } = setup();
+    // 1: select, the map hears it (its arcs)
+    expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
+    expect(controller.get().selected).toBe(8);
+    // 2: attack, the map hears it to deselect
+    expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
+    expect(controller.get().selected).toBeNull();
+    expect(fake.actions()).toEqual([{ kind: "attack", entity: 8 }]);
+    // 3: select again, the map selects again; 4: attack again
+    expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
+    expect(controller.get().selected).toBe(8);
+    expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
+    expect(fake.actions()).toEqual([
+      { kind: "attack", entity: 8 },
+      { kind: "attack", entity: 8 },
+    ]);
+  });
+
+  it("a floor tap, a wall tap and a refused attack tell the map nothing", () => {
+    const { controller } = setup();
+    expect(controller.mapTap({ x: 40, y: 40 })).toBeNull();
+    expect(controller.mapTap({ x: 0, y: 7 })).toBeNull();
+  });
+
+  it("never lets the map turn the drawn adventurer toward an adjacent goblin", () => {
+    const { controller } = setup();
+    const world = controller.world();
+    // Put a goblin on the tile next to the adventurer, off its facing (East, the chain's)
+    const here = { x: 0, y: 7 };
+    const side = ([1, 2, 3, 4, 5] as const).find(
+      (d) => kindAt(world.terrain, tileToward(here, d)) === "floor",
+    )!;
+    const next = tileToward(here, side);
+    const adjacent = {
+      ...world,
+      actors: [
+        ...world.actors.filter((a) => a.side === "adventurer"),
+        {
+          id: 9,
+          side: "goblin" as const,
+          caste: "runt" as const,
+          tile: next,
+          facing: 0 as const,
+          mark: null,
+        },
+      ],
+    };
+    const close = createChainController({
+      stages: fakeWith(adjacent),
+      enter: async () => recordedChain(),
+    });
+    expect(close.mapTap(next)).toBeNull();
+    // The controller still selects it, so the next tap attacks
+    expect(close.get().selected).toBe(9);
+    expect(close.mapTap(next)).toBeNull();
+  });
+
+  it("ignores a goblin tap while no input is taken", () => {
+    const { fake, controller } = setup();
+    fake.setPhase("sending");
+    expect(controller.tap({ x: 12, y: 1 })).toEqual({ kind: "none" });
+    expect(controller.get().selected).toBeNull();
+  });
+});
+
+describe("the arrows' side (note 6)", () => {
+  it("follows the last planned move or turn, else the chain's facing", () => {
+    const { controller } = setup();
+    expect(controller.facing()).toBe(0);
+    controller.armTurn();
+    controller.step(4);
+    expect(controller.facing()).toBe(4);
+    controller.step(2);
+    expect(controller.facing()).toBe(2);
+    controller.wait();
+    expect(controller.facing()).toBe(2);
+  });
+});
+
+describe("the panel's line (review t-0239, findings 2 and 4)", () => {
+  it("a guard refusal on N shows the guard's own line", async () => {
+    const refusal = Object.assign(new Error("chain mode refused: not a test chain"), {
+      name: "ChainRefused",
+    });
+    const wrapped = Object.assign(new Error("The game cannot be reached right now."), {
+      cause: refusal,
+    });
+    const { fake, controller } = setup(async () => {
+      throw wrapped;
+    });
+    fake.setPhase("closed");
+    expect(await controller.enterAgain()).toBe(false);
+    expect(controller.get().note).toBe("chain mode refused: not a test chain");
+  });
+
+  it("an old note does not hide the stages' line: B clears it, and so does a new line", () => {
+    const { fake, controller } = setup();
+    controller.wait();
+    fake.setPhase("sending");
+    controller.wait();
+    expect(controller.get().note).toBe(notes.NOT_TAKEN);
+    // The send ends unread: the stages' line replaces the note
+    fake.setLine("sent, result unreadable");
+    expect(controller.get().note).toBeUndefined();
+    // And a note from a tap that found no path is gone once B is pressed
+    fake.setPhase("ready");
+    controller.tap({ x: 40, y: 40 });
+    controller.unbound();
+    expect(controller.get().note).toBe(notes.UNBOUND);
+    controller.send();
+    expect(controller.get().note).toBeUndefined();
   });
 });

@@ -5,7 +5,6 @@ import { type KeyCommand, verticalDirection } from "../input/keys";
 import type { Intent } from "../input/intent";
 import { type BlockId, createReader } from "../preview/read";
 import { createRpcSimulator } from "../preview/rpc";
-import type { Facing } from "../render/view";
 import { RoomSandbox, Sandbox } from "../sandbox/Sandbox";
 import type { SandboxController } from "../sandbox/controller";
 import { ChainPanel } from "./ChainPanel";
@@ -15,7 +14,6 @@ import { type ChainParam, type ChainRefusal, logRefusal, refusalLine } from "./p
 import { type ChainState, createSentReads, readState, sendBatch } from "./send";
 import { type Player, SetupFailed, restore } from "./setup";
 import { type Stages, createStages } from "./stages";
-import { memberPlace } from "./world";
 
 /**
  * The chain mode's screen. CLI-11a: it loads the deployment, opens the node (the checks of §2.2 and
@@ -236,19 +234,19 @@ function Play({ session }: { session: Session }) {
   }
 
   const route = (intent: Intent): Intent | null => {
-    // An inspect is the map's own; a tap is the batch's, but a first tap on a goblin selects it
+    // An inspect is the map's own; a tap is the batch's, and the map hears of it only as the
+    // controller says (a goblin's selection, never a turn of the drawn adventurer)
     if (intent.kind !== "tile") return intent;
-    return controller.tap(intent.tile).kind === "select" ? intent : null;
+    return controller.mapTap(intent.tile);
   };
 
   const onKey = (command: KeyCommand, keys: { handle(c: KeyCommand): boolean }): boolean => {
     switch (command.kind) {
       case "step": {
-        const { member } = stages.get().chain.mirror;
-        const here = stages.get().chain.mirror.view.members[member];
-        const facing: Facing = here ? memberPlace(here.state).facing : 0;
         controller.step(
-          "direction" in command ? command.direction : verticalDirection(facing, command.vertical),
+          "direction" in command
+            ? command.direction
+            : verticalDirection(controller.facing(), command.vertical),
         );
         return true;
       }
@@ -278,7 +276,12 @@ function Play({ session }: { session: Session }) {
   };
 
   return (
-    <div style={styles.play} data-chain="ready" data-adventurer={session.player.adventurerId}>
+    <div
+      style={styles.play}
+      data-chain="ready"
+      data-adventurer={session.player.adventurerId}
+      data-generation={generationOf(chain)}
+    >
       <RoomSandbox
         key={generationOf(chain)}
         world={controller.world()}

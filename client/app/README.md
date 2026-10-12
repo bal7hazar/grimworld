@@ -219,17 +219,23 @@ a developer's tool and says "batch", "simulated" and "sent".
   the wiring's path, planned on the world, from the tile where the batch's moves end; a tap on a
   neighbour, or a step key (`Q W E A S D`, the arrows), is one `move`; `Space` is `wait`; `R` then a
   step key is a `turn`; a first tap on a goblin selects it (the sandbox's arcs), a second one is
-  `attack` on its entity. The controller decides no legality: the preview says how far the batch
+  `attack` on its entity. The map hears of a goblin tap only through `mapTap`: its selection (the
+  arcs) stays in step with the controller's, and it is never told to select a goblin next to the
+  adventurer that it would turn toward, since the map draws the chain's facing. `↑`/`↓` take their
+  side from the last planned move or turn. Taps do nothing while a batch is in flight. The controller decides no legality: the preview says how far the batch
   plays. `L` and the Fate actions do nothing, with one line. `sandbox/wiring.ts` exports the three
   helpers the path needs (`planPath`, `tileToward`, `directionBetween`), so it stays the only
   importer of `placeholders.ts`.
 - **Keys** (`input/keys.ts`). A table of its own, `CHAIN_BINDINGS`, read on the instance screen
   before `BINDINGS`: `Space`, `R`, `B` (send) and `N` (enter again, once the instance closed). The
-  sandbox's own screens leave these commands to the page, and its key help does not list them.
+  sandbox's own screens, and the editor's walk, leave these commands to the page, and its key help
+  does not list them.
 - **The panel** (`ChainPanel.tsx`, §5). The batch, then the three stages as each becomes known: the
   mirror's at once, the simulation's 300 ms after the last input and at once on `B`, the sent
   batch's beside it; the fields where the mirror, the simulation or the sent outcome differ; one
-  line (a refusal, "no funds", "the instance closed"). `B` sends only after the simulation of the
+  line (a refusal, "no funds", "the instance closed"; the controller's own note, such as "no path",
+  gives way to a new line of the stages and is cleared by `B`; a guard refusal on `N` shows the
+  guard's line). Once a send settles, the simulation it was sent on stays beside the sent result. `B` sends only after the simulation of the
   exact batch shown has answered. `describe` is the whole of what it says, as data.
 - **Not in part 1** (§6.3): no optimistic display, no rewind, no kept actions, no recovery beyond a
   fresh read.

@@ -141,18 +141,49 @@ describe("the three stages, each shown as soon as it is known", () => {
     ]);
   });
 
+  it("after a settled send the simulation it was sent on stays beside the sent result", () => {
+    const reconciliation = reconcile(played(), [WAIT], undefined);
+    const simulated = { kind: "simulated" as const, ...reconciliation };
+    const model = panelOf(
+      stagesState({
+        planned: [],
+        sent: {
+          simulated,
+          result: {
+            kind: "sent",
+            id: ID,
+            blockHash: "0x2",
+            differs: [],
+            after: chain,
+            ...reconciliation,
+          },
+        },
+      }),
+      own,
+    );
+    expect(model.stages).toEqual([
+      { stage: "simulated", text: outcomeText(played()) },
+      { stage: "sent", text: outcomeText(played()) },
+    ]);
+  });
+
   it("a send that was refused, did not settle or could not be read, says so", () => {
     const reconciliation = reconcile(played(), [WAIT], undefined);
     const simulated = { kind: "simulated" as const, ...reconciliation };
     const sentAs = (result: Sent) => panelOf(stagesState({ sent: { simulated, result } }), own);
-    expect(sentAs({ kind: "refused", reason: "no funds" }).stages[0]?.text).toBe(
-      "refused: no funds",
-    );
-    expect(sentAs({ kind: "unsettled", id: ID, status: "failed" }).stages[0]?.text).toBe(
-      "not settled: failed",
-    );
     expect(
-      sentAs({ kind: "unread", id: ID, status: "succeeded", error: "no trace" }).stages[0]?.text,
+      sentAs({ kind: "refused", reason: "no funds" }).stages.find((line) => line.stage === "sent")
+        ?.text,
+    ).toBe("refused: no funds");
+    expect(
+      sentAs({ kind: "unsettled", id: ID, status: "failed" }).stages.find(
+        (line) => line.stage === "sent",
+      )?.text,
+    ).toBe("not settled: failed");
+    expect(
+      sentAs({ kind: "unread", id: ID, status: "succeeded", error: "no trace" }).stages.find(
+        (line) => line.stage === "sent",
+      )?.text,
     ).toBe("sent, unread: no trace");
   });
 });

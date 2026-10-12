@@ -173,9 +173,9 @@ try {
   await page.screenshot({ path: join(shots, "chain-2-simulated.png") });
 
   // Stage 3: B sends it
-  const frames = await page.evaluate(() =>
-    Number(document.querySelector("[data-frames]")?.dataset.frames ?? 0),
-  );
+  const generation = () =>
+    page.evaluate(() => Number(document.querySelector('[data-chain="ready"]')?.dataset.generation));
+  const drawnBefore = await generation();
   await page.keyboard.press("KeyB");
   const sent = await until(
     page,
@@ -209,12 +209,18 @@ try {
     (await text(page, '[data-panel="batch"]'))?.includes("empty"),
     "the batch is empty after the send",
   );
-  const after = await page.evaluate(() =>
-    Number(document.querySelector("[data-frames]")?.dataset.frames ?? 0),
-  );
+  // The map is mounted again from the chain's state: the state it draws is a new one
+  const drawnAfter = await generation();
   ok(
-    after > 0 && frames >= 0,
-    `the map was drawn again from the chain's state (frames ${frames} → ${after})`,
+    drawnAfter > drawnBefore,
+    `the map was drawn again from the chain's state (state ${drawnBefore} → ${drawnAfter})`,
+  );
+  await page.waitForSelector("[data-frames]", { timeout: 20_000 });
+  // §5.3: the simulation the batch was sent on stays beside the sent result
+  const beside = await stage(page, "simulated");
+  ok(
+    beside !== null && beside.replace(/^simulated: /, "") === simulated.replace(/^simulated: /, ""),
+    "stage 2 stays beside stage 3",
   );
   await page.screenshot({ path: join(shots, "chain-3-sent.png") });
 

@@ -90,6 +90,12 @@ export function WalkScreen({
             case "help":
               setHelp((h) => !h);
               return true;
+            case "wait":
+            case "turn":
+            case "send":
+            case "again":
+              // The chain mode's keys (CLI-11c): left to the page here
+              return false;
             default:
               // Places, services and leaving are the hub's and the instance's screens', not the map's.
               return true;

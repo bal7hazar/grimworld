@@ -1,4 +1,5 @@
 import type { PlayAction } from "../preview/actions";
+import type { Intent } from "../input/intent";
 import type { Facing, Tile } from "../render/view";
 import { directionBetween, planPath, tileToward } from "../sandbox/wiring";
 import { tileKey } from "../render/fog";
@@ -65,6 +66,17 @@ export interface ChainController {
   /** Where the adventurer stands on the chain's state, and where the batch's moves end. */
   tiles(): { readonly chain: Tile; readonly planned: Tile };
   tap(tile: Tile): Tap;
+  /**
+   * A tap as the map sees it: the intent the sandbox's session gets, or null. The sandbox draws a
+   * selected goblin's arcs and toggles it at each tap on it; this keeps its selection in step with
+   * the controller's (a select, then an attack that deselects), and never lets it turn the drawn
+   * adventurer toward a goblin: the map draws the chain's facing.
+   */
+  mapTap(tile: Tile): Intent | null;
+  /** The facing the batch leaves the adventurer in: the last planned move or turn, else the chain's. */
+  facing(): Facing;
+  /** The facing the chain holds, which the map draws. */
+  facingOfChain(): Facing;
   /** A step key or a tap on a neighbour: one `move`, or a `turn` after `R`. */
   step(direction: Facing): boolean;
   wait(): boolean;
@@ -100,6 +112,15 @@ export function createChainController(deps: ControllerDeps): ChainController {
     note: undefined,
   };
   let drawn: { chain: ChainState; world: SandboxWorld } | undefined;
+  /** The goblin the map's session has selected (its arcs), which `mapTap` keeps in step. */
+  let onMap: number | null = null;
+  /** The stages' line as last seen: a new one replaces the controller's own note. */
+  let line = stages.get().line;
+  stages.subscribe((now) => {
+    if (now.line === line) return;
+    line = now.line;
+    if (state.note !== undefined) set({ note: undefined });
+  });
 
   const set = (next: Partial<ControllerState>) => {
     state = { ...state, ...next };
@@ -136,7 +157,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
     return taken;
   }
 
-  return {
+  const controller: ChainController = {
     get: () => state,
     subscribe(listener) {
       listeners.add(listener);
@@ -145,7 +166,51 @@ export function createChainController(deps: ControllerDeps): ChainController {
     world,
     tiles,
 
+    facing() {
+      const { chain, planned } = stages.get();
+      for (let i = planned.length - 1; i >= 0; i--) {
+        const action = planned[i]!.action;
+        if (action.kind === "move" || action.kind === "turn") return action.direction as Facing;
+      }
+      const { view, member } = chain.mirror;
+      return memberPlace(view.members[member]?.state ?? 0n).facing;
+    },
+
+    mapTap(tile) {
+      const result = controller.tap(tile);
+      const goblinTile = (entity: number) =>
+        world().actors.find((a) => a.side === "goblin" && a.id === entity)?.tile;
+      const toggle = (entity: number): Intent | null => {
+        const at = goblinTile(entity);
+        return at === undefined ? null : { kind: "tile", tile: at };
+      };
+      if (result.kind === "attack") {
+        // The sandbox deselects a goblin tapped again, and turns nobody
+        if (onMap !== result.entity) return null;
+        onMap = null;
+        return toggle(result.entity);
+      }
+      if (result.kind !== "select") return null;
+      const { chain } = tiles();
+      const at = goblinTile(result.entity);
+      const toward = at === undefined ? null : directionBetween(chain, at);
+      // The sandbox turns the adventurer toward an adjacent goblin it selects: that is not played
+      if (toward !== null && toward !== controller.facingOfChain()) {
+        const stale = onMap;
+        onMap = null;
+        return stale === null ? null : toggle(stale);
+      }
+      onMap = result.entity;
+      return toggle(result.entity);
+    },
+
+    facingOfChain() {
+      const { view, member } = stages.get().chain.mirror;
+      return memberPlace(view.members[member]?.state ?? 0n).facing;
+    },
+
     tap(tile) {
+      if (stages.get().phase !== "ready") return { kind: "none" };
       const map = world();
       const goblin = map.actors.find(
         (a) => a.side === "goblin" && tileKey(a.tile) === tileKey(tile),
@@ -209,7 +274,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
     },
 
     send() {
-      set({ turning: false });
+      set({ turning: false, note: undefined });
       return stages.send();
     },
 
@@ -226,9 +291,15 @@ export function createChainController(deps: ControllerDeps): ChainController {
         set({ entering: false, selected: null });
         return true;
       } catch (error) {
+        // A refusal of the guard arrives inside the account's error: it shows the guard's own line
+        const cause = (error as { cause?: unknown } | undefined)?.cause;
+        const refused = [cause, error].find((e) => e instanceof Error && e.name === "ChainRefused");
         set({
           entering: false,
-          note: `enter failed: ${error instanceof Error ? error.message : String(error)}`,
+          note:
+            refused instanceof Error
+              ? refused.message
+              : `enter failed: ${error instanceof Error ? error.message : String(error)}`,
         });
         return false;
       }
@@ -239,6 +310,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
     },
 
     reset() {
+      onMap = null;
       set({ selected: null, turning: false });
     },
 
@@ -259,4 +331,5 @@ export function createChainController(deps: ControllerDeps): ChainController {
       return { steps, end: { tile: { x: place.x, y: place.y }, facing: place.facing } };
     },
   };
+  return controller;
 }

@@ -100,6 +100,18 @@ export function describe(state: StagesState, controller: ControllerState): Panel
     }
   }
   const { sent } = state;
+  // Once a send settled the plan is the next batch's: the simulation the batch was sent on stays
+  // beside the sent result (§5.3)
+  if (simulation === undefined && sent !== undefined) {
+    const { simulated } = sent;
+    stages.push({
+      stage: "simulated",
+      text:
+        simulated.kind === "refused"
+          ? `refused: ${simulated.reason}`
+          : outcomeText(simulated.chain),
+    });
+  }
   if (sent !== undefined) {
     const { result } = sent;
     if (result.kind === "sent") {
