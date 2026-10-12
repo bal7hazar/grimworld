@@ -26,7 +26,10 @@ describe("targeting reads client/sim's aim (§4.1, §4.3)", () => {
       const out = outcome(row);
       const refused = "illegal" in out ? out.illegal : undefined;
       // Only the rows that reach the target's check: accepted, or refused by Target, Reach or Trap
-      if (refused !== undefined && ![Illegal.Target, Illegal.Reach, Illegal.Trap].includes(refused)) {
+      if (
+        refused !== undefined &&
+        !([Illegal.Target, Illegal.Reach, Illegal.Trap] as number[]).includes(refused)
+      ) {
         continue;
       }
       const cw = worldOf(row);
@@ -104,7 +107,11 @@ describe("targeting reads client/sim's aim (§4.1, §4.3)", () => {
         ...row,
         board,
         content: ACT,
-        action: { kind: "skill", slot: 0, target: { tile: true, value: target.x + 256 * target.y } },
+        action: {
+          kind: "skill",
+          slot: 0,
+          target: { tile: true, value: target.x + 256 * target.y },
+        },
       }).outcome;
       expect(out).toEqual({ illegal: Illegal.Reach });
       tested += 1;

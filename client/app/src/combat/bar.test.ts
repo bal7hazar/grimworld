@@ -49,7 +49,9 @@ describe("a bar slot's state (§2.2), in act's order", () => {
     it(`act.jsonl row ${id}: ${state}, and actionAct refuses with ${illegal ?? "nothing"}`, () => {
       const row = actRow(id);
       const { slot } = skillOf(id);
-      expect(slotState(member(row.words), indexSheets(ACT), row.words.clock, slot).state).toBe(state);
+      expect(slotState(member(row.words), indexSheets(ACT), row.words.clock, slot).state).toBe(
+        state,
+      );
       expect(refusal(id, row.action)).toBe(illegal);
     });
   }

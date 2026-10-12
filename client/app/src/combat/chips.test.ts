@@ -40,7 +40,16 @@ function waitAt(words: Words, clock: number): { before: number; after: number } 
     ran: false,
   };
   const ran = runSegment(
-    { words: start, content: TICK, area, level: 20, ground: [], owed: 0, weight: 10, actions: [{ kind: "wait" }] },
+    {
+      words: start,
+      content: TICK,
+      area,
+      level: 20,
+      ground: [],
+      owed: 0,
+      weight: 10,
+      actions: [{ kind: "wait" }],
+    },
     CLASSES,
   );
   return { before: member.health, after: loadWorld(ran.words, SHEETS).members[0]!.health };

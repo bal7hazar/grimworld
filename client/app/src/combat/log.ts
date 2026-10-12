@@ -681,22 +681,32 @@ export interface Batch {
   readonly actions: readonly Action[];
 }
 
+export interface LinesOptions {
+  readonly names?: Names;
+  readonly report?: LogReport;
+  /** The one-tick replay's hit lines; off, an action has its difference lines only (§7.2). */
+  readonly replay?: boolean;
+  /** The first action (1-based) to give lines of: an input needs only the new action's. */
+  readonly from?: number;
+}
+
 /**
  * The lines of each action of a batch, from the runs on its prefixes (`Prefixes.at`): the action in
  * words, its ticks' hits (the replay), then the difference of the two states; the action that
  * stopped the batch on a refusal, its refusal line. Actions the batch did not reach have none.
+ * The list starts at action `from`.
  */
 export function batchLines(
   batch: Batch,
   runs: readonly RecordedRun[],
-  names: Names = DEFAULT_NAMES,
-  report: LogReport = consoleLogReport,
+  options: LinesOptions = {},
 ): LogLine[][] {
+  const { names = DEFAULT_NAMES, report = consoleLogReport, replay = true, from = 1 } = options;
   const sheets = indexSheets(batch.content);
   const last = runs[runs.length - 1]!;
   const out: LogLine[][] = [];
   const event = (text: string): LogLine => ({ text, tone: "event", status: "predicted" });
-  for (let k = 1; k <= batch.actions.length; k++) {
+  for (let k = from; k <= batch.actions.length; k++) {
     const action = batch.actions[k - 1]!;
     if (k > last.done.played) {
       const refused =
@@ -714,7 +724,8 @@ export function batchLines(
     const lines: string[] = [];
     const said = actionLine(action, before, sheets, batch.board, names, name);
     if (said !== null) lines.push(said);
-    lines.push(...replayLines(now.ticks.slice(was.ticks.length), sheets, names, report));
+    if (replay)
+      lines.push(...replayLines(now.ticks.slice(was.ticks.length), sheets, names, report));
     lines.push(...differenceLines(before, after, was.ground, now.ground, sheets, names));
     out.push(lines.map(event));
   }
