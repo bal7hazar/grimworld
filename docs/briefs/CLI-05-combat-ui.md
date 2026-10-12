@@ -153,7 +153,9 @@ desktop, or the phone's first real test (D-199 suspended it) shows the rows too 
 ### 2.2 A slot's state
 
 **Default.** A slot is in exactly one state, decided in this order, which is the order `act`
-refuses a skill (so the state shown is the refusal the player would get):
+refuses a skill (so the state shown is the refusal the player would get). "Not now" is checked
+first, as `act` checks `Knocked` before `Empty` (`client/sim/src/action.ts`, `act`); Empty is listed
+first below only because an empty slot looks the same in either order:
 
 | State               | When                                                        | Shown as                                                                   |
 | ------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -173,8 +175,16 @@ show a number.
 
 The figures come from client/sim, never from client/app's own arithmetic: the energy cost of a slot
 is client/sim's `energy` (`action.ts`, with Fieldcraft and a glyph's discount), and the ticks left
-are read from the stored deadline and the clock by one function of the combat model (§10, CLI-05a),
-tested on client/sim's reading of a deadline (`held` in `segment/tick.ts`: active while the clock is below the deadline, so the ticks left are the deadline minus the clock).
+are read from the stored deadline and the clock by one function of the combat model (§10, CLI-05a).
+The two kinds of deadline are read differently, as client/sim reads them:
+
+- **A recharge** is running while `clock < recharge` (`act`'s `Recharging` check, `action.ts`). The
+  slot shows `recharge − clock`, and is ready when the clock reaches the deadline.
+- **An activation** shows `act_deadline − clock`, the ticks until it resolves.
+- **A condition or held effect** is held while `clock <= deadline` (`held` in `segment/tick.ts`;
+  `degeneration` and `effect_pips` read it the same way). Its chip shows `deadline − clock + 1`, the
+  ticks it still acts, so it reads 1 on its last tick, and it disappears once the clock passes the
+  deadline (§6.1).
 
 **Why.** Following `act`'s order means the bar never promises a skill the action class refuses.
 Using client/sim's cost keeps one source of truth (mandate §6).
@@ -338,20 +348,26 @@ example after a reveal), the action is added and the simulation stage decides, a
 
 The lines, in words the player reads (I-3: nothing about the chain):
 
-| `Illegal`                              | Line                                                                         |
-| -------------------------------------- | ---------------------------------------------------------------------------- |
-| `Knocked`                              | "You are knocked down."                                                      |
-| `Instant`                              | "Only one instant skill between two ticks."                                  |
-| `Empty`                                | (nothing: an empty slot is never armed)                                      |
-| `Belt`                                 | "None left."                                                                 |
-| `Kind`                                 | "Needs its weapon."                                                          |
-| `Recharging`                           | "Recharging: N ticks."                                                       |
-| `Energy`                               | "Not enough energy."                                                         |
-| `Adrenaline`                           | "Not enough adrenaline."                                                     |
-| `Target`                               | "Not a valid target."                                                        |
-| `Reach`                                | "Out of reach."                                                              |
-| `Trap`                                 | "A trap cannot go there."                                                    |
-| `Clock`, `Absent`, `Turned`, `Blocked` | not reachable from a skill or an item tap; logged as a parity record if seen |
+| `Illegal`                              | Line                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `Knocked`                              | "You are knocked down."                                                        |
+| `Instant`                              | "Only one instant skill between two ticks."                                    |
+| `Empty`                                | (nothing: an empty slot is never armed)                                        |
+| `Belt`                                 | "None left."                                                                   |
+| `Kind`                                 | "Needs its weapon." (an attack skill only: `interact` is never offered, below) |
+| `Recharging`                           | "Recharging: N ticks."                                                         |
+| `Energy`                               | "Not enough energy."                                                           |
+| `Adrenaline`                           | "Not enough adrenaline."                                                       |
+| `Target`                               | "Not a valid target."                                                          |
+| `Reach`                                | "Out of reach."                                                                |
+| `Trap`                                 | "A trap cannot go there."                                                      |
+| `Clock`, `Absent`, `Turned`, `Blocked` | not reachable from a skill or an item tap; logged as a parity record if seen   |
+
+**`interact` is not available.** On main the mirror and the contract both refuse every `interact`
+with `Illegal.Kind` (`client/sim/src/segment.ts`, `run`; `contracts/logic/src/types/action.cairo`,
+`act`). The client offers no interaction until a game lot implements it: a tap on a gate, a chest or a
+lever shows "Not available yet." and adds nothing to the batch, so `Kind` never reaches the player
+from an interaction.
 
 A slot whose skill client/sim cannot mirror (`NotMirrored`, `unported.MIXED`: a carrier R-44 refuses)
 is shown as "not available" and cannot be armed. The contracts refuse such a skill when it is
@@ -419,6 +435,8 @@ left as a figure. The letter carries the meaning; the colour repeats it.
 - **On a goblin**: on the map, a goblin with any condition shows its letters only, small, under its
   feet (at most three, then `+`); the figures are in the target zone. A goblin's one held effect shows
   there too.
+- The ticks shown are `deadline − clock + 1`: a condition or effect is held while
+  `clock <= deadline` (§2.2), so a chip reads 1 on its last tick and never 0.
 - An effect that lasts by charges only (`MAX_CLOCK`) shows its charges and no ticks.
 - Knocked down also lays the actor's sprite flat (rotated) until the pack has the pose (design/10
   _Missing animations_).
@@ -640,8 +658,9 @@ command is written here without that prefix.
   drawn;
 - `client/sim/src/index.ts`, new exports only:
   - `segment/world.ts`: `world` as `loadWorld`, and the type `World`;
-  - `segment/words.ts`: `load` as `loadMember`, `sheets` as `indexSheets`, and the types `Member`
-    and `Sheets`;
+  - `segment/words.ts`: `load` as `loadMember`, `sheets` as `indexSheets`, the held-effect decoder
+    `held(effects, slot)` as `heldEffect` (so that it does not collide with `segment/tick.ts`'s
+    `held`), and the types `Member` and `Sheets`;
   - `executor.ts`: `addressing`, `target`, `filter`;
   - `action.ts`: `aim`, `energy`, `glyphs`, `weapon_required`, `belt_count`, `mixed`;
   - `body/member.ts`: `recharge` as `memberRecharge`;
@@ -666,10 +685,14 @@ command is written here without that prefix.
   each by a test; a tile out of sight is in the range's greyed set and refused by `aim` with
   `Reach`; a TRAP skill's tinted tiles are exactly those `spot` accepts, and an occupied tile in
   reach is refused with `Trap`;
-- the ticks left of a condition and of a recharge, at the deadline and one tick before and after;
+- the ticks shown of a condition (`deadline − clock + 1`), of a recharge (`recharge − clock`) and of
+  an activation, at the deadline and one tick before and after, each against client/sim's own reading
+  (`held`, `act`'s `Recharging`);
 - `log.ts`:
   - **the last prefix's words equal the full run's**, on every action of a batch of 10 built from
     the act and tick tables' rows;
+  - the prefix cache is keyed by the base words and the action list: a changed base (a send, a
+    reveal, a state read again) or an action removed empties it, and a test shows each;
   - for every row of the tick table, `n` chained calls of `tickTicks` with `n = 1` give the words
     and ground of one call with `n`; a row where they differ is reported to track game with its
     figures, not skipped;
@@ -781,11 +804,13 @@ tools/art/tests` passes where the venv exists;
 - `pnpm --filter @grimworld/app test`, `pnpm --filter @grimworld/app lint`,
   `pnpm --filter @grimworld/app typecheck` pass.
 
-### CLI-11d — skills, belt items and interactions on chain
+### CLI-11d — skills and belt items on chain
 
 CLI-11's brief (§8) names this lot and left its allowlist and acceptance to CLI-05: they are here.
 
-**Profile:** `impl-sonnet`. The design is fixed by this brief and CLI-11's.
+**Profile:** `impl-sonnet`. The design is fixed by this brief and CLI-11's. Interactions, which
+CLI-11's brief put in CLI-11d, are left out: `interact` is not available on main (§4.4), and they
+wait for a game lot that implements it.
 
 **Waits for:** CLI-05c and CLI-05d merged, and track game's SEED-02. OPS-01b's
 `scripts/devnet_deploy.py --build full` is on main; today it leaves the bar empty and the belt at
@@ -799,7 +824,7 @@ one REGENERATION": the same belt.)
 
 - `client/app/src/chain/ChainController.ts`, `ChainScreen.tsx`, `ChainPanel.tsx`, `world.ts` and their
   tests: the combat screen's elements fed by `fromWords`, the skill and item actions, §4.4's refusal
-  before the batch, `interact` on a tapped interactive tile;
+  before the batch, and "Not available yet." on a tapped gate, chest or lever (§4.4);
 - `client/app/src/chain/stages.ts` and its test, only to run the mirror through `record.ts`'s
   wrapper for §7.2 and to confirm the log's lines at the sent stage;
 - `client/app/src/preview/reconcile.ts` and its test, only for `Prediction` to carry the run's
@@ -815,6 +840,7 @@ one REGENERATION": the same belt.)
   (controller tests with fakes);
 - a skill on recharge, a potion with none left and a target out of reach are refused before the
   batch with §4.4's line, and the batch is unchanged;
+- a tap on a gate, a chest or a lever says "Not available yet." and adds no `interact` to the batch;
 - after a send, the log's predicted lines are confirmed, or struck with "The world corrected itself"
   when the chain differs (a test with a fake trace);
 - `names.ts` names every skill and item id of the deployment's `build` key from SEED-02's table
