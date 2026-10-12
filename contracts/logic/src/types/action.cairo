@@ -861,6 +861,47 @@ mod tests {
         );
     }
 
+    // SEED-02 fix loop 1: the seed's potions drunk through the real path. A potion's entry is
+    // `SELF`, `SINGLE` and its filter must be ALLIES (the source is its own ally; under FOES a
+    // `SELF` entry takes nobody). The words are `seed_records.item` and `regeneration_item`
+    // (`scripts/tests/devnet_deploy_smoke.py` checks they are equal).
+    const SEED_HEAL: u128 = 0x90000000000001400140003;
+    const SEED_REGEN: u128 = 0x90000280028000300030005;
+
+    #[test]
+    #[available_gas(l2_gas: 19427184)] // ceil(1.05 × 18502080 measured)
+    fn test_seed_potions_drunk() {
+        // The healing potion (items 1, 8, 15, 22): 20 health to its holder.
+        let base = bench();
+        let sheet = PotionSheet { id: BOMB, entry: SEED_HEAL, ..Default::default() };
+        let sheets = Content {
+            skills: base.skills, potions: array![sheet].span(), castes: base.castes,
+        }
+            .sheets();
+        let mut member = adventurer(@sheets, array![].span());
+        member.set_belt_count(0, 1);
+        member.health = 100;
+        let mut world = Fixture::world(CLOCK, array![member], array![]);
+        assert(act(ref world, @sheets, Action::Item((0, 0))) == Ok(1), 'drunk');
+        assert(world.member(0).health == 120, 'the holder is healed');
+        // The REGENERATION potion (item 23): the holder holds the effect.
+        let sheet = PotionSheet { id: BOMB, entry: SEED_REGEN, regen: 3, ..Default::default() };
+        let sheets = Content {
+            skills: base.skills, potions: array![sheet].span(), castes: base.castes,
+        }
+            .sheets();
+        let mut member = adventurer(@sheets, array![].span());
+        member.set_belt_count(0, 1);
+        let mut world = Fixture::world(CLOCK, array![member], array![]);
+        assert(act(ref world, @sheets, Action::Item((0, 0))) == Ok(1), 'drunk');
+        let member = world.member(0);
+        let mut held = false;
+        for slot in 0..4_u8 {
+            held = held || member.effect_of(slot).deadline > CLOCK;
+        }
+        assert(held, 'the holder holds the effect');
+    }
+
     // A trap tile that cannot take one refuses the skill (§5.11, FX-14): a wall (by sight), an
     // actor on it, a full chunk; on an empty walkable tile in range, the activation starts
     // (§10.10: 10 / 2 /

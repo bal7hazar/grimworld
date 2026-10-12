@@ -35,10 +35,23 @@ def gate(source, destination, anchor, entry, kind):
 
 def item(klass):
     """An `ITEM` of region 1, value 1. A potion's entry heals its holder, 20 at every rank
-    (`HEAL`, `SELF`, `SINGLE`): `Registry.set_record` refuses a potion without a legal entry
+    (`HEAL`, `SELF`, `SINGLE`, filter ALLIES: the holder is its own ally, and under FOES a `SELF`
+    entry takes nobody): `Registry.set_record` refuses a potion without a legal entry
     (D-166, `ItemAssert::assert_legal`)."""
-    entry = 3 + (20 << 16) + (20 << 32) + (1 << 88) if klass == POTION else 0
+    entry = 3 + (20 << 16) + (20 << 32) + (1 << 88) + (1 << 91) if klass == POTION else 0
     return [klass + (1 << 8) + (1 << 32) + (entry << 128) + LIVE]
+
+
+REGENERATION_POTION = 23  # SEED-02: the seed's first REGENERATION potion, after the 22 items of the probe
+
+
+def regeneration_item():
+    """SEED-02: the REGENERATION potion, an `ITEM` of region 1, value 1 like `item`. Its entry gives
+    its holder 3 pips of health regeneration for 40 ticks, at every rank (`REGENERATION`, `SELF`,
+    `SINGLE`, filter ALLIES like `item`; a potion's entry does not scale): a holding entry, so it
+    carries a duration."""
+    entry = 5 + (3 << 16) + (3 << 32) + (40 << 48) + (40 << 64) + (1 << 88) + (1 << 91)
+    return [POTION + (1 << 8) + (1 << 32) + (entry << 128) + LIVE]
 
 
 def seed_rows(name, columns):

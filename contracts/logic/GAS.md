@@ -694,6 +694,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `types::action::tests::test_item_bomb` | 12202795 | 12812935 | 5.00 % | 0 | 0 | 2026-10-07 | faa262c |
 | `types::action::tests::test_no_carry_before_a_refusal` | 33324820 | 34991061 | 5.00 % | 0 | 0 | 2026-10-11 | 8c5e62b |
 | `types::action::tests::test_quick_cast_counters` | 23884 | 25079 | 5.00 % | 0 | 0 | 2026-10-07 | 44961f2 |
+| `types::action::tests::test_seed_potions_drunk` | 18502080 | 19427184 | 5.00 % | 0 | 0 | 2026-10-12 | b4e0603 |
 | `types::action::tests::test_spell_activation` | 11766275 | 12336834 | 4.85 % | 0 | 0 | 2026-10-10 | 0bf80ab |
 | `types::action::tests::test_trap_tile` | 11852982 | 12440172 | 4.95 % | 0 | 0 | 2026-10-10 | 0bf80ab |
 | `types::action::tests::test_wait_turn_knocked` | 10061092 | 10564147 | 5.00 % | 0 | 0 | 2026-10-07 | faa262c |

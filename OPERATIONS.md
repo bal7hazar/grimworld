@@ -273,6 +273,7 @@ verdict, findings table, coverage).
   commit (D-154), the CI checkout root it was built at and the CI artefact (run URL and name,
   `contract-classes-<sha>`, with its `build-root.json`) the declared class files came from (FND-12), the artefact of a push to
   `main` (the commit on `main`), never of a pull request's run. Mainnet is the owner's (D-116).
+- **`scripts/devnet_deploy.py`'s gold step is a devnet harness (D-280)**, never used on Sepolia or later: it points `Hub.instances` at the account for one `report`, only on a local devnet (the RPC's chain id and `devnet_getPredeployedAccounts` are checked), restores and reads it back in a `finally`, and is removed when expedition rewards land.
 - **Publications on scarbs.xyz are delegated to the project manager, in the owner's name** (D-132).
   No sub-agent publishes, ever. The orchestrator asks with a committed
   `docs/decisions/PENDING-publish-<package>-<version>.md` (package, version, commit, what changed,

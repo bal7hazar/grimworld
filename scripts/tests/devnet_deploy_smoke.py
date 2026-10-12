@@ -15,6 +15,15 @@ and checks it equals what the JSON's `build` key says was set. The default run i
 the script is run with `--build full`: the build key, the build read back, and the pack: after the entry the
 JSON says what the pack kept, and on the chain the adventurer leaves, `set_build` accepts the belt twice over
 (the pack holds twice the belt), refuses one more than that, and enters a second time with the same belt.
+
+SEED-02 (D-275, D-280): in `--full` the bar read back from the chain holds the four skills the JSON names
+(the instant attack, the activation skill, the trap and the REGENERATION skill), the belt holds both potions
+and `build.dropped` is empty; `Hub.instances` read from the chain's storage is the `Instances` address again
+after the gold harness; the second entry carries the whole bar and belt. Before any node, the gold step's own
+checks run on a stub node: it refuses a chain id that is not a local devnet's, a node that is not a devnet and
+a non-local URL, and sends nothing then; on a devnet it credits exactly the four skills' price, restores
+`Hub.instances` and fails when the read-back is not the `Instances` address. The Keccak behind the storage
+key is checked against a known selector.
 """
 import json
 import os
@@ -24,6 +33,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "contracts", "tools"))
 import devnet_deploy  # noqa: E402
 
 LIVE = 1 << 250
@@ -34,6 +44,109 @@ HUB_GATE_BACK = 2
 
 def logs():
     return os.environ.get("WITH_NODE_LOG_DIR", os.path.join(ROOT, ".with-node"))
+
+
+class Stub:
+    """A node that answers a chain id and records what is sent (no process, no network)."""
+
+    def __init__(self, chain, devnet=True, url="http://127.0.0.1:5050", stored="0x2"):
+        self.chain, self.devnet, self.url, self.stored = chain, devnet, url, stored
+        self.address, self.sent = "0xacc", []
+
+    def rpc(self, method, params):
+        if method == "starknet_chainId":
+            return "0x" + self.chain.encode().hex()
+        if method == "devnet_getPredeployedAccounts":
+            if not self.devnet:
+                raise RuntimeError("Method not found")
+            return []
+        if method == "starknet_getStorageAt":
+            assert params["key"] == hex(devnet_deploy.storage_key("instances")), params
+            return self.stored
+        raise AssertionError(method)
+
+    def invoke(self, contract, function, *calldata):
+        self.sent.append((function, calldata))
+        events = [{"from_address": "0x2", "keys": ["0x1", "0x5"], "data": ["0x1", "0x2", "0x3"]}]
+        return {"events": events}
+
+
+def refused(call, *args):
+    try:
+        call(*args)
+    except SystemExit as error:
+        return str(error)
+    raise AssertionError("not refused")
+
+
+def check_gold_harness():
+    """D-280's three conditions, on stub nodes: the chain-id refusal, the restore and its read-back,
+    and the amount."""
+    devnet_deploy.check_url("http://127.0.0.1:5050")
+    assert devnet_deploy.assert_local_devnet(Stub("SN_SEPOLIA")) == "SN_SEPOLIA"
+    for chain in ("SN_MAIN", "SN_GOERLI", "", "SN_SEPOLIA_X"):
+        message = refused(devnet_deploy.assert_local_devnet, Stub(chain))
+        assert "local devnet only" in message and "chain id" in message, message
+    assert "devnet only" in refused(devnet_deploy.assert_local_devnet, Stub("SN_SEPOLIA", devnet=False))
+    refused(devnet_deploy.assert_local_devnet, Stub("SN_SEPOLIA", url="https://sepolia.example"))
+    # the refusal comes before any transaction: the step sends nothing on a chain that is not a devnet
+    main_net = Stub("SN_MAIN")
+    refused(devnet_deploy.fund_pack, main_net, "0x1", "0x2", "0x3", "0x4", "0x5", 1, [(1, 4)],
+            devnet_deploy.GOLD)
+    assert main_net.sent == [], main_net.sent
+    # the amount is the four skills at D-277's prices, no margin
+    assert devnet_deploy.SKILL_PRICES == (50, 60, 70, 80) and devnet_deploy.GOLD == 260
+    # on a devnet: enter, the account as `instances`, the report with the gold, the real `Instances`
+    # back, leave; and `Hub.instances` read back is checked
+    node = Stub("SN_SEPOLIA", stored="0x2")
+    devnet_deploy.fund_pack(node, "0x1", "0x2", "0x3", "0x4", "0x5", 1, [(1, 4)], devnet_deploy.GOLD)
+    steps = [(function, calldata[0] if function == "set_contracts" else None)
+             for function, calldata in node.sent]
+    assert steps == [("enter", None), ("set_contracts", "0x3"), ("report", None),
+                     ("set_contracts", "0x3"), ("leave", None)], steps
+    sent = {i: calldata for i, (_, calldata) in enumerate(node.sent)}
+    assert sent[1][1] == "0xacc" and sent[3][1] == "0x2", "the account, then the real Instances"
+    report = sent[2]
+    assert report[4] == devnet_deploy.GOLD, report  # Results.gold: instance, [1, adventurer], xp, gold
+    # the restore is checked even when the report fails, and a wrong read-back fails the run
+    wrong = Stub("SN_SEPOLIA", stored="0xacc")
+    try:
+        devnet_deploy.fund_pack(wrong, "0x1", "0x2", "0x3", "0x4", "0x5", 1, [(1, 4)],
+                                devnet_deploy.GOLD)
+    except RuntimeError as error:
+        assert "not restored" in str(error), error
+    else:
+        raise AssertionError("a Hub.instances that was not restored passed")
+    assert wrong.sent[-1][0] == "set_contracts", "no restore attempted"
+
+    class Failing(Stub):
+        def invoke(self, contract, function, *calldata):
+            if function == "report":
+                self.sent.append((function, calldata))
+                raise RuntimeError("report reverted")
+            return super().invoke(contract, function, *calldata)
+
+    failing = Failing("SN_SEPOLIA", stored="0x2")
+    try:
+        devnet_deploy.fund_pack(failing, "0x1", "0x2", "0x3", "0x4", "0x5", 1, [(1, 4)],
+                                devnet_deploy.GOLD)
+    except RuntimeError as error:
+        assert "report reverted" in str(error), error
+    else:
+        raise AssertionError("a reverted report passed")
+    assert [f for f, _ in failing.sent] == ["enter", "set_contracts", "report", "set_contracts"]
+    assert failing.sent[-1][1][1] == "0x2", "the real Instances restored after a failed report"
+    # Keccak-256 (the original padding), behind the storage key: `transfer`'s selector
+    assert devnet_deploy.storage_key("transfer") == \
+        0x83afd3f4caedc6eebf44246fe54e38c95e3179a5ec9ea81740eca5b482d12e
+    assert devnet_deploy.keccak256(b"").hex() == \
+        "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+    # SEED-02 fix loop 1: the potions' entries carry filter ALLIES (bit 91), the words
+    # `action.cairo`'s `test_seed_potions_drunk` drinks
+    from seed_records import item, regeneration_item, POTION
+    assert item(POTION)[0] >> 128 & ((1 << 120) - 1) == 0x90000000000001400140003
+    assert regeneration_item()[0] >> 128 & ((1 << 120) - 1) == 0x90000280028000300030005
+    print("devnet_deploy smoke (gold harness, stub nodes): ok")
 
 
 def check_build(node, dep, mode):
@@ -55,9 +168,10 @@ def check_build(node, dep, mode):
 
 
 def check_full(dep, node):
-    """`--build full`: the ids in the key, the pack on the chain, a second entry with the same belt."""
+    """`--build full`: the ids in the key, the bar read back, the pack on the chain, a second entry
+    with the same bar and belt."""
     build = dep["build"]
-    check_build(node, dep, "full")
+    words = check_build(node, dep, "full")
     assert build["belt"], "an empty belt"
     for kind in build["belt"]:
         funded = [p["count"] for p in build["pack"] if p["item"] == kind["item"]]
@@ -66,12 +180,22 @@ def check_full(dep, node):
         assert kept and kept[0] >= kind["count"], f"no second entry in the pack: {build}"
     # `pack_after_entry` is derived by the script (no pack view): the chain checks below are the proof
     assert build["derived"] == ["pack_after_entry"], build
-    assert build["dropped"].get("regeneration_potion") and build["dropped"].get("bar"), \
-        "the dropped parts are not named"
-    assert all(name in build["skills_wanted"] or name in build["dropped"]
-               for name in ("instant_attack", "activation_skill", "trap", "regeneration_skill"))
-    # on the chain: out of the instance (the belt's reserve comes back), the pack holds twice the belt
+    # SEED-02: nothing dropped, the four skills on the bar (read back from the chain by `check_build`)
+    assert build["dropped"] == {}, build["dropped"]
+    skills = build["skills"]
+    assert list(skills) == ["instant_attack", "activation_skill", "trap", "regeneration_skill"], skills
+    assert build["bar"][:4] == list(skills.values()) and build["bar"][4:] == [0] * 4, build["bar"]
+    assert len(set(skills.values())) == 4 and all(skills.values()), skills
+    on_chain = [(words[BUILD] >> (16 * slot)) % (1 << 16) for slot in range(8)]
+    assert on_chain == build["bar"], on_chain
+    assert build["gold"] == 260, build["gold"]  # the four skills at D-277's prices, nothing over
+    items = [b["item"] for b in build["belt"]]
+    assert len(items) == 2 and items[0] != items[1], build["belt"]  # healing and REGENERATION potions
+    # D-280: the harness gave `Hub.instances` back to the real `Instances`
     hub, instances = dep["contracts"]["hub"], dep["contracts"]["instances"]
+    assert devnet_deploy.hub_instances(node, hub) == int(instances, 16), "Hub.instances not restored"
+    assert devnet_deploy.hub_instances(node, hub) != int(dep["account"], 16)
+    # on the chain: out of the instance (the belt's reserve comes back), the pack holds twice the belt
     adventurer = dep["adventurer_id"]
     node.import_account()
     node.invoke(instances, "leave", dep["instance_id"], adventurer, 0, HUB_GATE_BACK)
@@ -87,9 +211,12 @@ def check_full(dep, node):
         pass
     else:
         raise AssertionError("the pack holds more than twice the belt")
-    node.invoke(hub, "set_build", adventurer, EMPTY_BUILD, belt_of(count), 0)
+    # the bar's skills are known: the same bar and the whole belt go back, and the adventurer enters again
+    bar = devnet_deploy.build_word(build["bar"])
+    belt = devnet_deploy.belt_word([(b["item"], b["count"]) for b in build["belt"]])
+    node.invoke(hub, "set_build", adventurer, bar, belt, 0)
     from_hub = node.view("persistent", hub, "adventurer", adventurer)[1:]
-    assert from_hub[BELT] == belt_of(count) + LIVE
+    assert from_hub[BUILD] == bar + LIVE and from_hub[BELT] == belt + LIVE
     second = devnet_deploy.entered(node.invoke(hub, "enter", adventurer, 1), instances)
     assert second != dep["instance_id"], "no second instance"
     print("devnet_deploy smoke (--build full): ok")
@@ -112,6 +239,7 @@ def full():
 def main():
     if sys.argv[1:] == ["--full"]:
         return full()
+    check_gold_harness()
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "deployment.json")
         script = os.path.join(ROOT, "scripts", "devnet_deploy.py")

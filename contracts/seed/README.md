@@ -6,7 +6,7 @@ fields, not the packed felts.
 
 | File | What |
 |---|---|
-| `test-region.json` | The test region: one region, its town, one zone, a dungeon of two floors, their gates; the reveal's content (ENG-05): two pack templates, a spawn table, the zone's and floor 1's quotas; the castes and the skill the packs name (ENG-07t) |
+| `test-region.json` | The test region: one region, its town, one zone, a dungeon of two floors, their gates; the reveal's content (ENG-05): two pack templates, a spawn table, the zone's and floor 1's quotas; the castes and the skill the packs name (ENG-07t); three more skills for the devnet adventurer's bar (SEED-02) |
 
 ## The test region
 
@@ -50,6 +50,38 @@ file). Placeholders for the mechanics, not DES-06's sheets (DES-06 fills the rea
 | `CASTE` | 1 | Grunt: tier 1, 100 % health, an axe (damage 6, slashing, 2 ticks, range 1), skill 1 |
 | `CASTE` | 2 | Slinger: tier 1, 100 % health, a bow (damage 5, piercing, 3 ticks, range 4), skill 1 |
 | `CASTE` | 3 | Brute: tier 2, 150 % health, armor 2, a maul (damage 9, blunt, 3 ticks, range 1), skill 1 |
+
+**The bar's skills (SEED-02, D-275, D-277).** Skills 2 to 4 are what `buy_skill` sells to the devnet
+adventurer, a Vanguard (profession 1, so each skill is of profession 1: `set_build` refuses another),
+so that its bar holds an instant attack, an activation skill, a trap and a REGENERATION skill (`scripts/devnet_deploy.py
+--build full`). No design table names them for a Vanguard (design/03's starter tables give the trap to the Warden,
+the heal to both), so their numbers are small and plain, from design/03's rows where one exists, and every
+skill is a legal carrier (`assert_carrier`, R-44: no `TILE` entry beside a `FOE` or `ALLY` one, no `SELF` entry
+before an addressed one; the registry checks them at `set_record`). They are not DES-06's sheets.
+
+| Kind | Id | What |
+|---|---|---|
+| `SKILL` | 2 | The activation skill, a Skill (kind 11) of profession 1, attribute 1, 5 energy, activation 1 tick, recharge 20, on its caster: `HEAL` 40 at rank 0, 140 at rank 12 (design/03's Second Wind, without its half-health bonus) |
+| `SKILL` | 3 | The trap, kind 9, 10 energy, activation 2, recharge 20, range 3, on a tile: a `TRAP` entry, then 10 to 40 earth damage and Crippled for 3 ticks on the foe that enters it (design/03's Snare) |
+| `SKILL` | 4 | The REGENERATION skill, a Skill (kind 11), 5 energy, instant, recharge 20, on its caster: `REGENERATION` 2 pips at rank 0, 5 at rank 12, held 30 ticks at rank 0, 60 at rank 12 (plain values: no design row) |
+
+The REGENERATION potion is not in this file: the items are `seed_records.py`'s (the probe and the deployment
+write them, `item` and `regeneration_item`). `ITEM` 23 is a potion whose entry is `REGENERATION` 3 pips for
+40 ticks on its holder (filter ALLIES: the holder is its own ally), at every rank (a potion's entry does not scale), next to the healing potions 1, 8,
+15 and 22 (`HEAL` 20).
+
+**Names for the client (CLI-05; off-chain, CV's single source).** The registry holds no names. Every skill and
+item id of the seed, with a short English name and what it is:
+
+| Kind | Id | Name | What |
+|---|---|---|---|
+| `SKILL` | 1 | Strike | Attack (kind 1), instant (activation 0), range 1, 4 strikes of adrenaline; entry 1 `ATTACK_BONUS` +2 (rank 0) to +6 (rank 12) |
+| `SKILL` | 2 | Second Wind | Skill (kind 11), activation 1, 5 energy, recharge 20, self; entry 1 `HEAL` 40 to 140 |
+| `SKILL` | 3 | Snare | Trap (kind 9), activation 2, 10 energy, recharge 20, range 3, a tile; entries `TRAP`, `DAMAGE` earth 10 to 40 on a foe, `CONDITION` Crippled 3 ticks on a foe |
+| `SKILL` | 4 | Mending | Skill (kind 11), instant (activation 0), 5 energy, recharge 20, self; entry 1 `REGENERATION` 2 to 5 pips, held 30 to 60 ticks |
+| `ITEM` | 1, 8, 15, 22 | Healing Potion | Potion; entry `HEAL` 20 on its holder (`SELF`, `SINGLE`, filter ALLIES), at every rank |
+| `ITEM` | 23 | Regeneration Potion | Potion; entry `REGENERATION` 3 pips for 40 ticks on its holder (`SELF`, `SINGLE`, filter ALLIES) |
+| `ITEM` | 2 to 7, 9 to 14, 16 to 21 | Ingredient (2 to 7, 9 to 14, 16 to 21) | Ingredient (18 items, no entry); named "Ingredient <id>" until the content pass names them |
 
 Skills come first in the file's order of writing (a caste names its skills, the registry reads
 them), and `skill_fields` and `caste_fields` give the columns (a skill's three entries are `e1_` to
