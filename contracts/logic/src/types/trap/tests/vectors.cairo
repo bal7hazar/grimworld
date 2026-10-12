@@ -8,14 +8,16 @@ use snforge_std::{DeclareResultTrait, declare};
 use starknet::ClassHash;
 use crate::interface::{ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
 use crate::models::chunk::{Features, FeaturesTrait, Object, object};
-use crate::models::goblin::{Goblin, GoblinTrait};
-use crate::models::member::{Member, MemberTrait};
+use crate::models::goblin::{Goblin, GoblinTrait, GoblinWordsTrait};
+use crate::models::member::{Member, MemberTrait, MemberWordsTrait};
 use crate::types::combat::{Placer, PlacerTrait, condition, damage, skill_kind, weapon};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, shape, target};
 use crate::types::executor::tests::body::{emit, finish};
-use crate::types::executor::tests::{AT, SNARE, board, content, entry, goblin, member, open, skill};
+use crate::types::executor::tests::{
+    AT, BRACE, KINDS, SHIELD, SNARE, board, content, entry, goblin, member, open, skill,
+};
 use crate::types::executor::{Board, ORIGIN};
-use crate::types::tick::{Content, ai};
+use crate::types::tick::{CasteSheet, Content, Held, ai};
 use crate::types::world::Words;
 use crate::types::world::fixtures::two;
 use super::{Ground, TrapTrait};
@@ -515,11 +517,317 @@ fn test_trap_vectors_4() {
     finish(digest, TRAP_DIGEST_4);
 }
 
+// ---- Appended by RV-03a2 (D-257): track CV's surviving mutants of the trap port (#444). Every
+// row from id 63 on reads the content of row 63, the last `content` row before it.
+
+/// Hob's caste skill slot 3, Runt's slot 2 (the fixtures' 27 and 30): trap skills in row 63's
+/// content.
+const HOB_PIT: u16 = 27;
+const RUNT_TRAP: u16 = 30;
+/// Row 63's own skills: the rust (a hex holding `ARMOR` −20); a trap skill whose Crippled is
+/// guarded `BELOW_HALF`.
+const RUST: u16 = 73;
+const LAME: u16 = 74;
+
+/// Row 63's content: row 0's, with Hob's caste skill 27 (slot 3) a trap skill of the pit's payload
+/// (earth 30 to 60 guarded `BELOW_HALF`, Knocked down 2); Runt's caste skill 30 (slot 2) a trap
+/// skill of earth 10 to 40 and Poison 4; Hob's `ARMOR_VS` 9 against earth (type 7, bits 36–41);
+/// Runt's rank 6; skill 73, the rust (a hex holding `ARMOR` −20 for 5 ticks); skill 74, a trap
+/// skill of earth 10 to 40 and Crippled 3 guarded `BELOW_HALF`.
+fn trap_content_2() -> Content {
+    let base = trap_content();
+    let none: Entry = Default::default();
+    let trap = entry(kind::TRAP, 0, 0, 0, target::TILE, shape::SINGLE, 0);
+    let earth = entry(
+        kind::DAMAGE, damage::EARTH, 10, 40, target::FOE, shape::SINGLE, filter::FOES,
+    );
+    let pit = EntryTrait::new(
+        kind::DAMAGE,
+        damage::EARTH,
+        30,
+        60,
+        0,
+        0,
+        0,
+        target::FOE,
+        shape::SINGLE,
+        filter::FOES,
+        guard::BELOW_HALF,
+        0,
+    );
+    let knock = entry(
+        kind::CONDITION, condition::KNOCKED_DOWN, 2, 2, target::FOE, shape::SINGLE, filter::FOES,
+    );
+    let poison = entry(
+        kind::CONDITION, condition::POISON, 4, 4, target::FOE, shape::SINGLE, filter::FOES,
+    );
+    let mut skills = array![];
+    for sheet in base.skills {
+        if *sheet.id == HOB_PIT {
+            skills.append(skill(HOB_PIT, skill_kind::TRAP, 3, [trap, pit, knock]));
+        } else if *sheet.id == RUNT_TRAP {
+            skills.append(skill(RUNT_TRAP, skill_kind::TRAP, 3, [trap, earth, poison]));
+        } else {
+            skills.append(*sheet);
+        }
+    }
+    let rust = EntryTrait::new(
+        kind::ARMOR, 0, -20, -20, 5, 5, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    skills.append(skill(RUST, skill_kind::HEX, 6, [rust, none, none]));
+    let cripple = EntryTrait::new(
+        kind::CONDITION,
+        condition::CRIPPLED,
+        3,
+        3,
+        0,
+        0,
+        0,
+        target::FOE,
+        shape::SINGLE,
+        filter::FOES,
+        guard::BELOW_HALF,
+        0,
+    );
+    skills.append(skill(LAME, skill_kind::TRAP, 3, [trap, earth, cripple]));
+    let mut castes: Array<CasteSheet> = array![];
+    for caste in base.castes {
+        let mut caste = *caste;
+        if caste.id == 1 {
+            caste.armor_vs = 9 * 0x1000000000;
+        } else {
+            caste.rank = 6;
+        }
+        castes.append(caste);
+    }
+    Content { skills: skills.span(), castes: castes.span(), ..base }
+}
+
+/// The trapper with skill `id` on bar slot 3 (the fixtures' 4, rank 0).
+fn slot_3(id: u16) -> Member {
+    let mut m = trapper();
+    m.words.bar += (id.into() - 4) * two(48);
+    m
+}
+
+/// The trapper holding skill `id` in effect slot `slot` to `deadline` at rank 12.
+fn guarded(ref m: Member, slot: u8, id: u16, charges: u8, deadline: u32) {
+    m.set_effect(slot, Held { carrier: id, potion: false, charges, deadline, rank: 12 }, 0);
+}
+
+/// Goblin 44 (the entrant) holding skill `id` to `deadline` at rank 12.
+fn entrant_holding(id: u16, deadline: u32) -> Goblin {
+    let mut g = hob(ENTRANT, SPOT, 100, ai::ENGAGED);
+    GoblinWordsTrait::set_effect(
+        ref g, Held { carrier: id, potion: false, charges: 0, deadline, rank: 12 }, 0,
+    );
+    g
+}
+
+/// A trap of terrain skill 70 on `tile`, unused.
+fn on_tile(tile: u8) -> Object {
+    trap(tile, object::TRAP, 0, TERRAIN)
+}
+
+// Row 63, the content; the lookup's bounds (the window's last position, the location's East and
+// North edges, West of its first tile), each ground holding a trap where a port without the
+// bound would look.
+#[test]
+#[available_gas(l2_gas: 3000000000)]
+fn test_trap_vectors_5() {
+    let class = class();
+    let content = trap_content_2();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TRAP_PART_5;
+    let mut ok = array![];
+    Serde::serialize(@content, ref ok);
+    emit(ref digest, ref id, "content", array![].span(), ok.span());
+    let none: Object = Default::default();
+    // Position 240 (row 16 of the window): outside, nothing; read as inside it is chunk 15's
+    // tile 15, which the ground holds.
+    let b = board();
+    let fifteen = array![chunk(15, [on_tile(15), none, none])];
+    row(ref digest, ref id, class, @content, world(), b, fifteen, 0, 240, 20);
+    // Origin x 240, position 14: column 254, chunk column 16, nothing; without the column's bound
+    // it is chunk 16 (`15 cy + cx`, the next row's), tile 14, which the ground holds.
+    let beyond = Board { window: open(), x: ORIGIN + 240, y: ORIGIN };
+    let sixteen = array![chunk(16, [on_tile(14), none, none])];
+    row(ref digest, ref id, class, @content, world(), beyond, sixteen, 0, 14, 20);
+    // Origin y 240, position 0: chunk row 16, chunk 240, nothing; origin y 225: chunk row 15,
+    // chunk 225 (`MAX_CHUNKS`, on the bound), nothing; the ground holds each.
+    let north = Board { window: open(), x: ORIGIN, y: ORIGIN + 240 };
+    row(
+        ref digest,
+        ref id,
+        class,
+        @content,
+        world(),
+        north,
+        array![chunk(240, [on_tile(0), none, none])],
+        0,
+        0,
+        20,
+    );
+    let last = Board { window: open(), x: ORIGIN, y: ORIGIN + 225 };
+    row(
+        ref digest,
+        ref id,
+        class,
+        @content,
+        world(),
+        last,
+        array![chunk(225, [on_tile(0), none, none])],
+        0,
+        0,
+        20,
+    );
+    // West of the location: origin `(−5, 15)` (`x` held as 10, `y` as 30), position 15 (row 1,
+    // column 0): x before the location, nothing. Without the West guard, `x − ORIGIN` is −5: chunk
+    // `15 · 1 − 1` = 14, its tile 10 (a remainder toward zero, 15 − 5) or 25 (a floored one, 15 +
+    // 10); the ground's chunk 14 holds a trap on each.
+    let west = Board { window: open(), x: ORIGIN - 5, y: ORIGIN + 15 };
+    let fourteen = array![chunk(14, [on_tile(10), on_tile(25), none])];
+    row(ref digest, ref id, class, @content, world(), west, fourteen, 0, 15, 20);
+    finish(digest, TRAP_DIGEST_5);
+}
+
+// The entrant's defence: its `ARMOR_VS` against the trap's earth, its armor terms, its held
+// `ARMOR` effects on each side of their deadline, a negative one.
+#[test]
+#[available_gas(l2_gas: 3000000000)]
+fn test_trap_vectors_6() {
+    let class = class();
+    let content = trap_content_2();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TRAP_PART_6;
+    let b = board();
+    let goblins = array![
+        hob(ENTRANT, SPOT, 100, ai::ENGAGED), hob(PLACER, AT + 2, 100, ai::ENGAGED),
+    ];
+    let placed = alone(goblin_trap(PLACER));
+    // The member under goblin 45's trap (Snare's earth at rank 12) with `ARMOR_VS` 9 against earth
+    // (`MemberStats` 224–229); goblin 44 under the member's Snare, Hob's `ARMOR_VS` 9 against earth.
+    let mut m = trapper();
+    m.words.stats += 9 * two(224);
+    row(
+        ref digest, ref id, class, @content, words(array![m], goblins.clone()), b, placed.clone(),
+        0, SPOT, 0,
+    );
+    row(
+        ref digest, ref id, class, @content, world(), b, alone(member_trap(0, 0)), ENTRANT, SPOT,
+        0,
+    );
+    // The member's armor 10 (`MemberBar` 232–247), its stance sum 4 and its enchanted sum 3
+    // (`MemberKit` 184–191, 192–199): holding Brace (a stance, slot 0) and the shield (`ARMOR` 30,
+    // an enchantment, slot 1) to 400, every term counts; holding neither, the armor alone.
+    let mut sums = trapper();
+    sums.words.bar += 10 * two(232);
+    sums.words.kit += 4 * two(184) + 3 * two(192);
+    let mut both = sums;
+    guarded(ref both, 0, BRACE, 1, 400);
+    guarded(ref both, 1, SHIELD, 0, 400);
+    for m in array![both, sums] {
+        row(
+            ref digest, ref id, class, @content, words(array![m], goblins.clone()), b,
+            placed.clone(), 0, SPOT, 0,
+        );
+    }
+    // The member holding the shield to the clock 305 (held: `deadline ≥ t`) and to 304 (lapsed);
+    // the rust (−20, clamped to 0) and the shield together (30, not 10).
+    let mut held = trapper();
+    guarded(ref held, 1, SHIELD, 0, CLOCK);
+    let mut lapsed = trapper();
+    guarded(ref lapsed, 1, SHIELD, 0, CLOCK - 1);
+    let mut rusted = trapper();
+    guarded(ref rusted, 0, RUST, 0, 400);
+    guarded(ref rusted, 1, SHIELD, 0, 400);
+    for m in array![held, lapsed, rusted] {
+        row(
+            ref digest, ref id, class, @content, words(array![m], goblins.clone()), b,
+            placed.clone(), 0, SPOT, 0,
+        );
+    }
+    // Goblin 44 under the member's Snare holding the shield to 305 (held) and 304 (lapsed); the
+    // rust alone (−20, clamped to 0).
+    for (skill, deadline) in array![(SHIELD, CLOCK), (SHIELD, CLOCK - 1), (RUST, 400)] {
+        let w = words(
+            array![trapper()],
+            array![entrant_holding(skill, deadline), hob(PLACER, AT + 2, 100, ai::ENGAGED)],
+        );
+        row(ref digest, ref id, class, @content, w, b, alone(member_trap(0, 0)), ENTRANT, SPOT, 0);
+    }
+    finish(digest, TRAP_DIGEST_6);
+}
+
+// The payload: a goblin placer's guarded hit, a member placer's guarded condition, the `HEAL`,
+// `CURE`, `ENERGY` and holding entries, a dead goblin entering, a placer of another caste.
+#[test]
+#[available_gas(l2_gas: 3000000000)]
+fn test_trap_vectors_7() {
+    let class = class();
+    let content = trap_content_2();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TRAP_PART_7;
+    let b = board();
+    // Goblin 45's trap from caste slot 3 (skill 27: earth 30 to 60 guarded `BELOW_HALF`, Knocked
+    // down 2) on the member, the placer at 140 of 280 (not held: the knock-down alone) and 139
+    // (held).
+    let pit = alone(trap(SPOT, object::PLACED_TRAP, 0, Placer::Goblin((PLACER, 3)).param()));
+    for health in array![140_u16, 139] {
+        let w = words(
+            array![trapper()],
+            array![hob(ENTRANT, SPOT, 100, ai::ENGAGED), hob(PLACER, AT + 2, health, ai::ENGAGED)],
+        );
+        row(ref digest, ref id, class, @content, w, b, pit.clone(), 0, SPOT, 0);
+    }
+    // The member's trap from bar slot 3 holding skill 74 (earth, Crippled guarded `BELOW_HALF`)
+    // on goblin 44, the placer at 400 of 480 (not held: the hit alone) and 239 (held).
+    for health in array![400_u16, 239] {
+        let mut m = slot_3(LAME);
+        m.health = health;
+        let w = words(
+            array![m],
+            array![hob(ENTRANT, SPOT, 100, ai::ENGAGED), hob(PLACER, AT + 2, 100, ai::ENGAGED)],
+        );
+        row(ref digest, ref id, class, @content, w, b, alone(member_trap(0, 3)), ENTRANT, SPOT, 0);
+    }
+    // Bar slot 3 holding skill 47 (heal 30, cure Bleeding, 5 energy) on goblin 44, Bleeding to
+    // 400: healed to 130, cured, energized; holding the shield (an enchantment's `ARMOR`): goblin
+    // 44 holds it.
+    let mut bleeding = hob(ENTRANT, SPOT, 100, ai::ENGAGED);
+    bleeding.bleeding = 400;
+    let w = words(array![slot_3(KINDS)], array![bleeding, hob(PLACER, AT + 2, 100, ai::ENGAGED)]);
+    row(ref digest, ref id, class, @content, w, b, alone(member_trap(0, 3)), ENTRANT, SPOT, 0);
+    let w = words(
+        array![slot_3(SHIELD)],
+        array![hob(ENTRANT, SPOT, 100, ai::ENGAGED), hob(PLACER, AT + 2, 100, ai::ENGAGED)],
+    );
+    row(ref digest, ref id, class, @content, w, b, alone(member_trap(0, 3)), ENTRANT, SPOT, 0);
+    // A dead goblin (health 0, `DEAD`) entering the member's Snare: it triggers, nothing applied,
+    // and it is not killed again (`killed` stays empty).
+    let w = words(
+        array![trapper()],
+        array![hob(ENTRANT, SPOT, 0, ai::DEAD), hob(PLACER, AT + 2, 100, ai::ENGAGED)],
+    );
+    row(ref digest, ref id, class, @content, w, b, alone(member_trap(0, 0)), ENTRANT, SPOT, 0);
+    // Goblin 45 a Runt of level 16 (its caste rank 6), goblin 44 a Hob of level 10: its trap from
+    // caste slot 2 (Runt's skill 30: earth, Poison 4) on the member; the Hob's slot 2 (Snare), its
+    // rank 12 and its level are not the source.
+    let mut runt = hob(PLACER, AT + 2, 100, ai::ENGAGED);
+    runt.state += two(64) + 6 * two(80);
+    let w = words(array![trapper()], array![hob(ENTRANT, SPOT, 100, ai::ENGAGED), runt]);
+    row(ref digest, ref id, class, @content, w, b, alone(goblin_trap(PLACER)), 0, SPOT, 0);
+    finish(digest, TRAP_DIGEST_7);
+}
+
 /// The first id of each part, and each part's digest.
 const TRAP_PART_1: u32 = 14;
 const TRAP_PART_2: u32 = 24;
 const TRAP_PART_3: u32 = 36;
 const TRAP_PART_4: u32 = 59;
+const TRAP_PART_5: u32 = 63;
+const TRAP_PART_6: u32 = 69;
+const TRAP_PART_7: u32 = 79;
 const TRAP_DIGEST_0: felt252 =
     2787498107184120386038607310383447558271195683507077469272024736095572910618;
 const TRAP_DIGEST_1: felt252 =
@@ -530,3 +838,9 @@ const TRAP_DIGEST_3: felt252 =
     3075499101549686030732729308817093250590815560376692689788891479222492881474;
 const TRAP_DIGEST_4: felt252 =
     2230414804466176496992525929743744514951125034518003269410151585528301294780;
+const TRAP_DIGEST_5: felt252 =
+    1143514613547480855758157787459522051546000614263460163426820701149065072345;
+const TRAP_DIGEST_6: felt252 =
+    1951498054139824216706528105397110888718285796424453164430890230858788909660;
+const TRAP_DIGEST_7: felt252 =
+    2130154780865369211456725098921882948040016459795604852026055806414239975124;
