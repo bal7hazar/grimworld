@@ -1,5 +1,16 @@
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
-import { Button, IconButton, useChromeMode } from "../chrome/Chrome";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { Button, ChromeProvider, IconButton, Panel, Text, useChromeMode } from "../chrome/Chrome";
+import { CombatLogPanel } from "../combat/CombatLog";
+import { CombatController, FIGHT_LINES } from "../combat/controller";
+import { combatFixture } from "../combat/fixture";
 import type { Intent } from "../input/intent";
 import type { KeyCommand } from "../input/keys";
 import type { ZoomSettings } from "../render/renderer";
@@ -7,19 +18,26 @@ import { SCALE_MODES, readScaleMode } from "../render/scaling";
 import type { Tile } from "../render/view";
 import { SandboxController, type SandboxInfo } from "./controller";
 import { FIXTURES } from "./fixtures";
-import { installKeys, useKeyLayer } from "./keyScope";
+import { KeyHelpToggle, installKeys, useKeyLayer } from "./keyScope";
 import { FEET_RANGE } from "../render/renderer";
-import { Loop } from "./loop/Loop";
-import { ACROSS_RANGE, readAcross, readFeet, readParams } from "./params";
+import { InstanceScreen } from "./loop/InstanceScreen";
+import { KeyHelp } from "./loop/KeyHelp";
+import { DESKTOP_MIN_WIDTH, Loop } from "./loop/Loop";
+import { SheetSummary } from "./loop/screens";
+import { ui } from "./loop/styles";
+import { type CombatFixture, ACROSS_RANGE, readAcross, readFeet, readParams } from "./params";
 import type { WalkInfo } from "./session";
+import { fightWorld } from "./wiring";
 import type { SandboxWorld } from "./world";
 
 /**
- * The sandbox: a room (CLI-03a, `?fixture=`), or the loop of hubs and instances on fixed data
- * (CLI-03c, `?hub=`, `?loop=1`). URL parameters: see `params.ts`.
+ * The sandbox: a room (CLI-03a, `?fixture=`), the loop of hubs and instances on fixed data
+ * (CLI-03c, `?hub=`, `?loop=1`), or the combat screen's fight (CLI-05c, `?combat=`). URL
+ * parameters: see `params.ts`.
  */
 export function Sandbox() {
   const [params] = useState(() => readParams(window.location.search));
+  if (params.combat !== null) return <Fight which={params.combat} />;
   if (params.hub !== null) {
     return <Loop hub={params.hub} entryMs={params.entryMs} />;
   }
@@ -28,6 +46,86 @@ export function Sandbox() {
       <RoomSandbox />
     </div>
   );
+}
+
+/**
+ * The combat screen's fixed fight (CLI-05 brief §9, `?combat=`): the instance screen on the
+ * `edge` fixture, with `combat/fixture.ts`'s actors, its bar, belt, chips, target zone
+ * and log, taps and keys through `CombatController`; playing a slot runs the two placeholders
+ * (§9). The page frames it as the loop does: on a phone the screen alone, on a desktop the sheet's
+ * panel at its left and the log's panel at its right (design/11 *Desktop*). The key help opens on
+ * `?`. No way out: the fight has no loop around it.
+ */
+function Fight({ which }: { which: CombatFixture }) {
+  const [controller] = useState(() => new CombatController(combatFixture(which), FIGHT_LINES));
+  const [world] = useState(() => fightWorld(FIXTURES.edge!, controller.view().state));
+  const view = useSyncExternalStore(controller.subscribe, controller.view);
+  const desktop = useWindowWidth() >= DESKTOP_MIN_WIDTH;
+  const [help, setHelp] = useState(false);
+  const toggleHelp = useCallback(() => setHelp((open) => !open), []);
+  useEffect(() => installKeys(), []);
+  const screen = (
+    <InstanceScreen
+      offer={null}
+      gateHere={null}
+      dispatch={() => {}}
+      onMoved={() => {}}
+      fight={{ controller, world, phone: !desktop }}
+    />
+  );
+  const keyHelp = help && <KeyHelp screen="instance" onClose={() => setHelp(false)} />;
+  return (
+    <KeyHelpToggle.Provider value={toggleHelp}>
+      <ChromeProvider
+        style={{ ...styles.fightPage, ...(desktop ? styles.fightDesktop : {}) }}
+        data-layout={desktop ? "desktop" : "phone"}
+        data-fight={which}
+      >
+        {desktop ? (
+          <>
+            <Panel
+              variant="dark"
+              as="aside"
+              className="gw-side"
+              plain={styles.sidePanel}
+              style={styles.side}
+              aria-label="Character sheet and build"
+            >
+              <SheetSummary portrait />
+              <Button
+                variant="quiet"
+                plain={{ ...ui.button, ...ui.quiet, marginTop: 16 }}
+                onClick={toggleHelp}
+              >
+                Keys ?
+              </Button>
+              <Text tone="muted" plain={{ ...ui.muted, marginTop: 12, fontSize: "0.8125rem" }}>
+                The combat screen on fixed data (CLI-05c): playing spends the costs and starts the
+                recharge, nothing else.
+              </Text>
+            </Panel>
+            <main style={styles.column}>{screen}</main>
+            <div style={styles.side}>
+              <CombatLogPanel lines={view.log} />
+            </div>
+          </>
+        ) : (
+          screen
+        )}
+        {keyHelp}
+      </ChromeProvider>
+    </KeyHelpToggle.Provider>
+  );
+}
+
+function useWindowWidth(): number {
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const resize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  return width;
 }
 
 /** What a screen's key handler gets of the map (CLI-03k). */
@@ -82,10 +180,14 @@ function mapKey(command: KeyCommand, controller: SandboxController | null, walk:
  * `onKey` sees each command first and may hand it to the map (`MapKeys.handle`); without one, the
  * map answers alone. Outside the loop (`?fixture=`) the room listens to the document itself. The
  * screen places what marks a selection among `children`, from `onFrame`.
+ *
+ * The combat screen (CLI-05c) hears every change with the map's controller (`onChange`): it reads
+ * the selection there, and hands its own state to the map through it.
  */
 export function RoomSandbox({
   world,
   onTile,
+  onChange,
   route,
   onFrame,
   onKey,
@@ -93,6 +195,7 @@ export function RoomSandbox({
 }: {
   world?: SandboxWorld;
   onTile?: (tile: Tile | null, walk: WalkInfo) => void;
+  onChange?: (controller: SandboxController) => void;
   route?: (intent: Intent) => Intent | null;
   onFrame?: (controller: SandboxController) => void;
   onKey?: (command: KeyCommand, map: MapKeys) => boolean;
@@ -107,6 +210,8 @@ export function RoomSandbox({
   const [walk, setWalk] = useState<WalkInfo | null>(null);
   const tileListener = useRef(onTile);
   tileListener.current = onTile;
+  const changeListener = useRef(onChange);
+  changeListener.current = onChange;
   const router = useRef(route);
   router.current = route;
   const frameListener = useRef(onFrame);
@@ -175,6 +280,7 @@ export function RoomSandbox({
           : "";
       }
       tileListener.current?.(tile, next);
+      changeListener.current?.(controller);
     });
     return () => controller.listenToWalk(null);
   }, [controller]);
@@ -423,6 +529,23 @@ function DebugPanel({
 
 const styles: Record<string, CSSProperties> = {
   page: { position: "fixed", inset: 0 },
+  fightPage: {
+    position: "fixed",
+    inset: 0,
+    background: "#0b0b0e",
+    color: "#eee",
+    font: "0.9375rem system-ui",
+  },
+  fightDesktop: { display: "flex", justifyContent: "center" },
+  column: {
+    position: "relative",
+    flex: "0 1 430px",
+    height: "100%",
+    borderLeft: "1px solid #2a2a33",
+    borderRight: "1px solid #2a2a33",
+  },
+  side: { flex: "0 1 280px", display: "flex", flexDirection: "column", overflowY: "auto" },
+  sidePanel: { padding: 16 },
   root: { position: "absolute", inset: 0, overflow: "hidden", background: "#0b0b0e" },
   canvas: { position: "absolute", inset: 0, touchAction: "none" },
   centrePlace: { position: "absolute", right: 16, bottom: 16 },

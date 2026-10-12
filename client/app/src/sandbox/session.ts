@@ -1,12 +1,16 @@
+import type { CombatAim } from "../combat/controller";
+import type { Armed, CombatState } from "../combat/state";
 import type { Intent } from "../input/intent";
 import type { ViewState } from "../render/view";
 import type { SandboxWorld } from "./world";
 import {
+  type SandboxCombat,
   type SandboxState,
   type FogMode,
   type TapOptions,
   applyIntent,
   cancelWalk,
+  combatAim,
   initialState,
   pathCost,
   toView,
@@ -59,11 +63,16 @@ export interface SessionOptions extends TapOptions {
  * adventurer's actions, D-40), and each resumed step evaluates the stop conditions as before.
  *
  * An inspect never touches the walk: no step played, no timer restarted.
+ *
+ * The combat screen (CLI-05c, `?combat=`) hands the session its state and armed slot
+ * (`setCombat`); the view then carries them as `ViewState.combat`, and the session answers what an
+ * armed slot reaches from where the adventurer stands (`combatAim`).
  */
 export class SandboxSession {
   private current: SandboxState;
   private timer: number | null = null;
   private options: SessionOptions;
+  private combat: SandboxCombat | null = null;
   private readonly unsubscribe: () => void;
 
   constructor(
@@ -105,6 +114,17 @@ export class SandboxSession {
     this.stopTimer();
     this.current = initialState(world);
     this.show();
+  }
+
+  /** The combat screen's state and armed slot, drawn with the map; null: none. */
+  setCombat(combat: SandboxCombat | null): void {
+    this.combat = combat;
+    this.sink.setView(toView(this.current, this.options.fog, this.combat));
+  }
+
+  /** What slot `armed` of `combat` reaches from where the adventurer stands now. */
+  combatAim(combat: CombatState, armed: Armed): CombatAim | null {
+    return combatAim(this.current, combat, armed);
   }
 
   setPlayOnTap(playOnTap: boolean): void {
@@ -159,7 +179,7 @@ export class SandboxSession {
   }
 
   private show(): void {
-    this.sink.setView(toView(this.current, this.options.fog));
+    this.sink.setView(toView(this.current, this.options.fog, this.combat));
     this.options.onChange?.();
   }
 }

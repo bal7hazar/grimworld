@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_FEET, DEFAULT_ZOOM, STEP_MS } from "../render/renderer";
 import { ADVENTURER } from "./fixtures/hubs";
 import { OUTPOST, TOWN } from "./fixtures/region";
-import { ENTRY_MS, hudSheet, readAcross, readFeet, readHud, readParams } from "./params";
+import {
+  ENTRY_MS,
+  hudSheet,
+  readAcross,
+  readCombat,
+  readFeet,
+  readHud,
+  readParams,
+} from "./params";
 
 describe("URL parameters", () => {
   it("reads the fixture, idle, panel and scale", () => {
@@ -19,10 +27,16 @@ describe("URL parameters", () => {
       stepMs: STEP_MS,
       hud: null,
       fog: "sight",
+      combat: null,
     });
     // CLI-03n: `fog=full` only; anything else is the sight's grayscale.
     expect(readParams("?fog=full").fog).toBe("full");
     expect(readParams("?fog=none").fog).toBe("sight");
+    // CLI-05c: the fight at rest, or with the adventurer activating; anything else, no fight.
+    expect(readParams("?combat=fight").combat).toBe("rest");
+    expect(readParams("?combat=activating").combat).toBe("activating");
+    expect(readCombat("rest")).toBeNull();
+    expect(readCombat(null)).toBeNull();
     expect(readParams("?scale=snap").scale).toBe("snap");
     expect(readParams("?scale=pixel").scale).toBe("continuous");
     expect(readParams("")).toMatchObject({

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpriteLibrary } from "../render/sprites";
 
 const setLibrary = vi.fn();
+const setCombat = vi.fn();
+const combatAim = vi.fn(() => null);
 let atlas: { resolve: (l: SpriteLibrary | null) => void; reject: (e: unknown) => void };
 
 vi.mock("../render/atlas", () => ({
@@ -50,6 +52,8 @@ vi.mock("./session", async () => {
   return {
     SandboxSession: class {
       state = { ...initialState(fixtureNamed("meadow")), said: "" };
+      setCombat = setCombat;
+      combatAim = combatAim;
       destroy() {}
     },
   };
@@ -155,6 +159,33 @@ describe("SandboxController's keys (CLI-03k)", () => {
     const controller = await mounted();
     controller.lookAt({ x: 4, y: 5 });
     expect(lookAt).toHaveBeenCalledWith({ x: 4, y: 5 });
+    controller.destroy();
+  });
+});
+
+describe("SandboxController's combat screen (CLI-05c)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("hands the screen's state to the session and asks it what a slot reaches", async () => {
+    const controller = await mounted();
+    const combat = { state: {} as never, armed: { kind: "skill", slot: 2 } as const };
+    controller.setCombat(combat);
+    expect(setCombat).toHaveBeenCalledWith(combat);
+    controller.combatAim(combat.state, combat.armed);
+    expect(combatAim).toHaveBeenCalledWith(combat.state, combat.armed);
+    expect(controller.selectedActorId()).toBeNull();
     controller.destroy();
   });
 });
