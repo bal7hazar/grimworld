@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { Features } from "@grimworld/sim";
+import { type Features, join } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import {
   CASTE,
@@ -40,6 +40,15 @@ function entryBits(row: number[]): bigint {
 /** The recorded records, as `Registry.record` answers them; zeros for any other. */
 const recorded = new Map(recordedRecords.map(([kind, id, parts]) => [`${kind}:${id}`, parts]));
 const partsOf = (kind: number, id: number): bigint[] => recorded.get(`${kind}:${id}`)!.map(BigInt);
+/** A seed skill row as `Registry.record` answers it: the header (to its target; no seed skill is elite) and entry 1, entries 2 and 3. */
+function packedSkill(row: number[]): bigint[] {
+  const header = [1, 2, 3, 4, 5, 6, 7, 8, 9].reduce(
+    (bits, c, k) => bits + (BigInt(row[c]!) << [0n, 8n, 16n, 24n, 32n, 40n, 56n, 72n, 80n][k]!),
+    0n,
+  );
+  const [e1, e2, e3] = [11, 23, 35].map((c) => entryBits(row.slice(c, c + 12)));
+  return [join(header, e1!), join(e2!, e3!)];
+}
 function registry(count: { calls: [number, number][] } = { calls: [] }): RecordRead {
   return (kind, id) => {
     count.calls.push([kind, id]);
@@ -97,11 +106,15 @@ describe("the sheets read from the recorded records", () => {
     }
   });
 
-  it("reads the seed skill as its row says", () => {
-    // The recording holds skill 1 only; SEED-02's skills 2 to 4 are in the seed, not in the recording
+  it("reads the seed skills as their rows say", () => {
+    // A skill the recording holds (skill 1) is read from it; the others, which the deployment
+    // seeds since SEED-02, from the row packed as `seed_records` packs it (skill 1's pack is
+    // checked against its recording below)
     for (const [id, row] of rows("skills", 47)) {
-      if (!recorded.has(`${SKILL}:${id}`)) continue;
-      expect(readSkillSheet(id, partsOf(SKILL, id))).toEqual({
+      const parts = recorded.has(`${SKILL}:${id}`) ? partsOf(SKILL, id) : packedSkill(row);
+      // The first `REGENERATION` entry's `v0` and `v12`; none for the others
+      const at = [11, 23, 35].find((c) => row[c] === 5);
+      expect(readSkillSheet(id, parts)).toEqual({
         id,
         profession: row[1],
         kind: row[3],
@@ -110,14 +123,24 @@ describe("the sheets read from the recorded records", () => {
         activation: row[6],
         recharge: row[7],
         range: row[8],
-        // No `REGENERATION` entry
-        regen0: 0,
-        regen12: 0,
+        regen0: at === undefined ? 0 : row[at + 2],
+        regen12: at === undefined ? 0 : row[at + 3],
         entry1: entryBits(row.slice(11, 23)),
         entry2: entryBits(row.slice(23, 35)),
         entry3: entryBits(row.slice(35, 47)),
       });
     }
+  });
+
+  it("packs a seed row as the recording of skill 1 holds it", () => {
+    expect(packedSkill(rows("skills", 47).get(1)!)).toEqual(partsOf(SKILL, 1));
+  });
+
+  it("reads Mending (skill 4) as a regeneration of 2, then 5", () => {
+    expect(readSkillSheet(4, packedSkill(rows("skills", 47).get(4)!))).toMatchObject({
+      regen0: 2,
+      regen12: 5,
+    });
   });
 
   it("reads the deployment's potion: a heal of 20, not a regeneration", () => {
