@@ -11,7 +11,8 @@
 //
 // Not here: `Delegate`'s sub-world (the goblins a carrier can reach, `wide`, `subcontent`): the
 // port runs the carrier on the whole world, equal to the sub-world for carriers whose entries share
-// a target kind; a mixed-target carrier is not mirrored (`action.ts`'s `mixed`). `conclude` and
+// a target kind; a mixed-target carrier is not mirrored (`action.ts`'s `mixed`; R-44 refuses it in
+// the content already, D-271, D-276). `conclude` and
 // `legal` (an activation's end) are the ticks' (lot F). The fields keep the Cairo names; the
 // reasons of each rule are the Cairo module's.
 

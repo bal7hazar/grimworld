@@ -6,7 +6,9 @@
 // `SELF` (its first entry) with a `TILE` entry later, may differ there, so it is not mirrored
 // (`NotMirrored`, `action.ts`'s `mixed`); the shapes `mixed` keeps (`SELF` with `FOE`, `TILE` first
 // with `SELF` later, `FOE` with `ALLY`) run and land as the class does (review t-0211). No table
-// holds such a carrier. Never exported by `src/index.ts`.
+// holds such a carrier. Since R-44 (D-271, D-276) most of the refused shapes, and the kept `SELF`
+// before `FOE`, are not legal content (the cases say so); `[TILE, SELF]`, `[FOE, SELF]` and
+// `[FOE, ALLY]` are. Never exported by `src/index.ts`.
 
 import { type Entry, kind, pack, unpack } from "../effect";
 import { target } from "../executor";
@@ -140,6 +142,7 @@ const onEntity = (value: number): Action => ({
 
 export const CHECKS: readonly Check[] = [
   {
+    // Not legal content (R-44, D-271): `assert_carrier` refuses a TILE entry beside a FOE one
     name: "a TILE hit then a FOE condition, cast at tile 8, is not mirrored (scenario A)",
     run: () => {
       const tile = { ...DAMAGE, target: target.TILE };
@@ -150,6 +153,7 @@ export const CHECKS: readonly Check[] = [
     },
   },
   {
+    // Not legal content (R-44, D-271): `assert_carrier` refuses a TILE entry beside an ALLY one
     name: "a TILE hit then an ALLY condition, cast at tile 8, is not mirrored (ALLY is an entity set)",
     run: () => {
       const tile = { ...DAMAGE, target: target.TILE };
@@ -160,7 +164,8 @@ export const CHECKS: readonly Check[] = [
     },
   },
   {
-    // Not legal content: `assert_carrier` puts a hit first (`HIT_NOT_FIRST`); the guard holds anyway
+    // Not legal content (R-44): `assert_carrier` puts a hit first (`HIT_NOT_FIRST`) and refuses a
+    // TILE entry beside a FOE one (D-271); the guard holds anyway
     name: "a FOE condition then a TILE hit, cast at goblin 8, is not mirrored (scenario B, an illegal order)",
     run: () => {
       const foe = { ...CONDITION, target: target.FOE };
@@ -191,6 +196,7 @@ export const CHECKS: readonly Check[] = [
     },
   },
   {
+    // Not legal content (R-44, D-276): `assert_carrier` refuses a SELF entry before an addressed one
     name: "a SELF hit then a TILE condition, cast on itself, is not mirrored (SELF first, TILE later)",
     run: () => {
       const self = { ...DAMAGE, target: target.SELF };
@@ -201,6 +207,8 @@ export const CHECKS: readonly Check[] = [
     },
   },
   {
+    // Not legal content (R-44, D-276): `assert_carrier` refuses a SELF entry before a FOE one; the
+    // guard keeps it (`false`) all the same, and the class runs it as the sub-world would
     name: "a SELF disc hit then a FOE condition, cast on itself, runs: goblin 8 hit, no one Crippled",
     run: () => {
       // The address is the member's own id (`aim`): the FOE set is the member, whom FOES does not take
@@ -215,6 +223,7 @@ export const CHECKS: readonly Check[] = [
     },
   },
   {
+    // Legal content (R-44): SELF after the addressed entry
     name: "a TILE disc hit then a SELF condition, cast at goblin 8's tile, runs: goblin 8 hit, the member Crippled",
     run: () => {
       const tile = { ...DAMAGE, target: target.TILE, shape: DISC_1 };
@@ -228,6 +237,7 @@ export const CHECKS: readonly Check[] = [
     },
   },
   {
+    // Legal content (R-44): FOE and ALLY are both entity sets
     name: "a FOE hit then an ALLY condition, cast at goblin 8, runs: goblin 8 hit, no one Crippled",
     run: () => {
       // The ALLY set centres on goblin 8, whom ALLIES does not take from a member's carrier

@@ -7,7 +7,8 @@
 // The class runs `act` with `Delegate` rules: a `TRAP` carrier placed in the ground before any
 // sub-world, any other carrier through `ExecutorLibrary`, which the port runs on the whole world
 // (`executor.ts`'s `execute`). That is equal to the sub-world for carriers whose entries share a
-// target kind; a mixed-target carrier is not mirrored (`mixed`, `NotMirrored`). On a refusal the
+// target kind; a mixed-target carrier is not mirrored (`mixed`, `NotMirrored`), content R-44 refuses
+// already (D-271, D-276), so the guard is defence in depth. On a refusal the
 // class returns the words as they came; only a carrier writes the ground, and every refusal comes
 // before its arm's carrier (`types::action::tests::test_no_carry_before_a_refusal`).
 
@@ -183,13 +184,20 @@ export type Rules = { board: Board; cache: Cache; ground: Ground };
  * and reaches goblins the sub-world does not hold (review t-0209: `[DAMAGE TILE, CONDITION FOE]`
  * at tile 8 conditions goblin 8 wherever it stands). Mixed: a `TILE` set with an entity one (`FOE`,
  * `ALLY`, an attack's implicit hit), or with a carrier addressing `SELF` (`aim` gives it the
- * source's id, which a `TILE` set reads as tile `(id, 0)`). Safe, so wider than "one kind": `SELF`
- * with `FOE` or `ALLY` in either order (a `SELF`-first carrier's address is the source, by `aim`;
- * an entity-first one's `SELF` sets centre on the source, which the sub-world picks around),
- * `ALLY` and `FOE` together (both centre on the addressed actor), `TILE` first with `SELF` later
- * (the sub-world picks around the source and the tile). Only the
- * entries that build a set count (not `TRAP`, not a hit modifier); a weapon or a potion (one entry)
- * is never mixed.
+ * source's id, which a `TILE` set reads as tile `(id, 0)`). Only the entries that build a set count
+ * (not `TRAP`, not a hit modifier); a weapon or a potion (one entry) is never mixed.
+ *
+ * Defence in depth, since R-44 (`EntryAssertTrait::assert_carrier`, D-271, D-276): the content
+ * pipeline refuses, in a carrier other than a trap, a `TILE` entry beside a `FOE` or `ALLY` one
+ * (D-271), and any `SELF` entry before an addressed one (`TILE`, `FOE` or `ALLY`: D-276), so legal
+ * content never reaches the guard's `true`: `[TILE, FOE]`, `[TILE, ALLY]`, `[FOE, TILE]`,
+ * `[SELF, TILE]`, and an attack with a `TILE` entry (`ATTACK_ENTRY`) are all illegal. What it
+ * keeps, as legal content, returns `false`: `SELF` after the addressed entry (`[TILE, SELF]`,
+ * `[FOE, SELF]`: the sub-world picks around the source and the address), `SELF` alone, `FOE` with
+ * `ALLY` (both centre on the addressed actor), all-`TILE`, all-entity, a `TRAP` with its payload.
+ * `[SELF, FOE]` and `[SELF, ALLY]`, which this guard once called safe, are now illegal content
+ * too (D-276); it keeps them `false` all the same (a `SELF`-first carrier's address is the source,
+ * by `aim`).
  */
 export function mixed(sheets: Sheets, carrier: Carrier): boolean {
   if (carrier.kind !== "Skill") return false;
