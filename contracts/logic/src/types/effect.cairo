@@ -468,7 +468,7 @@ pub impl EntryAssert of EntryAssertTrait {
     /// hit modifiers only with a hit and on its addressing, shape and filter, `ATTACK_BONUS` only
     /// in an attack; an attack's entries all `FOE`, `SINGLE`; a `TRAP` entry first, `TILE`,
     /// `SINGLE`, its payload `FOE`, `SINGLE`; no `TILE` entry
-    /// beside a `FOE` or `ALLY` one, `TRAP` and `SELF` aside (D-271); `DISC_1` only in a potion; no
+    /// beside a `FOE` or `ALLY` one, nor after a `SELF` one, `TRAP` aside (D-271, D-272); `DISC_1` only in a potion; no
     /// `DISC_2`, `DISC_3` in the MVP's content; a potion's entry does not scale.
     fn assert_carrier(entries: Span<Entry>, carrier: Carrier) {
         let mut ended = false;
@@ -479,6 +479,7 @@ pub impl EntryAssert of EntryAssertTrait {
         let mut trap = false;
         let mut tiles = false;
         let mut entities = false;
+        let mut selfed = false;
         let mut index: u32 = 0;
         for entry in entries {
             entry.assert_legal();
@@ -509,11 +510,15 @@ pub impl EntryAssert of EntryAssertTrait {
                 }
                 // D-271: the cast address is a tile or an entity id, never both. `TRAP` (a tile
                 // by design) and `SELF` (the caster, whatever the address) do not read it.
+                // D-272: but a `SELF` entry first makes the carrier's addressing `SELF`, so the
+                // reach is never checked: a `TILE` entry after it is refused (`TILE`, then
+                // `SELF`, is legal).
                 if k != kind::TRAP {
                     let t = *entry.target;
                     tiles = tiles || t == target::TILE;
                     entities = entities || t == target::FOE || t == target::ALLY;
-                    assert(!(tiles && entities), errors::MIXED_TARGETS);
+                    assert(!(tiles && (entities || selfed)), errors::MIXED_TARGETS);
+                    selfed = selfed || t == target::SELF;
                 }
                 if k == kind::DAMAGE {
                     assert(carrier != Carrier::Attack && hit.is_none(), errors::TWO_HITS);
