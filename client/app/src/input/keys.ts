@@ -7,9 +7,11 @@ import type { Facing } from "../render/view";
  * `LoopIntent` through the screen's dispatch). No DOM, React or PixiJS here.
  *
  * Positions are read from `event.code` (the physical key: an AZERTY keyboard gets the same block
- * and its digits without Shift), symbols from `event.key`. A digit by position yields to a zoom
- * character: where the key printed `-` is `Digit6` (AZERTY), it zooms out, not service 6. A key held with Ctrl, Meta or Alt is
- * the browser's; an auto-repeat or a composition is nothing (one press, one hex).
+ * and its digits without Shift), symbols from `event.key`. A digit by position never zooms
+ * (D-284): where the key printed `-` is `Digit6` (AZERTY), it is skill 6 in an instance and
+ * service 6 in a hub; zoom keeps `Minus`, `Equal` and the keypad's keys by code, and the
+ * characters `+`, `-` and `=` from any other code. A key held with Ctrl, Meta or Alt is the
+ * browser's; an auto-repeat or a composition is nothing (one press, one hex).
  */
 
 /** One hex in a direction of the grid, or the facing side's upper or lower hex (↑ / ↓). */
@@ -22,6 +24,9 @@ export type KeyCommand =
   | { readonly kind: "go" }
   /** A button of a hub's service row, from 0. */
   | { readonly kind: "service"; readonly index: number }
+  /** A skill of the bar (0–7) and an item of the belt (0–3), on the instance screen (CLI-05b, D-284). */
+  | { readonly kind: "skill"; readonly slot: number }
+  | { readonly kind: "belt"; readonly slot: number }
   /** The Leave control of a zone (D-148). */
   | { readonly kind: "leave" }
   | { readonly kind: "escape" }
@@ -67,7 +72,7 @@ export interface Binding {
   readonly label: string;
   readonly screens: readonly KeyScreen[];
   readonly matches: readonly KeyMatch[];
-  /** Reserved for a later lot (design/11 *Desktop*'s combat keys): bound to nothing yet. */
+  /** Reserved for a later lot (design/11 *Desktop*'s Wait and Turn): bound to nothing yet. */
   readonly reserved?: boolean;
 }
 
@@ -163,13 +168,17 @@ export const BINDINGS: readonly Binding[] = [
   },
   {
     keys: "+ / −",
-    label: "Zoom in, out",
+    label: "Zoom in, out (the keys right of 0)",
     screens: MAP,
     matches: [
+      // The character first, so a layout that prints `-` on the code `Equal` (Mac French and
+      // Belgian AZERTY, Turkish Q) zooms out; the codes are the fallback (AZERTY's `)` and `=`).
       { key: "+", command: { kind: "zoom", by: 1 } },
       { key: "=", command: { kind: "zoom", by: 1 } },
-      { code: "NumpadAdd", command: { kind: "zoom", by: 1 } },
       { key: "-", command: { kind: "zoom", by: -1 } },
+      { code: "Equal", command: { kind: "zoom", by: 1 } },
+      { code: "NumpadAdd", command: { kind: "zoom", by: 1 } },
+      { code: "Minus", command: { kind: "zoom", by: -1 } },
       { code: "NumpadSubtract", command: { kind: "zoom", by: -1 } },
     ],
   },
@@ -179,20 +188,25 @@ export const BINDINGS: readonly Binding[] = [
     screens: EVERY,
     matches: [{ key: "?", command: { kind: "help" } }],
   },
-  // design/11 *Desktop*'s combat keys: the HUD lots (CLI-05, CLI-08) bind them in this table.
+  // design/11 *Desktop*'s combat keys (CLI-05b, D-284), by position. The screens that do not
+  // handle `skill` and `belt` yet leave them alone; CLI-05c gives the sandbox's instance its bar.
   {
     keys: "1–8",
-    label: "Skills",
+    label: "Skills, in the bar's order",
     screens: ["instance"],
-    reserved: true,
-    matches: digits(1, 8).map((n) => ({ code: `Digit${n}`, command: null })),
+    matches: digits(1, 8).flatMap((n) => [
+      { code: `Digit${n}`, command: { kind: "skill", slot: n - 1 } as const },
+      { code: `Numpad${n}`, command: { kind: "skill", slot: n - 1 } as const },
+    ]),
   },
   {
     keys: "Z X C V",
-    label: "Belt",
+    label: "Belt, in order",
     screens: ["instance"],
-    reserved: true,
-    matches: ["KeyZ", "KeyX", "KeyC", "KeyV"].map((code) => ({ code, command: null })),
+    matches: ["KeyZ", "KeyX", "KeyC", "KeyV"].map((code, slot) => ({
+      code,
+      command: { kind: "belt", slot } as const,
+    })),
   },
   {
     keys: "Space",
@@ -245,12 +259,15 @@ export const CHAIN_BINDINGS: readonly Binding[] = [
   },
 ];
 
-/** The characters that zoom: they win over a digit read by position (AZERTY's `-` is `Digit6`). */
+/** The characters that zoom; a press whose code is a digit never matches them (D-284). */
 const ZOOM_CHARS = ["+", "-", "="];
 
 function matches(match: KeyMatch, event: KeyLike): boolean {
-  if (match.key !== undefined) return match.key === event.key;
-  if (match.code?.startsWith("Digit") && ZOOM_CHARS.includes(event.key)) return false;
+  if (match.key !== undefined) {
+    // AZERTY's `6` prints `-`: a digit by position is a skill or a service, never a zoom.
+    if (ZOOM_CHARS.includes(match.key) && event.code.startsWith("Digit")) return false;
+    return match.key === event.key;
+  }
   return match.code === event.code && event.shiftKey === (match.shift ?? false);
 }
 

@@ -94,7 +94,9 @@ export function WalkScreen({
             case "turn":
             case "send":
             case "again":
-              // The chain mode's keys (CLI-11c): left to the page here
+            case "skill":
+            case "belt":
+              // The chain mode's keys (CLI-11c) and the combat keys: left to the page here
               return false;
             default:
               // Places, services and leaving are the hub's and the instance's screens', not the map's.
@@ -161,7 +163,13 @@ export function WalkScreen({
           <table className="ed-table" style={{ minWidth: 0 }}>
             <tbody>
               {bindingsOf(screen)
-                .filter((b) => !b.reserved)
+                .filter(
+                  (b) =>
+                    !b.reserved &&
+                    !b.matches.some(
+                      (m) => m.command?.kind === "skill" || m.command?.kind === "belt",
+                    ),
+                )
                 .map((b) => (
                   <tr key={b.keys}>
                     <td>
