@@ -578,8 +578,9 @@ The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `rev
 
 ## `act.jsonl`: the adventurer's action, `ActionTrait::act` (RV-03b, D-257)
 
-Printed by `types::action::tests::vectors::test_act_vectors_0` to `_10` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
-107–127, 128–143, 144–157, 158–176, 177–204, 205–214), split for snforge's step limit, each part with its digest. Where
+Printed by `types::action::tests::vectors::test_act_vectors_0` to `_14` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
+107–127, 128–143, 144–157, 158–176, 177–204, 205–214, 215–222, 223–231, 232–238, 239–243), split for snforge's step
+limit, each part with its digest. Where
 `segment2.jsonl` records the action class's result for a replay, this table tests a port of the class itself: each
 `act` row is one call of `ActionLibrary::act` (the real class, declared in the test), which loads the words through
 the content, runs `ActionTrait::act` for member 0 with `Delegate` rules whose carrier runs through the real
@@ -648,8 +649,32 @@ executor tests' member.
 | `offence` (28) | 177–204 | the member's sword, a plain weapon hit (scope 0): bonus 0, 5, 255; its requirement not met (`MemberStats` 176); a range of 3 (not melee); `LIFE_STEAL_ON_HIT` 3 and `ENERGY_ON_HIT` 2 (`MemberKit` 128, 136) (177–182); the passives (`MemberBar` 136, 160, 184 for scope 0: +10, −5, 3; 144, 168, 192 for 1: 20, 6, 4; 152, 176, 200 for 2: −30, 7, 5) and the call's penetration 7: a plain weapon hit, an attack skill (`Weapon`, scope 1), the fire entry (40 to 70) as a spell at ranks 0, 6, 12 (level 20: strength 60), a bomb (`Item`, scope 3: the potion's strength 30, no passives), a trap (`Trap`, scope 3), a cold entry of −20 (its base clamped to 0) (183–190); the edge (`PENETRATION` 20, `WEAPON`) and the focus (150 clamped to 100, `SPELL`) held to `t`: scopes 0, 1, 2, 3 (191–194); to `t − 1`: none (195–198); a goblin (a Hob of caste rank 12, a sword of 30, range 1, slashing, level 10): its weapon hit at bonus 0 and 5, a spell, a trap; holding the edge: its weapon hit, a spell (199–204) |
 | `act`, the struck target (10) | 205–214 | appended for track CV's trap port (#444): the sword on goblin 8 holding Brace (`BLOCK`), the member in its front arc (facing 0): blocked, 2 charges to 1, 1 to 0 (the effect ends) (205, 206); the member behind it (facing 3): landed, the charges kept (207); the attack skill: blocked, a charge spent (208); knocked down to `t₀ = c + 1` (held: landed, not blocked) and to `c` (lapsed: blocked) (209, 210); asleep (its first hit neither blocked nor evaded, D-179: landed) and on watch (blocked) (211, 212); 63 charges (the cap, `MAX_BLOCK`: blocked, to 62) and 62 (to 61) (213, 214) |
 | `act`, the bar rank and one-field deaths (8) | 215–222 | appended for #447's review: the rune (instant, `SELF`) on bar slot 2 at ranks 3 and 9 (slot 0 at 12), held at the slot's rank, the rank the carrier takes (`Carrier::Skill((at, member.rank(slot)))`) (215, 216); goblin 8 dead by one field only, at health 0 and Engaged (217–219), at health 100 and `DEAD` (220–222): the sword (`Target`: `locate` reads both), the instant trap on its tile (`TrapTrait::occupied` reads the AI state), the bomb on its tile (count 1) |
+| `content` (1) | 223 | RV-03a2 (D-257), after every earlier id: the content of rows 223–243 (below) |
+| `act`, by slot, a negative glyph, the attack skill's terms (8) | 224–231 | the attack skill (2 strikes, 8 quarters) on bar slot 1 with slot 0's weapon-required bit only (`MemberStats` 40): legal (224); with slot 1's (41): `Kind` (225); a glyph of −2 (skill 77) held in effect slot 0 to `c + 5`: the fire spell costs its full 15 thirds, the glyph consumed (`D = c`) (226); the fire spell on bar slot 1 counting for pair 0 (`MemberStats` 170; pair 0 of N 5, its counter at 4): the bonus, activation 2 (227); the attack skill (scope 1) with the passives of every scope (`MemberBar` 136–200, as 183–190) on goblin 8 (228); holding the edge (`PENETRATION` 20, `WEAPON`) (229); skill 78 (`ATTACK_BONUS` 10) and skill 85 (`HIT_PENETRATION` 50), attack skills of activation 0, on goblin 8 (armor 40) (230, 231) |
+| `act`, the source's side of a hit (7) | 232–238 | holding skill 79 (`PENETRATION` 30 of scope `ALL`) in effect slot 2: the bomb (count 1) on goblin 8's tile (scope 3: none taken) (232), the sword (taken) (233), the instant spell (taken) (234); the sword holding skill 80 (`ON_ATTACK_CONDITION` Poison 4) in slot 0: goblin 8 poisoned to 204 (235); with skill 81 (`ON_ATTACK_CONDITION` Bleeding 6, 2 charges) in slot 1 beside it: both applied, the charge spent (2 to 1) (236); `LIFE_STEAL_ON_HIT` 3 (`MemberKit` 128), the member at 400 of 480: 403 (237); `ENERGY_ON_HIT` 2 (136), at 30 thirds: 36 (238) |
+| `act`, the target sets (5) | 239–243 | skill 82 (fire 40 on `DISC_1` around the member, filter `ALLIES`) with member 1 West of it (111): member 1 hit (400 → 287, `HIT`), the member not (239); member 1 there at 0 health: no candidate, nothing (240); skill 83 (fire 40 on a `SINGLE` `TILE`) on goblin 8's tile: hit (241); the bomb (count 1) on 113, goblin 8 on 114 and goblin 9 on 113, both at 1 health: killed 9 then 8, ascending position, not index order (242); skill 84 (fire 40 on a foe, Burning 3 on `DISC_1` around it) on goblin 8 (113), goblin 9 on 114: 9 burns, not hit (243) |
 
-Per `fn`: `content` 1, `act` 175, `defence` 19, `offence` 28.
+Per `fn`: `content` 2, `act` 195, `defence` 19, `offence` 28.
+
+**Row 223** (RV-03a2): every row from 223 on reads the content of row 223, the last `content` row before it; rows
+1–222 read row 0's. It is row 0's with skills 77–85 appended, every one instant (activation 0) and free: 77 a glyph of
+`NEXT_SPELL_COST` −2; 78 an attack skill holding `ATTACK_BONUS` 10; 79 an enchantment holding `PENETRATION` 30 of scope
+`ALL`; 80 a preparation holding `ON_ATTACK_CONDITION` Poison 4; 81 one holding `ON_ATTACK_CONDITION` Bleeding 6 with 2
+charges; 82 a spell of fire 40 on `DISC_1` around its source, filter `ALLIES`; 83 a spell of fire 40 on a `SINGLE`
+`TILE` (range 6); 84 a spell of fire 40 on a foe and Burning 3 on `DISC_1` around it (range 6); 85 an attack skill
+holding `HIT_PENETRATION` 50 (row 0's skill 49 holds one too, but at activation 1: it would not land in the action).
+None mixes `TILE` with `FOE` or `ALLY` (D-271).
+
+**Track CV's surviving mutants of the act port (#450), RV-03a2's rows.** By the mutant's name in
+`client/sim/src/parity/mutants.test.ts`: the weapon-required bit of slot 0 read for every slot: 224, 225; a negative
+`NEXT_SPELL_COST` added (`glyphs`): 226; a slot's pairs one bit a slot (`quick_cast_matches`): 227; an attack skill's
+scope a spell's (`read`): 228, 229; `ATTACK_BONUS` ignored (`modifiers`): 230; `HIT_PENETRATION` ignored: 231; a bomb
+or a trap takes held penetration (`penetration`): 232; an effect of `ALL` not taken: 233, 234; an
+`ON_ATTACK_CONDITION` not gathered (`attack`): 235, 236 (and the charge spent on a landed hit); `LIFE_STEAL_ON_HIT`
+ignored (`on`): 237; `ENERGY_ON_HIT` not gained (`run`): 238; the source in its own hit's set (`actors`): 239; a dead
+member a candidate of a wide carrier: 240 (a hit of filter `ALLIES` on it would set its `HIT` flag: `struck` has no
+alive check); a `SINGLE` `TILE` entry read narrow: 241; the actors not in ascending position: 242; the hit given to
+every set's actor (`run`): 243.
 
 **The inventory** (what the earlier tables already pin of `act`). `segment2.jsonl` reaches `ActionLibrary::act` in its
 combat rows, but through `ActionRecorder`: each row records the class's result for the segment to replay, so a mirror
@@ -670,8 +695,11 @@ is not `act`'s (the segment's Move): no row gives it. `ActionTrait::aim`, `energ
 the item's `Empty`, `Belt` and `aim` before its count. `types::action::tests::test_no_carry_before_a_refusal` pins it:
 the in-class executor behind a `Carry` that counts its calls, each refusal `act` gives is refused with no carry, and
 each legal combat action carries once. Its Snare is instant (0 ticks), so its `Trap` refusal is on the path that
-carries at once: a carry moved before that refusal fails the test. In this table, every refusal's words and ground are
-the case's.
+carries at once: a carry moved before that refusal fails the test. `Reach` and `Target` are refused there on each arm
+that aims (RV-03a2, #447's review): the weapon's (goblin 9 at 2, `Reach`; the member, `Target`), the skill's (the fire
+spell at goblin 10, 7 away, `Reach`; aimed at a tile, `Target`) and the item's (the bomb, count 1, at a tile 7 away,
+`Reach`; the dart, count 1, at the member, `Target`): 19 refusals, none carrying. In this table, every refusal's words
+and ground are the case's.
 
 **Track CV's surviving mutants of the trap port (#444)**, killed by `act` rows only (a trap's hit is never blocked, so
 `trap.jsonl` cannot): `ExecutorTrait::strike`'s block spend (a blocked weapon hit spends one charge of the blocking

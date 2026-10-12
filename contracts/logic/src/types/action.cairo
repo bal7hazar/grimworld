@@ -1116,7 +1116,7 @@ mod tests {
     // weapon's, the skill's (the fire spell at goblin 10, 7 away; aimed at a tile) and the item's
     // (the bomb, count 1, at a tile 7 away; the dart, count 1, at the member).
     #[test]
-    #[available_gas(l2_gas: 34991061)] // ceil(1.05 × 33324820 measured)
+    #[available_gas(l2_gas: 3000000000)]
     fn test_no_carry_before_a_refusal() {
         let base = bench();
         let mut skills = array![];
