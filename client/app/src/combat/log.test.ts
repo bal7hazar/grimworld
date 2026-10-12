@@ -347,12 +347,12 @@ describe("the cost of an input (§7.2), measured", () => {
       }
       return times.sort((a, b) => a - b)[Math.floor(runs / 2)]!;
     };
-    // The heaviest row: the one whose call takes the longest
-    const timed = tickIds().map((id) => {
-      const call = { ...tickRow(id), content: TICK };
-      return { id, call, ms: median(() => tickTicks(call), 5) };
-    });
-    const heaviest = timed.sort((a, b) => b.ms - a.ms)[0]!;
+    // The heaviest row: the most goblins, then the most ticks (a choice by timing is noisy)
+    const heaviest = tickIds()
+      .map((id) => ({ id, call: { ...tickRow(id), content: TICK } }))
+      .sort(
+        (a, b) => b.call.words.goblins.length - a.call.words.goblins.length || b.call.n - a.call.n,
+      )[0]!;
     const { call } = heaviest;
     const without = median(() => tickTicks(call));
     const withReplay = median(() => {
