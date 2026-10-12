@@ -13,6 +13,7 @@ import {
   readGround,
   readWords,
   runSegment,
+  tickTicks,
   trapTrigger,
   writeDone,
   writeGround,
@@ -27,7 +28,6 @@ import {
   segmentOf,
   unpackFeatures,
   unpackWalls,
-  unportedClasses,
 } from "./mirror";
 import { recordedBefore, recordedPlayed } from "./recorded";
 import * as goblins from "./recorded-goblins";
@@ -228,12 +228,6 @@ describe("the mirror on the recorded state", () => {
     ]);
   });
 
-  it("answers every class behind the seam with NotMirrored", () => {
-    expect(() => unportedClasses.ticks({} as never)).toThrow(NotMirrored);
-    expect(() => unportedClasses.act({} as never)).toThrow(NotMirrored);
-    expect(() => unportedClasses.trigger({} as never)).toThrow(NotMirrored);
-  });
-
   it("is no prediction for an Item action with no content given (review t-0215)", () => {
     const noContent: MirrorState = { ...recordedState(), content: undefined };
     expect(() => mirrorOf(noContent)([{ kind: "item", slot: 0, entity: 0 }])).toThrow(NotMirrored);
@@ -242,13 +236,11 @@ describe("the mirror on the recorded state", () => {
     );
   });
 
-  it("runs the trap and action classes natively: ticks alone stays unported", () => {
+  it("runs all three classes natively, none refuses its call as unported", () => {
     expect(nativeClasses.trigger).toBe(trapTrigger);
     expect(nativeClasses.act).toBe(actionAct);
-    expect(() => nativeClasses.ticks({} as never)).toThrow("TickLibrary::ticks");
-    expect(() => nativeClasses.ticks({} as never)).toThrow(NotMirrored);
-    // The action class is computed: it reads its call, it does not refuse it as unported
-    expect(() => nativeClasses.act({} as never)).not.toThrow(NotMirrored);
+    expect(nativeClasses.ticks).toBe(tickTicks);
+    expect(Object.keys(nativeClasses).sort()).toEqual(["act", "ticks", "trigger"]);
   });
 
   it("predicts a Move onto a trap: the trap used, the member struck (CLI-10e)", () => {
@@ -310,8 +302,6 @@ describe("the mirror on the recorded state", () => {
       expect(used(predicted.ground)).toHaveLength(1);
       expect(used(without.ground)).toHaveLength(0);
       expect(predicted.words.members).not.toEqual(without.words.members);
-      // The unported classes refuse it
-      expect(() => mirrorOf(stepped, unportedClasses)(actions)).toThrow("TrapLibrary::trigger");
     }
   });
 
@@ -439,18 +429,63 @@ describe("the native action class on segment2.jsonl's act rows (CLI-10g)", () =>
     expect(predicted).toBe(7);
   });
 
-  it("stays not mirrored where the combat action is followed by ticks", () => {
+  it("predicts the rows whose combat action is followed by ticks (CLI-10j)", () => {
     const withTicks = ACT_ROWS.filter((id) =>
       segment2Row(id).calls.some((c) => c.kind === "ticks"),
     );
     expect(withTicks).toHaveLength(5);
     for (const id of withTicks) {
-      expect(() => runSegment(segment2Row(id).segment, nativeClasses), `row ${id}`).toThrow(
-        "TickLibrary::ticks",
-      );
-      expect(() => runSegment(segment2Row(id).segment, unportedClasses), `row ${id}`).toThrow(
-        NotMirrored,
-      );
+      const { segment, recorded } = segment2Row(id);
+      expectRecorded(runSegment(segment, nativeClasses), recorded, id);
     }
+  });
+});
+
+/** The rows of `segment2.jsonl` that record a `TickLibrary::ticks` call. */
+const TICKS_ROWS = [2, 3, 4, 6, 10, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 25, 29, 46, 47];
+
+function expectRecorded(out: ReturnType<typeof runSegment>, recorded: bigint[], id: number) {
+  expect(
+    [...writeWords(out.words), ...writeGround(out.ground), ...writeDone(out.done)],
+    `row ${id}`,
+  ).toEqual(recorded);
+}
+
+describe("the native tick class on segment2.jsonl's ticks rows (CLI-10j)", () => {
+  it("records a ticks call in each of the rows", () => {
+    for (const id of TICKS_ROWS) {
+      expect(
+        segment2Row(id).calls.some((c) => c.kind === "ticks"),
+        `row ${id}`,
+      ).toBe(true);
+    }
+  });
+
+  it("predicts each as the contracts recorded it, the goblins' turns included", () => {
+    for (const id of TICKS_ROWS) {
+      const { segment, recorded } = segment2Row(id);
+      expectRecorded(runSegment(segment, nativeClasses), recorded, id);
+    }
+  });
+
+  it("is no prediction for a MIXED carrier, with its reason", () => {
+    // Row 44's skill now carries skill 9's damage entry aimed at a TILE, then at a FOE (target:
+    // bits 86-87 of an entry): the mixed carrier `actionAct` refuses. A goblin's carrier of
+    // `tickTicks` (step 1 or 2) answers it the same; no recorded row reaches one
+    const aimed = (entry: bigint, t: bigint) => (entry & ~(3n << 86n)) | (t << 86n);
+    const { segment } = segment2Row(44);
+    const damage = segment.content.skills.find((sheet) => sheet.id === 9)!.entry1;
+    const skills = segment.content.skills.map((sheet) => ({
+      ...sheet,
+      entry1: aimed(damage, 3n),
+      entry2: aimed(damage, 1n),
+    }));
+    const mixed = { ...segment, content: { ...segment.content, skills } };
+    expect(() => runSegment(mixed, nativeClasses)).toThrow(NotMirrored);
+    expect(() => runSegment(mixed, nativeClasses)).toThrow(
+      "not mirrored: a carrier whose entries mix a TILE target with an entity one",
+    );
+    // The same row unaltered predicts
+    expect(() => runSegment(segment, nativeClasses)).not.toThrow();
   });
 });
