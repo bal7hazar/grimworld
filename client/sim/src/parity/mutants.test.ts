@@ -3423,6 +3423,7 @@ const MUTANTS: readonly Mutant[] = [
     act: true,
   },
   {
+    // Refuses `[FOE, SELF]` (legal, R-44) and `[SELF, FOE]` (not legal content, D-276)
     name: "a SELF entry counted a TILE one: SELF with FOE refused (mixed)",
     file: "action.ts",
     from: "if (e.target === target.TILE) tile = true;",
@@ -3436,6 +3437,7 @@ const MUTANTS: readonly Mutant[] = [
     act: true,
   },
   {
+    // Refuses `[TILE, SELF]`, which is legal content (R-44)
     name: "every carrier with a TILE entry refused: TILE first with SELF later too (mixed)",
     file: "action.ts",
     from: "return tile && (entity || (!attack && first === target.SELF));",
@@ -4421,7 +4423,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "  if (addressed === target.SELF) return true;\n  const [, from] = locate(world, board, source);",
     to: "  const [, from] = locate(world, board, source);",
     equivalent:
-      "a `SELF` carrier's address is its source (`aim`, `AiTrait::address`), alive when it concludes or acts and on its own tile, in every reach",
+      "a `SELF` carrier's address is its source (`aim`, `AiTrait::address`), alive when it concludes or acts and on its own tile, in every reach; the source is inside the window: member 0 centres it, and an awake goblin is in it",
   },
   {
     name: "a dead target legal",

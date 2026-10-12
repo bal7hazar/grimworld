@@ -191,10 +191,17 @@ where `actors` centres each entry's set by its own target: a `TILE` set beside a
 (`FOE`, `ALLY`, an attack's hit), or beside a carrier addressing `SELF`, reads the address as the
 other kind and may reach a goblin the sub-world does not hold (review t-0209). `action.ts`'s
 `mixed` refuses those with `NotMirrored` (`unported.MIXED`); `SELF` with `FOE` or `ALLY`, `FOE`
-with `ALLY`, and `TILE` first with `SELF` later stay mirrored. `src/parity/actcases.ts` holds the refused shapes (a `TILE` hit then a `FOE`
-or an `ALLY` condition; the reverse, an order `assert_carrier` refuses, `HIT_NOT_FIRST`; a `SELF` hit then a
-`TILE` condition) and the kept ones, each run against its expected result (a `SELF` disc hit then a
-`FOE` condition; a `TILE` disc hit then a `SELF` condition; a `FOE` hit then an `ALLY` condition),
+with `ALLY`, and `TILE` first with `SELF` later stay mirrored. Since R-44 (`assert_carrier`, D-271,
+D-276) the guard is defence in depth: the content pipeline refuses, in a carrier other than a trap,
+a `TILE` entry beside a `FOE` or `ALLY` one and any `SELF` entry before an addressed one, so every
+shape `mixed` refuses is illegal content, and so are `[SELF, FOE]` and `[SELF, ALLY]`, which it keeps.
+The legal shapes it keeps are `SELF` after the addressed entry (`[TILE, SELF]`, `[FOE, SELF]`),
+`SELF` alone, `FOE` with `ALLY`, all-`TILE`, all-entity and a `TRAP` with its payload; it refuses none
+of them. `src/parity/actcases.ts` holds the refused shapes (a `TILE` hit then a `FOE`
+or an `ALLY` condition; the reverse, an order `assert_carrier` also refuses, `HIT_NOT_FIRST`; a `SELF` hit then a
+`TILE` condition; all marked "not legal content (R-44)") and the kept ones, each run against its
+expected result (a `SELF` disc hit then a `FOE` condition, not legal content (R-44); a `TILE` disc hit then a
+`SELF` condition and a `FOE` hit then an `ALLY` condition, legal),
 run by `src/action.test.ts` and, against the `act` mutants of `mixed` (its guard, its `SELF` arm,
 and two that refuse a kept shape), by `src/parity/mutants.test.ts`. `execute` is §5.14: the
 carrier's entries (`read`), their guards, each entry's `Op`, the hit modifiers (`modifiers`), the
