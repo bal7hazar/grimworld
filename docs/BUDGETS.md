@@ -1152,6 +1152,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `models::adventurer::tests::test_known_skills_bits` | 158060 | 165963 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::adventurer::tests::test_known_skills_past_page_255` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::adventurer::tests::test_new_adventurer_words` | 131370 | 137939 | 2026-10-02 | f55176c |
+| grimworld_persistent | `models::adventurer::tests::test_skill_trainer` | 456801 | 479642 | 2026-10-12 | 3c40338 |
 | grimworld_persistent | `models::balance::tests::test_apply` | 134180 | 140889 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::balance::tests::test_balance_pages` | 164160 | 172368 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::balance::tests::test_belt_merge` | 510730 | 536267 | 2026-10-02 | f55176c |
@@ -1260,6 +1261,12 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_build::test_bar_profession` | 80577263 | 83954917 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_belt_counts_within_the_pack` | 83289926 | 86784071 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_belt_items` | 81851303 | 85292029 | 2026-10-12 | e933338 |
+| grimworld_persistent | `test_build::test_buy_skill_already_known` | 75494370 | 79269089 | 2026-10-12 | 3c40338 |
+| grimworld_persistent | `test_build::test_buy_skill_not_affordable` | 76336520 | 80153346 | 2026-10-12 | 3c40338 |
+| grimworld_persistent | `test_build::test_buy_skill_not_in_content` | 75724170 | 79510379 | 2026-10-12 | 3c40338 |
+| grimworld_persistent | `test_build::test_buy_skill_ownership_refusals` | 77009110 | 80859566 | 2026-10-12 | 3c40338 |
+| grimworld_persistent | `test_build::test_buy_skill_then_set_build` | 83912275 | 88107889 | 2026-10-12 | 3c40338 |
+| grimworld_persistent | `test_build::test_buy_skill_worst_case` | 75932440 | 79729062 | 2026-10-12 | 3c40338 |
 | grimworld_persistent | `test_build::test_equipment_owned_and_wearable` | 88104230 | 91837830 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_equipment_slots_and_hands` | 87812688 | 91513830 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_set_build_empty` | 83414020 | 86908994 | 2026-10-12 | e933338 |
@@ -1278,7 +1285,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_calls` | 377771 | 396660 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_deployment` | 263280 | 276444 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_contracts::test_fate_word` | 386914 | 406260 | 2026-10-02 | f55176c |
-| grimworld_persistent | `test_contracts::test_hub_deploys_and_stubs_revert` | 4113100 | 4318755 | 2026-10-02 | f55176c |
+| grimworld_persistent | `test_contracts::test_hub_deploys_and_stubs_revert` | 4113500 | 4318755 | 2026-10-12 | 3c40338 |
 | grimworld_persistent | `test_contracts::test_market_and_registry_deploy` | 3802780 | 3992919 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_events::test_hub_events` | 73800 | 77490 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_events::test_market_events` | 70930 | 74477 | 2026-10-02 | f55176c |
