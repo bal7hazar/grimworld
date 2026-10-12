@@ -1480,9 +1480,7 @@ fn act_content_2() -> Content {
     let mut sheet = skill(SPREAD, skill_kind::SPELL, 6, [fire, burn, none]);
     sheet.activation = 0;
     skills.append(sheet);
-    let pierce = entry(
-        kind::HIT_PENETRATION, 0, 50, 50, target::FOE, shape::SINGLE, filter::FOES,
-    );
+    let pierce = entry(kind::HIT_PENETRATION, 0, 50, 50, target::FOE, shape::SINGLE, filter::FOES);
     let mut sheet = skill(PIERCER, skill_kind::ATTACK, 1, [pierce, none, none]);
     sheet.activation = 0;
     skills.append(sheet);
@@ -1502,7 +1500,7 @@ fn table_2() -> Table {
 // Row 223, the content; the skill's checks by slot (the weapon-required bit, the quick-cast pairs),
 // a negative glyph; the attack skill's scope, its hit modifiers.
 #[test]
-#[available_gas(l2_gas: 3000000000)]
+#[available_gas(l2_gas: 389657184)] // ceil(1.05 × 371102080 measured)
 fn test_act_vectors_12() {
     let t = table_2();
     let mut digest: Array<felt252> = array![];
@@ -1534,8 +1532,8 @@ fn test_act_vectors_12() {
     m.set_casts(0, 4);
     plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(1, 8));
     // The attack skill (scope 1) landing on goblin 8 with the passives of every scope (`MemberBar`
-    // 136–200, as rows 183–190: scope 1's +20, 6, 4 taken); holding the edge (`PENETRATION` 20 of
-    // scope `WEAPON`, which an attack skill takes).
+    // 136–200, as rows 183–190: scope 1's +20, 6, 4 taken); holding the edge (`PENETRATION` 20
+    // of scope `WEAPON`, which an attack skill takes).
     let mut m = hero(@t, array![RAGE]);
     m.adrenaline = 8;
     m.words.bar += 10 * two(136) + (256 - 5) * two(160) + 3 * two(184);
@@ -1563,7 +1561,7 @@ fn test_act_vectors_12() {
 // The source's side of a weapon hit: the held `PENETRATION` of scope `ALL`, the
 // `ON_ATTACK_CONDITION`s, `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT`.
 #[test]
-#[available_gas(l2_gas: 3000000000)]
+#[available_gas(l2_gas: 266557446)] // ceil(1.05 × 253864234 measured)
 fn test_act_vectors_13() {
     let t = table_2();
     let mut digest: Array<felt252> = array![];
@@ -1576,11 +1574,7 @@ fn test_act_vectors_13() {
     holding(ref m, 2, EVERY, false, 0, CLOCK + 5, 12);
     m.set_belt_count(0, 1);
     plain(
-        ref digest,
-        ref id,
-        @t,
-        alone(CLOCK, m, goblins.clone()),
-        Action::Item((0, tile(AT + 1))),
+        ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), Action::Item((0, tile(AT + 1))),
     );
     plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), Action::Attack(8));
     plain(ref digest, ref id, @t, alone(CLOCK, m, goblins.clone()), skill_on(0, 8));
@@ -1604,7 +1598,7 @@ fn test_act_vectors_13() {
 // The target sets (`actors`): a hit of filter `ALLIES` around its source, a dead member in a wide
 // set, a `SINGLE` `TILE` entry, the actors' order, a set the hit's does not hold.
 #[test]
-#[available_gas(l2_gas: 3000000000)]
+#[available_gas(l2_gas: 259516751)] // ceil(1.05 × 247158810 measured)
 fn test_act_vectors_14() {
     let t = table_2();
     let mut digest: Array<felt252> = array![];

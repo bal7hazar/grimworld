@@ -1116,7 +1116,9 @@ mod tests {
     // weapon's, the skill's (the fire spell at goblin 10, 7 away; aimed at a tile) and the item's
     // (the bomb, count 1, at a tile 7 away; the dart, count 1, at the member).
     #[test]
-    #[available_gas(l2_gas: 3000000000)]
+    // gas: raised, RV-03a2: four more refusals, Reach and Target on the skill and item arms (#447
+    // review)
+    #[available_gas(l2_gas: 47372276)] // ceil(1.05 × 45116453 measured)
     fn test_no_carry_before_a_refusal() {
         let base = bench();
         let mut skills = array![];
@@ -1201,7 +1203,8 @@ mod tests {
                 clock,
                 array![member],
                 array![
-                    goblin(8, AT + 1, 0, 100), goblin(9, AT + 3, 0, 100), goblin(10, AT + 7, 0, 100),
+                    goblin(8, AT + 1, 0, 100), goblin(9, AT + 3, 0, 100),
+                    goblin(10, AT + 7, 0, 100),
                 ],
             );
             let mut spy = Spy { rules: fresh(), carried: 0 };

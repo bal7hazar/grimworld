@@ -904,8 +904,8 @@ fn surviving(content: @Content, sheets: @Sheets) -> Array<(Unit, Op)> {
     let mut rows = array![];
     let m = member(content);
     let five = at(sheets, 5);
-    // `hold`'s step 1 at its bound: skill 5 held in slot 0 to `T` (held: `old.deadline ≥ t`), held
-    // again to 60: the same carrier, slot 0 (`>` would put it in slot 1, the lowest free).
+    // `hold`'s step 1 at its bound: skill 5 held in slot 0 to `T` (held: `old.deadline ≥ t`),
+    // held again to 60: the same carrier, slot 0 (`>` would put it in slot 1, the lowest free).
     let held_t = m_holding(m, 0, held(5, false, 0, T, 12), sheets);
     rows.append((Unit::M(held_t), hold(held(5, false, 0, 60, 12), five, false)));
     // Step 1's potion compared by its item, not its belt slot: belt slots 1 and 2 both hold item
@@ -1103,7 +1103,7 @@ fn test_body_vectors_5() {
 
 // Appended by RV-03a2 (D-257): track CV's surviving mutants (#443), after every earlier id.
 #[test]
-#[available_gas(l2_gas: 3000000000)]
+#[available_gas(l2_gas: 167799202)] // ceil(1.05 × 159808763 measured)
 fn test_body_vectors_6() {
     let content = body_content();
     let sheets = content.sheets();

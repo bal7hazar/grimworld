@@ -633,7 +633,7 @@ fn on_tile(tile: u8) -> Object {
 // North edges, West of its first tile), each ground holding a trap where a port without the
 // bound would look.
 #[test]
-#[available_gas(l2_gas: 3000000000)]
+#[available_gas(l2_gas: 243853060)] // ceil(1.05 × 232241009 measured)
 fn test_trap_vectors_5() {
     let class = class();
     let content = trap_content_2();
@@ -682,8 +682,9 @@ fn test_trap_vectors_5() {
         20,
     );
     // West of the location: origin `(−5, 15)` (`x` held as 10, `y` as 30), position 15 (row 1,
-    // column 0): x before the location, nothing. Without the West guard, `x − ORIGIN` is −5: chunk
-    // `15 · 1 − 1` = 14, its tile 10 (a remainder toward zero, 15 − 5) or 25 (a floored one, 15 +
+    // column 0): x before the location, nothing. Without the West guard, `x − ORIGIN` is −5:
+    // chunk `15 · 1 − 1` = 14, its tile 10 (a remainder toward zero, 15 − 5) or 25 (a floored
+    // one, 15 +
     // 10); the ground's chunk 14 holds a trap on each.
     let west = Board { window: open(), x: ORIGIN - 5, y: ORIGIN + 15 };
     let fourteen = array![chunk(14, [on_tile(10), on_tile(25), none])];
@@ -694,7 +695,7 @@ fn test_trap_vectors_5() {
 // The entrant's defence: its `ARMOR_VS` against the trap's earth, its armor terms, its held
 // `ARMOR` effects on each side of their deadline, a negative one.
 #[test]
-#[available_gas(l2_gas: 3000000000)]
+#[available_gas(l2_gas: 392697618)] // ceil(1.05 × 373997731 measured)
 fn test_trap_vectors_6() {
     let class = class();
     let content = trap_content_2();
@@ -706,20 +707,28 @@ fn test_trap_vectors_6() {
     ];
     let placed = alone(goblin_trap(PLACER));
     // The member under goblin 45's trap (Snare's earth at rank 12) with `ARMOR_VS` 9 against earth
-    // (`MemberStats` 224–229); goblin 44 under the member's Snare, Hob's `ARMOR_VS` 9 against earth.
+    // (`MemberStats` 224–229); goblin 44 under the member's Snare, Hob's `ARMOR_VS` 9 against
+    // earth.
     let mut m = trapper();
     m.words.stats += 9 * two(224);
     row(
-        ref digest, ref id, class, @content, words(array![m], goblins.clone()), b, placed.clone(),
-        0, SPOT, 0,
-    );
-    row(
-        ref digest, ref id, class, @content, world(), b, alone(member_trap(0, 0)), ENTRANT, SPOT,
+        ref digest,
+        ref id,
+        class,
+        @content,
+        words(array![m], goblins.clone()),
+        b,
+        placed.clone(),
+        0,
+        SPOT,
         0,
     );
+    row(
+        ref digest, ref id, class, @content, world(), b, alone(member_trap(0, 0)), ENTRANT, SPOT, 0,
+    );
     // The member's armor 10 (`MemberBar` 232–247), its stance sum 4 and its enchanted sum 3
-    // (`MemberKit` 184–191, 192–199): holding Brace (a stance, slot 0) and the shield (`ARMOR` 30,
-    // an enchantment, slot 1) to 400, every term counts; holding neither, the armor alone.
+    // (`MemberKit` 184–191, 192–199): holding Brace (a stance, slot 0) and the shield (`ARMOR`
+    // 30, an enchantment, slot 1) to 400, every term counts; holding neither, the armor alone.
     let mut sums = trapper();
     sums.words.bar += 10 * two(232);
     sums.words.kit += 4 * two(184) + 3 * two(192);
@@ -728,8 +737,16 @@ fn test_trap_vectors_6() {
     guarded(ref both, 1, SHIELD, 0, 400);
     for m in array![both, sums] {
         row(
-            ref digest, ref id, class, @content, words(array![m], goblins.clone()), b,
-            placed.clone(), 0, SPOT, 0,
+            ref digest,
+            ref id,
+            class,
+            @content,
+            words(array![m], goblins.clone()),
+            b,
+            placed.clone(),
+            0,
+            SPOT,
+            0,
         );
     }
     // The member holding the shield to the clock 305 (held: `deadline ≥ t`) and to 304 (lapsed);
@@ -743,8 +760,16 @@ fn test_trap_vectors_6() {
     guarded(ref rusted, 1, SHIELD, 0, 400);
     for m in array![held, lapsed, rusted] {
         row(
-            ref digest, ref id, class, @content, words(array![m], goblins.clone()), b,
-            placed.clone(), 0, SPOT, 0,
+            ref digest,
+            ref id,
+            class,
+            @content,
+            words(array![m], goblins.clone()),
+            b,
+            placed.clone(),
+            0,
+            SPOT,
+            0,
         );
     }
     // Goblin 44 under the member's Snare holding the shield to 305 (held) and 304 (lapsed); the
@@ -762,7 +787,7 @@ fn test_trap_vectors_6() {
 // The payload: a goblin placer's guarded hit, a member placer's guarded condition, the `HEAL`,
 // `CURE`, `ENERGY` and holding entries, a dead goblin entering, a placer of another caste.
 #[test]
-#[available_gas(l2_gas: 3000000000)]
+#[available_gas(l2_gas: 320514261)] // ceil(1.05 × 305251677 measured)
 fn test_trap_vectors_7() {
     let class = class();
     let content = trap_content_2();

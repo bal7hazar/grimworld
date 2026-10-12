@@ -1103,7 +1103,7 @@ fn test_report_to_the_last_hub() {
 // the slot reused with the next generation (the double's numbering: `instance_id(1, n)` for its
 // `n`-th `create`; the real `Instances` is `grimworld_ephemeral`'s).
 #[test]
-#[available_gas(l2_gas: 300000000)]
+#[available_gas(l2_gas: 66110564)] // ceil(1.05 × 62962441 measured)
 fn test_reenter_after_a_defeat() {
     let world = setup();
     let id = adventurer(world);
@@ -1117,8 +1117,15 @@ fn test_reenter_after_a_defeat() {
         shape: grimworld_logic::types::effect::shape::SINGLE,
         ..Default::default(),
     };
-    IRegistryAdminDispatcher { contract_address: world.registry }
-        .set_record(ITEM, 8, ItemTrait::new(item_class::POTION, 1, 0, 1, 0, heal, 0, 0).pack());
+    // The registry takes ids in order: items 1–7 ingredients, 8 the potion.
+    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
+    for item in 1..8_u32 {
+        let ingredient = ItemTrait::new(
+            item_class::INGREDIENT, 1, 0, 1, 0, Default::default(), 0, 0,
+        );
+        admin.set_record(ITEM, item, ingredient.pack());
+    }
+    admin.set_record(ITEM, 8, ItemTrait::new(item_class::POTION, 1, 0, 1, 0, heal, 0, 0).pack());
     give(world, id, 8, 3);
     let three: felt252 = StorePacking::pack(Lanes32 { lanes: [0, 8, 0, 0, 0x300, 0, 0] });
     act(world, ALICE).set_build(id, EMPTY_BUILD, three - LIVE, 0);
