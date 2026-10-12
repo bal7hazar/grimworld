@@ -37,6 +37,7 @@ import {
   NO_SLOT,
   activation,
   aiState,
+  aiTarget,
   arc,
   beltItem,
   degeneration,
@@ -435,9 +436,9 @@ export function beforeRegeneration(
 /**
  * The goblins that may have struck or healed `actor` in the tick that went from `before` to `after`
  * (§7.2): one whose activation resolved in the tick on that actor (or with an area); one that used
- * an instant caste skill (a recharge set); and one free in step 2 (awake, alive, no activation, not
- * knocked down) that neither moved nor started an activation and holds the actor, a member, in its
- * weapon's reach. The last is the brief's "attack (its recovery or recharge set)" widened: a weapon of tick
+ * an instant caste skill (a recharge set); and one free in step 2 (awake, alive, Engaged, no
+ * activation, not knocked down) that neither moved nor started an activation and holds the actor in
+ * its weapon's reach, the actor being the member its `target` chooses. The last is the brief's "attack (its recovery or recharge set)" widened: a weapon of tick
  * cost 1 sets no recovery (`GoblinTickTrait::recover` needs `k > 1`) and no recharge, so a goblin's
  * plain attack leaves no mark on its words.
  */
@@ -466,7 +467,22 @@ function strikers(
     }
     // A goblin's weapon strikes a member only (no friendly fire, design/19 §2.3)
     if (actor.entity >= after.members.length) continue;
-    const free = was.act_slot === activation.NONE && was.knocked < t;
+    // `AiTrait::act` strikes with the weapon in mode Engaged only (Alerted and Fleeing walk), at
+    // its one chosen `target`. Engaged after the tick but not Fleeing before it: perception may
+    // engage it in step 0, a cornered Fleeing goblin turns Engaged in step 2 without striking
+    const engaged = g.ai === aiState.ENGAGED && was.ai !== aiState.FLEEING;
+    const chosen = aiTarget(
+      {
+        clock: before.words.clock,
+        members: before.members,
+        goblins: before.goblins,
+        killed: [],
+        defeated: false,
+      },
+      board,
+    )?.[0];
+    const free =
+      engaged && chosen === actor.entity && was.act_slot === activation.NONE && was.knocked < t;
     const [p0, p1] = [goblinPlace(was), goblinPlace(g)];
     const stayed = p0.x === p1.x && p0.y === p1.y;
     const started = g.act_slot <= activation.LAST_SLOT;

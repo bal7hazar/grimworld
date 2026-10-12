@@ -211,6 +211,50 @@ describe("the one-tick replay (§7.2 item 2)", () => {
     expect(tickRowLines(36)).toEqual({ lines: [], records: [] });
   });
 
+  it("a held Alerted goblin in reach is no striker: a trap's damage stays the trap's", () => {
+    // Row 64's state (the runt in reach of the adventurer), the runt held Alerted; the adventurer
+    // loses 30 health in a tick where row 113's trap is triggered
+    const row = tickRow(64);
+    const call = { ...row, content: TICK };
+    const trapRow = tickRow(113);
+    const trapAfter = tickTicks({ ...trapRow, content: TICK }).ground;
+    const withRunt = (ai: number) => {
+      const g = loadGoblin(row.words.goblins[0]!, SHEETS);
+      g.ai = ai;
+      const words = { ...row.words, goblins: [{ ...storeGoblin(g), awake: true }] };
+      const before = decode(words);
+      const later = decode({ ...words, clock: words.clock + 1 });
+      later.members[0]!.health = before.members[0]!.health - 30;
+      const records: LogRecord[] = [];
+      const lines = tickLines(
+        call,
+        1,
+        before,
+        later,
+        trapRow.ground,
+        trapAfter,
+        SHEETS,
+        DEFAULT_NAMES,
+        (r) => records.push(r),
+      );
+      return { lines, records };
+    };
+    const alerted = withRunt(2);
+    expect(alerted.lines).toHaveLength(1);
+    expect(alerted.lines[0]).toMatch(/^A trap struck you: \d+ damage$/);
+    expect(alerted.records).toEqual([]);
+    // The same runt Engaged, its chosen target the adventurer: it is the striker
+    expect(withRunt(3).lines[0]).toMatch(/^The runt struck you: \d+ damage/);
+  });
+
+  it("replays without changing the call's words", () => {
+    const row = tickRow(118);
+    const call = { ...row, content: TICK };
+    const felts = writeWords(call.words);
+    replayTicks(call);
+    expect(writeWords(call.words)).toEqual(felts);
+  });
+
   it("two goblins striking in one tick: the joint line and the unattributed record", () => {
     const { lines, records } = tickRowLines(118);
     expect(lines).toEqual(["The first runt and the second runt struck you: 1 damage"]);
@@ -391,7 +435,10 @@ describe("the cost of an input (§7.2), measured", () => {
         `the batch of 10's 10th input: ${inputWithout.toFixed(3)} ms its run alone, ` +
         `${inputNoReplay.toFixed(3)} ms with its lines but no replay, ${inputWith.toFixed(3)} ms with the replay`,
     );
-    expect(withReplay).toBeGreaterThan(0);
+    // Loose bounds, far above the figures measured (about 2 ms), so a regression shows (§7.2: one
+    // frame is 16 ms)
+    expect(withReplay).toBeLessThan(50);
+    expect(inputWith).toBeLessThan(50);
   });
 });
 

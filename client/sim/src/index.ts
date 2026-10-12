@@ -227,6 +227,7 @@ export {
 } from "./action";
 export { belt_item as beltItem, recharge as memberRecharge } from "./body/member";
 export { ai as aiState, degeneration, effect_pips, heal, held } from "./segment/tick";
+export { target as aiTarget } from "./ai";
 export { object as groundObject, spot } from "./trap";
 export { activation, condition } from "./combat";
 export { kind } from "./effect";
