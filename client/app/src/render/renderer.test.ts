@@ -1,5 +1,6 @@
 import { type Container, Graphics, type Sprite, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
+import type { CombatOverlay } from "../combat/overlay";
 import { tileToPixel, worldToScreen } from "../input/coords";
 import { WHEEL_NOTCH } from "../input/gestures";
 import { fixtureNamed } from "../sandbox/fixtures";
@@ -13,7 +14,15 @@ import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
 import { isRock, voidFoam } from "./ground";
 import { OBSTACLES, obstacleOf } from "./obstacles";
-import { BAKE_CHUNK, DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
+import {
+  BAKE_CHUNK,
+  DEFAULT_FEET,
+  IDLE_MAX_FPS,
+  KNOCKED_ROTATION,
+  Renderer,
+  STEP_MS,
+  feetOffset,
+} from "./renderer";
 import { DIM_ALPHA, drawOverlay, drawTerrain, overlayPlan } from "./shapes";
 import type { FoamMesh, WaterMode } from "./foam";
 import { tileKey } from "./fog";
@@ -277,6 +286,69 @@ describe("the overlay", () => {
   });
 });
 
+describe("combat on the map (CLI-05d)", () => {
+  const combat = (knocked: readonly { x: number; y: number }[]): CombatOverlay => ({
+    range: [],
+    greyed: [],
+    area: [],
+    targets: [],
+    activations: [
+      {
+        actor: 2,
+        tile: { x: 10, y: 10 },
+        ticks: 2,
+        total: 3,
+        target: { x: 10, y: 8 },
+        area: [],
+        interruptible: false,
+      },
+    ],
+    letters: [{ actor: 2, tile: { x: 10, y: 10 }, letters: ["K"], more: false }],
+    knocked,
+  });
+  const goblinBody = (surface: FakeSurface) => {
+    const world = surface.stage.children[0] as Container;
+    const actors = world.children[5] as Container;
+    const at = tileToPixel({ x: 10, y: 10 });
+    const node = actors.children.find(
+      (c) => c.position.x === at.x && c.position.y === at.y,
+    ) as Container;
+    return node.children[1] as Container;
+  };
+
+  it("lays a knocked-down actor flat, and stands it up again", () => {
+    const surface = new FakeSurface();
+    const renderer = new Renderer(surface, new FakeHost(), { idle: false });
+    const view = oneGoblin(10, 10, 0);
+    renderer.setView({ ...view, combat: combat([{ x: 10, y: 10 }]) });
+    expect(goblinBody(surface).rotation).toBe(KNOCKED_ROTATION);
+    renderer.setView({ ...view, combat: combat([]) });
+    expect(goblinBody(surface).rotation).toBe(0);
+    renderer.setView(view);
+    expect(goblinBody(surface).rotation).toBe(0);
+  });
+
+  it("draws the rings and lines under the actors, their figures and letters over them", () => {
+    const surface = new FakeSurface();
+    const renderer = new Renderer(surface, new FakeHost(), { idle: false });
+    const view = oneGoblin(10, 10, 0);
+    renderer.setView({ ...view, sight: view.tiles, combat: combat([]) });
+    const world = surface.stage.children[0] as Container;
+    const [overlay, labels] = [world.children[3] as Graphics, world.children[6] as Graphics];
+    expect(world.children.indexOf(labels)).toBeGreaterThan(
+      world.children.indexOf(world.children[5]!),
+    );
+    // The ring (backing, line, part gone by) and the target line
+    expect(overlay.context.instructions.filter((i) => i.action === "stroke")).toHaveLength(4);
+    // The target mark (circle, ticks); the figure and the letter: a backing and the cells each
+    expect(labels.context.instructions.filter((i) => i.action === "stroke")).toHaveLength(2);
+    expect(labels.context.instructions.filter((i) => i.action === "fill")).toHaveLength(4);
+    renderer.setView({ ...view, sight: view.tiles });
+    expect(overlay.context.instructions).toHaveLength(0);
+    expect(labels.context.instructions).toHaveLength(0);
+  });
+});
+
 describe("sharp bilinear (the offscreen pass)", () => {
   function sharp(options: { width?: number; height?: number; limit?: number } = {}) {
     const host = new FakeHost();
@@ -393,7 +465,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     expect(surface.passes).toHaveLength(0);
     expect(surface.renders).toBe(1);
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(6); // the world itself is on the stage
+    expect(world.children).toHaveLength(7); // the world itself is on the stage
     expect(renderer.zoomInfo()).toMatchObject({
       mode: "sharp",
       sharpFallback: true,
@@ -418,7 +490,8 @@ describe("sharp bilinear (the offscreen pass)", () => {
     host.run(1000);
     expect(surface.renders).toBe(renders); // no frame was needed for it
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(6); // grey ground, ground, cover, overlay, dropped steps, actors
+    // grey ground, ground, cover, overlay, dropped steps, actors, combat's figures and letters
+    expect(world.children).toHaveLength(7);
   });
 });
 
@@ -449,7 +522,7 @@ describe("the feet in their tile (CLI-03b)", () => {
   function onScreen(surface: FakeSurface, node: Container): { x: number; y: number } {
     const top = surface.stage.children[0] as Container;
     const p = node.getGlobalPosition();
-    const k = top.children.length === 6 ? 1 : top.scale.x;
+    const k = top.children.length === 7 ? 1 : top.scale.x;
     return { x: p.x * k, y: p.y * k };
   }
 
