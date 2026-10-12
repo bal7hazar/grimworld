@@ -14,6 +14,18 @@ the records of `contracts/seed/` (the test region, and the fight content the pro
 writes: the zone names spawn table 1); `Hub.register`; one adventurer, `Hub.set_build` (an empty bar,
 no belt), `Hub.enter` through gate 1 (the start hub into the zone) for the first pre-funded account.
 
+OPS-01b, `--build full` (the default is `--build empty`, as above): the adventurer is built from the seed's
+own records before it enters. The pack is funded first, as the lifecycle probe does (no entrypoint fills a
+pack yet but `Hub.report`): the adventurer enters once, the hub's `instances` is pointed at the account
+for one `report` (Open) that credits the potions, then back, and the adventurer leaves by gate 2; then
+`set_build` carries the belt, and the entry that follows is the one the JSON names. What the seed gives:
+bar: skill 1 (an instant attack) is the seed's only skill, and no entrypoint makes a skill known (the
+`known_skills` words are never written, `set_build` refuses an unknown one, and devnet has no
+set-storage), so the bar stays empty and the skills wanted are named under `build.dropped`; belt: healing
+potion (item 1) x2, the seed has no REGENERATION potion (every potion heals), so that kind is dropped;
+pack: twice the belt, so the entry debits the belt and one re-entry with it is covered. Seed ids come
+from `build_plan()`, which reads `seed_records()`'s rows, never hard-coded; the seed is not changed.
+
 Local node only: it refuses any NODE_URL that is not 127.0.0.1 and never reads a Sepolia variable.
 It runs once per node: a node whose first account has already sent a transaction is refused (exit 1)
 with a message, and nothing is deployed. The node must be a devnet whose `devnet_getPredeployedAccounts`
@@ -37,7 +49,13 @@ read. Its keys, all strings of hex felts unless noted:
     adventurer_id     the adventurer created, built and entered (a number)
     instance_id       the instance it entered: `InstanceEntered`'s id (a number)
     slot              the instance's slot, `instance_id >> 32` (a number)
+    build             what the adventurer was built with (OPS-01b; numbers): {mode, bar: the 8 skill
+                       ids by slot (0 empty), belt: [{item, count}], pack: [{item, count}] funded
+                       before the entry, pack_after_entry: [{item, count}] what the entry left (derived, listed in
+                       `derived`: no view reads a pack yet),
+                       dropped: {name: reason} for each part the seed or the chain cannot give}
 """
+import argparse
 import json
 import os
 import re
@@ -59,6 +77,9 @@ os.environ["RAYON_NUM_THREADS"] = "1"
 
 POTIONS = (1, 8, 15, 22)
 EMPTY_BUILD = 255 << 168  # an empty bar (elite slot 255, bit 168), ENG-01 §3.3
+BAR_SLOTS = 8
+HUB_GATE_BACK = 2  # the gate from the zone back to the start hub (`seed_records`)
+OPEN = 0  # `Outcome::Open`
 PLAY_CLASSES = [("ephemeral", "PlayLibrary"), ("logic", "TickLibrary"), ("logic", "AiLibrary"),
                 ("logic", "ActionLibrary"), ("logic", "ExecutorLibrary"),
                 ("logic", "SegmentLibrary"), ("ephemeral", "GoblinsLibrary")]
@@ -183,17 +204,90 @@ def seed_records():
     return records
 
 
+def build_word(bar):
+    """`set_build`'s `Build` word without `LIVE`: the bar's skills at 16 bits a slot, no attribute
+    rank, no elite (slot 255, bit 168)."""
+    return sum(skill << (16 * slot) for slot, skill in enumerate(bar)) + EMPTY_BUILD
+
+
+def belt_word(belt):
+    """`set_build`'s belt word: the items in lanes 0-3, their counts in lane 4 (8 bits each)."""
+    items, counts = [i for i, _ in belt], [c for _, c in belt]
+    return (sum(item << (32 * lane) for lane, item in enumerate(items))
+            + (sum(c << (8 * lane) for lane, c in enumerate(counts)) << 128))
+
+
+def build_plan():
+    """What `--build full` asks of the seed (OPS-01b), read from `seed_records()`'s tables, never
+    hard-coded: the four skills wanted, the two potions wanted, and what the seed lacks."""
+    columns = ("id", "profession", "attribute", "kind", "energy", "adrenaline", "activation")
+    rows = []
+    for row in seed_rows("skills", 47):
+        entries = [row[11 + 12 * i] for i in range(3)]  # each entry's kind, `skill_record`'s order
+        rows.append({**dict(zip(columns, row)), "entries": entries})
+    wanted = {  # name: (what it is, its test over a skill row)
+        "instant_attack": ("instant attack skill", lambda r: r["kind"] == 1 and r["activation"] == 0),
+        "activation_skill": ("skill with an activation of 1 or more", lambda r: r["activation"] >= 1),
+        "trap": ("trap skill", lambda r: r["kind"] == 9),
+        "regeneration_skill": ("skill with a REGENERATION entry", lambda r: 5 in r["entries"]),
+    }
+    skills, dropped = {}, {}
+    for name, (what, test) in wanted.items():
+        found = [r["id"] for r in rows if test(r) and r["id"] not in skills.values()]
+        if found:
+            skills[name] = found[0]
+        else:
+            dropped[name] = f"the seed has no {what}"
+    # every potion of the seed heals (`seed_records.item`): the first is the healing potion, and
+    # there is no REGENERATION potion
+    if skills:  # found in the seed, but never on the bar
+        dropped["bar"] = ("no entrypoint makes a skill known (buy_skill is not implemented, D-275; "
+                          "devnet has no set-storage): the skills wanted are in `skills_wanted`")
+    dropped["regeneration_potion"] = "the seed has no REGENERATION potion (every potion heals)"
+    return {"skills": skills, "belt": [(POTIONS[0], 2)], "dropped": dropped}
+
+
 def commit():
     out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True)
     return out.stdout.strip() if out.returncode == 0 else "unknown"
 
 
+def parse(argv):
+    plan = build_plan()
+    skills = ", ".join(f"{name} = skill {skill}" for name, skill in plan["skills"].items()) or "none"
+    belt = ", ".join(f"item {item} x{count}" for item, count in plan["belt"])
+    dropped = "; ".join(f"{name}: {why}" for name, why in plan["dropped"].items()) or "none"
+    parser = argparse.ArgumentParser(
+        prog="scripts/with-node.sh python3 scripts/devnet_deploy.py",
+        description="Deploys the game on a local starknet-devnet.",
+        epilog=f"--build full (OPS-01b) ids, read from the seed. Skills wanted: {skills} (none can "
+               f"go on the bar: no entrypoint makes a skill known). Belt: {belt}. The pack holds "
+               f"twice the belt. Dropped: {dropped}. The same ids are in the JSON's `build` key.")
+    parser.add_argument("--out", help="write the JSON here instead of stdout")
+    parser.add_argument("--build", choices=("empty", "full"), default="empty",
+                        help="the adventurer's build: empty (default: an empty bar, no belt) or "
+                             "full (a belt of the seed's potions and a pack for a second entry)")
+    return parser.parse_args(argv)
+
+
+def fund_pack(node, hub, instances, registry, fate, flatten, adventurer, credits):
+    """The pack, as the lifecycle probe does it: `report` is the only call that credits a pack. The
+    adventurer enters, the hub's `instances` is the account for one Open report, then it is the real
+    `Instances` again and the adventurer leaves by the gate back to the start hub."""
+    inside = entered(node.invoke(hub, "enter", adventurer, 1), instances)
+    node.invoke(hub, "set_contracts", registry, node.address, 4, fate, flatten)
+    try:
+        node.invoke(hub, "report", inside, 1, adventurer, 0, 0, len(credits),
+                    *[f for item, count in credits for f in (item, count)],
+                    0, 0, 0, 0, OPEN, 0, 0, 0, 0, 0, 0)
+    finally:  # the real `Instances` is restored even when the report fails
+        node.invoke(hub, "set_contracts", registry, instances, 4, fate, flatten)
+    node.invoke(instances, "leave", inside, adventurer, 0, HUB_GATE_BACK)
+
+
 def main(argv):
-    out_path = None
-    if argv:
-        if len(argv) != 2 or argv[0] != "--out":
-            sys.exit("usage: scripts/with-node.sh python3 scripts/devnet_deploy.py [--out <file>]")
-        out_path = argv[1]
+    args = parse(argv)
+    out_path = args.out
     try:
         url = os.environ["NODE_URL"]
         address = os.environ["NODE_ACCOUNT_ADDRESS"]
@@ -248,6 +342,15 @@ def main(argv):
     node.invoke(hub, "create_adventurer", short("Aldric"), 1)
     adventurer = 1  # the first the hub creates (it counts from 1)
     node.invoke(hub, "set_build", adventurer, EMPTY_BUILD, 0, 0)
+    plan = build_plan()
+    bar = [0] * BAR_SLOTS  # no skill can be made known on chain: see the module docstring
+    belt, pack, left = [], [], []
+    if args.build == "full":
+        belt = plan["belt"]
+        pack = [(item, 2 * count) for item, count in belt]
+        left = [(item, count) for item, count in belt]
+        fund_pack(node, hub, instances, registry, fate, classes["flatten_library"], adventurer, pack)
+        node.invoke(hub, "set_build", adventurer, build_word(bar), belt_word(belt), 0)
     instance = entered(node.invoke(hub, "enter", adventurer, 1), instances)
 
     result = {
@@ -258,6 +361,13 @@ def main(argv):
         "contracts": {"registry": registry, "tx_hash_fate": fate, "hub": hub,
                       "instances": instances},
         "adventurer_id": adventurer, "instance_id": instance, "slot": instance >> 32,
+        "build": {"mode": args.build, "bar": bar,
+                  "belt": [{"item": i, "count": c} for i, c in belt],
+                  "pack": [{"item": i, "count": c} for i, c in pack],
+                  "pack_after_entry": [{"item": i, "count": c} for i, c in left],
+                  "derived": ["pack_after_entry"],  # computed here (no pack view yet), not read
+                  "dropped": plan["dropped"] if args.build == "full" else {},
+                  **({"skills_wanted": plan["skills"]} if args.build == "full" else {})},
     }
     text = json.dumps(result, indent=2) + "\n"
     if out_path:
