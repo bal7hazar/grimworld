@@ -635,11 +635,16 @@ class RealManifest(unittest.TestCase):
             # CLI-03l, the HUD
             "bar_big", "bar_big_fill", "bar_small", "bar_small_fill_energy", "icon_sword",
             "portrait_vanguard", "portrait_warden", "portrait_cleric", "cursor_arrow",
-            "cursor_hand"})
+            "cursor_hand",
+            # CLI-05c, the combat screen's target
+            "bar_small_fill_health"})
         # The energy fill is the small red fill in the big blue button's face colour.
         self.assertEqual(entries["bar_small_fill_energy"]["recolour"], {"#ff3e3e": "#41919d"})
         self.assertEqual([e["name"] for e in entries.values() if "recolour" in e],
                          ["bar_small_fill_energy"])
+        # The target's fill is the same small fill in the pack's own red: not recoloured.
+        self.assertEqual(entries["bar_small_fill_health"]["file"],
+                         entries["bar_small_fill_energy"]["file"])
         for name, e in entries.items():
             self.assertTrue(e["file"].startswith("UI Elements/UI Elements/"), name)
             if name.startswith(("button_", "round_", "square_")):
