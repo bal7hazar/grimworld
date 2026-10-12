@@ -303,7 +303,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_build::test_modifier_beyond_bound_refused` | 120540 | 126567 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_build::test_one_hit_product` | 9920 | 10416 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_build::test_per_source_bounds` | 1634530 | 1716257 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_build::test_second_attack_bonus_refused` | 160900 | 159653 | 2026-10-12 | e933338 |
+| grimworld_logic | `test_build::test_second_attack_bonus_refused` | 160900 | 168945 | 2026-10-12 | 6a639ec |
 | grimworld_logic | `test_build::test_set_bonus_beyond_bound_refused` | 19920 | 20916 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_build_records::test_base_armor_hands_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_build_records::test_base_no_slot_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
@@ -350,10 +350,10 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_capacity::test_undecided_slot_types_refused` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_capacity::test_unguarded_armor_twice_accepted` | 381560 | 400638 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_combat::test_armor_set_round_trip` | 244460 | 256683 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_combat::test_carrier_attack_bonus_in_a_spell_refused` | 177190 | 176757 | 2026-10-12 | e933338 |
+| grimworld_logic | `test_combat::test_carrier_attack_bonus_in_a_spell_refused` | 177190 | 186050 | 2026-10-12 | 6a639ec |
 | grimworld_logic | `test_combat::test_carrier_attack_entry_on_self_refused` | 71530 | 74792 | 2026-10-12 | 9fcdce5 |
-| grimworld_logic | `test_combat::test_carrier_attack_with_damage_refused` | 88580 | 88368 | 2026-10-12 | e933338 |
-| grimworld_logic | `test_combat::test_carrier_damage_not_first_refused` | 178530 | 177272 | 2026-10-12 | e933338 |
+| grimworld_logic | `test_combat::test_carrier_attack_with_damage_refused` | 88580 | 93009 | 2026-10-12 | 6a639ec |
+| grimworld_logic | `test_combat::test_carrier_damage_not_first_refused` | 178530 | 187457 | 2026-10-12 | 6a639ec |
 | grimworld_logic | `test_combat::test_carrier_disc_1_in_a_skill_refused` | 104210 | 104276 | 2026-10-12 | e933338 |
 | grimworld_logic | `test_combat::test_carrier_disc_2_refused` | 83500 | 87360 | 2026-10-12 | 9fcdce5 |
 | grimworld_logic | `test_combat::test_carrier_gap_refused` | 239770 | 240408 | 2026-10-12 | e933338 |
@@ -361,8 +361,8 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_combat::test_carrier_modifier_without_hit_refused` | 222730 | 227525 | 2026-10-12 | e933338 |
 | grimworld_logic | `test_combat::test_carrier_trap_not_first_refused` | 157810 | 161060 | 2026-10-12 | e933338 |
 | grimworld_logic | `test_combat::test_carrier_trap_payload_on_self_refused` | 230920 | 235452 | 2026-10-12 | e933338 |
-| grimworld_logic | `test_combat::test_carrier_two_hits_refused` | 177960 | 177566 | 2026-10-12 | e933338 |
-| grimworld_logic | `test_combat::test_carrier_two_holding_refused` | 177860 | 176568 | 2026-10-12 | e933338 |
+| grimworld_logic | `test_combat::test_carrier_two_hits_refused` | 177960 | 186858 | 2026-10-12 | 6a639ec |
+| grimworld_logic | `test_combat::test_carrier_two_holding_refused` | 177860 | 186753 | 2026-10-12 | 6a639ec |
 | grimworld_logic | `test_combat::test_caste_armor_vs_refused` | 116460 | 122283 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_combat::test_caste_energy_refused` | 26540 | 27867 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_combat::test_caste_health_regen_refused` | 26540 | 27867 | 2026-10-02 | f55176c |
@@ -744,8 +744,8 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_validators::test_armor_vs_negative_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_validators::test_armor_vs_type_0_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_validators::test_armor_vs_type_255_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_validators::test_attack_bonus_on_allies_refused` | 88390 | 88169 | 2026-10-12 | e933338 |
-| grimworld_logic | `test_validators::test_attack_hit_penetration_on_allies_refused` | 88580 | 88368 | 2026-10-12 | e933338 |
+| grimworld_logic | `test_validators::test_attack_bonus_on_allies_refused` | 88390 | 92810 | 2026-10-12 | 6a639ec |
+| grimworld_logic | `test_validators::test_attack_hit_penetration_on_allies_refused` | 88580 | 93009 | 2026-10-12 | 6a639ec |
 | grimworld_logic | `test_validators::test_attack_modifiers_on_foes_accepted` | 405600 | 413196 | 2026-10-12 | e933338 |
 | grimworld_logic | `test_validators::test_condition_duration_condition_10_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_validators::test_condition_duration_on_suffix_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
@@ -1346,7 +1346,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_registry::test_set_record_floor_size` | 4315462 | 4419190 | 2026-10-12 | 9fcdce5 |
 | grimworld_persistent | `test_registry::test_set_record_id_zero_refused` | 1946262 | 1958177 | 2026-10-12 | 9fcdce5 |
 | grimworld_persistent | `test_registry::test_set_record_insignia_pieces` | 7606460 | 7798581 | 2026-10-11 | fde8a90 |
-| grimworld_persistent | `test_registry::test_set_record_mixed_targets` | 27204182 | 28564392 | 2026-10-12 | e933338 |
+| grimworld_persistent | `test_registry::test_set_record_mixed_targets` | 30726790 | 32263130 | 2026-10-12 | 6a639ec |
 | grimworld_persistent | `test_registry::test_set_record_new_sequential` | 4914380 | 5159868 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_registry::test_set_record_not_live_refused` | 4042320 | 4242809 | 2026-10-12 | 9fcdce5 |
 | grimworld_persistent | `test_registry::test_set_record_not_next_refused` | 4041290 | 4243355 | 2026-10-11 | fde8a90 |

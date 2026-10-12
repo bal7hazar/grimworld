@@ -601,8 +601,8 @@ fn test_carrier_gap_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two hits')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 177566)] // ceil(1.05 × 169110 measured)
+// gas: raised, CARRIER-01: assert_carrier's R-44 check
+#[available_gas(l2_gas: 186858)] // ceil(1.05 × 177960 measured)
 fn test_carrier_two_hits_refused() {
     let hit = Fixture::damage(damage::FIRE, 1, 2);
     Fixture::skill(skill_kind::SPELL, [hit, hit, Default::default()]).assert_legal();
@@ -610,8 +610,8 @@ fn test_carrier_two_hits_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two hits')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 88368)] // ceil(1.05 × 84160 measured)
+// gas: raised, CARRIER-01: assert_carrier's R-44 check
+#[available_gas(l2_gas: 93009)] // ceil(1.05 × 88580 measured)
 fn test_carrier_attack_with_damage_refused() {
     let hit = Fixture::damage(damage::SLASHING, 1, 2);
     Fixture::skill(skill_kind::ATTACK, [hit, Default::default(), Default::default()])
@@ -620,8 +620,8 @@ fn test_carrier_attack_with_damage_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: damage not first')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 177272)] // ceil(1.05 × 168830 measured)
+// gas: raised, CARRIER-01: assert_carrier's R-44 check
+#[available_gas(l2_gas: 187457)] // ceil(1.05 × 178530 measured)
 fn test_carrier_damage_not_first_refused() {
     let [hit, burn, _] = Fixture::cinder_ring().entries;
     Fixture::skill(skill_kind::SPELL, [burn, hit, Default::default()]).assert_legal();
@@ -629,8 +629,8 @@ fn test_carrier_damage_not_first_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two holding entries')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 176568)] // ceil(1.05 × 168160 measured)
+// gas: raised, CARRIER-01: assert_carrier's R-44 check
+#[available_gas(l2_gas: 186753)] // ceil(1.05 × 177860 measured)
 fn test_carrier_two_holding_refused() {
     let armor = Entry { v0: 5, v12: 5, d0: 8, d12: 20, ..Fixture::on_self(kind::ARMOR) };
     let move = Entry { d0: 5, d12: 5, ..Fixture::on_self(kind::MOVEMENT) };
@@ -659,8 +659,8 @@ fn test_carrier_modifier_on_another_set_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: attack bonus')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 176757)] // ceil(1.05 × 168340 measured)
+// gas: raised, CARRIER-01: assert_carrier's R-44 check
+#[available_gas(l2_gas: 186050)] // ceil(1.05 × 177190 measured)
 fn test_carrier_attack_bonus_in_a_spell_refused() {
     let [bonus, _, _] = Fixture::cleave().entries;
     let hit = Fixture::damage(damage::FIRE, 1, 2);
