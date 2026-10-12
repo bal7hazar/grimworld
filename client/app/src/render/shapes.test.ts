@@ -61,6 +61,7 @@ const empty: CombatPlan = {
   targets: [],
   activations: [],
   lines: [],
+  marks: [],
   shouts: [],
   letters: [],
   knocked: [],
@@ -145,12 +146,15 @@ describe("overlayPlan: combat on the map (CLI-05d)", () => {
     expect(has(plan.area, own)).toBe(false);
     const foes = state.goblins.filter((g) => area.marked.includes(g.entity)).map((g) => g.tile);
     for (const t of foes) expect(has(plan.targets, t)).toBe(true);
-    // The area: a tint and an outline a tile; a target mark: its circle and its four ticks
+    expect(plan.marks).toEqual(plan.targets);
+    // The area: a tint and an outline a tile, on the ground
     expect(counts((g) => drawCombat(g, { ...empty, area: plan.area }))).toEqual({
       fills: plan.area.length,
       strokes: plan.area.length,
     });
-    expect(counts((g) => drawCombat(g, { ...empty, targets: [own] }))).toEqual({
+    // A target mark, over the actors: its circle and its four ticks
+    const marked = combatOverlay({ ...state, goblins: [] }, { ...aim, marked: [0] });
+    expect(counts((g) => drawCombatLabels(g, viewOf(marked, own)))).toEqual({
       fills: 0,
       strokes: 2,
     });
@@ -218,9 +222,12 @@ describe("overlayPlan: combat on the map (CLI-05d)", () => {
       { from: { x: 24, y: 7 }, to: state.adventurer.tile },
       { from: { x: 26, y: 9 }, to: runt },
     ]);
-    // Two lines, two marks (a circle and its ticks each), two rings (backing, line, part gone by)
-    const drawn = counts((g) => drawCombat(g, plan));
-    expect(drawn).toEqual({ fills: 0, strokes: 2 + 2 * 2 + 2 * 3 });
+    expect(plan.marks).toEqual([state.adventurer.tile, runt]);
+    // On the ground: two lines, two rings (backing, line, part gone by)
+    expect(counts((g) => drawCombat(g, plan))).toEqual({ fills: 0, strokes: 2 + 2 * 3 });
+    // Over the actors: the two marks (a circle and its ticks each), the two figures
+    const view = viewOf(combatOverlay(state), state.adventurer.tile);
+    expect(counts((g) => drawCombatLabels(g, view))).toEqual({ fills: 2 * 2 + 2, strokes: 2 * 2 });
     // A caster aimed at itself draws no line
     const self = planOf(
       {

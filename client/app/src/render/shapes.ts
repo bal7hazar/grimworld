@@ -50,7 +50,7 @@ const COLOURS = {
   greyed: 0x6b7280,
   greyedCross: 0xd1d5db,
   area: 0xfb923c,
-  target: 0xfde047,
+  target: 0xffffff,
   shout: 0xef4444,
   ringBack: 0x000000,
   ringGoblin: 0xf87171,
@@ -339,11 +339,13 @@ export interface CombatPlan {
   readonly greyed: readonly Tile[];
   /** The carrier's shapes around the previewed target: tinted, outlined. */
   readonly area: readonly Tile[];
-  /** The actors marked as targets: a target mark. */
+  /** The actors marked as targets. */
   readonly targets: readonly Tile[];
   readonly activations: readonly ActivationRing[];
-  /** From each caster to its target, ending on a target mark. */
+  /** From each caster to its target. */
   readonly lines: readonly { readonly from: Tile; readonly to: Tile }[];
+  /** The target marks, once a tile: the actors marked, and each line's end. */
+  readonly marks: readonly Tile[];
   /** A shout's ring of tiles, tinted faintly. */
   readonly shouts: readonly Tile[];
   /** A goblin's condition letters under its feet, as drawn: at most three, then `+`. */
@@ -356,6 +358,11 @@ const same = (a: Tile, b: Tile) => a.x === b.x && a.y === b.y;
 
 /** The combat part of the plan, from `ViewState.combat`; `own` is the adventurer's tile. */
 export function combatPlan(combat: CombatOverlay, own: Tile | null): CombatPlan {
+  const lines = combat.activations.flatMap((a) =>
+    a.target && !same(a.target, a.tile) ? [{ from: a.tile, to: a.target }] : [],
+  );
+  const marks = new Map<string, Tile>();
+  for (const t of [...combat.targets, ...lines.map((l) => l.to)]) marks.set(`${t.x},${t.y}`, t);
   return {
     range: combat.range,
     greyed: combat.greyed,
@@ -372,9 +379,8 @@ export function combatPlan(combat: CombatOverlay, own: Tile | null): CombatPlan 
         interruptible: a.interruptible,
       };
     }),
-    lines: combat.activations.flatMap((a) =>
-      a.target && !same(a.target, a.tile) ? [{ from: a.tile, to: a.target }] : [],
-    ),
+    lines,
+    marks: [...marks.values()],
     shouts: combat.activations.flatMap((a) => a.area),
     letters: combat.letters.map((l) => ({
       tile: l.tile,
@@ -400,8 +406,8 @@ export function overlayPlan(view: ViewState): OverlayPlan {
 /**
  * What changes with the view but does not move: beyond sight dimmed, the planned path, the
  * selected tile, the selected actor's rear-side (a tint and a ring) and back (a tint and a cross),
- * and combat's ground (`drawCombat`). Combat's figures and letters stand over the actors, in their
- * own Graphics (`drawCombatLabels`).
+ * and combat's ground (`drawCombat`). Combat's target marks, figures and letters stand over the
+ * actors, in their own Graphics (`drawCombatLabels`).
  */
 export function drawOverlay(g: Graphics, view: ViewState, under?: (g: Graphics) => void): void {
   const plan = overlayPlan(view);
@@ -429,10 +435,10 @@ export const TARGET_RADIUS = 13;
 
 /**
  * Combat on the ground, under the actors (CLI-05 brief §4.2, §4.3, §5): the range tinted, its
- * refused tiles greyed and crossed, a shout's tiles, the area, the target marks, the rings of the
- * activations (a faint full turn, the part gone by filled; an interruptible one in its own colour
- * and doubled) and the lines to their targets. Colour is never alone: greyed tiles are crossed,
- * the area is outlined, an interruptible ring is doubled.
+ * refused tiles greyed and crossed, a shout's tiles, the area, the rings of the activations (a
+ * faint full turn, the part gone by filled; an interruptible one in its own colour and doubled) and
+ * the lines to their targets. Colour is never alone: greyed tiles are crossed, the area is
+ * outlined, an interruptible ring is doubled.
  */
 export function drawCombat(g: Graphics, plan: CombatPlan): void {
   for (const tile of plan.range) {
@@ -468,14 +474,6 @@ export function drawCombat(g: Graphics, plan: CombatPlan): void {
       .lineTo(to.x - ux * TARGET_RADIUS, to.y - uy * TARGET_RADIUS)
       .stroke({ width: 2, color: COLOURS.ringGoblin, alpha: 0.85 });
   }
-  const marks = [...plan.targets, ...plan.lines.map((l) => l.to)];
-  const seen = new Set<string>();
-  for (const tile of marks) {
-    const key = `${tile.x},${tile.y}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    drawTargetMark(g, tileToPixel(tile));
-  }
   for (const ring of plan.activations) drawRing(g, ring);
 }
 
@@ -504,8 +502,8 @@ function drawRing(g: Graphics, ring: ActivationRing): void {
   g.circle(c.x, c.y, RING_RADIUS).stroke({ width: 5, color: COLOURS.ringBack, alpha: 0.45 });
   g.circle(c.x, c.y, RING_RADIUS).stroke({ width: 1.5, color: colour, alpha: 0.6 });
   if (ring.filled > 0) {
-    // From the top, clockwise on screen.
-    const start = -Math.PI / 2;
+    // From the bottom, clockwise on screen: the part in front of the body fills first.
+    const start = Math.PI / 2;
     const end = start + ring.filled * 2 * Math.PI;
     g.moveTo(c.x + RING_RADIUS * Math.cos(start), c.y + RING_RADIUS * Math.sin(start))
       .arc(c.x, c.y, RING_RADIUS, start, end)
@@ -589,13 +587,15 @@ export const RING_FIGURE = {
 export const LETTERS_BELOW = 25;
 
 /**
- * Combat's figures and letters, over the actors so that no body hides them (CLI-05 brief §5, §6.1):
- * each ring's ticks left, and each goblin's condition letters under its feet.
+ * Combat's marks, figures and letters, over the actors so that no body hides them (CLI-05 brief
+ * §4.2, §5, §6.1): the target marks, each ring's ticks left, and each goblin's condition letters
+ * under its feet.
  */
 export function drawCombatLabels(g: Graphics, view: ViewState): void {
   g.clear();
   const plan = overlayPlan(view).combat;
   if (!plan) return;
+  for (const tile of plan.marks) drawTargetMark(g, tileToPixel(tile));
   for (const ring of plan.activations) {
     const c = tileToPixel(ring.tile);
     const colour = ring.interruptible ? COLOURS.interruptible : COLOURS.label;

@@ -338,9 +338,10 @@ describe("combat on the map (CLI-05d)", () => {
     expect(world.children.indexOf(labels)).toBeGreaterThan(
       world.children.indexOf(world.children[5]!),
     );
-    // The ring (backing, line, part gone by), the target line and the mark (circle, ticks)
-    expect(overlay.context.instructions.filter((i) => i.action === "stroke")).toHaveLength(6);
-    // The figure and the letter: a backing and the cells each
+    // The ring (backing, line, part gone by) and the target line
+    expect(overlay.context.instructions.filter((i) => i.action === "stroke")).toHaveLength(4);
+    // The target mark (circle, ticks); the figure and the letter: a backing and the cells each
+    expect(labels.context.instructions.filter((i) => i.action === "stroke")).toHaveLength(2);
     expect(labels.context.instructions.filter((i) => i.action === "fill")).toHaveLength(4);
     renderer.setView({ ...view, sight: view.tiles });
     expect(overlay.context.instructions).toHaveLength(0);
