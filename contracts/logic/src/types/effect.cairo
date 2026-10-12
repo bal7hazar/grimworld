@@ -468,7 +468,8 @@ pub impl EntryAssert of EntryAssertTrait {
     /// hit modifiers only with a hit and on its addressing, shape and filter, `ATTACK_BONUS` only
     /// in an attack; an attack's entries all `FOE`, `SINGLE`; a `TRAP` entry first, `TILE`,
     /// `SINGLE`, its payload `FOE`, `SINGLE`; no `TILE` entry
-    /// beside a `FOE` or `ALLY` one, nor after a `SELF` one, `TRAP` aside (D-271, D-272); `DISC_1`
+    /// beside a `FOE` or `ALLY` one, no `SELF` entry before an addressed one, `TRAP` aside (D-271,
+    /// D-276); `DISC_1`
     /// only in a potion; no `DISC_2`, `DISC_3` in the MVP's content; a potion's entry does not
     /// scale.
     fn assert_carrier(entries: Span<Entry>, carrier: Carrier) {
@@ -510,15 +511,16 @@ pub impl EntryAssert of EntryAssertTrait {
                     assert(*entry.target == target::FOE && s == shape::SINGLE, errors::PAYLOAD);
                 }
                 // D-271: the cast address is a tile or an entity id, never both. `TRAP` (a tile
-                // by design) and `SELF` (the caster, whatever the address) do not read it.
-                // D-272: but a `SELF` entry first makes the carrier's addressing `SELF`, so the
-                // reach is never checked: a `TILE` entry after it is refused (`TILE`, then
-                // `SELF`, is legal).
+                // by design) does not read it, and `SELF` (the caster) does not either.
+                // D-276 (D-272 before it): a `SELF` entry before an addressed one (`TILE`, `FOE`,
+                // `ALLY`) makes the carrier's addressing `SELF`, so the reach is never checked
+                // yet the addressed entry reads the address; `SELF` entries after it are legal.
                 if k != kind::TRAP {
                     let t = *entry.target;
+                    let addressed = t == target::TILE || t == target::FOE || t == target::ALLY;
                     tiles = tiles || t == target::TILE;
                     entities = entities || t == target::FOE || t == target::ALLY;
-                    assert(!(tiles && (entities || selfed)), errors::MIXED_TARGETS);
+                    assert(!(tiles && entities) && !(addressed && selfed), errors::MIXED_TARGETS);
                     selfed = selfed || t == target::SELF;
                 }
                 if k == kind::DAMAGE {

@@ -676,7 +676,8 @@ fn goblins_unset() -> World {
 }
 
 // #448's review (note 1): while `play_class::GOBLINS` is unset, `instance_state` never reverts: it
-// lists no goblins (the control: with the class set, the same instance lists them). `play` itself
+// lists no goblins. The control is a first world built the same way with the class set, which
+// lists them. `play` itself
 // reverts there (its content round library-calls class 0), but snforge aborts the test on an
 // undeclared class, outside `should_panic` and the safe dispatcher alike: not testable here.
 #[test]

@@ -853,7 +853,7 @@ fn test_refuse_pack_fewest_zero() {
 // R-44 (CARRIER-01, D-271): a skill whose non-`TRAP` entries mix a `TILE` target with a `FOE` or
 // `ALLY` one, new, is refused at registration: the carry reads the cast address as one kind.
 #[test]
-#[available_gas(l2_gas: 7940065)] // ceil(1.05 × 7561966 measured)
+#[available_gas(l2_gas: 7942039)] // ceil(1.05 × 7563846 measured)
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_mixed_targets() {
     let r = ZoneFixture::bare();
@@ -872,7 +872,7 @@ fn test_refuse_carrier_mixed_targets() {
 
 // R-44 (D-272): a `SELF` entry before a `TILE` one is refused too, `TILE` then `SELF` stays legal.
 #[test]
-#[available_gas(l2_gas: 7940075)] // ceil(1.05 × 7561976 measured)
+#[available_gas(l2_gas: 7942721)] // ceil(1.05 × 7564496 measured)
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_self_before_tile() {
     let r = ZoneFixture::bare();
@@ -891,7 +891,7 @@ fn test_refuse_carrier_self_before_tile() {
 
 // R-44 (D-276): a `SELF` entry before a `FOE` one is refused, as before a `TILE` one.
 #[test]
-#[available_gas(l2_gas: 20000000)]
+#[available_gas(l2_gas: 7942931)] // ceil(1.05 × 7564696 measured)
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_self_before_foe() {
     let r = ZoneFixture::bare();
@@ -910,7 +910,7 @@ fn test_refuse_carrier_self_before_foe() {
 
 // R-44 (D-276): a `SELF` entry before an `ALLY` one is refused, as before a `TILE` one.
 #[test]
-#[available_gas(l2_gas: 20000000)]
+#[available_gas(l2_gas: 7943120)] // ceil(1.05 × 7564876 measured)
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_self_before_ally() {
     let r = ZoneFixture::bare();

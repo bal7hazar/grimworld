@@ -238,6 +238,11 @@ class is set, and the pack's fewest of 0); `ZoneChecks` 26,298 → 26,410 (32.10
 path moved; at the lot's head `Instances` is at 37.76 %, `PlayLibrary` 67.76 %, `SegmentLibrary` 58.11 %,
 `TickLibrary` 78.09 % and `RevealLibrary` 49.85 %, each under its threshold.
 
+**CARRIER-01** (R-44, `EntryAssert::assert_carrier`: D-271, D-276), measured with `class_sizes.py` on the lot's head:
+`Registry` 33,244 → 34,362 CASM felts (40.58 % → 41.95 %, +1,118: the refusal of a `TILE` beside a `FOE` or `ALLY`
+entry, and of a `SELF` entry before an addressed one, on a `SKILL` write). No other class moved (`ExecutorLibrary`
+78,983 felts, 96.41 %, under its D-200 threshold).
+
 `contracts/tools/class_sizes.py` checks each class against its threshold: these by name (and D-209's),
 every other at 50 %.
 
@@ -1122,7 +1127,7 @@ same code; CI's `map-format` job holds that every registry case has its Cairo tw
 | R-41 | A gate's entry chunk within its destination's `width × height` rectangle, when the destination has a map (ENG-R1c bound 6, review t-0099 note 5: outside, a floor's outline grows outside its rectangle and its frontier can come out empty, a draw of 0; ENG-R1c-1) | `GATE` (its destination's `LOCATION`, when written) | a `LOCATION` write, against the entries of the gates that lead to it (`gate_entries`, kept by `ZoneChecks` at each `GATE` write) | `gate: entry outside rectangle` |
 | R-42 | A pack template whose castes' minimums sum to at least 1: its fewest is not 0 (BND-01; the reveal reads a fewest of 0 as 1 when it draws the size, so 0 would say a fewest no pack has) | `PACK` | — (one record) | `pack: fewest is 0` |
 | R-43 | A gate's anchor and entry chunks and tiles on the board (below 225), whatever its destination: R-41 reads the entry only against a destination with a map (D-258, BND-01; `GateAssert::assert_valid`, run first in `ZoneChecks::assert_gate`, so after `set_zone_checks`, which every `GATE` now needs) | `GATE` | — (one record) | `gate: entry chunk` (`gate: anchor chunk`, `gate: anchor tile`, `gate: entry tile`) |
-| R-44 | A carrier's non-`TRAP` entries do not mix a `TILE` target with a `FOE` or `ALLY` one: the carry reads the cast address as a tile or as an entity id, not both; nor put a `TILE` target after a `SELF` one (the first entry's addressing would be `SELF`, so the cast address is never checked against the reach: D-272); `TILE` then `SELF`, and a `TRAP` with its `FOE` payload, stay legal (D-271, D-272, CARRIER-01; `EntryAssert::assert_carrier`) | `SKILL` | — (one record) | `carrier: mixed targets` |
+| R-44 | A carrier's non-`TRAP` entries do not mix a `TILE` target with a `FOE` or `ALLY` one (the carry reads the cast address as a tile or as an entity id, not both: D-271), and no `SELF` entry comes before a `TILE`, `FOE` or `ALLY` one (the first entry's addressing would be `SELF`, so the cast address is never checked against the reach: D-272, widened by D-276); `SELF` entries after the addressed one, a carrier of `SELF` alone, and a `TRAP` with its `FOE` payload stay legal (CARRIER-01; `EntryAssert::assert_carrier`) | `SKILL` | — (one record) | `carrier: mixed targets` |
 
 **R-30, sized from the measure** (D-220): ENG-05's worst legal plan (six passes of 112, 98,153,254 in
 `test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,
