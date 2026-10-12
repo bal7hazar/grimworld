@@ -344,10 +344,8 @@ jobs:
   # indexer/ (`discover` compares the tree with the base; D-153's grant), or when the base is
   # unknown, for a change to a workflow or a CI helper (FND-18: those run every job), or (orchestrator's
   # decision of 2026-10-03, FND-18) for what the emitter and the node depend on: contracts/persistent/**,
-  # contracts/logic/**, the root .tool-versions, scripts/with-node.sh (.github/ci/changes.py). A change to
-  # scripts/setup-toolchain.sh alone does NOT run it: it is checked by this job at the next change above,
-  # not before
-  # (widening the trigger is with the project manager). Every version comes from `discover` (validated
+  # contracts/logic/**, the root .tool-versions, scripts/with-node.sh, scripts/setup-toolchain.sh, where the
+  # devnet pin lives (.github/ci/changes.py; CI-PINS, D-291: a bump of that file alone runs this job). Every version comes from `discover` (validated
   # there) or is pinned here and checked against the repository's pins: starknet-devnet as
   # scripts/setup-toolchain.sh pins it, its release tarball verified by sha256 before it is
   # unpacked and its binary before it is run. No secret; the network is the package registries and
@@ -472,7 +470,7 @@ jobs:
   # contracts' Scarb (`sncast declare` builds them again, single-threaded, D-176), starknet-devnet is
   # the pinned release, its tarball and binary verified by sha256. It runs only when the change touches
   # what the test reads (`client_node` of .github/ci/changes.py: client/app, client/sim, contracts/,
-  # scripts/devnet_deploy.py, scripts/with-node.sh, the root .tool-versions and the workspace's root
+  # scripts/devnet_deploy.py, scripts/with-node.sh, scripts/setup-toolchain.sh, the root .tool-versions and the workspace's root
   # files), or for a workflow or a CI helper. No secret; the node listens on 127.0.0.1 only, its
   # predeployed keys are the node's own and never printed.
   client-node:
@@ -598,7 +596,7 @@ jobs:
   # SMOKE-CI (D-290): the devnet deploy smoke test (`scripts/tests/devnet_deploy_smoke.py`: OPS-01a/b, SEED-02)
   # in CI. Modelled on `client-node` (same devnet pins and checks, `with-node.sh`, the classes built once), without
   # Node. Runs when `devnet_smoke` of .github/ci/changes.py says so: contracts/, the deploy scripts, with-node.sh,
-  # the root .tool-versions, or a workflow. The node listens on 127.0.0.1; no secret, no key printed.
+  # scripts/setup-toolchain.sh, the root .tool-versions, or a workflow. The node listens on 127.0.0.1; no secret, no key printed.
   devnet-smoke:
     needs: discover
     if: needs.discover.outputs.devnet_smoke == 'true'
