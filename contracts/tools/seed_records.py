@@ -41,6 +41,17 @@ def item(klass):
     return [klass + (1 << 8) + (1 << 32) + (entry << 128) + LIVE]
 
 
+REGENERATION_POTION = 23  # SEED-02: the seed's first REGENERATION potion, after the 22 items of the probe
+
+
+def regeneration_item():
+    """SEED-02: the REGENERATION potion, an `ITEM` of region 1, value 1 like `item`. Its entry gives
+    its holder 3 pips of health regeneration for 40 ticks, at every rank (`REGENERATION`, `SELF`,
+    `SINGLE`; a potion's entry does not scale): a holding entry, so it carries a duration."""
+    entry = 5 + (3 << 16) + (3 << 32) + (40 << 48) + (40 << 64) + (1 << 88)
+    return [POTION + (1 << 8) + (1 << 32) + (entry << 128) + LIVE]
+
+
 def seed_rows(name, columns):
     """The rows of one table of `contracts/seed/test-region.json`, `columns` numbers a row."""
     with open(os.path.join(CONTRACTS, "seed", "test-region.json")) as seed_file:

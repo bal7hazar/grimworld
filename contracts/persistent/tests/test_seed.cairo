@@ -24,7 +24,8 @@ use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{Skill, SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
 use grimworld_logic::packing::Lanes16;
-use grimworld_logic::types::effect::{Entry, EntryTrait};
+use grimworld_logic::types::combat::skill_kind;
+use grimworld_logic::types::effect::{Entry, EntryTrait, kind as effect_kind};
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
 };
@@ -613,19 +614,19 @@ impl SeedFixture of Fixture {
     }
 }
 
-// The test region, written and read back in one `bundle` (AC-4): 18 records, 22 slots (ENG-05: two
-// pack templates, a spawn table, the zone's and floor 1's quotas).
+// The test region, written and read back in one `bundle` (AC-4): 25 records, 36 slots (ENG-05: two
+// pack templates, a spawn table, the zone's and floor 1's quotas; SEED-02: three more skills).
 #[test]
-// gas: raised, BND-01: the zone checks' class set, the gates indexed
-#[available_gas(l2_gas: 63206204)] // ceil(1.05 × 60196384 measured)
+// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
+#[available_gas(l2_gas: 70309202)] // ceil(1.05 × 66961144 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
-    assert(written.requests.len() == 22, '22 records');
-    assert(written.felts.len() == 30, '30 slots');
+    assert(written.requests.len() == 25, '25 records');
+    assert(written.felts.len() == 36, '36 slots');
     let read = IRegistryReadDispatcher { contract_address: registry };
     let (version, inputs, felts) = read.bundle(written.requests.span());
-    assert(version == 22, 'one version a record');
+    assert(version == 25, 'one version a record');
     // Every record is new: no stored snapshot can name it (D-169).
     assert(inputs == 0, 'no input rewritten');
     assert(felts == written.felts.span(), 'read back as written');
@@ -689,21 +690,32 @@ fn test_seed_written_and_read_back() {
     let exit = QuotaSetRecord::unpack(felts.slice(21, 1));
     assert(*exit.quotas.span()[0] == Quota { kind: quota::EXIT, param: 5, count: 1 }, 'exit');
     // ENG-07t: the skill and the three castes the packs name.
-    assert(admin.last_id(SKILL) == 1 && admin.last_id(CASTE) == 3, 'a skill, three castes');
+    assert(admin.last_id(SKILL) == 4 && admin.last_id(CASTE) == 3, 'four skills, three castes');
     let rend = Record::<Skill>::unpack(felts.slice(22, 2));
     assert(rend.is_attack() && rend.count() == 1 && rend.range == 1, 'skill 1: an attack');
+    // SEED-02: the skills `buy_skill` sells to the devnet adventurer (a Vanguard, profession 1):
+    // an activation skill, a trap and a REGENERATION skill, each a legal carrier.
+    let wind = Record::<Skill>::unpack(felts.slice(24, 2));
+    assert(wind.profession == 1 && wind.activation >= 1 && wind.count() == 1, 'skill 2: activation');
+    let snare = Record::<Skill>::unpack(felts.slice(26, 2));
+    assert(snare.kind == skill_kind::TRAP && snare.count() == 3, 'skill 3: a trap');
+    let [trap, _, _] = snare.entries;
+    assert(trap.kind == effect_kind::TRAP, 'skill 3: a TRAP entry first');
+    let mending = Record::<Skill>::unpack(felts.slice(28, 2));
+    let [regeneration, _, _] = mending.entries;
+    assert(mending.profession == 1 && regeneration.kind == effect_kind::REGENERATION, 'skill 4');
     for k in 0..3_u32 {
-        let caste = Record::<Caste>::unpack(felts.slice(24 + 2 * k, 2));
+        let caste = Record::<Caste>::unpack(felts.slice(30 + 2 * k, 2));
         assert(*caste.skills.span()[0] == 1 && caste.health >= 100, 'a caste of skill 1');
     }
-    let brute = Record::<Caste>::unpack(felts.slice(28, 2));
+    let brute = Record::<Caste>::unpack(felts.slice(34, 2));
     assert(brute.tier == 2 && brute.weapon.damage == 9, 'caste 3: the brute');
 }
 
 // The baseline of the next test: the deployment, and the file read and packed.
 #[test]
-// gas: raised, ENG-07t: the seed holds 4 more records (a skill, three castes)
-#[available_gas(l2_gas: 14452127)] // ceil(1.05 × 13763930 measured)
+// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
+#[available_gas(l2_gas: 15615621)] // ceil(1.05 × 14872020 measured)
 fn test_gas_seed_baseline() {
     Fixture::deploy();
     SeedTrait::load().records();
@@ -711,8 +723,8 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 18 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, BND-01: the zone checks' class set, the gates indexed
-#[available_gas(l2_gas: 58719753)] // ceil(1.05 × 55923574 measured)
+// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
+#[available_gas(l2_gas: 65154531)] // ceil(1.05 × 62051934 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -720,12 +732,12 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, BND-01: the zone checks' class set, the gates indexed
-#[available_gas(l2_gas: 91340954)] // ceil(1.05 × 86991384 measured)
+// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
+#[available_gas(l2_gas: 100961316)] // ceil(1.05 × 96153634 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);
     SeedTrait::write(registry);
     let read = IRegistryReadDispatcher { contract_address: registry };
-    assert(read.content_version() == 22, 'version kept');
+    assert(read.content_version() == 25, 'version kept');
 }
