@@ -10,15 +10,7 @@ import {
 } from "../preview/reconcile";
 import type { Simulator } from "../preview/rpc";
 import { Stop } from "../preview/trace";
-import {
-  type Batch,
-  actionsOf,
-  add,
-  afterPreview,
-  afterSend,
-  isFull,
-  isStale,
-} from "./batch";
+import { type Batch, actionsOf, add, afterPreview, afterSend, isFull, isStale } from "./batch";
 import type { ChainState, Sent, SendInput } from "./send";
 
 /**

@@ -96,8 +96,7 @@ export function createSentReads(nodeUrl: string, fetchImpl?: typeof fetch): Sent
   return {
     async trace(id) {
       const trace = (await rpc("starknet_traceTransaction", { transaction_hash: id })) as
-        | InvokeTrace
-        | undefined;
+        InvokeTrace | undefined;
       if (trace?.execute_invocation === undefined) {
         throw new TraceError("the node returned no invoke trace");
       }
@@ -182,7 +181,10 @@ function refusalOf(error: unknown): string {
   const cause = (error as { cause?: { code?: unknown; message?: unknown } } | undefined)?.cause;
   const code = typeof cause?.code === "number" ? cause.code : undefined;
   const message = typeof cause?.message === "string" ? cause.message : "";
-  if ((code !== undefined && FEE_CODES.has(code)) || /insufficient|balance|max fee/i.test(message)) {
+  if (
+    (code !== undefined && FEE_CODES.has(code)) ||
+    /insufficient|balance|max fee/i.test(message)
+  ) {
     return NO_FUNDS;
   }
   return error instanceof Error ? error.message : String(error);

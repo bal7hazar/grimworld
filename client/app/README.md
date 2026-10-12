@@ -87,3 +87,29 @@ differs from run to run: the run prints one line saying whether the mirror predi
 (`mirror: predicted ...` or `mirror: <reason> ...`, the reason as the mirror gives it), and the
 assertions that depend on the world (a Wait plays 1 with `Stop.None`, one Move direction is
 illegal) hold only where the world observed allows them. CI runs it as the `client-node` job.
+
+## The chain play mode (`src/chain/`, CLI-11, D-273)
+
+### The batch and its preview (CLI-11b)
+
+The batch of the chain mode and the three stages of its preview, as logic with no screen. CLI-11c
+draws them.
+
+- `batch.ts` holds the planned actions and applies where a batch ends. It counts nothing itself:
+  10 actions is the encoding's bound, and the chain's stops come from the preview. `Stop.Weight`
+  makes the batch full, and the action that did not fit opens the next one. `Stop.Invalid` drops
+  the refused action and every one after it. `Stop.Sequence` and `Stop.Version` keep every action
+  and read the state again. A defeat or a closing ends the instance. After a send, the steps of a
+  tapped path that did not play are dropped.
+- `stages.ts` (`createStages`) is the model the panel reads. Stage 1 is the mirror, run at every
+  input. Stage 2 is `previewBatch`, run 300 ms after the last input and at once on `send()` (`B`).
+  Each batch takes a request number, and an older answer is discarded. `send()` waits for the
+  simulation of the exact batch shown. One batch is in flight at a time, and no input is taken
+  until it settles. Stage 3 is the sent batch, beside the simulation it was sent on.
+- `send.ts` (`sendBatch`) awaits the injected `assertChain` before `execute`, so a mainnet chain id
+  sends nothing, whoever built the account provider. It sends the preview's two calls and waits for
+  them to settle. Then it reads the trace through the same `extractOutcome`, and reconciles it with
+  the same prediction. A sent outcome that differs from the simulated one is logged as one
+  `grimworld.sent-differs` record, with the fields that differ and both outcomes. The state after
+  is the trace's view. The region and the content version are read at the receipt's block hash
+  (`createReader({ block: { blockHash } })`). A fee the burner cannot pay reads "no funds".

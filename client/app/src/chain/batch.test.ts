@@ -82,6 +82,12 @@ describe("where a batch ends", () => {
       kind: "next",
       planned: [one({ kind: "turn", direction: 3 })],
     });
-    expect(actionsOf(batch)).toEqual([WAIT, move(0), move(1), { kind: "turn", direction: 3 }, move(2)]);
+    expect(actionsOf(batch)).toEqual([
+      WAIT,
+      move(0),
+      move(1),
+      { kind: "turn", direction: 3 },
+      move(2),
+    ]);
   });
 });
