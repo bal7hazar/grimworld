@@ -181,10 +181,11 @@ The two kinds of deadline are read differently, as client/sim reads them:
 - **A recharge** is running while `clock < recharge` (`act`'s `Recharging` check, `action.ts`). The
   slot shows `recharge − clock`, and is ready when the clock reaches the deadline.
 - **An activation** shows `act_deadline − clock`, the ticks until it resolves.
-- **A condition or held effect** is held while `clock <= deadline` (`held` in `segment/tick.ts`;
-  `degeneration` and `effect_pips` read it the same way). Its chip shows `deadline − clock + 1`, the
-  ticks it still acts, so it reads 1 on its last tick, and it disappears once the clock passes the
-  deadline (§6.1).
+- **A condition or held effect** is read by `held(deadline, t0)` (`segment/tick.ts`), held while
+  `t0 <= deadline`, and its argument is **the next tick, `t0 = clock + 1`**: `act` checks
+  `can_act(member, c + 1)`, and `regenerate` runs after the clock has advanced. So at the clock the
+  player sees, it still acts on the ticks `clock + 1` to `deadline`: its chip shows
+  `deadline − clock`, and it is gone once `clock >= deadline` (§6.1).
 
 **Why.** Following `act`'s order means the bar never promises a skill the action class refuses.
 Using client/sim's cost keeps one source of truth (mandate §6).
@@ -435,8 +436,9 @@ left as a figure. The letter carries the meaning; the colour repeats it.
 - **On a goblin**: on the map, a goblin with any condition shows its letters only, small, under its
   feet (at most three, then `+`); the figures are in the target zone. A goblin's one held effect shows
   there too.
-- The ticks shown are `deadline − clock + 1`: a condition or effect is held while
-  `clock <= deadline` (§2.2), so a chip reads 1 on its last tick and never 0.
+- The ticks shown are `deadline − clock`: a condition or effect still acts on the ticks
+  `clock + 1` to `deadline` (§2.2), so a chip reads 1 before its last tick, and is gone when
+  `clock >= deadline`.
 - An effect that lasts by charges only (`MAX_CLOCK`) shows its charges and no ticks.
 - Knocked down also lays the actor's sprite flat (rotated) until the pack has the pose (design/10
   _Missing animations_).
@@ -685,9 +687,14 @@ command is written here without that prefix.
   each by a test; a tile out of sight is in the range's greyed set and refused by `aim` with
   `Reach`; a TRAP skill's tinted tiles are exactly those `spot` accepts, and an occupied tile in
   reach is refused with `Trap`;
-- the ticks shown of a condition (`deadline − clock + 1`), of a recharge (`recharge − clock`) and of
+- the ticks shown of a condition (`deadline − clock`), of a recharge (`recharge − clock`) and of
   an activation, at the deadline and one tick before and after, each against client/sim's own reading
-  (`held`, `act`'s `Recharging`);
+  (`held` at `clock + 1`, `act`'s `Recharging`);
+- at `clock = deadline − 1`, `deadline` and `deadline + 1`, the chip's figure (1, gone, gone) agrees
+  with the rules themselves, not with `held` alone: Knocked down through `can_act` (client/sim's
+  `actionAct` refuses a skill with `Knocked` exactly when the chip shows), and Bleeding and a
+  REGENERATION through `regenerate` (a Wait run by `runSegment` changes the health by the condition's
+  or effect's pips exactly when the chip shows);
 - `log.ts`:
   - **the last prefix's words equal the full run's**, on every action of a batch of 10 built from
     the act and tick tables' rows;
