@@ -67,7 +67,7 @@ before an addressed one; the registry checks them at `set_record`). They are not
 
 The REGENERATION potion is not in this file: the items are `seed_records.py`'s (the probe and the deployment
 write them, `item` and `regeneration_item`). `ITEM` 23 is a potion whose entry is `REGENERATION` 3 pips for
-40 ticks on its holder, at every rank (a potion's entry does not scale), next to the healing potions 1, 8,
+40 ticks on its holder (filter ALLIES: the holder is its own ally), at every rank (a potion's entry does not scale), next to the healing potions 1, 8,
 15 and 22 (`HEAL` 20).
 
 **Names for the client (CLI-05; off-chain, CV's single source).** The registry holds no names. Every skill and
@@ -79,8 +79,8 @@ item id of the seed, with a short English name and what it is:
 | `SKILL` | 2 | Second Wind | Skill (kind 11), activation 1, 5 energy, recharge 20, self; entry 1 `HEAL` 40 to 140 |
 | `SKILL` | 3 | Snare | Trap (kind 9), activation 2, 10 energy, recharge 20, range 3, a tile; entries `TRAP`, `DAMAGE` earth 10 to 40 on a foe, `CONDITION` Crippled 3 ticks on a foe |
 | `SKILL` | 4 | Mending | Skill (kind 11), instant (activation 0), 5 energy, recharge 20, self; entry 1 `REGENERATION` 2 to 5 pips, held 30 to 60 ticks |
-| `ITEM` | 1, 8, 15, 22 | Healing Potion | Potion; entry `HEAL` 20 on its holder (`SELF`, `SINGLE`), at every rank |
-| `ITEM` | 23 | Regeneration Potion | Potion; entry `REGENERATION` 3 pips for 40 ticks on its holder (`SELF`, `SINGLE`) |
+| `ITEM` | 1, 8, 15, 22 | Healing Potion | Potion; entry `HEAL` 20 on its holder (`SELF`, `SINGLE`, filter ALLIES), at every rank |
+| `ITEM` | 23 | Regeneration Potion | Potion; entry `REGENERATION` 3 pips for 40 ticks on its holder (`SELF`, `SINGLE`, filter ALLIES) |
 | `ITEM` | 2 to 7, 9 to 14, 16 to 21 | Ingredient (2 to 7, 9 to 14, 16 to 21) | Ingredient (18 items, no entry); named "Ingredient <id>" until the content pass names them |
 
 Skills come first in the file's order of writing (a caste names its skills, the registry reads

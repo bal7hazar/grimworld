@@ -33,6 +33,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "contracts", "tools"))
 import devnet_deploy  # noqa: E402
 
 LIVE = 1 << 250
@@ -140,6 +141,11 @@ def check_gold_harness():
         0x83afd3f4caedc6eebf44246fe54e38c95e3179a5ec9ea81740eca5b482d12e
     assert devnet_deploy.keccak256(b"").hex() == \
         "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+    # SEED-02 fix loop 1: the potions' entries carry filter ALLIES (bit 91), the words
+    # `action.cairo`'s `test_seed_potions_drunk` drinks
+    from seed_records import item, regeneration_item, POTION
+    assert item(POTION)[0] >> 128 & ((1 << 120) - 1) == 0x90000000000001400140003
+    assert regeneration_item()[0] >> 128 & ((1 << 120) - 1) == 0x90000280028000300030005
     print("devnet_deploy smoke (gold harness, stub nodes): ok")
 
 
