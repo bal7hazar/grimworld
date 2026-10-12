@@ -90,7 +90,8 @@ export function effectChip(
     letter,
     name,
     ticks: deadline === MAX_CLOCK ? null : deadline - clock,
-    charges: charges > 0 || entry.kind === kind.BLOCK ? charges : null,
+    // BLOCK shows its blocks; any other effect its charges only when it lasts by charges alone
+    charges: entry.kind === kind.BLOCK || deadline === MAX_CLOCK ? charges : null,
     pips: entry.kind === kind.REGENERATION || pips !== 0 ? pips : null,
     source: { potion, id: potion ? sheets.potions[at]!.id : sheets.skills[at]!.id },
   };

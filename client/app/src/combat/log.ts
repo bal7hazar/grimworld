@@ -50,12 +50,15 @@ import {
   memberPlace,
   memberRecharge,
   position,
+  reach,
+  shapes,
   skillKind,
   tickTicks,
   writeGround,
   writeWords,
 } from "@grimworld/sim";
 import { activating } from "./bar";
+import { areaOf } from "./targeting";
 import { goblinChips, memberChips } from "./chips";
 import type { RecordedRun, TicksRecord } from "./record";
 import { refusalLine } from "./refusal";
@@ -429,24 +432,80 @@ export function beforeRegeneration(
   return before <= -change ? before : -change;
 }
 
-/** Whether goblin `g` acted in the tick that went from `was` to `g` (§7.2: resolved, attacked, recharged). */
-function acted(was: Goblin, g: Goblin, t: number): boolean {
-  if (was.act_slot <= activation.LAST_SLOT && was.act_deadline === t) return true;
-  if (
-    g.act_slot === activation.RECOVERING &&
-    (was.act_slot !== activation.RECOVERING || was.act_deadline !== g.act_deadline)
-  ) {
-    return true;
+/**
+ * The goblins that may have struck or healed `actor` in the tick that went from `before` to `after`
+ * (§7.2): one whose activation resolved in the tick on that actor (or with an area); one that used
+ * an instant caste skill (a recharge set); and one free in step 2 (awake, alive, no activation, not
+ * knocked down) that neither moved nor started an activation and holds the actor, a member, in its
+ * weapon's reach. The last is the brief's "attack (its recovery or recharge set)" widened: a weapon of tick
+ * cost 1 sets no recovery (`GoblinTickTrait::recover` needs `k > 1`) and no recharge, so a goblin's
+ * plain attack leaves no mark on its words.
+ */
+function strikers(
+  before: Decoded,
+  after: Decoded,
+  sheets: Sheets,
+  board: SegmentBoard,
+  actor: { entity: number; at: { x: number; y: number } },
+): number[] {
+  const t = after.words.clock;
+  const to = position(board, actor.at.x, actor.at.y);
+  const out: number[] = [];
+  for (const g of after.goblins) {
+    const was = before.goblins.find((b) => b.entity === g.entity);
+    if (was === undefined || !g.awake || was.ai >= aiState.DEAD) continue;
+    if (was.act_slot <= activation.LAST_SLOT && was.act_deadline === t) {
+      const at = sheets.kits[was.caste_at]!.skills[was.act_slot]!;
+      const area = [0, 1, 2].some((k) => (sheets.entries[3 * at + k]?.shape ?? 0) > shapes.SINGLE);
+      if (was.act_target === actor.entity || area) out.push(g.entity);
+      continue;
+    }
+    if ([0, 1, 2, 3].some((s) => goblinRecharge(was, s) !== goblinRecharge(g, s))) {
+      out.push(g.entity);
+      continue;
+    }
+    // A goblin's weapon strikes a member only (no friendly fire, design/19 §2.3)
+    if (actor.entity >= after.members.length) continue;
+    const free = was.act_slot === activation.NONE && was.knocked < t;
+    const [p0, p1] = [goblinPlace(was), goblinPlace(g)];
+    const stayed = p0.x === p1.x && p0.y === p1.y;
+    const started = g.act_slot <= activation.LAST_SLOT;
+    const from = position(board, p0.x, p0.y);
+    const range = sheets.castes[was.caste_at]!.weapon_range;
+    if (
+      free &&
+      stayed &&
+      !started &&
+      from < 240 &&
+      to < 240 &&
+      reach(board.open, from, to, range)
+    ) {
+      out.push(g.entity);
+    }
   }
-  return [0, 1, 2, 3].some((s) => goblinRecharge(was, s) !== goblinRecharge(g, s));
+  return out;
 }
 
-/** The lines of one tick's hits, attributed (§7.2 item 2). */
+/** Whether a trap was triggered between two grounds (an unused trap now used). */
+function triggered(before: Ground, after: Ground): boolean {
+  const [t0, t1] = [trapKeys(before), trapKeys(after)];
+  return [...t1.used].some((k) => t0.unused.has(k));
+}
+
+/**
+ * The lines of one tick's hits, attributed (§7.2 item 2). An actor's health change less what step 3
+ * gives it is a hit; one step 3 explains alone (its regeneration, its conditions) is none. The hit
+ * goes to the one candidate: a goblin of `strikers`, the adventurer's activation resolved in the tick
+ * when its area takes the actor, a trap triggered in the tick. Several candidates, or none, give one
+ * joint line and a `grimworld.log-unattributed` record.
+ */
 export function tickLines(
   call: TicksCall,
   tick: number,
   before: Decoded,
   after: Decoded,
+  groundBefore: Ground,
+  groundAfter: Ground,
   sheets: Sheets,
   names: Names,
   report: LogReport,
@@ -455,7 +514,6 @@ export function tickLines(
   const t = after.words.clock;
   const board = call.board;
   const name = namer(before.members, before.goblins, sheets, names);
-  const stopped = after.members.some((m) => m.status === 0 && m.health === 0);
   const actors: {
     entity: number;
     was: number;
@@ -470,13 +528,14 @@ export function tickLines(
     if (was === undefined) return;
     let pips = m.health_regen + degeneration(m.bleeding, m.poison, m.burning, t);
     m.effect_regen.forEach((regen, s) => (pips += effect_pips(regen, m.effect_deadlines[s]!, t)));
+    const regen = was.status === 0 && was.health > 0;
     actors.push({
       entity: i,
       was: was.health,
       now: m.health,
       pips,
       max: m.max_health,
-      regen: !stopped && m.health > 0 && was.status === 0,
+      regen,
       at: memberPlace(was),
     });
   });
@@ -488,63 +547,80 @@ export function tickLines(
       10 +
       degeneration(g.bleeding, g.poison, g.burning, t) +
       effect_pips(g.effect_regen, g.effect_deadline, t);
+    const regen = g.awake && was.ai < aiState.DEAD;
     actors.push({
       entity: g.entity,
       was: was.health,
       now: g.health,
       pips,
       max: g.max_health,
-      regen: !stopped && g.awake && was.ai < aiState.DEAD,
+      regen,
       at: goblinPlace(was),
     });
   }
-  const casters = after.goblins.filter((g) => {
-    const was = before.goblins.find((b) => b.entity === g.entity);
-    return was !== undefined && g.awake && acted(was, g, t);
-  });
-  const adventurerResolved =
-    before.members[0]!.act_slot !== NO_SLOT && before.members[0]!.act_deadline === t;
+  const self = before.members[0]!;
+  const resolved = self.act_slot !== NO_SLOT && self.act_deadline === t;
+  const trapped = triggered(groundBefore, groundAfter);
+  const cw = {
+    world: { ...before, clock: before.words.clock, killed: [], defeated: false },
+    sheets,
+    board,
+    ground: groundBefore,
+  };
+  const yours = (entity: number): boolean => {
+    if (!resolved) return false;
+    const centre =
+      self.act_tile === 1
+        ? { x: self.act_target % 256, y: Math.floor(self.act_target / 256) }
+        : entity === self.act_target
+          ? actors.find((a) => a.entity === entity)!.at
+          : (actors.find((a) => a.entity === self.act_target)?.at ?? memberPlace(self));
+    return areaOf(cw, { kind: "skill", slot: self.act_slot }, centre).marked.includes(entity);
+  };
   for (const a of actors) {
     if (a.was === a.now) continue;
-    const mid = a.regen ? beforeRegeneration(a.was, a.now, a.pips, a.max) : a.now;
-    // `heal` checked: the regeneration read backwards must give the health after
-    const hit = a.regen && heal(mid, a.pips, a.max) !== a.now ? a.now - a.was : mid - a.was;
+    // Step 3 alone explains it: no hit
+    if (a.regen && heal(a.was, a.pips, a.max) === a.now) continue;
+    let mid = a.regen ? beforeRegeneration(a.was, a.now, a.pips, a.max) : a.now;
+    // Step 3 did not run (the tick stopped at a member down): the change is the hit's
+    if (a.regen && heal(mid, a.pips, a.max) !== a.now) mid = a.now;
+    const hit = mid - a.was;
     if (hit === 0) continue;
     const who = name(a.entity);
-    const candidates = casters.filter((g) => {
-      const was = before.goblins.find((b) => b.entity === g.entity)!;
-      const resolved = was.act_slot <= activation.LAST_SLOT && was.act_deadline === t;
-      return !resolved || was.act_target === a.entity;
-    });
-    if (candidates.length === 1) {
-      const g = candidates[0]!;
-      const from = goblinPlace(before.goblins.find((b) => b.entity === g.entity)!);
+    const goblins = strikers(before, after, sheets, board, a);
+    const mine = yours(a.entity);
+    const count =
+      goblins.length + (mine ? 1 : 0) + (trapped && goblins.length === 0 && !mine ? 1 : 0);
+    const amount = hit < 0 ? `${-hit} damage` : `${hit} health`;
+    if (count === 1 && goblins.length === 1) {
+      const g = before.goblins.find((b) => b.entity === goblins[0])!;
+      const from = goblinPlace(g);
       const by = capital(name(g.entity));
-      if (hit < 0) {
-        const side = arcWords(
-          arc(position(board, from.x, from.y), position(board, a.at.x, a.at.y), a.at.facing),
-        );
-        lines.push(`${by} struck ${who === "you" ? "you" : who}: ${-hit} damage${side}`);
-      } else {
-        lines.push(`${by} healed ${who === "you" ? "you" : who} for ${hit}`);
-      }
-      continue;
-    }
-    if (candidates.length === 0 && adventurerResolved) {
-      const skill = names.skill(
-        sheets.skills[before.members[0]!.bar_at[before.members[0]!.act_slot]!]?.id ?? 0,
+      const side = arcWords(
+        arc(position(board, from.x, from.y), position(board, a.at.x, a.at.y), a.at.facing),
       );
       lines.push(
-        hit < 0
-          ? `Your ${skill} hit ${who}: ${-hit} damage`
-          : `Your ${skill} healed ${who} for ${hit}`,
+        hit < 0 ? `${by} struck ${who}: ${amount}${side}` : `${by} healed ${who} for ${hit}`,
       );
       continue;
     }
-    const together = candidates.map((g) => name(g.entity));
+    if (count === 1 && mine) {
+      const skill = names.skill(sheets.skills[self.bar_at[self.act_slot]!]?.id ?? 0);
+      lines.push(
+        hit < 0 ? `Your ${skill} hit ${who}: ${amount}` : `Your ${skill} healed ${who} for ${hit}`,
+      );
+      continue;
+    }
+    if (count === 1 && trapped) {
+      lines.push(
+        hit < 0 ? `A trap struck ${who}: ${amount}` : `${capital(has(who))} gained ${hit} health`,
+      );
+      continue;
+    }
+    const together = [...goblins.map(name), ...(mine ? ["you"] : [])];
     const subject = together.length > 0 ? capital(together.join(" and ")) : "Something";
     lines.push(
-      hit < 0 ? `${subject} struck ${who}: ${-hit} damage` : `${subject} healed ${who} for ${hit}`,
+      hit < 0 ? `${subject} struck ${who}: ${amount}` : `${subject} healed ${who} for ${hit}`,
     );
     report({
       kind: "grimworld.log-unattributed",
@@ -552,7 +628,7 @@ export function tickLines(
       tick,
       actor: a.entity,
       change: hit,
-      goblins: candidates.map((g) => g.entity),
+      goblins,
     });
   }
   return lines;
@@ -576,7 +652,19 @@ export function replayLines(
     for (let k = 1; k < states.length; k++) {
       const before = decode(states[k - 1]!.words, sheets);
       const after = decode(states[k]!.words, sheets);
-      lines.push(...tickLines(call, k, before, after, sheets, names, report));
+      lines.push(
+        ...tickLines(
+          call,
+          k,
+          before,
+          after,
+          states[k - 1]!.ground,
+          states[k]!.ground,
+          sheets,
+          names,
+          report,
+        ),
+      );
     }
   }
   return lines;
