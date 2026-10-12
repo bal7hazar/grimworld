@@ -166,7 +166,7 @@ describe("the editor's keys (§3, AC-5)", () => {
     expect(editorCommand(press("KeyX", "x", { ctrlKey: true }))).toEqual({ kind: "cut" });
     expect(editorCommand(press("KeyC", "c", { metaKey: true }))).toEqual({ kind: "copy" });
     expect(editorCommand(press("KeyV", "v", { ctrlKey: true }))).toEqual({ kind: "paste" });
-    // Without Ctrl, X C V are the game's (reserved belt keys): nothing in the editor.
+    // Without Ctrl, X C V are the game's (the belt keys, CLI-05b): nothing in the editor.
     for (const code of ["KeyX", "KeyC", "KeyV"]) {
       expect(editorCommand(press(code, code.slice(3).toLowerCase()))).toBeNull();
     }

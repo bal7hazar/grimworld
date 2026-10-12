@@ -1,4 +1,4 @@
-/* global console, process, fetch, setTimeout, window, document, getComputedStyle */
+/* global console, process, fetch, setTimeout, window, document, getComputedStyle, KeyboardEvent */
 /* eslint-disable no-empty */
 // CLI-03k's keyboard in a real browser, keyboard only (no mouse, no tap) at 1440 × 900, idle
 // animations off: a zone (the six keys, the arrows, F and Enter to the hub gate, CLI-03d's offer,
@@ -419,6 +419,37 @@ async function hub(page, name) {
   await page.waitForTimeout(200);
   const c2 = await camera(page, "hub");
   ok(c2.scale < c1.scale, `${name}: − zooms out (→ ${c2.scale.toFixed(3)})`);
+  // AZERTY (D-284): a synthetic press carries the layout's code and character. `)` is the code
+  // Minus and zooms out; the digit 6 prints `-` and does not zoom (it is service 6 where the row
+  // has one, nothing otherwise).
+  const azerty = (code, key) =>
+    page.evaluate(
+      ([c, k]) =>
+        (document.activeElement ?? document.body).dispatchEvent(
+          new KeyboardEvent("keydown", { code: c, key: k, bubbles: true, cancelable: true }),
+        ),
+      [code, key],
+    );
+  await azerty("Minus", ")");
+  await page.waitForTimeout(200);
+  const c3 = await camera(page, "hub");
+  ok(c3.scale < c2.scale, `${name}: AZERTY ) (code Minus) zooms out (→ ${c3.scale.toFixed(3)})`);
+  await azerty("Equal", "=");
+  await page.waitForTimeout(200);
+  const c4 = await camera(page, "hub");
+  ok(c4.scale > c3.scale, `${name}: AZERTY = (code Equal) zooms in (→ ${c4.scale.toFixed(3)})`);
+  await azerty("Digit6", "-");
+  await page.waitForTimeout(300);
+  if (await screen(page, "service").count()) {
+    ok(row.length >= 6, `${name}: AZERTY 6 (printing -) opened service 6, it did not zoom`);
+    await page.keyboard.press("Escape");
+    await screen(page, "hub").waitFor();
+    await page.waitForTimeout(200);
+  } else {
+    ok(row.length < 6, `${name}: AZERTY 6 (printing -) is service 6, not a zoom`);
+  }
+  const c5 = await camera(page, "hub");
+  ok(Math.abs(c5.scale - c4.scale) < 1e-6, `${name}: AZERTY 6 (printing -) left the zoom alone`);
   for (let i = 0; i < 4; i += 1) await page.keyboard.press("Equal");
   let panned = 0;
   for (let i = 0; i < row.length && panned < 40; i += 1) {
