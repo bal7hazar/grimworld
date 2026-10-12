@@ -394,8 +394,8 @@ pub impl KnownSkillsImpl of KnownSkillsTrait {
 
 /// The skill trainer's price of the next skill, by the number of skills known (design/15
 /// *Services*: "50 gold for the first skill bought, rising to 1 000 from the 21st, as in the
-/// baseline"). The steps between are the baseline's (Guild Wars' skill trainers); no Grim World
-/// file writes them, so the PM decides them (D-275).
+/// baseline"). The steps between are the baseline's (Guild Wars' skill trainers), adopted by the PM
+/// (D-277); every known skill counts (D-278).
 const SKILL_PRICES: [u64; 20] = [
     50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 350, 400, 475, 550, 625, 700, 800, 900,
 ];

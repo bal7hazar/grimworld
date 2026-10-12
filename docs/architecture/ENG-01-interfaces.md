@@ -1319,7 +1319,7 @@ pack's gold pays its price (`trainer: not enough gold`). The price follows the s
 knows, counted on the skill's `known_skills` page (skill ids are below 250 in the MVP: one page):
 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 350, 400, 475, 550, 625, 700, 800, 900 gold
 for the 1st to the 20th, 1,000 from the 21st on (design/15 gives the ends; the steps between are the
-baseline's, Guild Wars' trainers, proposed by SKILL-01 for the PM's decision, D-275). Writes: the
+baseline's, Guild Wars' trainers: D-277; every known skill counts, D-278). Writes: the
 pack's `gold` and the skill's `known_skills` page, overwritten (the page new at the first skill). No
 event.
 
@@ -2123,7 +2123,8 @@ to Sepolia is SPK-1's (E), so every event price is an **estimate**:
 - TradeOpened: 4 felts, 52,773
 - TrialPassed: 4 felts, 52,773
 
-Computation is E, with its basis in §9.3's branch. A row's **target** is its most expensive branch,
+Computation is E, with its basis in §9.3's branch, except a figure marked **(node, M)**: measured on
+the node, which then is the row (D-158, D-279; `buy_skill`, SKILL-01). A row's **target** is its most expensive branch,
 in the state named: **initialised** (every `first` key exists) or **cold** (none does). When the two
 states' worst branches differ, both are named.
 
@@ -2154,7 +2155,7 @@ states' worst branches differ, both are named.
 | `accept_contract` | accepted | 1 | 2 | 0 | 0 / 1 → **1,295,251** | 1 / 0 → **1,716,703** |
 | `claim_quest` | claimed, a trial promoting | 1 | 2 | 99,109 | 1 / 9 → **2,404,460** | 6 / 4 → **4,511,720** |
 | `claim_title` | claimed | 0 | 2 | 0 | 1 / 0 → **1,680,703** | 1 / 0 → **1,680,703** |
-| `buy_skill` | bought | 1 | 2 | 0 | 0 / 2 → **1,227,323** | 1 / 1 → **1,648,775** |
+| `buy_skill` | bought | 1 | 2 | 0 | 0 / 2 → **1,600,960** (node, M) | 1 / 1 → **2,002,960** (node, M) |
 | `buy` | equipment | 1 | 4 | 0 | 1 / 4 → **1,855,231** | 2 / 3 → **2,276,683** |
 | `sell` | equipment | 1 | 4 | 0 | 0 / 5 → **1,433,779** | 1 / 4 → **1,855,231** |
 | `craft` | crafted | 1 | 3 | 0 | 1 / 6 → **1,914,255** | 2 / 5 → **2,335,707** |

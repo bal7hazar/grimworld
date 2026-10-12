@@ -1160,8 +1160,8 @@ fn test_set_build_requests_the_input_kinds() {
 
 /// The budget of the `buy_skill` call alone in its worst case (a hub action's target is its
 /// measure, D-158 (c)): the 21st skill, the price's count at its cap. snforge, `get_available_gas`
-/// around the dispatcher call: ceil(1.05 × 760,000 measured). ENG-01 §10's row is 1,227,323
-/// initialised.
+/// around the dispatcher call: ceil(1.05 × 760,000 measured). ENG-01 §10's row is the node's
+/// measure (D-279): 1,600,960 initialised, 2,002,960 cold.
 const BUY_SKILL_CALL: u128 = 798000;
 
 fn gold_key(id: u32) -> felt252 {
