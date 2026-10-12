@@ -76,7 +76,7 @@ import {
   word,
 } from "../reveal";
 import { base } from "../reveal/board";
-import { run as runSegment } from "../segment";
+import { fast, path, run as runSegment } from "../segment";
 import type { Segment } from "../segment";
 import type { Classes } from "../segment/classes";
 import {
@@ -98,10 +98,12 @@ import {
   writeWords,
 } from "../segment/serde";
 import { type Content, type MemberWords, type Words, sheets as indexed } from "../segment/words";
+import { world as loadWorld, words as storeWorld } from "../segment/world";
 import type { Entry, Mirror } from "./replay";
 import { replayer } from "./replayer";
 import { free, triggerClass } from "../trap";
 import { actClass } from "../action";
+import { ticksClass } from "../tick";
 import * as executor from "../executor";
 import { load as loadMember } from "../segment/words";
 import { load as loadGoblin } from "../segment/goblin";
@@ -426,8 +428,13 @@ function content(): Content {
   return content2;
 }
 
-/** The `trigger` and `act` calls of `segment2.jsonl` the port computed, each equal to its recording. */
-export const native = { triggers: 0, acts: 0 };
+/** The calls of `segment2.jsonl` the ports computed, each equal to its recording, by kind. */
+export const native = { triggers: 0, acts: 0, ticks: 0 };
+
+const ticksFelts = (out: { words: Words; ground: Ground }): bigint[] => [
+  ...writeWords(out.words),
+  ...writeGround(out.ground),
+];
 
 const callFelts = (out: { words: Words; ground: Ground; triggered: boolean }): bigint[] => [
   ...writeWords(out.words),
@@ -453,14 +460,21 @@ function equal(name: string, got: readonly bigint[], recorded: readonly bigint[]
 }
 
 /**
- * The replayed classes with `trigger` and `act` computed by the ports (`trap.ts`'s `triggerClass`,
- * `action.ts`'s `actClass`): the replayer still takes the recorded call (its kind, its digest, its
- * place in the span), and the port's result must equal it, felt for felt; the port's is what `run`
- * loads. `ticks` stays replayed (lot F).
+ * The replayed classes with the three computed by the ports (`trap.ts`'s `triggerClass`,
+ * `action.ts`'s `actClass`, `tick.ts`'s `ticksClass`): the replayer still takes the recorded call
+ * (its kind, its digest, its place in the span), and the port's result must equal it, felt for
+ * felt; the port's is what `run` loads.
  */
 function computed(replayed: ReturnType<typeof replayer>): ReturnType<typeof replayer> {
   return {
     ...replayed,
+    ticks(call) {
+      const recorded = ticksFelts(replayed.ticks(call));
+      const out = ticksClass(call);
+      equal("ticks", ticksFelts(out), recorded);
+      native.ticks += 1;
+      return out;
+    },
     trigger(call) {
       const recorded = callFelts(replayed.trigger(call));
       const out = triggerClass(call);
@@ -480,9 +494,8 @@ function computed(replayed: ReturnType<typeof replayer>): ReturnType<typeof repl
 
 /**
  * A `segment2` row: `run` on the case's words, area, level, ground, `owed`, `weight` and actions,
- * the classes replayed from the calls the row recorded (test scaffolding); the words, the ground
- * and `Done` after it. `TrapLibrary::trigger` and `ActionLibrary::act` are computed by the ports
- * (`computed`); `ticks` stays replayed (lot F).
+ * the classes replayed from the calls the row recorded (test scaffolding) and computed by the ports
+ * (`computed`); the words, the ground and `Done` after it.
  */
 const segment2Row: Mirror = (c) => {
   const read = new Felts(c);
@@ -852,6 +865,71 @@ const act: Record<string, Mirror> = {
   },
 };
 
+/** `tick.jsonl`'s content: its row 0's `ok`, which every row's words are loaded through. */
+let tickContent: Content | undefined;
+function contentOfTick(): Content {
+  if (tickContent === undefined) {
+    const read = new Felts(readTable("tick.jsonl")[0]!.ok!);
+    tickContent = readContent(read);
+    read.end();
+  }
+  return tickContent;
+}
+
+/** `tick.jsonl`'s level, the location band's lower one (`vectors::LEVEL`). */
+const TICK_LEVEL = 20;
+
+/** The `skip` rows' ground: chunk 0, empty (`FeaturesTrait::empty`). */
+const emptyGround = (): Ground => [
+  [
+    0,
+    {
+      packs: [0, 1].map(() => ({ tile: 0, template: 0, level: 0, count: 0, offsets: 0, alert: 0 })),
+      objects: [0, 1, 2].map(() => ({ tile: 0, kind: 0, state: 0, param: 0 })),
+      touched: 0,
+    },
+  ],
+];
+
+const tick: Record<string, Mirror> = {
+  // The table's content, decoded and encoded again: what every row reads
+  content: (c) => {
+    args(c, 0);
+    return writeContent(contentOfTick());
+  },
+  // `TickLibrary::ticks` on the case's words, board, level, ground and `n`
+  ticks: (c) => {
+    const read = new Felts(c);
+    const words = readWords(read);
+    const board = readBoard(read);
+    const level = read.u8();
+    const ground = readGround(read);
+    const n = read.u8();
+    read.end();
+    return ticksFelts(ticksClass({ words, content: contentOfTick(), board, level, ground, n }));
+  },
+  // `SegmentTrait::ticks`' path for `n` ticks, then the words after it (the empty ground)
+  skip: (c) => {
+    const read = new Felts(c);
+    const words = readWords(read);
+    const board = readBoard(read);
+    const n = read.u8();
+    read.end();
+    const content = contentOfTick();
+    const world = loadWorld(words, indexed(content));
+    const way = path(world, board, n);
+    let after = words;
+    if (way === 1) {
+      fast(world, n);
+      after = storeWorld(world);
+    } else if (way === 0) {
+      const ground = emptyGround();
+      after = ticksClass({ words, content, board, level: TICK_LEVEL, ground, n }).words;
+    }
+    return [BigInt(way), ...writeWords(after)];
+  },
+};
+
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
@@ -865,4 +943,5 @@ export const TABLES: readonly Entry[] = [
   { file: "batch.jsonl", floor: 28, fns: batch },
   { file: "segment.jsonl", floor: 47, fns: segment },
   { file: "segment2.jsonl", floor: 44, fns: segment2 },
+  { file: "tick.jsonl", floor: 131, fns: tick },
 ];

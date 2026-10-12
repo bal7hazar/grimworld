@@ -4,30 +4,42 @@
 // caste's cap) and the conditions (`GoblinConditionTrait`: `apply`, `knock`). Its words' fields are
 // `segment/goblin.ts`'. Each writer changes the goblin in place, as Cairo's `ref self`.
 
-import { activation, condition } from "../combat";
+import { activation, condition, skill_kind } from "../combat";
 import { line } from "../effect";
-import { panic } from "../felt";
+import { panic, sub, u32 } from "../felt";
+import { move_ticks as moveTicks } from "../movement";
 import { type Infliction, duration } from "./infliction";
 import {
   assert_pips,
   crippled,
   effect_of,
+  energy_regen,
+  health_regen,
   is_alive,
+  max_energy,
+  recharge,
   set_crippled,
   set_effect,
   set_recharge,
   type Goblin,
 } from "../segment/goblin";
 import {
+  ai,
   assert_condition,
   cured,
+  decay,
+  degeneration,
+  effect_pips,
   errors as tickErrors,
+  heal,
   held as holds,
   min16,
   recharge_deadline,
   refreshed,
 } from "../segment/tick";
-import type { Held, Sheets } from "../segment/words";
+import { type Held, type Sheets, u32add } from "../segment/words";
+
+const u32sub = (a: number, b: number): number => Number(sub(u32, BigInt(a), BigInt(b)));
 
 const OUT = "Index out of bounds";
 
@@ -49,11 +61,98 @@ export function armor_vs(goblin: Goblin, damage_type: number, sheets: Sheets): n
 }
 
 /** `GoblinTickTrait::clear`: no activation. */
-function clear(goblin: Goblin): void {
+export function clear(goblin: Goblin): void {
   goblin.act_slot = activation.NONE;
   goblin.act_target = 0;
   goblin.act_deadline = 0;
 }
+
+/** `Sheets::caste_skill`: the sheet of its caste's skill `slot`, through the kit. */
+const caste_skill = (goblin: Goblin, slot: number, sheets: Sheets) =>
+  at(sheets.skills, at(at(sheets.kits, goblin.caste_at).skills, slot));
+
+// ---- The tick's rules of a goblin (CLI-02g-F: `GoblinTickTrait`).
+
+/** `GoblinTickTrait::start`: step 2 of `t`, a caste skill of activation `n ≥ 1` starts, `A = t + n`. */
+export function start(goblin: Goblin, slot: number, address: number, n: number, t: number): void {
+  goblin.act_slot = slot;
+  goblin.act_target = address;
+  goblin.act_deadline = u32add(t, n === 0 ? 1 : n);
+}
+
+/** `GoblinTickTrait::recover`: an act of tick cost `k > 1` recovers until `B = t + k − 1` (FX-15). */
+export function recover(goblin: Goblin, k: number, t: number): void {
+  if (k > 1) {
+    goblin.act_slot = activation.RECOVERING;
+    goblin.act_target = 0;
+    goblin.act_deadline = u32sub(u32add(t, k), 1);
+  }
+}
+
+/** `GoblinTickTrait::use_instant`: an instant caste skill used in step 2 of `t`, its recharge from `t`. */
+export function use_instant(goblin: Goblin, slot: number, t: number, sheets: Sheets): void {
+  set_recharge(goblin, slot, recharge_deadline(t, caste_skill(goblin, slot, sheets).recharge));
+}
+
+/**
+ * `GoblinTickTrait::conclude`: step 1 at `A`, the activation ends, its recharge from `A` (FX-2); an
+ * attack skill whose weapon costs `k ≥ n + 2` recovers until `B = A + k − n − 1` (FX-15). Its slot
+ * and target, for the executor.
+ */
+export function conclude(goblin: Goblin, sheets: Sheets): [number, number] {
+  const slot = goblin.act_slot;
+  const address = goblin.act_target;
+  const a = goblin.act_deadline;
+  const kit = at(sheets.kits, goblin.caste_at);
+  const skill = at(sheets.skills, at(kit.skills, slot));
+  set_recharge(goblin, slot, recharge_deadline(a, skill.recharge));
+  const k = kit.weapon_ticks;
+  const n = skill.activation;
+  if (skill.kind === skill_kind.ATTACK && k >= n + 2) {
+    goblin.act_slot = activation.RECOVERING;
+    goblin.act_target = 0;
+    goblin.act_deadline = u32sub(u32sub(u32add(a, k), n), 1);
+  } else {
+    clear(goblin);
+  }
+  return [slot, address];
+}
+
+/**
+ * `GoblinTickTrait::lapse`: step 1 of `T > A` for a goblin frozen at `A` (FX-29), the activation
+ * lapsed at `A`; its recharge `A + r − 1` kept only if later than the stored one.
+ */
+export function lapse(goblin: Goblin, sheets: Sheets): void {
+  const slot = goblin.act_slot;
+  const deadline = recharge_deadline(
+    goblin.act_deadline,
+    caste_skill(goblin, slot, sheets).recharge,
+  );
+  if (deadline > recharge(goblin, slot)) set_recharge(goblin, slot, deadline);
+  clear(goblin);
+}
+
+/**
+ * `GoblinTickTrait::regenerate`: step 3 at `t` for an awake goblin alive: health by its caste's pips,
+ * its effect's and its conditions'; energy by its caste's thirds up to its max; adrenaline decayed
+ * when not Engaged.
+ */
+export function regenerate(goblin: Goblin, t: number, sheets: Sheets): void {
+  const pips =
+    health_regen(goblin, sheets) +
+    degeneration(goblin.bleeding, goblin.poison, goblin.burning, t) +
+    effect_pips(goblin.effect_regen, goblin.effect_deadline, t);
+  goblin.health = heal(goblin.health, pips, goblin.max_health);
+  goblin.energy = Math.min(
+    goblin.energy + energy_regen(goblin, sheets),
+    max_energy(goblin, sheets),
+  );
+  if (goblin.ai !== ai.ENGAGED) goblin.adrenaline = decay(goblin.adrenaline);
+}
+
+/** `GoblinConditionTrait::move_ticks`: its move's ticks at `t`, 2 while Crippled unless `movement`. */
+export const move_ticks = (goblin: Goblin, t: number, movement: boolean): number =>
+  moveTicks(crippled(goblin), t, movement);
 
 /**
  * `GoblinTickTrait::interrupt`: the activation stopped at `t0`, its recharge from `t0`; nothing

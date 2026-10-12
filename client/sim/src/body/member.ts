@@ -181,6 +181,19 @@ function clear(member: Member): void {
   member.act_deadline = 0;
 }
 
+/**
+ * `MemberTickTrait::conclude` (CLI-02g-F): step 1 at `A`, the activation ends, its recharge counts
+ * from `A` (FX-2); its slot and target, for the executor.
+ */
+export function conclude(member: Member, sheets: Sheets): [number, number] {
+  const slot = member.act_slot;
+  const address = member.act_target;
+  const r = sheet(member, slot, sheets).recharge;
+  set_recharge(member, slot, recharge_deadline(member.act_deadline, r));
+  clear(member);
+  return [slot, address];
+}
+
 /** `MemberTickTrait::interrupt`: the activation stopped at `t0`, its recharge from `t0`. */
 export function interrupt(member: Member, t0: number, sheets: Sheets): void {
   if (member.act_slot === NO_SLOT) return;
