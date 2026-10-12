@@ -92,7 +92,10 @@ The value of `chain` must be an `http:` or `https:` URL without user information
 In part 1 its host must be the machine itself (`127.0.0.1`, `localhost`, `[::1]`), as
 `createNodeFunder`'s own check requires. Anything else shows the sandbox with its debug panel open
 and one line in it, "chain mode refused: <reason>", and writes the same line to the console as one
-`grimworld.chain-refused` record: the panel is closed by default (`?panel=1`). The mode reads no other parameter that could carry a secret:
+`grimworld.chain-refused` record: the panel is closed by default (`?panel=1`). The reason names the
+rule broken ("not a URL", "user information", "not on this machine", "no deployment", "not a test
+chain"), **never the value of the parameter**, so a refused `?chain=http://user:pass@host` writes no
+credential anywhere. The mode reads no other parameter that could carry a secret:
 no key, no account and no address comes from the URL.
 
 **Why.** D-273 fixes the parameter. A dynamic import keeps the default path what it is today. The
@@ -272,8 +275,19 @@ then all it takes. **Part 1 re-enters**: when an instance closes (a defeat or an
 screen says "the instance closed" and the `N` key (or the panel's "Enter again" button) runs step 4.
 With a non-empty build (CLI-11d), `set_build` needs the pack to cover the belt, or it fails with
 `balance: not enough`; part 1's empty build cannot meet that. **Re-entry after a defeat is not tested
-by the game yet**: track game's RV-03a2 adds a `test_lifecycle` test for it. Until then the node test
-of §7 re-enters after a closing it can reach, and a defeat's re-entry is checked by hand.
+by the game yet**: track game's RV-03a2 adds a `test_lifecycle` test for it. Until then a defeat's
+re-entry is checked by hand.
+
+**The closing the node test reaches** is `Instances.travel_back(instance_id, adventurer_id,
+sequence)`, sent by the burner alone (design/02: travelling back is sent alone). Its preconditions
+are the batch's admission (the burner's adventurer controls the instance, the sequence is current,
+the instance is open) and an instance that is not a sealed Red Rift; it reads no gate and needs no
+tile. The seeded test zone meets them. It closes the instance (`Outcome::Returned`, through
+`Instances.close`) and puts the adventurer in its last hub, the start hub, which is gate 1's source,
+so the re-entry is `set_build` then `enter` with no `travel`. `travel_back` is a node-test step
+only: part 1's screen does not send it (`L` and travelling back stay out, §4.1). `leave` is not
+used, because it needs the adventurer on a hub gate's anchor (`can_leave`, `contracts/logic/src/models/gate.cairo`), which the seeded
+zone does not place it on.
 
 **Why.** No key of the deployment is ever needed in the browser. The views make a reload resume
 without any state kept beside the key, and sending `set_build` before every `enter` is what makes a
@@ -466,7 +480,10 @@ A defeat or a closed instance shows "the instance closed", and `N` enters again 
   - the sent outcome equals the simulated one;
   - the state after equals the trace's view;
   - a second provider on the same storage restores the same adventurer and instance without
-    registering again.
+    registering again;
+  - after the burner's `Instances.travel_back` closes the instance (§3.4), the enter step re-enters
+    the same adventurer (`set_build`, then `enter`, no `travel`, no new adventurer), and
+    `Instances.placement` shows it inside a new instance.
 
   **It shares the node with `preview.node.test.ts`, and they stay apart.** Accounts: 0 is the
   deployment's and the preview test's, 1 is the chain test's funder, and the burner sends from its
@@ -476,12 +493,17 @@ A defeat or a closed instance shows "the instance closed", and `N` enters again 
   and runs the two files one after the other (`--no-file-parallelism`).
 
   **Commands**, each one line with no prefix (new scripts of `client/app/package.json`):
-  - `test:node:preview` (CI's `client-node` job, unchanged in the workflow): `vitest run
---silent=false --no-file-parallelism` on the preview's and the chain's node tests. That job's
+  - `test:node:preview` (CI's `client-node` job, unchanged in the workflow): one `vitest run` with
+    `--silent=false` and `--no-file-parallelism`, on the preview's and the chain's node tests. That job's
     `client_node` paths already cover `client/app/`, so no workflow change is needed.
   - `test:node:chain`: the chain's node test alone, against a deployment already made.
   - `test:node:devnet`: the whole run on a fresh node, `scripts/with-node.sh` around
-    `devnet_deploy.py --out .with-node/deployment.json` and `test:node:preview`. A thread runs it as
+    `devnet_deploy.py --out <root>/.with-node/deployment.json` and `test:node:preview`. A
+    `package.json` script runs in `client/app`, so `<root>` is built as `../..` from there (or from
+    `$INIT_CWD` when pnpm is run from the root), never left relative: a relative `.with-node/` would
+    land in `client/app/.with-node/`, where the node test does not look. CLI-11a checks that the
+    file is written where the node test reads it, and passes the same absolute path as
+    `GRIMWORLD_DEPLOYMENT`. A thread runs it as
     `check-run --time -- pnpm --filter @grimworld/app test:node:devnet`, after the classes are built
     (`scripts/lock.sh --heavy scarb --manifest-path contracts/Scarb.toml build`).
   - `verify:chain` (CLI-11c): the same wrapping around `node verify-chain.mjs`.
@@ -531,7 +553,7 @@ in instance M" or the refusal's line.
 **Acceptance:**
 
 - the unit tests of §7 for §2 and §3;
-- the node test's setup, restore and enter-again steps, green locally (`test:node:devnet`) and in
+- the node test's setup, restore and enter-again (after `travel_back`) steps, green locally (`test:node:devnet`) and in
   `client-node`;
 - `?chain=` with a non-loopback host, with user information, or on `SN_MAIN` (faked) refuses, and
   nothing is sent;
@@ -555,6 +577,7 @@ the development server then listens on loopback only, and the mode refuses to st
 **Allowlist:**
 
 - `client/app/src/chain/{batch,stages,send}.ts` (new) and their unit tests;
+- `client/app/src/chain/chain.node.test.ts`, only the steps it adds after CLI-11a has merged;
 - `client/app/src/preview/read.ts` (`block` takes a block hash) and its test;
 - `client/app/README.md`.
 
@@ -573,7 +596,8 @@ the development server then listens on loopback only, and the mode refuses to st
 
 `send.ts` takes the account provider and `assertChain` as injected dependencies, so it imports
 nothing of CLI-11a. Its node steps (preview, send, equal) go into `chain.node.test.ts` after CLI-11a
-has merged (merge `origin/main`).
+has merged (merge `origin/main`). **The two lots never edit that file at the same time:** CLI-11a
+creates it and owns it until its PR merges; CLI-11b adds its steps only after that merge.
 
 ### CLI-11c — the chain screen
 
@@ -645,8 +669,8 @@ what it names.
 **From the project manager:**
 
 - D-274 settled §6.1 for devnet; the Sepolia half waits for CLI-11e's measurement.
-- The project manager records D-272, D-273 and D-274 in CONTEXT.md itself; no lot of CLI-11 adds a
-  row there.
+- The project manager records its own rulings in CONTEXT.md, among them D-273 and D-274, on which
+  this brief rests; no lot of CLI-11 adds a row there.
 - For CLI-11e: the go on whether the site may play on Sepolia (§2.4), and the request to the owner
   below. The orchestrator asks the project manager when CLI-11e is due.
 
