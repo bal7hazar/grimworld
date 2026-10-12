@@ -47,7 +47,9 @@ function start(nodeUrl: string): Promise<Shown> {
         const player = await restore({ provider, reader, ...deployment.contracts });
         return { kind: "ready", player };
       } catch (error) {
-        if (error instanceof ChainRefused) return { kind: "refused", reason: error.reason };
+        // A refusal before a send or a funding reaches here inside the account's error
+        const refused = error instanceof AccountError ? error.cause : error;
+        if (refused instanceof ChainRefused) return { kind: "refused", reason: refused.reason };
         return { kind: "failed", what: failure(error) };
       }
     })();
