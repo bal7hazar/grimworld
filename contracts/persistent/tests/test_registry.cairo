@@ -1109,6 +1109,12 @@ fn test_set_record_mixed_targets() {
         try_write(r, SKILL, spell_of([heal(target::SELF), inflict(target::TILE), none])),
         entry_errors::MIXED_TARGETS,
     );
+    // D-276: any `SELF` entry before an addressed one (`TILE`, `FOE` or `ALLY`) is refused.
+    for (a, b) in array![
+        (heal(target::SELF), inflict(target::FOE)), (heal(target::SELF), heal(target::ALLY)),
+    ] {
+        assert_refused(try_write(r, SKILL, spell_of([a, b, none])), entry_errors::MIXED_TARGETS);
+    }
     // Legal: all `TILE`, all entity (`FOE` with `ALLY`), `TILE` with `SELF`, a `TRAP` and its
     // `FOE` payload.
     assert_accepted(
@@ -1118,6 +1124,17 @@ fn test_set_record_mixed_targets() {
     assert_accepted(try_write(r, SKILL, spell_of([hit(target::TILE), heal(target::SELF), none])));
     assert_accepted(
         try_write(r, SKILL, spell_of([inflict(target::TILE), heal(target::SELF), none])),
+    );
+    // D-276: `SELF` entries after the addressed one, and `SELF` alone, are legal.
+    assert_accepted(
+        try_write(r, SKILL, spell_of([inflict(target::FOE), heal(target::SELF), none])),
+    );
+    assert_accepted(try_write(r, SKILL, spell_of([heal(target::SELF), heal(target::SELF), none])));
+    // Review t-0183, minor 1: nothing refuses a `SELF` entry after `TILE` and `SELF`.
+    assert_accepted(
+        try_write(
+            r, SKILL, spell_of([inflict(target::TILE), heal(target::SELF), heal(target::SELF)]),
+        ),
     );
     assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), none])));
     assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), inflict(target::FOE)])));

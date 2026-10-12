@@ -889,6 +889,44 @@ fn test_refuse_carrier_self_before_tile() {
     r.refuse(SKILL, 1, mixed.pack());
 }
 
+// R-44 (D-276): a `SELF` entry before a `FOE` one is refused, as before a `TILE` one.
+#[test]
+#[available_gas(l2_gas: 20000000)]
+#[should_panic(expected: 'carrier: mixed targets')]
+fn test_refuse_carrier_self_before_foe() {
+    let r = ZoneFixture::bare();
+    let on = |
+        k: u8, param: u8, t: u8,
+    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    let entries = [
+        on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::FOE),
+        Default::default(),
+    ];
+    let mixed = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
+    );
+    r.refuse(SKILL, 1, mixed.pack());
+}
+
+// R-44 (D-276): a `SELF` entry before an `ALLY` one is refused, as before a `TILE` one.
+#[test]
+#[available_gas(l2_gas: 20000000)]
+#[should_panic(expected: 'carrier: mixed targets')]
+fn test_refuse_carrier_self_before_ally() {
+    let r = ZoneFixture::bare();
+    let on = |
+        k: u8, param: u8, t: u8,
+    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    let entries = [
+        on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::ALLY),
+        Default::default(),
+    ];
+    let mixed = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
+    );
+    r.refuse(SKILL, 1, mixed.pack());
+}
+
 // R-28, a dungeon floor's bound (ENG-R1c's bound 4, built by ENG-09, applied by ENG-R1c-1 in
 // `Registry`'s `LOCATION` check): the sample made a floor of `N` 6 in its 3 × 2 rectangle. The
 // boundary, and the 4 × 3 sweep, are `test_registry::test_set_record_floor_bounds`.
