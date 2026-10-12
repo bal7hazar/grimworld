@@ -28,7 +28,12 @@ export type KeyCommand =
   /** One wheel notch in (1) or out (−1), around the map's centre. */
   | { readonly kind: "zoom"; readonly by: 1 | -1 }
   | { readonly kind: "recentre" }
-  | { readonly kind: "help" };
+  | { readonly kind: "help" }
+  /** The chain mode's (CLI-11c, §4.1, §4.3): Wait, Turn (then a step key), send the batch, enter again. */
+  | { readonly kind: "wait" }
+  | { readonly kind: "turn" }
+  | { readonly kind: "send" }
+  | { readonly kind: "again" };
 
 /** What the key map reads of a `KeyboardEvent`. */
 export interface KeyLike {
@@ -205,6 +210,41 @@ export const BINDINGS: readonly Binding[] = [
   },
 ];
 
+/**
+ * The chain mode's keys (CLI-11c), read on the instance screen before `BINDINGS`: `Space` and `R`
+ * are design/11 *Desktop*'s Wait and Turn, reserved above for the HUD lots and live here, `B` sends
+ * the batch (§4.3) and `N` enters again once the instance closed (§3.4). A separate table, not a
+ * flag on `BINDINGS`: the sandbox's own screens leave these commands to the page, its key help does
+ * not list them, and `B` and `N` stay free of the game's table, which the editor's tool letters
+ * are held against (`editor/keys.test.ts`).
+ */
+export const CHAIN_BINDINGS: readonly Binding[] = [
+  {
+    keys: "Space",
+    label: "Wait",
+    screens: ["instance"],
+    matches: [{ code: "Space", command: { kind: "wait" } }],
+  },
+  {
+    keys: "R, then a step key",
+    label: "Turn toward it",
+    screens: ["instance"],
+    matches: [{ code: "KeyR", command: { kind: "turn" } }],
+  },
+  {
+    keys: "B",
+    label: "Send the batch",
+    screens: ["instance"],
+    matches: [{ code: "KeyB", command: { kind: "send" } }],
+  },
+  {
+    keys: "N",
+    label: "Enter again, once the instance closed",
+    screens: ["instance"],
+    matches: [{ code: "KeyN", command: { kind: "again" } }],
+  },
+];
+
 /** The characters that zoom: they win over a digit read by position (AZERTY's `-` is `Digit6`). */
 const ZOOM_CHARS = ["+", "-", "="];
 
@@ -218,7 +258,7 @@ function matches(match: KeyMatch, event: KeyLike): boolean {
 export function keyCommand(event: KeyLike, screen: KeyScreen): KeyCommand | null {
   if (event.ctrlKey || event.metaKey || event.altKey) return null;
   if (event.repeat || event.isComposing) return null;
-  for (const binding of BINDINGS) {
+  for (const binding of [...CHAIN_BINDINGS, ...BINDINGS]) {
     if (!binding.screens.includes(screen)) continue;
     for (const match of binding.matches) {
       if (matches(match, event)) return match.command;

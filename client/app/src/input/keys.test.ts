@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Facing } from "../render/view";
 import {
   BINDINGS,
+  CHAIN_BINDINGS,
   type KeyLike,
   type KeyScreen,
   bindingsOf,
@@ -192,8 +193,10 @@ describe("the screens' keys", () => {
       "Space",
       "KeyR",
     ];
+    // The chain mode reads Space and R (below); the sandbox's help still lists them as reserved
+    const chain = ["Space", "KeyR"];
     for (const code of reserved) {
-      expect(keyCommand(press(code), "instance")).toBeNull();
+      if (!chain.includes(code)) expect(keyCommand(press(code), "instance")).toBeNull();
       const listed = BINDINGS.find(
         (b) =>
           b.reserved && b.screens.includes("instance") && b.matches.some((m) => m.code === code),
@@ -201,6 +204,37 @@ describe("the screens' keys", () => {
       expect(listed, code).toBeDefined();
       expect(listed!.matches.every((m) => m.command === null)).toBe(true);
     }
+  });
+
+  it("the chain mode's keys: Space waits, R turns, B sends, N enters again, on the instance only", () => {
+    expect(keyCommand(press("Space"), "instance")).toEqual({ kind: "wait" });
+    expect(keyCommand(press("KeyR"), "instance")).toEqual({ kind: "turn" });
+    expect(keyCommand(press("KeyB"), "instance")).toEqual({ kind: "send" });
+    expect(keyCommand(press("KeyN"), "instance")).toEqual({ kind: "again" });
+    // Held with a modifier or repeating, they are the browser's, as every key is
+    expect(keyCommand(press("KeyB", { ctrlKey: true }), "instance")).toBeNull();
+    expect(keyCommand(press("Space", { repeat: true }), "instance")).toBeNull();
+    // Hubs and the loop's other screens have none of them
+    for (const screen of ["hub", "service", "gate", "entry", "report"] as const) {
+      for (const code of ["Space", "KeyR", "KeyB", "KeyN"]) {
+        expect(keyCommand(press(code), screen), `${screen} ${code}`).toBeNull();
+      }
+    }
+  });
+
+  it("the chain's keys are in their own table: B and N are on no screen of the game's, and the help omits them", () => {
+    const game = new Set(
+      BINDINGS.flatMap((b) => b.matches).flatMap((m) => (m.code ? [m.code] : [])),
+    );
+    expect(game.has("KeyB")).toBe(false);
+    expect(game.has("KeyN")).toBe(false);
+    const listed = bindingsOf("instance").map((b) => b.keys);
+    for (const keys of CHAIN_BINDINGS.map((b) => b.keys)) {
+      if (keys !== "Space" && keys !== "R, then a step key") expect(listed).not.toContain(keys);
+    }
+    // Each of the chain's rows has one meaning, and none repeats another's key
+    const codes = CHAIN_BINDINGS.flatMap((b) => b.matches).map((m) => m.code);
+    expect(new Set(codes).size).toBe(codes.length);
   });
 
   it("every bound key has one meaning per screen", () => {
