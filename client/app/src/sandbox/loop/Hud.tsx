@@ -1,5 +1,7 @@
 import { type CSSProperties, memo, useRef } from "react";
 import { Bar, Icon, Panel, Portrait, useHudMode } from "../../chrome/Chrome";
+import { Chips } from "../../combat/Chips";
+import type { Chip } from "../../combat/state";
 import { ADVENTURER, type AdventurerSheet } from "../fixtures/hubs";
 import { hudSheet, readParams } from "../params";
 import { hudModel } from "./hudModel";
@@ -23,8 +25,18 @@ export function bandSheet(): AdventurerSheet {
  * Vanguard the adrenaline: the sword and the count of strikes. It holds no control and takes no
  * tap. It renders only when `sheet` changes (`memo`); `data-hud-renders` counts its renders, so
  * the browser check sees none during a walk.
+ *
+ * In the combat screen (CLI-05c) a row of chips follows, under the bars: the adventurer's
+ * conditions, then its held effects, each with its figures (CLI-05 brief §6.1); the band grows by
+ * that row only when there are chips.
  */
-export const Hud = memo(function Hud({ sheet }: { sheet: AdventurerSheet }) {
+export const Hud = memo(function Hud({
+  sheet,
+  chips = [],
+}: {
+  sheet: AdventurerSheet;
+  chips?: readonly Chip[];
+}) {
   const renders = useRef(0);
   renders.current += 1;
   const mode = useHudMode();
@@ -75,6 +87,11 @@ export const Hud = memo(function Hud({ sheet }: { sheet: AdventurerSheet }) {
           </span>
         </span>
       )}
+      {chips.length > 0 && (
+        <div style={styles.chips}>
+          <Chips chips={chips} label="Conditions and effects" />
+        </div>
+      )}
     </Panel>
   );
 });
@@ -112,6 +129,7 @@ const styles: Record<string, CSSProperties> = {
     color: "#fff",
   },
   adrenaline: { flex: "none", display: "inline-flex", alignItems: "center", gap: 2 },
+  chips: { flex: "1 0 100%" },
   sword: {
     display: "inline-flex",
     alignItems: "center",

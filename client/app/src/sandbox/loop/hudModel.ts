@@ -1,4 +1,5 @@
 import { type HudEntryName, PORTRAITS } from "../../chrome/load";
+import type { Chip, CombatAdventurer } from "../../combat/state";
 import type { Profession } from "../../render/view";
 import type { AdventurerSheet } from "../fixtures/hubs";
 
@@ -94,5 +95,61 @@ export function hudModel(sheet: AdventurerSheet, mode: "atlas" | "plain"): HudMo
             count: sheet.adrenaline,
             label: `Adrenaline: ${sheet.adrenaline} ${sheet.adrenaline === 1 ? "strike" : "strikes"}`,
           },
+  };
+}
+
+// ---- The combat screen (CLI-05c).
+
+/**
+ * The band's sheet in the combat screen's fight (CLI-05c): `sheet` with the fight's health, energy
+ * and adrenaline (the screen's state, CLI-05a's `CombatAdventurer`), nothing computed.
+ */
+export function fightSheet(sheet: AdventurerSheet, adventurer: CombatAdventurer): AdventurerSheet {
+  return {
+    ...sheet,
+    health: { current: adventurer.health, max: adventurer.maxHealth },
+    energy: { current: adventurer.energy, max: adventurer.maxEnergy },
+    adrenaline: sheet.adrenaline === null ? null : adventurer.adrenaline,
+  };
+}
+
+/** A condition or held effect as the screen draws it (CLI-05 brief §6.1). */
+export interface ChipModel {
+  /** The letter that carries its meaning; the colour repeats it. */
+  readonly letter: string;
+  /** The figures beside it: `4`, `+2 · 5`, `×2 · 6`, `×3`. */
+  readonly figure: string;
+  /** In words, for a reader and the title: "Bleeding, 4 ticks left". */
+  readonly label: string;
+  readonly kind: Chip["kind"];
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
+
+/**
+ * A chip's figures (§6.1): its pips (a REGENERATION's, signed), its charges (`×2`), its ticks left
+ * (`deadline − clock`, none for an effect that lasts by charges only), in that order.
+ */
+export function chipModel(chip: Chip): ChipModel {
+  const figures: string[] = [];
+  const words: string[] = [chip.name];
+  if (chip.pips !== null) {
+    figures.push(signed(chip.pips));
+    words.push(`${signed(chip.pips)} a tick`);
+  }
+  if (chip.charges !== null) {
+    figures.push(`×${chip.charges}`);
+    words.push(plural(chip.charges, "charge"));
+  }
+  if (chip.ticks !== null) {
+    figures.push(String(chip.ticks));
+    words.push(`${plural(chip.ticks, "tick")} left`);
+  }
+  return {
+    letter: chip.letter,
+    figure: figures.join(" · "),
+    label: words.join(", "),
+    kind: chip.kind,
   };
 }

@@ -2,8 +2,17 @@ import { describe, expect, it } from "vitest";
 import { FIXTURES, fixtureNamed } from "./fixtures";
 import type { Facing, Tile } from "../render/view";
 import { neighbour } from "./placeholders";
-import { applyIntent, initialState, stepTarget, toView, walkStep } from "./wiring";
-import { CHUNK } from "./world";
+import { FIGHT, combatFixture } from "../combat/fixture";
+import {
+  applyIntent,
+  combatAim,
+  fightWorld,
+  initialState,
+  stepTarget,
+  toView,
+  walkStep,
+} from "./wiring";
+import { CHUNK, kindAt } from "./world";
 
 describe("fixtures", () => {
   it("are whole chunks, with one adventurer", () => {
@@ -152,5 +161,81 @@ describe("stepTarget (CLI-03k): a step key is a tap on the adjacent hex", () => 
     const walked = walkStep(applyIntent(state, { kind: "tile", tile }));
     expect(walked.world.actors[0]!.tile).toEqual(neighbour(start, 3));
     expect(walked.world.actors[0]!.facing).toBe(3);
+  });
+});
+
+describe("the combat screen's fight (CLI-05c, `?combat=`)", () => {
+  const combat = combatFixture();
+  const world = fightWorld(fixtureNamed("edge"), combat);
+  const state = initialState(world);
+
+  it("puts the fixture's actors on the edge fixture: a Vanguard, each goblin by its entity", () => {
+    const adventurer = world.actors.find((a) => a.id === world.adventurerId)!;
+    expect(adventurer).toMatchObject({
+      side: "adventurer",
+      profession: "vanguard",
+      tile: { x: 23, y: 7 },
+    });
+    for (const g of combat.goblins) {
+      expect(world.actors.find((a) => a.id === g.entity)).toMatchObject({
+        side: "goblin",
+        caste: g.casteName,
+        tile: g.tile,
+        mark: g.mark,
+      });
+      expect(kindAt(world.terrain, g.tile)).toBe("floor");
+    }
+    // Wren faces the hobgoblin beside her, and it faces her.
+    const hobgoblin = world.actors.find((a) => a.id === FIGHT.hobgoblin)!;
+    expect(neighbour(adventurer.tile, adventurer.facing)).toEqual(hobgoblin.tile);
+    expect(neighbour(hobgoblin.tile, hobgoblin.facing)).toEqual(adventurer.tile);
+    expect(world.path).toEqual([]);
+    // Every goblin is in sight at the start.
+    expect(toView(state).actors).toHaveLength(5);
+  });
+
+  it("a FOE skill reaches its range from Wren and takes the goblins there, nearest first", () => {
+    // Charge: range 4 (fixture.ts); the hobgoblin beside, the shaman and the runt within 4.
+    const aim = combatAim(state, combat, { kind: "skill", slot: 2 })!;
+    expect(aim.addressing).toBe("foe");
+    expect(aim.marked[0]).toBe(FIGHT.hobgoblin);
+    expect(aim.marked).not.toContain(FIGHT.skirmisher);
+    expect(aim.reach.length).toBeGreaterThan(0);
+    // Cleave: range 1, the hobgoblin alone.
+    expect(combatAim(state, combat, { kind: "skill", slot: 0 })!.marked).toEqual([FIGHT.hobgoblin]);
+  });
+
+  it("a SELF skill takes Wren; a shout touches the six tiles around her; an empty slot nothing", () => {
+    expect(combatAim(state, combat, { kind: "skill", slot: 1 })).toMatchObject({
+      addressing: "self",
+      marked: [0],
+    });
+    const taunt = combatAim(state, combat, { kind: "skill", slot: 3 })!;
+    expect(taunt.area?.tiles).toHaveLength(6);
+    expect(combatAim(state, combat, { kind: "skill", slot: 6 })).toBeNull();
+    expect(combatAim(state, combat, { kind: "item", slot: 3 })).toBeNull();
+    expect(combatAim(state, combat, { kind: "item", slot: 0 })).toMatchObject({ marked: [0] });
+  });
+
+  it("toView carries the combat overlay only when the session has a fight", () => {
+    expect(toView(state).combat).toBeUndefined();
+    const rest = toView(state, "sight", { state: combat, armed: null })!.combat!;
+    expect(rest.activations.map((a) => a.actor)).toEqual([FIGHT.hobgoblin, FIGHT.shaman]);
+    expect(rest.letters).toEqual([
+      { actor: FIGHT.skirmisher, tile: { x: 19, y: 10 }, letters: ["P"], more: false },
+    ]);
+    expect(rest.range).toEqual([]);
+    const armed = toView(state, "sight", {
+      state: combat,
+      armed: { kind: "skill", slot: 2 },
+    })!.combat!;
+    expect(armed.range.length).toBeGreaterThan(0);
+    expect(armed.targets).toContainEqual({ x: 24, y: 7 });
+    const preview = toView(state, "sight", {
+      state: combat,
+      armed: { kind: "skill", slot: 2 },
+      preview: { x: 22, y: 7 },
+    }).combat!;
+    expect(preview.area).toEqual([{ x: 22, y: 7 }]);
   });
 });

@@ -8,7 +8,9 @@ import { FakeSurface } from "../test/fakeSurface";
 import { fixtureNamed } from "./fixtures";
 import { distance } from "./placeholders";
 import { SandboxSession } from "./session";
-import { applyIntent, initialState, toView, walkStep } from "./wiring";
+import { combatFixture } from "../combat/fixture";
+import type { ViewState } from "../render/view";
+import { applyIntent, fightWorld, initialState, toView, walkStep } from "./wiring";
 import type { SandboxWorld } from "./world";
 
 function setup(world: SandboxWorld | string, playOnTap = true) {
@@ -300,5 +302,50 @@ describe("the walk of a planned path (design/02, design/11)", () => {
       expect(surface.renders).toBe(renders);
       expect(host.frames + host.timersRun).toBe(wakeups);
     }
+  });
+});
+
+describe("the combat screen's state through the session (CLI-05c)", () => {
+  it("draws the fight's overlay with the map, through every change, until it is dropped", () => {
+    const host = new FakeHost(1000 / 120);
+    const views: ViewState[] = [];
+    const combat = combatFixture();
+    const session = new SandboxSession(
+      fightWorld(fixtureNamed("edge"), combat),
+      { setView: (view) => views.push(view) },
+      host,
+      { playOnTap: true, stepMs: STEP_MS },
+    );
+    expect(views.at(-1)!.combat).toBeUndefined();
+    session.setCombat({ state: combat, armed: { kind: "skill", slot: 2 } });
+    expect(views.at(-1)!.combat!.range.length).toBeGreaterThan(0);
+    // A tap that selects the hobgoblin keeps the overlay.
+    session.apply({ kind: "tile", tile: { x: 24, y: 7 } });
+    expect(session.state.selectedActorId).toBe(8);
+    expect(views.at(-1)!.combat!.activations).toHaveLength(2);
+    session.setCombat(null);
+    expect(views.at(-1)!.combat).toBeUndefined();
+  });
+
+  it("answers what a slot reaches from where the adventurer stands now", () => {
+    const host = new FakeHost(1000 / 120);
+    const combat = combatFixture();
+    const session = new SandboxSession(
+      fightWorld(fixtureNamed("edge"), combat),
+      { setView() {} },
+      host,
+      { playOnTap: true, stepMs: STEP_MS },
+    );
+    const cleave = { kind: "skill", slot: 0 } as const;
+    expect(session.combatAim(combat, cleave)!.marked).toEqual([8]);
+    // Two steps away from the hobgoblin: Cleave's range of 1 no longer takes it.
+    session.apply({ kind: "tile", tile: { x: 21, y: 7 } });
+    host.run(STEP_MS * 4);
+    expect(session.state.world.actors.find((a) => a.side === "adventurer")!.tile).toEqual({
+      x: 21,
+      y: 7,
+    });
+    expect(session.combatAim(combat, cleave)!.marked).toEqual([]);
+    session.destroy();
   });
 });

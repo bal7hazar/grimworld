@@ -277,5 +277,38 @@ client/sim's loaders build the world, and every figure is read by client/sim's o
 - **`fixture.ts`**: the sandbox's fixed fight (§9), at rest and with Wren activating, for CLI-05c's
   `?combat=fight`.
 
-Nothing is visible yet: CLI-05c draws the bar, the belt, the chips, the target zone and the log in
-the sandbox, CLI-05d the overlay on the map.
+The log's strikers in a tick (review t-0256 of #476, accepted): a target read at the tick's start,
+the attack cap, and a goblin Engaged then Fleeing within one tick are cases the replay may not
+attribute to one goblin; each falls back to the joint line and its `grimworld.log-unattributed`
+record, never to a wrong striker.
+
+**The screen in the sandbox (CLI-05c).** `?combat=fight` opens the instance screen on the fixed
+fight (`fixture.ts` at rest; `?combat=activating`, Wren activating Charge), on the `edge` fixture
+with the fight's actors (`sandbox/wiring.ts`'s `fightWorld`). The sandbox stays the default.
+
+- **`SkillBar.tsx`**, **`Belt.tsx`**: two rows of four slots with Wait and Turn at their right, and
+  the belt's four under them, each at least 44 CSS px, framed by the pack's `square_blue` (pressed
+  while armed) or a plain bordered square; a monogram on its kind's ground, a flask drawn by code,
+  the keys on desktop, the costs and counts on dark badges (`chrome/contrast.ts`'s `SLOT_TEXT`), one
+  state per slot (§2.2) never by colour alone. A long press or a right click inspects a slot.
+- **`Chips.tsx`**: the letter chips with their figures, in the status band (`Hud`) and the target
+  zone; **`TargetZone.tsx`**: the selected goblin (its caste, a small red bar from the pack's
+  `bar_small_fill_health`, its mark, chips and activation in words), at a fixed height;
+  **`CombatLog.tsx`**: the desktop's right panel (12 lines, scrolling back) and the phone's last
+  line with its drawer.
+- **Step keys while armed.** A step key is a tap on the adjacent hex, so while a slot is armed it
+  acts as that tap: on an empty hex it disarms the slot (a `TILE` slot previews the hex), on a
+  goblin it plays or says why. It does not walk. `Esc` or a second tap on the slot also disarm. A
+  `TILE` slot takes a tap on a tile whatever stands on it; `targeting.ts` decides if it is in reach.
+- **`controller.ts`**: arming (§2.4, §3), §4.1's choices (a marked actor, a `TILE` slot's preview
+  then play, `F` / `Shift+F` and `Enter`) and `Esc` (an inspection, then the armed slot, before the
+  walk and the selection). It decides no rule: `CombatRules.aim` and `play` are given, in the
+  sandbox by the placeholders (`aimInRange` for the range of §4.3, `spendCosts` and `startRecharge`
+  for §9's playing), on chain by CLI-11d. Its tests use fakes.
+- The session carries the screen's state and armed slot to `toView`, which sets `ViewState.combat`
+  (`combatOverlay`); CLI-05d draws it on the map.
+
+`pnpm --filter @grimworld/app verify:combat --shots <folder>` (add `--plain` for no art) checks the
+screen in a browser at 1440 × 900 and 375 × 812 and takes its shots: at rest, at the lowest zoom
+(with a crop of the hobgoblin's ring), Charge armed, Wren activating. The shots are never committed
+or posted (D-73).

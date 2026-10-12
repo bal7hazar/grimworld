@@ -119,3 +119,35 @@ export const CHROME_TEXT: readonly {
     large: false,
   },
 ];
+
+/** The figures' badge on a bar or belt slot (CLI-05c): near-black, so no text sits on the art. */
+export const SLOT_BADGE = 0x111111;
+
+/**
+ * The combat screen's slots (CLI-05 brief §2, §3, §8). No text sits on `square_blue` itself: the
+ * monogram sits on its ground by skill kind, the flask's initials on its fill, and every figure
+ * (key, cost, count, ticks) on `SLOT_BADGE`. Each pair, checked like the chrome's.
+ */
+export const SLOT_TEXT: readonly {
+  readonly component: string;
+  readonly surface: number;
+  readonly colour: number;
+  readonly large: boolean;
+}[] = [
+  // The monogram's grounds (attack, spell, stance, shout, trap, other), large bold initials.
+  { component: "Monogram attack", surface: 0x8e2f2f, colour: WHITE, large: true },
+  { component: "Monogram spell", surface: 0x3b4a8c, colour: WHITE, large: true },
+  { component: "Monogram stance", surface: 0x2f6b4a, colour: WHITE, large: true },
+  { component: "Monogram shout", surface: 0x80531a, colour: WHITE, large: true },
+  { component: "Monogram trap", surface: 0x5a4632, colour: WHITE, large: true },
+  { component: "Monogram other", surface: 0x4a4f5a, colour: WHITE, large: true },
+  // The flask's fills (heal, regeneration, other), its initials.
+  { component: "Flask heal", surface: 0xa8322a, colour: WHITE, large: false },
+  { component: "Flask regeneration", surface: 0x2b6e48, colour: WHITE, large: false },
+  { component: "Flask other", surface: 0x5d4f8e, colour: WHITE, large: false },
+  // On the badge: the key, a count and the ticks in white, the energy in its colour, a cost the
+  // gauge cannot pay in red (also underlined: colour is never the only carrier).
+  { component: "Slot figure", surface: SLOT_BADGE, colour: WHITE, large: false },
+  { component: "Slot energy", surface: SLOT_BADGE, colour: 0x5fb8c4, large: false },
+  { component: "Slot short", surface: SLOT_BADGE, colour: 0xff6b6b, large: false },
+];

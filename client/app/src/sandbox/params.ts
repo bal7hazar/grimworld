@@ -66,6 +66,18 @@ export function hudSheet(sheet: AdventurerSheet, hud: HudFigures | null): Advent
   };
 }
 
+/**
+ * The combat screen's fixed fight (CLI-05 brief §9): `?combat=fight` at rest, `?combat=activating`
+ * with the adventurer activating Charge (its own shot).
+ */
+export type CombatFixture = "rest" | "activating";
+
+/** `fight` is the fight at rest, `activating` its second state; anything else (absent included) is null. */
+export function readCombat(value: string | null): CombatFixture | null {
+  if (value === "fight") return "rest";
+  return value === "activating" ? "activating" : null;
+}
+
 export interface SandboxParams {
   readonly fixture: string | null;
   /**
@@ -86,6 +98,8 @@ export interface SandboxParams {
   readonly hud: HudFigures | null;
   /** How an instance's map shows what was seen (CLI-03n): `?fog=full`, else `sight`. */
   readonly fog: FogMode;
+  /** The combat screen's fight, `?combat=fight|activating` (CLI-05c); null otherwise. */
+  readonly combat: CombatFixture | null;
 }
 
 /**
@@ -98,6 +112,8 @@ export interface SandboxParams {
  * that hub, `loop=1` on the town; `entry=<ms>` the entry moment's wait (0 to 10000). An unknown
  * hub opens the room sandbox. `hud=low|empty` shows other figures in the HUD's band (CLI-03l).
  * `fog=full` keeps the explored tiles in colour beyond sight (CLI-03n); anything else is `sight`.
+ * `combat=fight` opens the instance screen on the combat screen's fixed fight, `combat=activating`
+ * on its second state (CLI-05c); it changes only the fixture, and the sandbox stays the default.
  */
 export function readParams(search: string): SandboxParams {
   const params = new URLSearchParams(search);
@@ -117,5 +133,6 @@ export function readParams(search: string): SandboxParams {
     stepMs: readBounded(params.get("step"), STEP_RANGE) ?? STEP_MS,
     hud: readHud(params.get("hud")),
     fog: params.get("fog") === "full" ? "full" : "sight",
+    combat: readCombat(params.get("combat")),
   };
 }

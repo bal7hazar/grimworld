@@ -1,3 +1,4 @@
+import type { Addressing, Armed, BarSlot, CombatState } from "../combat/state";
 import type { Facing, Tile, ViewActor, ViewArcs, ViewGoblin } from "../render/view";
 import { GATE_KIND, type GateRecord, globalTile } from "./fixtures/region";
 import { CHUNK, type Terrain, inBounds, kindAt, sameTile } from "./world";
@@ -332,4 +333,119 @@ export function stopsAfterStep(before: StepState, after: StepState): StepStops {
     (kind, i) => kind === "unrevealed" && after.terrain.kinds[i] !== "unrevealed",
   );
   return { entered, revealed };
+}
+
+// --- the combat screen's stand-ins (CLI-05c, CLI-05 brief §4.3, §9) -----------------------------
+
+/** An actor the combat screen's range sees: its entity, its tile, and whether it is a foe. */
+export interface RangeActor {
+  readonly entity: number;
+  readonly tile: Tile;
+  readonly foe: boolean;
+}
+
+/** What an armed slot reaches on the sandbox's terrain (`combat/overlay.ts`'s `OverlayAim`). */
+export interface SandboxAim {
+  readonly reach: Tile[];
+  readonly greyed: Tile[];
+  /** The actors it may take, nearest first (then by entity). */
+  readonly marked: number[];
+  /** A shout's ring around the adventurer. */
+  readonly area: Tile[];
+}
+
+/**
+ * PLACEHOLDER until CLI-02 (client/sim's `reach` and `aim`, which CLI-11d reads through
+ * `combat/targeting.ts`). What a slot addressed `addressing` with range `range` reaches from
+ * `from` (CLI-05 brief §4.3, "in the sandbox, the placeholders' `distance` and `tilesInSight`
+ * stand in"): the floor tiles at distance 1 to `range` that are in sight are in reach, those out
+ * of sight greyed; a `FOE` slot takes the foes in reach, an `ALLY` slot the adventurer (alone), a
+ * `SELF` slot the adventurer (`self`), and a shout (`ring`) touches the six tiles around it.
+ */
+export function aimInRange(
+  terrain: Terrain,
+  from: Tile,
+  self: number,
+  addressing: Addressing,
+  range: number,
+  actors: readonly RangeActor[],
+  ring: boolean,
+): SandboxAim {
+  const area = ring
+    ? FACINGS.map((d) => neighbour(from, d)).filter((t) => kindAt(terrain, t) === "floor")
+    : [];
+  if (addressing === "self" || (addressing === "ally" && range === 0)) {
+    return { reach: [], greyed: [], marked: [self], area };
+  }
+  const sight = tilesInSight(terrain, from);
+  const reach: Tile[] = [];
+  const greyed: Tile[] = [];
+  for (let y = from.y - range; y <= from.y + range; y++) {
+    for (let x = from.x - range - 1; x <= from.x + range + 1; x++) {
+      const tile = { x, y };
+      const d = distance(from, tile);
+      if (d === 0 || d > range || kindAt(terrain, tile) !== "floor") continue;
+      if (sight.some((t) => sameTile(t, tile))) reach.push(tile);
+      else greyed.push(tile);
+    }
+  }
+  const inReach = (tile: Tile) => reach.some((t) => sameTile(t, tile));
+  const marked =
+    addressing === "foe"
+      ? actors
+          .filter((a) => a.foe && inReach(a.tile))
+          .sort((a, b) => distance(from, a.tile) - distance(from, b.tile) || a.entity - b.entity)
+          .map((a) => a.entity)
+      : addressing === "ally"
+        ? [self]
+        : [];
+  return { reach, greyed, marked, area };
+}
+
+/** The bar's states the costs decide, in `act`'s order: adrenaline before energy (§2.2). */
+const COSTED: readonly BarSlot["state"][] = ["ready", "short-adrenaline", "short-energy"];
+
+/**
+ * PLACEHOLDER until CLI-02 (client/sim's `act`, CLI-11d on chain). Playing the slot `armed` spends
+ * its costs (CLI-05 brief §9): a skill its energy and its strikes of adrenaline, a potion one of
+ * its count (none left at 0). The bar's slots that the costs decide are read again against the
+ * gauges left, adrenaline first, as `act` refuses. No effect is applied.
+ */
+export function spendCosts(state: CombatState, armed: Armed): CombatState {
+  const { adventurer } = state;
+  if (armed.kind === "item") {
+    const belt = adventurer.belt.map((b) =>
+      b.slot === armed.slot && b.count > 0
+        ? { ...b, count: b.count - 1, state: b.count === 1 ? ("none-left" as const) : b.state }
+        : b,
+    );
+    return { ...state, adventurer: { ...adventurer, belt } };
+  }
+  const skill = adventurer.bar[armed.slot]?.skill;
+  if (!skill) return state;
+  const energy = Math.max(0, adventurer.energy - skill.energy);
+  const adrenaline = Math.max(0, adventurer.adrenaline - skill.strikes);
+  const bar = adventurer.bar.map((b): BarSlot => {
+    if (!b.skill || !COSTED.includes(b.state)) return b;
+    if (adrenaline < b.skill.strikes) return { ...b, state: "short-adrenaline", ticks: null };
+    if (energy < b.skill.energy) return { ...b, state: "short-energy", ticks: null };
+    return { ...b, state: "ready", ticks: null };
+  });
+  return { ...state, adventurer: { ...adventurer, energy, adrenaline, bar } };
+}
+
+/**
+ * PLACEHOLDER until CLI-02 (client/sim's `memberRecharge`, CLI-11d on chain). Playing bar slot
+ * `armed` starts its recharge (CLI-05 brief §9): the slot is recharging for its sheet's recharge,
+ * in ticks; a skill of no recharge is left as it is. The clock does not move in the sandbox.
+ */
+export function startRecharge(state: CombatState, armed: Armed): CombatState {
+  const { adventurer } = state;
+  if (armed.kind !== "skill") return state;
+  const bar = adventurer.bar.map((b): BarSlot =>
+    b.slot === armed.slot && b.skill && b.skill.recharge > 0
+      ? { ...b, state: "recharging", ticks: b.skill.recharge }
+      : b,
+  );
+  return { ...state, adventurer: { ...adventurer, bar } };
 }

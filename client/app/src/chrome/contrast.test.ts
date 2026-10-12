@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AA, CHROME_TEXT, INK, WHITE, contrast } from "./contrast";
+import { AA, CHROME_TEXT, INK, SLOT_TEXT, WHITE, contrast } from "./contrast";
 
 /**
  * AC-5: each component's text against its element's centre colour, as `tools/art/build.py`
@@ -19,6 +19,8 @@ const CENTRES: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   ribbon_big_red: { regular: 0xbe6e61 },
   ribbon_small_yellow: { regular: 0xbbb552 },
   round_blue: { regular: 0x41919d, pressed: 0x4a6982 },
+  // Measured on the site's atlas (CLI-05c): no text sits on it (`SLOT_TEXT`).
+  square_blue: { regular: 0x41919d, pressed: 0x4a6982 },
 };
 
 describe("contrast", () => {
@@ -43,6 +45,16 @@ describe("contrast", () => {
         );
       }
     }
+  });
+
+  it("every text of a bar or belt slot meets AA on its own ground (CLI-05c)", () => {
+    for (const text of SLOT_TEXT) {
+      expect(contrast(text.colour, text.surface), text.component).toBeGreaterThanOrEqual(
+        text.large ? AA.large : AA.body,
+      );
+    }
+    // The slot's figures never sit on the blue face: white there is large text only.
+    expect(contrast(WHITE, CENTRES.square_blue!.regular!)).toBeLessThan(AA.body);
   });
 
   it("the stylesheet sets the colours the table checks", () => {

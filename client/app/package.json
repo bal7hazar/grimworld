@@ -21,6 +21,7 @@
     "verify:hud": "node verify-hud.mjs",
     "verify:fog": "node verify-fog.mjs",
     "verify:water": "node verify-water.mjs",
+    "verify:combat": "node verify-combat.mjs",
     "verify:chain": "cd ../.. && scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out \"$PWD/.with-node/deployment.json\" && GRIMWORLD_DEPLOYMENT=\"$PWD/.with-node/deployment.json\" pnpm --filter @grimworld/app exec node verify-chain.mjs'"
   },
   "dependencies": {

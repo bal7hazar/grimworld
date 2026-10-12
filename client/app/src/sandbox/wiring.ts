@@ -1,3 +1,6 @@
+import type { CombatAim } from "../combat/controller";
+import { combatOverlay } from "../combat/overlay";
+import type { Armed, CombatState } from "../combat/state";
 import type { Intent } from "../input/intent";
 import { type StepKey, verticalDirection } from "../input/keys";
 import {
@@ -8,11 +11,12 @@ import {
   fogTiles,
   tileKey,
 } from "../render/fog";
-import type { Facing, Tile, ViewActor, ViewState, ViewTile } from "../render/view";
+import type { Caste, Facing, Tile, ViewActor, ViewState, ViewTile } from "../render/view";
 import {
   SIGHT_RADIUS,
   type StepStops,
   TICKS_PER_STEP,
+  aimInRange,
   arcsOf,
   facingToward,
   findPath,
@@ -23,6 +27,9 @@ import {
   visibleActors,
 } from "./placeholders";
 import { type SandboxWorld, inBounds, kindAt, sameTile } from "./world";
+
+/** The combat screen's two stand-ins (CLI-05 brief §9): playing spends the costs, starts the recharge. */
+export { spendCosts, startRecharge } from "./placeholders";
 
 /**
  * The sandbox's wiring: applies an intent to the fixture's state through the placeholders, and
@@ -310,7 +317,115 @@ export function walkStep(state: SandboxState): SandboxState {
   return walked;
 }
 
-export function toView(state: SandboxState, fog: FogMode = "sight"): ViewState {
+/**
+ * What the session carries of the combat screen (CLI-05c, `?combat=`): its state, the armed slot,
+ * and a `TILE` slot's previewed tile; `toView` places them as `ViewState.combat`.
+ */
+export interface SandboxCombat {
+  readonly state: CombatState;
+  readonly armed: Armed | null;
+  readonly preview?: Tile | null;
+}
+
+/**
+ * What the armed slot of the combat screen reaches from where the adventurer stands (§4.3): the
+ * slot's addressing and range, through the placeholders' stand-in; null for an empty slot.
+ */
+export function combatAim(
+  state: SandboxState,
+  combat: CombatState,
+  armed: Armed,
+): CombatAim | null {
+  const { world } = state;
+  const adventurer = world.actors.find((a) => a.id === world.adventurerId);
+  if (!adventurer) return null;
+  const { bar, belt, entity } = combat.adventurer;
+  const skill = armed.kind === "skill" ? bar[armed.slot]?.skill : null;
+  const potion = armed.kind === "item" ? belt[armed.slot] : null;
+  const slot = skill
+    ? { addressing: skill.addressing, range: skill.range, shout: skill.look === "shout" }
+    : potion?.addressing
+      ? { addressing: potion.addressing, range: potion.range, shout: false }
+      : null;
+  if (!slot) return null;
+  const goblins = combat.goblins
+    .filter((g) => g.alive)
+    .map((g) => ({ entity: g.entity, tile: g.tile, foe: true }));
+  const { shout } = slot;
+  const aim = aimInRange(
+    world.terrain,
+    adventurer.tile,
+    entity,
+    slot.addressing,
+    slot.range,
+    goblins,
+    shout,
+  );
+  return {
+    addressing: slot.addressing,
+    reach: aim.reach,
+    greyed: aim.greyed,
+    marked: aim.marked,
+    ...(shout ? { area: { tiles: aim.area, marked: [] } } : {}),
+  };
+}
+
+/** The combat overlay of the session's combat screen (CLI-05a's `combatOverlay`, for CLI-05d). */
+function combatView(state: SandboxState, combat: SandboxCombat) {
+  const aim = combat.armed ? combatAim(state, combat.state, combat.armed) : null;
+  const preview = combat.preview ? { area: { tiles: [combat.preview], marked: [] } } : {};
+  return combatOverlay(combat.state, aim && { ...aim, ...preview });
+}
+
+/**
+ * The sandbox's fight (CLI-05 brief §9, `?combat=`): `base`'s terrain (the `edge` fixture's, around
+ * which `combat/fixture.ts` places it) with the fight's actors on it: the adventurer as a Vanguard
+ * on its tile, turned toward an adjacent goblin, and each living goblin with its entity as its id,
+ * turned toward the adventurer. No planned path.
+ */
+export function fightWorld(base: SandboxWorld, combat: CombatState): SandboxWorld {
+  const { adventurer } = combat;
+  const turned = (from: Tile, to: Tile, otherwise: Facing): Facing =>
+    facingToward(from, to) ?? otherwise;
+  const near = combat.goblins.find(
+    (g) => g.alive && facingToward(adventurer.tile, g.tile) !== null,
+  );
+  const own = base.actors.find((a) => a.id === base.adventurerId);
+  const facing = own?.facing ?? 0;
+  const actors: ViewActor[] = [
+    {
+      id: base.adventurerId,
+      side: "adventurer",
+      profession: "vanguard",
+      tile: adventurer.tile,
+      facing: near ? turned(adventurer.tile, near.tile, facing) : facing,
+      mark: null,
+    },
+    ...combat.goblins
+      .filter((g) => g.alive)
+      .map((g): ViewActor => ({
+        id: g.entity,
+        side: "goblin",
+        caste: (g.casteName ?? "runt") as Caste,
+        tile: g.tile,
+        facing: turned(g.tile, adventurer.tile, 0),
+        mark: g.mark,
+      })),
+  ];
+  return {
+    ...base,
+    name: "fight",
+    description: "The combat screen's fixed fight (CLI-05 brief §9) on the edge fixture",
+    actors,
+    path: [],
+  };
+}
+
+export function toView(
+  state: SandboxState,
+  fog: FogMode = "sight",
+  combat: SandboxCombat | null = null,
+): ViewState {
   const { world } = state;
   const { terrain } = world;
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
@@ -342,6 +457,7 @@ export function toView(state: SandboxState, fog: FogMode = "sight"): ViewState {
     structures: world.structures ?? [],
     ...(world.void ? { void: world.void } : {}),
     ...(!hub && fog === "sight" ? { fog: { sightRadius: SIGHT_RADIUS } } : {}),
+    ...(combat ? { combat: combatView(state, combat) } : {}),
   };
 }
 

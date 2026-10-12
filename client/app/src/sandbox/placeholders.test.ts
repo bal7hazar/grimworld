@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Facing, ViewActor } from "../render/view";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
+import { FIGHT, combatFixture } from "../combat/fixture";
 import {
   SIGHT_RADIUS,
+  aimInRange,
   arcsOf,
   distance,
   facingToward,
@@ -11,6 +13,8 @@ import {
   insideRing,
   neighbour,
   revealInSight,
+  spendCosts,
+  startRecharge,
   stepToward,
   stopsAfterStep,
   tilesInSight,
@@ -369,5 +373,93 @@ describe("stopsAfterStep (PLACEHOLDER until CLI-02, design/02)", () => {
     expect(
       stopsAfterStep({ terrain: hidden, actors: [me] }, { terrain: hidden, actors: [me] }).revealed,
     ).toBe(false);
+  });
+});
+
+describe("the combat screen's stand-ins (CLI-05c)", () => {
+  const terrain = open(30, 30);
+  const from = { x: 15, y: 15 };
+  const foes = [
+    { entity: 8, tile: { x: 16, y: 15 }, foe: true },
+    { entity: 9, tile: { x: 18, y: 15 }, foe: true },
+    { entity: 10, tile: { x: 13, y: 15 }, foe: true },
+  ];
+
+  it("a FOE slot reaches the floor tiles within its range and takes the foes there, nearest first", () => {
+    const aim = aimInRange(terrain, from, 0, "foe", 2, foes, false);
+    expect(aim.reach).toHaveLength(18);
+    expect(aim.reach.every((t) => distance(from, t) >= 1 && distance(from, t) <= 2)).toBe(true);
+    expect(aim.greyed).toEqual([]);
+    expect(aim.marked).toEqual([8, 10]);
+    expect(aim.area).toEqual([]);
+  });
+
+  it("range 1 is the six neighbours, a wall is neither reached nor greyed", () => {
+    const walled = {
+      ...terrain,
+      kinds: terrain.kinds.map((k, i) => (i === 15 * 30 + 16 ? "wall" : k)),
+    };
+    const aim = aimInRange(walled as Terrain, from, 0, "foe", 1, [], false);
+    expect(aim.reach).toHaveLength(5);
+    expect(aim.reach.some((t) => sameTile(t, { x: 16, y: 15 }))).toBe(false);
+  });
+
+  it("beyond sight, a tile in range is greyed", () => {
+    const aim = aimInRange(terrain, from, 0, "tile", SIGHT_RADIUS + 1, [], false);
+    expect(aim.greyed.length).toBeGreaterThan(0);
+    expect(aim.greyed.every((t) => distance(from, t) === SIGHT_RADIUS + 1)).toBe(true);
+    expect(aim.marked).toEqual([]);
+  });
+
+  it("a SELF slot takes the adventurer; a shout touches the six tiles around it", () => {
+    const aim = aimInRange(terrain, from, 0, "self", 0, foes, true);
+    expect(aim).toMatchObject({ reach: [], greyed: [], marked: [0] });
+    expect(aim.area).toHaveLength(6);
+    expect(aim.area.every((t) => distance(from, t) === 1)).toBe(true);
+  });
+
+  it("an ALLY slot alone takes the adventurer", () => {
+    expect(aimInRange(terrain, from, 0, "ally", 3, foes, false).marked).toEqual([0]);
+  });
+
+  it("playing a skill spends its costs and reads the costed slots again, adrenaline first", () => {
+    // Charge: 3 energy of Wren's 3 (fixture.ts); Second wind stays short of energy.
+    const state = combatFixture();
+    const after = spendCosts(state, { kind: "skill", slot: 2 });
+    expect(after.adventurer.energy).toBe(0);
+    expect(after.adventurer.bar.map((b) => b.state)).toEqual([
+      "wrong-weapon",
+      "recharging",
+      "short-energy",
+      "short-adrenaline",
+      "short-energy",
+      "empty",
+      "empty",
+      "empty",
+    ]);
+    expect(after.goblins).toBe(state.goblins);
+    expect(after.adventurer.chips).toBe(state.adventurer.chips);
+  });
+
+  it("drinking a potion spends one of its count; the last one leaves none", () => {
+    const state = combatFixture();
+    const once = spendCosts(state, { kind: "item", slot: 1 });
+    expect(once.adventurer.belt[1]).toMatchObject({ count: 0, state: "none-left" });
+    const twice = spendCosts(spendCosts(state, { kind: "item", slot: 0 }), {
+      kind: "item",
+      slot: 0,
+    });
+    expect(twice.adventurer.belt[0]).toMatchObject({ count: 1, state: "some" });
+  });
+
+  it("playing a skill starts its recharge; nothing else moves", () => {
+    const state = combatFixture();
+    const after = startRecharge(state, { kind: "skill", slot: 2 });
+    expect(after.adventurer.bar[2]).toMatchObject({ state: "recharging", ticks: 10 });
+    expect(after.clock).toBe(state.clock);
+    expect(startRecharge(state, { kind: "item", slot: 0 })).toBe(state);
+    expect(after.goblins.find((g) => g.entity === FIGHT.hobgoblin)).toBe(
+      state.goblins.find((g) => g.entity === FIGHT.hobgoblin),
+    );
   });
 });

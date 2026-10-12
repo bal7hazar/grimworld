@@ -1,6 +1,8 @@
 import type { Application } from "pixi.js";
 import { pixelToTile, screenToTile, tileToScreen } from "../input/coords";
 import { type Gesture, GestureTracker, WHEEL_NOTCH } from "../input/gestures";
+import type { CombatAim } from "../combat/controller";
+import type { Armed, CombatState } from "../combat/state";
 import type { Intent } from "../input/intent";
 import type { StepKey } from "../input/keys";
 import { loadAtlas } from "../render/atlas";
@@ -14,7 +16,7 @@ import type { SpriteLibrary } from "../render/sprites";
 import type { Tile } from "../render/view";
 import { fixtureNamed } from "./fixtures";
 import { SandboxSession, type WalkInfo } from "./session";
-import { type FogMode, stepTarget } from "./wiring";
+import { type FogMode, type SandboxCombat, stepTarget } from "./wiring";
 import type { SandboxWorld } from "./world";
 
 /** What the debug panel shows. */
@@ -359,6 +361,21 @@ export class SandboxController {
   fogCounts(): (FogCounts & { readonly exploredSet: number }) | null {
     const counts = this.renderer.fogCounts();
     return counts && { ...counts, exploredSet: this.session.state.explored.size };
+  }
+
+  /** The combat screen's state and armed slot (CLI-05c): the session draws them with the map. */
+  setCombat(combat: SandboxCombat | null): void {
+    this.session.setCombat(combat);
+  }
+
+  /** What a combat slot reaches from where the adventurer stands (the session's stand-in). */
+  combatAim(combat: CombatState, armed: Armed): CombatAim | null {
+    return this.session.combatAim(combat, armed);
+  }
+
+  /** The actor selected on the map (a tap on it), or null: the combat screen's target zone. */
+  selectedActorId(): number | null {
+    return this.session.state.selectedActorId;
   }
 
   /** Where the adventurer stands: the loop reads it after every change (a hub gate's anchor). */

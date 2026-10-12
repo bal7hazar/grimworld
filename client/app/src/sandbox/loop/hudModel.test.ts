@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ADVENTURER, type AdventurerSheet } from "../fixtures/hubs";
 import { hudSheet, readHud } from "../params";
-import { hudModel, portraitLabel } from "./hudModel";
+import { combatFixture } from "../../combat/fixture";
+import { chipModel, fightSheet, hudModel, portraitLabel } from "./hudModel";
 
 /** The status band's content (CLI-03l AC-5), on the pure model: no DOM. */
 describe("hudModel", () => {
@@ -64,6 +65,50 @@ describe("hudModel", () => {
   it("names the inspected adventurer", () => {
     expect(portraitLabel({ name: "Maren", profession: "warden", level: 7 })).toBe(
       "Maren, Warden level 7",
+    );
+  });
+});
+
+describe("the combat screen's band (CLI-05c)", () => {
+  it("shows the fight's figures", () => {
+    const { adventurer } = combatFixture();
+    const model = hudModel(fightSheet(ADVENTURER, adventurer), "atlas");
+    expect(model.meters.map((m) => m.text)).toEqual(["118 / 160", "3 / 20"]);
+    expect(model.adrenaline).toEqual({ count: 0, label: "Adrenaline: 0 strikes" });
+    const warden: AdventurerSheet = { ...ADVENTURER, adrenaline: null };
+    expect(fightSheet(warden, adventurer).adrenaline).toBeNull();
+  });
+
+  it("writes Wren's chips: a letter, then pips, charges and ticks left (§6.1)", () => {
+    const chips = combatFixture().adventurer.chips.map(chipModel);
+    expect(chips).toEqual([
+      { letter: "B", figure: "4", label: "Bleeding, 4 ticks left", kind: "condition" },
+      {
+        letter: "R",
+        figure: "+2 · 5",
+        label: "Regeneration, +2 a tick, 5 ticks left",
+        kind: "effect",
+      },
+      { letter: "▣", figure: "×2 · 6", label: "Block, 2 charges, 6 ticks left", kind: "effect" },
+    ]);
+  });
+
+  it("an effect that lasts by charges only shows no ticks; a negative pip is signed", () => {
+    const chip = {
+      kind: "effect" as const,
+      letter: "R",
+      name: "Regeneration",
+      ticks: null,
+      charges: 3,
+      pips: -1,
+      source: null,
+    };
+    expect(chipModel(chip)).toMatchObject({
+      figure: "−1 · ×3",
+      label: "Regeneration, −1 a tick, 3 charges",
+    });
+    expect(chipModel({ ...chip, charges: 1, pips: null, ticks: 1 }).label).toBe(
+      "Regeneration, 1 charge, 1 tick left",
     );
   });
 });

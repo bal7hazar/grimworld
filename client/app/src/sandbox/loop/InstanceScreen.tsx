@@ -1,6 +1,20 @@
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Button, Panel } from "../../chrome/Chrome";
-import type { LoopIntent } from "../../input/intent";
+import { Belt } from "../../combat/Belt";
+import { CombatLogLine } from "../../combat/CombatLog";
+import { type CombatController, type CombatView, slotOf } from "../../combat/controller";
+import { Inspection, SkillBar } from "../../combat/SkillBar";
+import { TargetZone } from "../../combat/TargetZone";
+import type { CombatState } from "../../combat/state";
+import type { Intent, LoopIntent } from "../../input/intent";
 import type { KeyCommand, KeyLike } from "../../input/keys";
 import type { Tile } from "../../render/view";
 import type { SandboxController } from "../controller";
@@ -8,7 +22,10 @@ import { type GateRecord, globalTile, locationOf } from "../fixtures/region";
 import { zoneWorld } from "../fixtures/zone";
 import { keyUi, offScreen, useKeyLayer, useScreenFocus } from "../keyScope";
 import { type MapKeys, RoomSandbox } from "../Sandbox";
+import { spendCosts, startRecharge } from "../wiring";
+import type { SandboxWorld } from "../world";
 import { Hud, bandSheet } from "./Hud";
+import { fightSheet } from "./hudModel";
 import { goIntent, leaveAsked, nextTarget, zoneTargets } from "./keyTargets";
 import { hubName, leaveQuestion } from "./machine";
 import { ui } from "./styles";
@@ -21,6 +38,26 @@ type Asking = { kind: "leave"; gate: GateRecord } | { kind: "travel back" };
  */
 export function trapsTab(event: KeyLike): boolean {
   return event.code === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey;
+}
+
+/**
+ * The combat screen's fight (CLI-05c, `?combat=`): its controller, the world it stands on, and the
+ * layout (on a phone, the log's last line under the target zone; on a desktop, a panel beside).
+ */
+export interface Fight {
+  readonly controller: CombatController;
+  readonly world: SandboxWorld;
+  readonly phone: boolean;
+}
+
+/** No fight: a store that never changes. */
+const NO_FIGHT = { subscribe: () => () => {}, view: (): CombatView | null => null };
+
+/** The entity of the combat actor on `tile` (the adventurer's, a living goblin's), or null. */
+function actorOn(state: CombatState, tile: Tile): number | null {
+  const on = (t: Tile) => t.x === tile.x && t.y === tile.y;
+  if (on(state.adventurer.tile)) return state.adventurer.entity;
+  return state.goblins.find((g) => g.alive && on(g.tile))?.entity ?? null;
 }
 
 /** A hub gate's anchor, as its record gives it. */
@@ -36,6 +73,14 @@ const anchorOf = (gate: GateRecord) => globalTile(gate.anchor_chunk, gate.anchor
  * `Enter` taps the anchor, `L` is the Leave control (on an anchor only), `Esc` cancels the walk,
  * then clears the selection. The confirmation opens with Stay focused and keeps the focus inside
  * it; leaving takes `Tab` then `Enter`. No key for Travel back.
+ *
+ * With a `fight` (CLI-05c, `?combat=`), the combat screen: the band's chips, the target zone, the
+ * skill bar and the belt under the map (CLI-05 brief §2, §3, §6), the log's last line on a phone.
+ * A tap on a slot or its key (`1`–`8`, `Z X C V`) goes to the fight's controller; while a slot is
+ * armed, a tap on the map chooses its target (§4.1), `F` / `Shift+F` cycle the targets and `Enter`
+ * plays, and `Esc` closes an inspection, then disarms, before the walk and the selection. The
+ * screen hands its state and armed slot to the map (`ViewState.combat`) and the map answers what a
+ * slot reaches. The ways out are not shown: the fight has no loop around it.
  */
 export function InstanceScreen({
   location,
@@ -44,22 +89,28 @@ export function InstanceScreen({
   gateHere,
   dispatch,
   onMoved,
+  fight,
 }: {
-  location: number;
-  entry: Tile;
+  /** The instance's location and entry tile; unused in a fight, whose world is given. */
+  location?: number;
+  entry?: Tile;
   /** The hub gate to offer on its own: on its anchor after leaving one (the machine's `leaveOffer`). */
   offer: GateRecord | null;
   /** The hub gate under the adventurer, if any, at arrival too (the machine's `gateHere`). */
   gateHere: GateRecord | null;
   dispatch: (intent: LoopIntent) => void;
   onMoved: (tile: Tile) => void;
+  fight?: Fight;
 }) {
-  const world = useMemo(() => zoneWorld(entry, locationOf(location)), [entry, location]);
+  const world = useMemo(
+    () => fight?.world ?? zoneWorld(entry!, locationOf(location!)),
+    [entry, location, fight?.world],
+  );
   const [asking, setAsking] = useState<Asking | null>(null);
   const offerOpen = offer !== null;
   const root = useScreenFocus();
   const mapBox = useRef<HTMLDivElement>(null);
-  const targets = useMemo(() => zoneTargets(location, anchorOf), [location]);
+  const targets = useMemo(() => (fight ? [] : zoneTargets(location!, anchorOf)), [location, fight]);
   const [selected, setSelected] = useState<number | null>(null);
   const chosen = selected === null ? null : (targets[selected] ?? null);
   const chosenRef = useRef(chosen);
@@ -83,12 +134,55 @@ export function InstanceScreen({
     if (shown.current) place(shown.current);
   }, [chosen, place]);
 
+  // The fight (CLI-05c): its view, the map's controller once mounted, the actor selected there.
+  const store = fight?.controller ?? NO_FIGHT;
+  const combat = useSyncExternalStore(store.subscribe, store.view);
+  const [map, setMap] = useState<SandboxController | null>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const changed = (controller: SandboxController) => {
+    if (!fight) return;
+    if (map !== controller) {
+      setMap(controller);
+      fight.controller.setRules({
+        aim: (state, armed) => controller.combatAim(state, armed),
+        play: (state, armed) => startRecharge(spendCosts(state, armed), armed),
+      });
+    }
+    const id = controller.selectedActorId();
+    setPicked(id === null || id === world.adventurerId ? null : id);
+    const tile = controller.adventurerTile();
+    if (tile) fight.controller.moved(tile);
+  };
+  useEffect(() => {
+    if (!map || !combat) return;
+    map.setCombat({ state: combat.state, armed: combat.armed, preview: combat.preview });
+  }, [map, combat]);
+  // While a slot is armed, a tap on the map is the controller's: an actor, or a tile (§4.1).
+  const route = (intent: Intent): Intent | null => {
+    const now = fight?.controller.view();
+    if (!fight || !now?.armed || intent.kind !== "tile") return intent;
+    const entity = actorOn(now.state, intent.tile);
+    // A TILE slot aims at a tile whatever stands on it; CLI-05a's targeting decides if it is taken.
+    if (entity === null || now.aim?.addressing === "tile") fight.controller.tile(intent.tile);
+    else fight.controller.actor(entity);
+    return null;
+  };
+
   const onKey = (command: KeyCommand, map: MapKeys): boolean => {
     switch (command.kind) {
       case "step":
         setSelected(null);
         return map.handle(command);
+      case "skill":
+      case "belt":
+        if (!fight) return map.handle(command);
+        fight.controller.slot({
+          kind: command.kind === "skill" ? "skill" : "item",
+          slot: command.slot,
+        });
+        return true;
       case "cycle": {
+        if (fight?.controller.cycle(command.by)) return true;
         const next = nextTarget(targets.length, selected, command.by);
         setSelected(next);
         const target = next === null ? null : targets[next];
@@ -98,6 +192,7 @@ export function InstanceScreen({
         return true;
       }
       case "go":
+        if (fight?.controller.go()) return true;
         if (!chosen || !map.controller) return false;
         map.controller.apply(goIntent(chosen.tile));
         return true;
@@ -107,6 +202,7 @@ export function InstanceScreen({
         return ask !== null;
       }
       case "escape":
+        if (fight?.controller.escape()) return true;
         if (map.handle(command)) return true;
         if (selected === null) return false;
         setSelected(null);
@@ -118,11 +214,13 @@ export function InstanceScreen({
 
   return (
     <div ref={root} tabIndex={-1} style={{ ...ui.screen, ...keyUi.root }} data-screen="instance">
-      <Hud sheet={bandSheet()} />
+      <FightHud combat={combat} />
       <div ref={mapBox} style={styles.map} data-map-box="">
         <RoomSandbox
           world={world}
           onTile={(tile) => tile && onMoved(tile)}
+          onChange={changed}
+          {...(fight ? { route } : {})}
           onFrame={place}
           onKey={onKey}
         >
@@ -139,7 +237,7 @@ export function InstanceScreen({
               </Button>
             )}
           </div>
-          <div style={styles.right}>
+          <div style={fight ? { display: "none" } : styles.right}>
             <Button
               variant="action"
               plain={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
@@ -178,13 +276,59 @@ export function InstanceScreen({
               }}
             />
           )}
+          {fight && combat?.inspected && slotOf(combat.state, combat.inspected) && (
+            <Inspection
+              slot={slotOf(combat.state, combat.inspected)!}
+              onClose={() => fight.controller.escape()}
+            />
+          )}
         </RoomSandbox>
       </div>
+      {fight && combat && (
+        <>
+          <TargetZone state={combat.state} selected={combat.focus ?? picked} />
+          {fight.phone && <CombatLogLine lines={combat.log} />}
+          <div style={styles.dock} data-combat-dock="">
+            <div style={styles.said} aria-live="polite" data-said="">
+              {combat.said}
+            </div>
+            <SkillBar
+              bar={combat.state.adventurer.bar}
+              armed={combat.armed}
+              activation={combat.state.adventurer.activation}
+              keys={!fight.phone}
+              onSlot={(slot) => fight.controller.slot({ kind: "skill", slot })}
+              onInspect={(slot) => fight.controller.inspect({ kind: "skill", slot })}
+              onWait={() => fight.controller.note("You waited")}
+            />
+            <Belt
+              belt={combat.state.adventurer.belt}
+              armed={combat.armed}
+              keys={!fight.phone}
+              onSlot={(slot) => fight.controller.slot({ kind: "item", slot })}
+              onInspect={(slot) => fight.controller.inspect({ kind: "item", slot })}
+            />
+          </div>
+        </>
+      )}
       <span style={keyUi.hidden} aria-live="polite" data-key-live="">
         {chosen ? `Gate to ${hubName(chosen.gate.destination)} selected, Enter to go` : ""}
       </span>
     </div>
   );
+}
+
+/**
+ * The status band: the fixed sheet, or in a fight its figures and Wren's chips. Its sheet changes
+ * only with the fight's adventurer, so the band renders again only then (`Hud` is memoised).
+ */
+function FightHud({ combat }: { combat: CombatView | null }) {
+  const adventurer = combat?.state.adventurer ?? null;
+  const sheet = useMemo(
+    () => (adventurer ? fightSheet(bandSheet(), adventurer) : bandSheet()),
+    [adventurer],
+  );
+  return <Hud sheet={sheet} {...(adventurer ? { chips: adventurer.chips } : {})} />;
 }
 
 /**
@@ -248,6 +392,24 @@ function Confirm({
 const styles: Record<string, CSSProperties> = {
   /** The map's box under the band: the room fills it, the controls sit at its corners. */
   map: { position: "relative", flex: 1, minHeight: 0, overflow: "hidden" },
+  /** The bar and the belt under the target zone (CLI-05c): their height never changes. */
+  dock: {
+    flex: "none",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 8px 10px",
+    background: "#0b0b0e",
+    borderTop: "1px solid #2a2a33",
+  },
+  said: {
+    alignSelf: "stretch",
+    minHeight: "1.125rem",
+    font: "0.8125rem/1.125rem system-ui",
+    color: "#f2c94c",
+    textAlign: "center",
+  },
   top: {
     position: "absolute",
     bottom: 76,
