@@ -76,7 +76,7 @@ export const LAST_TICK = 0xfffffff - 0xffff - 10;
 export const status = { INSIDE: 0, DOWN: 1, GONE: 2 } as const;
 
 /** The distinct goblin records an invocation may change (E-16): `MAX_GOBLINS` of a tick's world. */
-const MAX_GOBLINS = 100;
+export const MAX_GOBLINS = 100;
 /** The first goblin's entity, and the ids a chunk's goblins take (M-5: `8 + 16 chunk + k`). */
 const FIRST_GOBLIN = 8;
 const GOBLINS_STRIDE = 16;
@@ -212,7 +212,7 @@ const calm = (world: World): boolean =>
   world.members.every((member) => member.act_slot === NO_SLOT);
 
 /** `SegmentTrait::idle`: whether the ticks take the fast path (no living goblin in the window). */
-function idle(world: World, on: Board): boolean {
+export function idle(world: World, on: Board): boolean {
   if (!calm(world)) return false;
   return alive(world).every((goblin) => {
     const { x, y } = goblinPlace(goblin);
@@ -221,7 +221,7 @@ function idle(world: World, on: Board): boolean {
 }
 
 /** `TickTrait::check`: a member inside at 0 is down, and the adventurer defeated. */
-function check(world: World): void {
+export function check(world: World): void {
   if (!world.members.some((member) => downs(member) === 1)) return;
   for (const member of world.members) {
     if (downs(member) === 1) member.status = status.DOWN;
@@ -233,7 +233,7 @@ function check(world: World): void {
  * `TickTrait::idle`: up to `n` ticks of the fast path, stopping after the one that defeats: with no
  * member down the clock advances, the flags clear, the members alive regenerate; then the check.
  */
-function fast(world: World, n: number): void {
+export function fast(world: World, n: number): void {
   for (let k = 0; k < n && !world.defeated; k++) {
     if (world.goblins.length > MAX_GOBLINS) panic("tick: too many goblins");
     if (!world.members.some((member) => downs(member) === 1)) {
@@ -253,10 +253,17 @@ function into(world: World, words: Words, sheets: Sheets): void {
   Object.assign(world, reload(words, sheets));
 }
 
+/** `SegmentTrait::ticks`' path (CLI-02g-F): 2 none (`n` 0, or defeated), 1 the fast path, 0 `TickLibrary`. */
+export function path(world: World, on: Board, n: number): 0 | 1 | 2 {
+  if (n === 0 || world.defeated) return 2;
+  return idle(world, on) ? 1 : 0;
+}
+
 /** `SegmentTrait::ticks`: `n` ticks, on the fast path, else through `TickLibrary`. */
 function ticks(world: World, rules: Rules, n: number): void {
-  if (n === 0 || world.defeated) return;
-  if (idle(world, rules.board)) {
+  const way = path(world, rules.board, n);
+  if (way === 2) return;
+  if (way === 1) {
     fast(world, n);
     return;
   }
@@ -281,7 +288,7 @@ function placer(param: number): number | undefined {
  * `AiTrait::armed`: the unused trap (a terrain one, kind 4, or a placed one, 9) on the window's
  * `position` in the ground: `null` for a terrain trap, its placer's param for a placed one.
  */
-function armed(ground: Ground, on: Board, at: number): { param: number | null } | undefined {
+export function armed(ground: Ground, on: Board, at: number): { param: number | null } | undefined {
   const where = locate(on, at);
   if (where === undefined) return undefined;
   const [c, tile] = where;

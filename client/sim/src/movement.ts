@@ -172,6 +172,43 @@ export function next_step(flood: Flood, position: number, blocked: bigint): numb
   return lowest(free);
 }
 
+/** The greatest layer of `layers` touching `set`, from the last, with the tiles of `set` it holds. */
+function last(layers: readonly bigint[], set: bigint): bigint | undefined {
+  for (let k = layers.length - 1; k >= 0; k--) {
+    const hit = layers[k]! & set;
+    if (hit !== 0n) return hit;
+  }
+  return undefined;
+}
+
+/**
+ * `FloodTrait::next_step_away` (CLI-02g-F): the walker's free neighbour in the greatest layer that
+ * holds one, lowest index first. At the cap, a free neighbour in the last layer is the step only
+ * when the walker is reached (it touches a lower layer, or it is the source, D-25). `undefined`
+ * outside the window or with every neighbour blocked.
+ */
+export function next_step_away(
+  flood: Flood,
+  position: number,
+  blocked: bigint,
+): number | undefined {
+  if (!inside(position)) return undefined;
+  const near = around(position);
+  const free = near & ~blocked;
+  if (free === 0n) return undefined;
+  let layers = flood.layers;
+  if (capped(flood)) {
+    const top = layers[layers.length - 1]! & free;
+    layers = layers.slice(0, -1);
+    if (top !== 0n) {
+      if (source(flood, position) || last(layers, near) !== undefined) return lowest(top);
+      return undefined;
+    }
+  }
+  const hit = last(layers, free);
+  return hit === undefined ? undefined : lowest(hit);
+}
+
 /**
  * `FloodTrait::distance`: a tile's layer, or for a tile in none the least layer of its neighbours
  * plus one (D-26); `undefined` outside the window or when neither it nor a neighbour is in a layer.

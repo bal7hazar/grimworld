@@ -48,7 +48,7 @@ import {
 } from "./segment/words";
 import type { World } from "./segment/world";
 import { from16, from8 } from "./signed";
-import { Arc, FAR, arc, front, inside, range, shape, shapes } from "./window";
+import { Arc, FAR, arc, front, inside, range, reach as inReach, shape, shapes } from "./window";
 
 export type { Board };
 
@@ -793,6 +793,51 @@ export function addressing(
     return [entry(sheets, carrier.at, 0).target, sheet.range];
   }
   return [potion_entry(sheets, carrier.at).target, at(sheets.potions, carrier.at).range];
+}
+
+/**
+ * `ExecutorTrait::carrier` (CLI-02g-F): the carrier of `actor`'s activation `slot`, a member's bar
+ * skill at its rank, a goblin's caste skill at its caste's rank.
+ */
+export function carrier(world: World, sheets: Sheets, actor: Actor, slot: number): Carrier {
+  if (actor.kind === "M") {
+    const member = at(world.members, actor.i);
+    return { kind: "Skill", at: position(member, slot), rank: rank(member, slot) };
+  }
+  const goblin = at(world.goblins, actor.i);
+  return {
+    kind: "Skill",
+    at: at(at(sheets.kits, goblin.caste_at).skills, slot),
+    rank: at(sheets.castes, goblin.caste_at).rank,
+  };
+}
+
+/**
+ * `ExecutorTrait::legal` (CLI-02g-F): whether `carrier`'s target is legal for `source` now (§5.9 at
+ * resolution): an entity it addresses alive and in reach, a tile in reach; `SELF` always.
+ */
+export function legal(
+  world: World,
+  sheets: Sheets,
+  board: Board,
+  source: Actor,
+  carried: Carrier,
+  address: number,
+): boolean {
+  const [addressed, reach] = addressing(world, sheets, source, carried);
+  if (addressed === target.SELF) return true;
+  const [, from] = locate(world, board, source);
+  let to: number;
+  if (addressed === target.TILE) {
+    to = tile(board, address);
+  } else {
+    const found = actor(world, address);
+    if (found === undefined) return false;
+    const [alive, position] = locate(world, board, found);
+    if (!alive) return false;
+    to = position;
+  }
+  return inReach(board.open, from, to, reach);
 }
 
 /** `WindowTrait::near`: a shape of radius 1 at most on `centre`, its walkable tiles; else none. */

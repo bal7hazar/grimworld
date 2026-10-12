@@ -152,6 +152,8 @@ export type { ActCall, Classes, TicksCall, TriggerCall } from "./segment/classes
 export { triggerClass as trapTrigger } from "./trap";
 // `ActionLibrary::act`, computed (CLI-02g-E): a `Classes.act` for a preview
 export { actClass as actionAct } from "./action";
+// `TickLibrary::ticks`, computed (CLI-02g-F): a `Classes.ticks` for a preview
+export { ticksClass as tickTicks } from "./tick";
 export {
   Felts,
   readAction,
