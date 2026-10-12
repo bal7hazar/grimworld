@@ -9,6 +9,7 @@ import {
   groundPlan,
   hexCorners,
 } from "./ground";
+import type { CombatOverlay } from "../combat/overlay";
 import type { Caste, Mark, Profession, Tile, ViewState, ViewStructure, ViewTile } from "./view";
 
 /**
@@ -45,6 +46,18 @@ const COLOURS = {
   gateShade: 0x5c574d,
   bush: 0x3f6a2c,
   bushLight: 0x5f8f3f,
+  range: 0x7dd3fc,
+  greyed: 0x6b7280,
+  greyedCross: 0xd1d5db,
+  area: 0xfb923c,
+  target: 0xffffff,
+  shout: 0xef4444,
+  ringBack: 0x000000,
+  ringGoblin: 0xf87171,
+  ringAdventurer: 0x93c5fd,
+  interruptible: 0xfacc15,
+  label: 0xffffff,
+  labelBack: 0x000000,
 };
 
 export { hexCorners };
@@ -297,22 +310,104 @@ export interface OverlayPlan {
   readonly crosses: readonly Tile[];
   readonly path: readonly Tile[];
   readonly selected: Tile | null;
+  /** Combat on the map (CLI-05d), from `ViewState.combat`; null when the view has none. */
+  readonly combat: CombatPlan | null;
+}
+
+/** An activation's ring (CLI-05 brief §5): around the caster's tile, filling tick by tick. */
+export interface ActivationRing {
+  readonly tile: Tile;
+  /** The ticks left, the figure on the ring. */
+  readonly ticks: number;
+  readonly total: number;
+  /** The part of the activation gone by, 0 at its start to `(total − 1) / total` a tick before it resolves. */
+  readonly filled: number;
+  /** The adventurer's own (the sandbox's, §9), drawn in its colour. */
+  readonly own: boolean;
+  /** A ready slot can interrupt it now: the ring highlighted and doubled (§5). */
+  readonly interruptible: boolean;
+}
+
+/**
+ * What the overlay draws of combat (CLI-05 brief §4.2, §4.3, §5, §6.1), placed from `CombatOverlay`
+ * as given: nothing here decides a rule.
+ */
+export interface CombatPlan {
+  /** The armed slot's range: tinted. */
+  readonly range: readonly Tile[];
+  /** In range but refused (out of sight, a trap's tile that takes none): greyed, a thin cross. */
+  readonly greyed: readonly Tile[];
+  /** The carrier's shapes around the previewed target: tinted, outlined. */
+  readonly area: readonly Tile[];
+  /** The actors marked as targets. */
+  readonly targets: readonly Tile[];
+  readonly activations: readonly ActivationRing[];
+  /** From each caster to its target. */
+  readonly lines: readonly { readonly from: Tile; readonly to: Tile }[];
+  /** The target marks, once a tile: the actors marked, and each line's end. */
+  readonly marks: readonly Tile[];
+  /** A shout's ring of tiles, tinted faintly. */
+  readonly shouts: readonly Tile[];
+  /** A goblin's condition letters under its feet, as drawn: at most three, then `+`. */
+  readonly letters: readonly { readonly tile: Tile; readonly text: string }[];
+  /** The actors laid flat (the renderer turns their body). */
+  readonly knocked: readonly Tile[];
+}
+
+const same = (a: Tile, b: Tile) => a.x === b.x && a.y === b.y;
+
+/** The combat part of the plan, from `ViewState.combat`; `own` is the adventurer's tile. */
+export function combatPlan(combat: CombatOverlay, own: Tile | null): CombatPlan {
+  const lines = combat.activations.flatMap((a) =>
+    a.target && !same(a.target, a.tile) ? [{ from: a.tile, to: a.target }] : [],
+  );
+  const marks = new Map<string, Tile>();
+  for (const t of [...combat.targets, ...lines.map((l) => l.to)]) marks.set(`${t.x},${t.y}`, t);
+  return {
+    range: combat.range,
+    greyed: combat.greyed,
+    area: combat.area,
+    targets: combat.targets,
+    activations: combat.activations.map((a) => {
+      const total = Math.max(a.total, a.ticks, 1);
+      return {
+        tile: a.tile,
+        ticks: a.ticks,
+        total: a.total,
+        filled: Math.min(1, Math.max(0, (total - a.ticks) / total)),
+        own: own !== null && same(a.tile, own),
+        interruptible: a.interruptible,
+      };
+    }),
+    lines,
+    marks: [...marks.values()],
+    shouts: combat.activations.flatMap((a) => a.area),
+    letters: combat.letters.map((l) => ({
+      tile: l.tile,
+      text: l.letters.join("") + (l.more ? "+" : ""),
+    })),
+    knocked: combat.knocked,
+  };
 }
 
 export function overlayPlan(view: ViewState): OverlayPlan {
   const inSight = new Set(view.sight.map((t) => `${t.x},${t.y}`));
+  const own = view.actors.find((a) => a.id === view.adventurerId)?.tile ?? null;
   return {
     dimmed: view.tiles.filter((t) => t.kind !== "unrevealed" && !inSight.has(`${t.x},${t.y}`)),
     rings: view.arcs?.rearSide ?? [],
     crosses: view.arcs?.back ?? [],
     path: view.path,
     selected: view.selectedTile,
+    combat: view.combat ? combatPlan(view.combat, own) : null,
   };
 }
 
 /**
  * What changes with the view but does not move: beyond sight dimmed, the planned path, the
- * selected tile, the selected actor's rear-side (a tint and a ring) and back (a tint and a cross).
+ * selected tile, the selected actor's rear-side (a tint and a ring) and back (a tint and a cross),
+ * and combat's ground (`drawCombat`). Combat's target marks, figures and letters stand over the
+ * actors, in their own Graphics (`drawCombatLabels`).
  */
 export function drawOverlay(g: Graphics, view: ViewState, under?: (g: Graphics) => void): void {
   const plan = overlayPlan(view);
@@ -322,6 +417,7 @@ export function drawOverlay(g: Graphics, view: ViewState, under?: (g: Graphics) 
   for (const tile of plan.dimmed) {
     g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: DIM_ALPHA });
   }
+  if (plan.combat) drawCombat(g, plan.combat);
   drawArcs(g, plan);
   drawGhosts(g, plan.path);
   if (plan.selected) {
@@ -329,6 +425,185 @@ export function drawOverlay(g: Graphics, view: ViewState, under?: (g: Graphics) 
       width: 3,
       color: COLOURS.selected,
     });
+  }
+}
+
+/** An activation ring's radius around its tile's centre, in art px: inside the hex. */
+export const RING_RADIUS = 26;
+/** A target mark's radius. */
+export const TARGET_RADIUS = 13;
+
+/**
+ * Combat on the ground, under the actors (CLI-05 brief §4.2, §4.3, §5): the range tinted, its
+ * refused tiles greyed and crossed, a shout's tiles, the area, the rings of the activations (a
+ * faint full turn, the part gone by filled; an interruptible one in its own colour and doubled) and
+ * the lines to their targets. Colour is never alone: greyed tiles are crossed, the area is
+ * outlined, an interruptible ring is doubled.
+ */
+export function drawCombat(g: Graphics, plan: CombatPlan): void {
+  for (const tile of plan.range) {
+    const hex = hexCorners(tileToPixel(tile), -1);
+    g.poly(hex).fill({ color: COLOURS.range, alpha: 0.22 });
+    g.poly(hex).stroke({ width: 1.5, color: COLOURS.range, alpha: 0.6 });
+  }
+  for (const tile of plan.greyed) {
+    const c = tileToPixel(tile);
+    g.poly(hexCorners(c, -1)).fill({ color: COLOURS.greyed, alpha: 0.5 });
+    g.moveTo(c.x - 7, c.y - 7)
+      .lineTo(c.x + 7, c.y + 7)
+      .moveTo(c.x + 7, c.y - 7)
+      .lineTo(c.x - 7, c.y + 7)
+      .stroke({ width: 1.5, color: COLOURS.greyedCross, alpha: 0.8 });
+  }
+  for (const tile of plan.shouts) {
+    g.poly(hexCorners(tileToPixel(tile), -1)).fill({ color: COLOURS.shout, alpha: 0.15 });
+  }
+  for (const tile of plan.area) {
+    const hex = hexCorners(tileToPixel(tile), -3);
+    g.poly(hex).fill({ color: COLOURS.area, alpha: 0.35 });
+    g.poly(hex).stroke({ width: 2, color: COLOURS.area });
+  }
+  for (const line of plan.lines) {
+    const from = tileToPixel(line.from);
+    const to = tileToPixel(line.to);
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    if (length <= RING_RADIUS + TARGET_RADIUS) continue;
+    const ux = (to.x - from.x) / length;
+    const uy = (to.y - from.y) / length;
+    g.moveTo(from.x + ux * RING_RADIUS, from.y + uy * RING_RADIUS)
+      .lineTo(to.x - ux * TARGET_RADIUS, to.y - uy * TARGET_RADIUS)
+      .stroke({ width: 2, color: COLOURS.ringGoblin, alpha: 0.85 });
+  }
+  for (const ring of plan.activations) drawRing(g, ring);
+}
+
+/** A target mark: a circle and four ticks outward, as a sight's reticle. */
+function drawTargetMark(g: Graphics, c: { x: number; y: number }): void {
+  const r = TARGET_RADIUS;
+  g.circle(c.x, c.y, r).stroke({ width: 2, color: COLOURS.target });
+  g.moveTo(c.x - r - 5, c.y)
+    .lineTo(c.x - r + 3, c.y)
+    .moveTo(c.x + r - 3, c.y)
+    .lineTo(c.x + r + 5, c.y)
+    .moveTo(c.x, c.y - r - 5)
+    .lineTo(c.x, c.y - r + 3)
+    .moveTo(c.x, c.y + r - 3)
+    .lineTo(c.x, c.y + r + 5)
+    .stroke({ width: 2, color: COLOURS.target });
+}
+
+function drawRing(g: Graphics, ring: ActivationRing): void {
+  const c = tileToPixel(ring.tile);
+  const colour = ring.interruptible
+    ? COLOURS.interruptible
+    : ring.own
+      ? COLOURS.ringAdventurer
+      : COLOURS.ringGoblin;
+  g.circle(c.x, c.y, RING_RADIUS).stroke({ width: 5, color: COLOURS.ringBack, alpha: 0.45 });
+  g.circle(c.x, c.y, RING_RADIUS).stroke({ width: 1.5, color: colour, alpha: 0.6 });
+  if (ring.filled > 0) {
+    // From the bottom, clockwise on screen: the part in front of the body fills first.
+    const start = Math.PI / 2;
+    const end = start + ring.filled * 2 * Math.PI;
+    g.moveTo(c.x + RING_RADIUS * Math.cos(start), c.y + RING_RADIUS * Math.sin(start))
+      .arc(c.x, c.y, RING_RADIUS, start, end)
+      .stroke({ width: 4, color: colour });
+  }
+  if (ring.interruptible) {
+    g.circle(c.x, c.y, RING_RADIUS + 5).stroke({ width: 2, color: COLOURS.interruptible });
+  }
+}
+
+/** The pixel font of the overlay's figures and letters: 3 × 5 cells, a row a string. */
+const GLYPHS: Readonly<Record<string, readonly string[]>> = {
+  "0": ["111", "101", "101", "101", "111"],
+  "1": ["010", "110", "010", "010", "111"],
+  "2": ["111", "001", "111", "100", "111"],
+  "3": ["111", "001", "111", "001", "111"],
+  "4": ["101", "101", "111", "001", "001"],
+  "5": ["111", "100", "111", "001", "111"],
+  "6": ["111", "100", "111", "101", "111"],
+  "7": ["111", "001", "010", "010", "010"],
+  "8": ["111", "101", "111", "101", "111"],
+  "9": ["111", "101", "111", "001", "111"],
+  B: ["110", "101", "110", "101", "110"],
+  C: ["011", "100", "100", "100", "011"],
+  F: ["111", "100", "110", "100", "100"],
+  K: ["101", "101", "110", "101", "101"],
+  P: ["110", "101", "110", "100", "100"],
+  "+": ["000", "010", "111", "010", "000"],
+};
+
+/** One cell of the pixel font, in art px. */
+export const LABEL_CELL = 2;
+const GLYPH_WIDTH = 3 * LABEL_CELL;
+const GLYPH_HEIGHT = 5 * LABEL_CELL;
+const GLYPH_GAP = LABEL_CELL;
+const LABEL_PAD = 2;
+
+/** Whether the pixel font draws a character. */
+export function hasGlyph(char: string): boolean {
+  return char in GLYPHS;
+}
+
+/** A label's width in art px, its backing included. */
+export function labelWidth(text: string): number {
+  const chars = [...text].length;
+  return chars * GLYPH_WIDTH + Math.max(0, chars - 1) * GLYPH_GAP + 2 * LABEL_PAD;
+}
+
+/**
+ * A label centred on `(x, y)`: a dark backing, then each character's cells in the pixel font. A
+ * character the font lacks is a full block, so that nothing is silently dropped.
+ */
+export function drawLabel(g: Graphics, text: string, x: number, y: number, colour: number): void {
+  const width = labelWidth(text);
+  const left = x - width / 2;
+  const top = y - GLYPH_HEIGHT / 2 - LABEL_PAD;
+  g.rect(left, top, width, GLYPH_HEIGHT + 2 * LABEL_PAD).fill({
+    color: COLOURS.labelBack,
+    alpha: 0.7,
+  });
+  let at = left + LABEL_PAD;
+  for (const char of text) {
+    const rows = GLYPHS[char] ?? ["111", "111", "111", "111", "111"];
+    rows.forEach((row, j) => {
+      for (let i = 0; i < row.length; i++) {
+        if (row[i] !== "1") continue;
+        g.rect(at + i * LABEL_CELL, top + LABEL_PAD + j * LABEL_CELL, LABEL_CELL, LABEL_CELL);
+      }
+    });
+    at += GLYPH_WIDTH + GLYPH_GAP;
+  }
+  g.fill(colour);
+}
+
+/** Where a ring's figure sits from its tile's centre: on the ring, down and right. */
+export const RING_FIGURE = {
+  x: RING_RADIUS * Math.SQRT1_2,
+  y: RING_RADIUS * Math.SQRT1_2,
+} as const;
+/** Where a goblin's letters sit from its tile's centre: under its feet (`DEFAULT_FEET`'s 16 px). */
+export const LETTERS_BELOW = 25;
+
+/**
+ * Combat's marks, figures and letters, over the actors so that no body hides them (CLI-05 brief
+ * §4.2, §5, §6.1): the target marks, each ring's ticks left, and each goblin's condition letters
+ * under its feet.
+ */
+export function drawCombatLabels(g: Graphics, view: ViewState): void {
+  g.clear();
+  const plan = overlayPlan(view).combat;
+  if (!plan) return;
+  for (const tile of plan.marks) drawTargetMark(g, tileToPixel(tile));
+  for (const ring of plan.activations) {
+    const c = tileToPixel(ring.tile);
+    const colour = ring.interruptible ? COLOURS.interruptible : COLOURS.label;
+    drawLabel(g, String(ring.ticks), c.x + RING_FIGURE.x, c.y + RING_FIGURE.y, colour);
+  }
+  for (const { tile, text } of plan.letters) {
+    const c = tileToPixel(tile);
+    drawLabel(g, text, c.x, c.y + LETTERS_BELOW, COLOURS.label);
   }
 }
 
