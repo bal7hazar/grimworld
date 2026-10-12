@@ -25,10 +25,10 @@ fn test_hub_deploys_and_stubs_revert() {
     let class = declare("Hub").unwrap().contract_class();
     let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();
     assert(IHubAdminDispatcher { contract_address: address }.version() == HUB_VERSION, 'version');
-    // `set_build` is implemented since CBT-08a; `buy_skill` is still a stub.
+    // `set_build` is implemented since CBT-08a, `buy_skill` since SKILL-01; `buy` is still a stub.
     #[feature("safe_dispatcher")]
-    let bought = IHubSafeDispatcher { contract_address: address }.buy_skill(1, 1);
-    assert(*bought.unwrap_err().at(0) == NOT_IMPLEMENTED, 'buy_skill is a stub');
+    let bought = IHubSafeDispatcher { contract_address: address }.buy(1, 1, 0, 1);
+    assert(*bought.unwrap_err().at(0) == NOT_IMPLEMENTED, 'buy is a stub');
 }
 
 #[test]

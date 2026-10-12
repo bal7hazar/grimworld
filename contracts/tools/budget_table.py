@@ -26,7 +26,8 @@ Prices:
   event = 1.157 × (23,356 + 5,564 × felts), felts = keys (selector included) + data: a line through
           the two measured shapes of EventProbe (snforge, M: ChunkRevealed 3 felts 40,048; GoblinKilled
           6 felts 56,740), × SPK-1's Sepolia ratio (E). Every event is priced from its frozen shape.
-Computation figures are estimates (E), named with each branch.
+Computation figures are estimates (E), named with each branch. A branch given `node` (D-158, D-279)
+takes its two figures, initialised and cold, from a node measure (M) instead of the formula.
 
     python3 contracts/tools/budget_table.py            §10's table, §10.1 and the checks
     python3 contracts/tools/budget_table.py --keys     §9.3's key sets, branch by branch
@@ -101,11 +102,15 @@ class Keys:
 
 
 class Branch:
-    def __init__(self, name, compute, calls, calldata, events, keys, basis=""):
+    def __init__(self, name, compute, calls, calldata, events, keys, basis="", node=None):
         self.name, self.compute, self.calls, self.calldata = name, compute, calls, calldata
         self.events, self.keys, self.basis = events, keys, basis
+        # D-158, D-279: `(initialised, cold)` measured on the node (M) replaces the formula (E).
+        self.node = node
 
     def gas(self, cold):
+        if self.node is not None:
+            return self.node[1] if cold else self.node[0]
         new, old = self.keys.counts(cold)
         ev = sum(event_gas(e) * n for e, n in self.events.items())
         return (F + self.compute + C * len(self.calls) + FELT * self.calldata + ev + N * new + O * old)
@@ -396,8 +401,8 @@ row("`play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, no
     *play_branches(42, ticks=3, one_word=True, single=True))
 
 # ---- Hub --------------------------------------------------------------------------------------
-def B(name, compute, calls, calldata, events, keys, basis=""):
-    return Branch(name, compute, calls, calldata, events, keys, basis)
+def B(name, compute, calls, calldata, events, keys, basis="", node=None):
+    return Branch(name, compute, calls, calldata, events, keys, basis, node)
 
 
 row("`register`", B("registered", 200_000, [], 0, {}, Keys().many(
@@ -424,7 +429,10 @@ row("`claim_quest`", B("claimed, a trial promoting", 600_000, ["registry"], 2, e
                                         ("H.known", ADV, 0), ("H.counter", ADV, "quests")], "first")
     .add(("H.item", "reward", "base"), "new").many([("H.next_item",), ("H.quiver", ADV, 0), ("H.quiver", ADV, 1)], "old")))
 row("`claim_title`", B("claimed", 400_000, [], 2, {}, Keys().add(("H.quiver", ADV, "claim"), "new")))
-row("`buy_skill`", B("bought", 200_000, ["registry"], 2, {}, Keys().add(("H.known", ADV, 0), "first").add(("H.gold", ADV), "old")))
+# SKILL-01 (D-279): measured on the node, a smoke step of the lifecycle probe: the first skill (the
+# known page new) 2,002,960, the second (overwritten) 1,600,960.
+row("`buy_skill`", B("bought", 200_000, ["registry"], 2, {}, Keys().add(("H.known", ADV, 0), "first").add(("H.gold", ADV), "old"),
+                     node=(1_600_960, 2_002_960)))
 row("`buy`", B("equipment", 300_000, ["registry"], 4, {}, Keys().add(("H.item", "bought", "base"), "new")
     .add(("H.pack_list", ADV, 0), "first").many([("H.gold", ADV), ("H.next_item",), ("H.core", ADV)], "old")),
     B("a balance", 300_000, ["registry"], 4, {}, Keys().add(("H.pack_page", ADV, "bought"), "first")
@@ -564,8 +572,10 @@ def budget_table():
         inn, io = wi.keys.counts(False)
         cn, co = wc.keys.counts(True)
         label = wc.name if wc is wi else f"{wi.name} / {wc.name}"
-        print(f"| {name} | {label} | {len(wc.calls)} | {wc.calldata} | {ev_gas:,} | {inn} / {io} → **{wi.gas(False):,}** "
-              f"| {cn} / {co} → **{wc.gas(True):,}** |")
+        mi = " (node, M)" if wi.node is not None else ""
+        mc = " (node, M)" if wc.node is not None else ""
+        print(f"| {name} | {label} | {len(wc.calls)} | {wc.calldata} | {ev_gas:,} | {inn} / {io} → **{wi.gas(False):,}**{mi} "
+              f"| {cn} / {co} → **{wc.gas(True):,}**{mc} |")
 
 
 def batch_branch(br, new_records):

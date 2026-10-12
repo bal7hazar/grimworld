@@ -282,7 +282,7 @@ yours**. It also removes items from the market for good, which supports prices.
 
 | Sink | |
 |---|---|
-| Skill trainers | 50 gold for the first skill bought, rising to 1 000 from the 21st, as in the baseline |
+| Skill trainers | The baseline's trainer table, by the skills known: 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 350, 400, 475, 550, 625, 700, 800, 900 gold for the 1st to the 20th, 1 000 from the 21st; 6 450 for the first 20 ⟨D-277⟩ |
 | Kits | 1 to 20 gold per use |
 | Armor and smiths | See tiers |
 | Looks | The largest sink by far |
