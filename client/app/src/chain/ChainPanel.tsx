@@ -26,6 +26,8 @@ export interface PanelModel {
   /** The keys that work now. */
   readonly phase: StagesState["phase"];
   readonly turning: boolean;
+  /** The goblin selected, by entity: a goblin beside the adventurer, off its facing, shows no arcs. */
+  readonly selected: number | null;
 }
 
 const STOP_NAMES: Readonly<Record<number, string>> = {
@@ -133,6 +135,7 @@ export function describe(state: StagesState, controller: ControllerState): Panel
     line: controller.note ?? state.line,
     phase: state.phase,
     turning: controller.turning,
+    selected: controller.selected,
   };
 }
 
@@ -163,6 +166,9 @@ export function ChainPanel({
         batch {model.batch.length}/10: {model.batch.length === 0 ? "empty" : model.batch.join(", ")}
         {model.turning ? " · turn: press a step key" : ""}
       </div>
+      {model.selected !== null && (
+        <div data-panel="selected">selected: goblin {model.selected}</div>
+      )}
       {model.stages.map(({ stage, text }) => (
         <div key={stage} data-stage={stage}>
           {stage}: {text}
