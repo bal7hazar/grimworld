@@ -1103,7 +1103,8 @@ fn test_set_record_mixed_targets() {
         assert_refused(try_write(r, SKILL, spell_of([a, b, none])), entry_errors::MIXED_TARGETS);
     }
     // D-272: a `SELF` entry before a `TILE` one is refused too (the first entry's addressing is
-    // `SELF`, so the cast address is never checked against the reach, yet the `TILE` entry reads it).
+    // `SELF`, so the cast address is never checked against the reach, yet the `TILE` entry reads
+    // it).
     assert_refused(
         try_write(r, SKILL, spell_of([heal(target::SELF), inflict(target::TILE), none])),
         entry_errors::MIXED_TARGETS,

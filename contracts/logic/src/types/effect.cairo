@@ -468,8 +468,9 @@ pub impl EntryAssert of EntryAssertTrait {
     /// hit modifiers only with a hit and on its addressing, shape and filter, `ATTACK_BONUS` only
     /// in an attack; an attack's entries all `FOE`, `SINGLE`; a `TRAP` entry first, `TILE`,
     /// `SINGLE`, its payload `FOE`, `SINGLE`; no `TILE` entry
-    /// beside a `FOE` or `ALLY` one, nor after a `SELF` one, `TRAP` aside (D-271, D-272); `DISC_1` only in a potion; no
-    /// `DISC_2`, `DISC_3` in the MVP's content; a potion's entry does not scale.
+    /// beside a `FOE` or `ALLY` one, nor after a `SELF` one, `TRAP` aside (D-271, D-272); `DISC_1`
+    /// only in a potion; no `DISC_2`, `DISC_3` in the MVP's content; a potion's entry does not
+    /// scale.
     fn assert_carrier(entries: Span<Entry>, carrier: Carrier) {
         let mut ended = false;
         let mut hit: Option<Entry> = Option::None;
