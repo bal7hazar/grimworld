@@ -1102,6 +1102,12 @@ fn test_set_record_mixed_targets() {
     ] {
         assert_refused(try_write(r, SKILL, spell_of([a, b, none])), entry_errors::MIXED_TARGETS);
     }
+    // D-272: a `SELF` entry before a `TILE` one is refused too (the first entry's addressing is
+    // `SELF`, so the cast address is never checked against the reach, yet the `TILE` entry reads it).
+    assert_refused(
+        try_write(r, SKILL, spell_of([heal(target::SELF), inflict(target::TILE), none])),
+        entry_errors::MIXED_TARGETS,
+    );
     // Legal: all `TILE`, all entity (`FOE` with `ALLY`), `TILE` with `SELF`, a `TRAP` and its
     // `FOE` payload.
     assert_accepted(
@@ -1109,6 +1115,9 @@ fn test_set_record_mixed_targets() {
     );
     assert_accepted(try_write(r, SKILL, spell_of([hit(target::FOE), heal(target::ALLY), none])));
     assert_accepted(try_write(r, SKILL, spell_of([hit(target::TILE), heal(target::SELF), none])));
+    assert_accepted(
+        try_write(r, SKILL, spell_of([inflict(target::TILE), heal(target::SELF), none])),
+    );
     assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), none])));
     assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), inflict(target::FOE)])));
 }
