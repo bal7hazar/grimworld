@@ -166,7 +166,9 @@ export function ChainPanel({
         batch {model.batch.length}/10: {model.batch.length === 0 ? "empty" : model.batch.join(", ")}
         {model.turning ? " · turn: press a step key" : ""}
       </div>
-      {model.selected !== null && <div data-panel="selected">selected: goblin {model.selected}</div>}
+      {model.selected !== null && (
+        <div data-panel="selected">selected: goblin {model.selected}</div>
+      )}
       {model.stages.map(({ stage, text }) => (
         <div key={stage} data-stage={stage}>
           {stage}: {text}
