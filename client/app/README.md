@@ -245,3 +245,37 @@ To see it work, in a node that lives for one command, after the classes are buil
 Wait with `Space`, sends it with `B`, checks the three stages (the sent outcome equal to the
 simulated one, no field differing) and that no log, page or URL holds the burner's key, and
 captures the panel at each stage into `VERIFY_SHOTS_DIR`.
+
+## Combat UI (`src/combat/`, CLI-05)
+
+The combat screens' model, written first without a screen (CLI-05a; the brief is
+[`docs/briefs/CLI-05-combat-ui.md`](../../docs/briefs/CLI-05-combat-ui.md)). It decides no rule:
+client/sim's loaders build the world, and every figure is read by client/sim's own function
+(`energy`, `glyphs`, `memberRecharge`, `aim`, `spot`, `held`, …), exported from
+`client/sim/src/index.ts` for this.
+
+- **`state.ts`**: `CombatState`, what the screens read: the bar (each slot's sheet, state and ticks),
+  the belt, the gauges, the activation, the chips, the goblins (health, mark, activation, chips),
+  the traps, the clock.
+- **`fromWords.ts`**: a `CombatState` from `MirrorWords`, the content and the ground on the window's
+  board, through `loadWorld(words, indexSheets(content))`.
+- **`bar.ts`**: a slot's state in `act`'s order (§2.2): not now (knocked down, or activating), empty,
+  unavailable (a carrier R-44 refuses), wrong weapon, recharging, short of adrenaline, short of
+  energy, ready; the belt's (§3).
+- **`targeting.ts`**: an armed slot's addressing, the tiles `aim` accepts, the tiles in range it
+  refuses (out of sight; for a trap, where `spot` finds no place), and the tiles a carrier's shapes
+  touch with the actors they take (§4.1–§4.3).
+- **`refusal.ts`**: §4.4's lines, and the one line a tap on a slot that is not ready says.
+- **`chips.ts`**: conditions and held effects as letter chips with `deadline − clock` (§6.1).
+- **`overlay.ts`**: `CombatOverlay`, what the map draws (`ViewState.combat`): CLI-05c fills it,
+  CLI-05d draws it.
+- **`record.ts`** and **`log.ts`**: the combat log (§7). The runs on a batch's prefixes are cached
+  (`Prefixes`), two consecutive ones compared give an action's lines, and each tick-class call is
+  replayed one tick at a time with the native `tickTicks` to say who struck whom. A change it cannot
+  attribute is one joint line and a `grimworld.log-unattributed` record; a replay that differs from
+  its call is a `grimworld.log-replay` record. `CombatLog` keeps the last 100 lines.
+- **`fixture.ts`**: the sandbox's fixed fight (§9), at rest and with Wren activating, for CLI-05c's
+  `?combat=fight`.
+
+Nothing is visible yet: CLI-05c draws the bar, the belt, the chips, the target zone and the log in
+the sandbox, CLI-05d the overlay on the map.
