@@ -9,8 +9,8 @@ use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
 use grimworld_logic::models::skill::SkillTrait;
 use grimworld_logic::packing::{
-    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at,
-    field, fits, join, low_field, split, u16_at, u32_at,
+    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, TWO_POW_128,
+    byte_at, field, fits, join, low_field, split, u16_at, u32_at,
 };
 use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::Loadout;
@@ -362,6 +362,80 @@ pub impl KnownSkillsImpl of KnownSkillsTrait {
             BitTrait::is_set(high, bit - 128)
         }
     }
+
+    /// The page with bit `bit` (0 to 249) set, which `knows` says is clear.
+    fn learned(page: Bitmap, bit: u8) -> Bitmap {
+        let added: felt252 = if bit < 128 {
+            BitTrait::pow2(bit).into()
+        } else {
+            BitTrait::pow2(bit - 128).into() * TWO_POW_128
+        };
+        Bitmap { bits: page.bits + added }
+    }
+
+    /// The skills a page knows, counted up to `cap`: one step a skill, each clearing the lowest
+    /// set bit. Bound: `cap` steps.
+    fn count(page: @Bitmap, cap: u8) -> u8 {
+        let (mut low, mut high) = split(*page.bits);
+        let mut count: u8 = 0;
+        while count < cap {
+            if low != 0 {
+                low = low & (low - 1);
+            } else if high != 0 {
+                high = high & (high - 1);
+            } else {
+                break;
+            }
+            count += 1;
+        }
+        count
+    }
+}
+
+/// The skill trainer's price of the next skill, by the number of skills known (design/15
+/// *Services*: "50 gold for the first skill bought, rising to 1 000 from the 21st, as in the
+/// baseline"). The steps between are the baseline's (Guild Wars' skill trainers); no Grim World
+/// file writes them, so the PM decides them (D-275).
+const SKILL_PRICES: [u64; 20] = [
+    50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 350, 400, 475, 550, 625, 700, 800, 900,
+];
+/// From the 21st skill on.
+pub const LAST_SKILL_PRICE: u64 = 1000;
+/// The skills known past which the price no longer rises.
+pub const PRICED_SKILLS: u8 = 20;
+
+#[generate_trait]
+pub impl SkillTrainerImpl of SkillTrainerTrait {
+    /// The price of a skill when the adventurer knows `known` (capped at `PRICED_SKILLS`).
+    fn price(known: u8) -> u64 {
+        if known >= PRICED_SKILLS {
+            LAST_SKILL_PRICE
+        } else {
+            *SKILL_PRICES.span()[known.into()]
+        }
+    }
+}
+
+/// The skill trainer's refusals (`buy_skill`), one per rule.
+#[generate_trait]
+pub impl SkillTrainerAssert of SkillTrainerAssertTrait {
+    /// The skill is in the registry's content.
+    #[inline(always)]
+    fn assert_sold(exists: bool) {
+        assert(exists, errors::SKILL_NOT_SOLD);
+    }
+
+    /// The adventurer does not know it yet.
+    #[inline(always)]
+    fn assert_unknown(known: bool) {
+        assert(!known, errors::SKILL_ALREADY_KNOWN);
+    }
+
+    /// The pack's gold pays the price.
+    #[inline(always)]
+    fn assert_affordable(gold: u64, price: u64) {
+        assert(gold >= price, errors::SKILL_PRICE);
+    }
 }
 
 #[generate_trait]
@@ -659,7 +733,8 @@ mod tests {
     use super::super::stored_place::{StoredPlace, StoredPlaceTrait};
     use super::{
         ACTIVE, AdventurerCore, AdventurerPlace, AdventurerTrait, BeltAssert, BeltTrait, Build,
-        BuildAssert, BuildTrait, EquippedAssert, KnownSkillsTrait, NO_ELITE,
+        BuildAssert, BuildTrait, EquippedAssert, KnownSkillsTrait, LAST_SKILL_PRICE, NO_ELITE,
+        PRICED_SKILLS, SkillTrainerTrait,
     };
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
@@ -921,6 +996,41 @@ mod tests {
     #[should_panic(expected: 'build: skill not known')]
     fn test_known_skills_past_page_255() {
         KnownSkillsTrait::at(64000);
+    }
+
+    // SKILL-01: a skill learned in either limb, the count capped, the price's steps (design/15:
+    // 50 for the first, 1,000 from the 21st; the 20 first cost 6,450 in all, as in the baseline).
+    #[test]
+    #[available_gas(l2_gas: 479642)] // ceil(1.05 × 456801 measured)
+    fn test_skill_trainer() {
+        let mut page: Bitmap = StorePacking::unpack(0);
+        assert(KnownSkillsTrait::count(@page, PRICED_SKILLS) == 0, 'none known');
+        for bit in array![0_u8, 127, 128, 249] {
+            assert(!KnownSkillsTrait::knows(@page, bit), 'not yet');
+            page = KnownSkillsTrait::learned(page, bit);
+            assert(KnownSkillsTrait::knows(@page, bit), 'learned');
+        }
+        let stored: Bitmap = StorePacking::unpack(StorePacking::pack(page));
+        assert(KnownSkillsTrait::count(@stored, PRICED_SKILLS) == 4, 'four in both limbs');
+        assert(KnownSkillsTrait::count(@stored, 3) == 3, 'capped');
+        let full = Bitmap {
+            bits: 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff,
+        };
+        assert(
+            KnownSkillsTrait::count(@full, PRICED_SKILLS) == PRICED_SKILLS,
+            'count stops at the cap',
+        );
+        let mut total: u64 = 0;
+        for known in 0..PRICED_SKILLS {
+            let price = SkillTrainerTrait::price(known);
+            assert(known == 0 || price > SkillTrainerTrait::price(known - 1), 'rising');
+            total += price;
+        }
+        assert(SkillTrainerTrait::price(0) == 50, 'first 50');
+        assert(SkillTrainerTrait::price(19) == 900, '20th 900');
+        assert(total == 6450, 'the 20 first');
+        assert(SkillTrainerTrait::price(20) == LAST_SKILL_PRICE, '21st 1000');
+        assert(SkillTrainerTrait::price(255) == 1000, 'and after');
     }
 
     // design/03's points against its rule as a loop: 5 a level up to 10, 10 from 11 to 15, 15

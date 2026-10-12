@@ -1160,8 +1160,9 @@ fn test_set_build_requests_the_input_kinds() {
 
 /// The budget of the `buy_skill` call alone in its worst case (a hub action's target is its
 /// measure, D-158 (c)): the 21st skill, the price's count at its cap. snforge, `get_available_gas`
-/// around the dispatcher call; ENG-01 §10's row is 1,227,323 initialised.
-const BUY_SKILL_CALL: u128 = 2000000;
+/// around the dispatcher call: ceil(1.05 × 760,000 measured). ENG-01 §10's row is 1,227,323
+/// initialised.
+const BUY_SKILL_CALL: u128 = 798000;
 
 fn gold_key(id: u32) -> felt252 {
     map_entry_address(selector!("gold"), array![OwnerTrait::key(PACK, id)].span())
@@ -1191,7 +1192,7 @@ fn try_buy(world: World, who: felt252, id: u32, skill: u16) -> Result<(), Array<
 
 // Who may call (ENG-01 §4.3, design/16): the adventurer's owner, in a hub; nothing is written.
 #[test]
-#[available_gas(l2_gas: 200000000)]
+#[available_gas(l2_gas: 80859566)] // ceil(1.05 × 77009110 measured)
 fn test_buy_skill_ownership_refusals() {
     let world = setup();
     let id = learner(world);
@@ -1215,7 +1216,7 @@ fn test_buy_skill_ownership_refusals() {
 
 // The skill is in the registry's content (`SKILL`): a skill with no record is not sold.
 #[test]
-#[available_gas(l2_gas: 200000000)]
+#[available_gas(l2_gas: 79510379)] // ceil(1.05 × 75724170 measured)
 fn test_buy_skill_not_in_content() {
     let world = setup();
     let id = learner(world);
@@ -1229,7 +1230,7 @@ fn test_buy_skill_not_in_content() {
 
 // A skill already known is not sold twice.
 #[test]
-#[available_gas(l2_gas: 200000000)]
+#[available_gas(l2_gas: 79269089)] // ceil(1.05 × 75494370 measured)
 fn test_buy_skill_already_known() {
     let world = setup();
     let id = adventurer(world, VANGUARD); // knows 1 to 12
@@ -1241,7 +1242,7 @@ fn test_buy_skill_already_known() {
 
 // The pack's gold pays the price: one gold short is refused, the exact price bought.
 #[test]
-#[available_gas(l2_gas: 200000000)]
+#[available_gas(l2_gas: 80153346)] // ceil(1.05 × 76336520 measured)
 fn test_buy_skill_not_affordable() {
     let world = setup();
     let id = learner(world);
@@ -1257,7 +1258,7 @@ fn test_buy_skill_not_affordable() {
 // Bought: the price debited, the skill known, and `set_build` puts it on the bar; the second skill
 // charges the second price (60).
 #[test]
-#[available_gas(l2_gas: 200000000)]
+#[available_gas(l2_gas: 88107889)] // ceil(1.05 × 83912275 measured)
 fn test_buy_skill_then_set_build() {
     let world = setup();
     let id = learner(world);
@@ -1278,7 +1279,7 @@ fn test_buy_skill_then_set_build() {
 // The worst case: 20 skills known (the price's count at its cap), the 21st costs 1,000, and so
 // does the 22nd. The call alone carries its own budget.
 #[test]
-#[available_gas(l2_gas: 200000000)]
+#[available_gas(l2_gas: 79729062)] // ceil(1.05 × 75932440 measured)
 fn test_buy_skill_worst_case() {
     let world = setup();
     let id = learner(world);

@@ -414,6 +414,11 @@ pub impl HubStoreImpl of HubStoreTrait {
         self.known_skills.entry((adventurer_id, page)).read()
     }
 
+    #[inline(always)]
+    fn set_known_skills(ref self: HubState, adventurer_id: u32, page: u8, bits: Bitmap) {
+        self.known_skills.entry((adventurer_id, page)).write(bits)
+    }
+
     /// Whether the adventurer knows each skill of `bar` that is not empty, in slot order:
     /// each `known_skills` page read once while consecutive skills share it. Bound: 8 slots.
     fn knows_skills(self: @HubState, adventurer_id: u32, bar: Span<u16>) -> Array<bool> {

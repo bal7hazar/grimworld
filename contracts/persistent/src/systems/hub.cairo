@@ -184,7 +184,7 @@ pub trait IHubAdmin<T> {
 
 #[starknet::contract]
 pub mod Hub {
-    use grimworld_logic::content::{GATE, REGION, exists};
+    use grimworld_logic::content::{GATE, REGION, SKILL, exists};
     use grimworld_logic::interface::{
         IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher, IInstanceEntryDispatcher,
         IInstanceEntryDispatcherTrait, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
@@ -203,7 +203,8 @@ pub mod Hub {
     use crate::models::account::{AccountAssert, OwnerTrait, StoredAccount};
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
-        BuildTrait, EquippedAssert,
+        BuildTrait, EquippedAssert, KnownSkillsTrait, PRICED_SKILLS, SkillTrainerAssert,
+        SkillTrainerTrait,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
@@ -523,8 +524,27 @@ pub mod Hub {
         fn display_title(ref self: ContractState, adventurer_id: u32, title: u16, tier: u8) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
+        /// The hub's skill trainer (design/03 *Trainers in hubs*, design/15 *Services*; D-275):
+        /// the only way a skill becomes known. The ownership check, the skill in the registry
+        /// (one `record` call), not known yet, its price paid from the pack's gold: the price
+        /// rises with the skills the adventurer knows (`SkillTrainerTrait::price`), counted on the
+        /// skill's page (every skill id is below 250 in the MVP, ENG-01 §10: one page). Every
+        /// check comes before a write. Writes (ENG-01 §9.3): the pack's `gold` and the
+        /// `known_skills` page, overwritten (the page new at the adventurer's first skill).
         fn buy_skill(ref self: ContractState, adventurer_id: u32, skill: u16) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            self.owned_in_hub(adventurer_id);
+            let parts = IRegistryReadDispatcher { contract_address: self.get_registry() }
+                .record(SKILL, skill.into());
+            SkillTrainerAssert::assert_sold(exists(parts));
+            let (page, bit) = KnownSkillsTrait::at(skill);
+            let known = self.get_known_skills(adventurer_id, page);
+            SkillTrainerAssert::assert_unknown(KnownSkillsTrait::knows(@known, bit));
+            let price = SkillTrainerTrait::price(KnownSkillsTrait::count(@known, PRICED_SKILLS));
+            let pack = OwnerTrait::pack(adventurer_id);
+            let gold = self.get_gold(pack);
+            SkillTrainerAssert::assert_affordable(gold.amount, price);
+            self.set_gold(pack, gold.debited(price));
+            self.set_known_skills(adventurer_id, page, KnownSkillsTrait::learned(known, bit));
         }
         fn buy(ref self: ContractState, adventurer_id: u32, shop: u32, offer: u8, quantity: u32) {
             core::panic_with_felt252(NOT_IMPLEMENTED)

@@ -346,6 +346,12 @@ pub impl GoldImpl of GoldTrait {
     fn credited(self: Gold, amount: u64) -> Gold {
         Gold { amount: self.amount + amount }
     }
+
+    /// `amount` less (a price the caller checked is covered).
+    #[inline(always)]
+    fn debited(self: Gold, amount: u64) -> Gold {
+        Gold { amount: self.amount - amount }
+    }
 }
 
 pub impl GoldStorePacking of starknet::storage_access::StorePacking<Gold, felt252> {
