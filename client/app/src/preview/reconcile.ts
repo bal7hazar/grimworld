@@ -112,7 +112,7 @@ const notMirrored = (reason: string): MirrorResult => ({ kind: "not-mirrored", r
  * stopped it and keeps those words; the stop is the first `done`'s. Any error of `run` is no
  * prediction: `NotMirrored` as itself, any other logged as a mirror failure.
  */
-function predict(actions: readonly PlayAction[], run: Predict, log: ParityLog): MirrorResult {
+export function predict(actions: readonly PlayAction[], run: Predict, log: ParityLog): MirrorResult {
   let first: Prediction;
   let words: MirrorWords;
   let moved: boolean;

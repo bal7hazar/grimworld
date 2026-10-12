@@ -29,10 +29,16 @@ export const LOCATION = 2;
 const REGION_PAGE = 16;
 const CHUNKS = 225;
 
+/**
+ * A block a read is pinned to: a tag (`pre_confirmed`, `latest`, …), or one block by its hash, as a
+ * receipt names it (CLI-11b: the region after a sent batch, read at the batch's own block).
+ */
+export type BlockId = string | { readonly blockHash: string };
+
 export interface ReaderConfig {
   nodeUrl: string;
   /** The block read; `pre_confirmed`, as the simulator's, by default. */
-  block?: string;
+  block?: BlockId;
   fetch?: typeof fetch;
 }
 
@@ -57,8 +63,13 @@ export interface Reader {
 
 const hex = (value: bigint): string => `0x${value.toString(16)}`;
 
+/** The JSON-RPC `block_id` of a block: the tag as it is, a hash as `{ block_hash }`. */
+export function blockId(block: BlockId): string | { block_hash: string } {
+  return typeof block === "string" ? block : { block_hash: hex(BigInt(block.blockHash)) };
+}
+
 export function createReader(config: ReaderConfig): Reader {
-  const block = config.block ?? "pre_confirmed";
+  const block = blockId(config.block ?? "pre_confirmed");
   const rpc = createRpc(String(config.nodeUrl), config.fetch ?? globalThis.fetch.bind(globalThis));
   const call = async (to: string, entry: bigint, calldata: readonly bigint[]) => {
     const result = await rpc("starknet_call", {
