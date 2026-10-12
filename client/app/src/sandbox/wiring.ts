@@ -8,7 +8,7 @@ import {
   fogTiles,
   tileKey,
 } from "../render/fog";
-import type { Tile, ViewActor, ViewState, ViewTile } from "../render/view";
+import type { Facing, Tile, ViewActor, ViewState, ViewTile } from "../render/view";
 import {
   SIGHT_RADIUS,
   type StepStops,
@@ -344,3 +344,34 @@ export function toView(state: SandboxState, fog: FogMode = "sight"): ViewState {
     ...(!hub && fog === "sight" ? { fog: { sightRadius: SIGHT_RADIUS } } : {}),
   };
 }
+
+/**
+ * What the chain mode needs of the placeholders' geometry (CLI-11c, §4.1), so that it stays their
+ * only importer here: the path to a tapped tile, the tile one step in a direction, and the
+ * direction between two adjacent tiles. The planner follows the batch's moves geometrically and
+ * decides no legality: the preview says how far the batch plays. Each carries the placeholders'
+ * mark; CLI-02 replaces them with the library's.
+ */
+
+/** The path to `to` on the world's terrain from `from`, first step first, or null (no path). */
+export function planPath(world: SandboxWorld, from: Tile, to: Tile): Tile[] | null {
+  return findPath(world.terrain, world.actors, from, to, !isHub(world));
+}
+
+/**
+ * The tile one step from `from` in `direction`: the adjacent tile whose direction from `from` the
+ * placeholder names `direction` (as `stepTarget` finds it), so that the grid's geometry stays in
+ * `placeholders.ts`.
+ */
+export function tileToward(from: Tile, direction: Facing): Tile {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const tile = { x: from.x + dx, y: from.y + dy };
+      if (facingToward(from, tile) === direction) return tile;
+    }
+  }
+  throw new RangeError(`no tile toward ${direction}`);
+}
+
+/** The direction of the step from `from` to the adjacent tile `to`, or null when not adjacent. */
+export const directionBetween = (from: Tile, to: Tile): Facing | null => facingToward(from, to);
