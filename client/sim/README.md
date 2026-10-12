@@ -13,6 +13,7 @@ the harness's reader.
 | `src/hit.ts`                                  | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `hit.jsonl`                       | 203         |
 | `src/body/`, `src/effect.ts`, `src/combat.ts` | the `Body` operations (`types/executor.cairo`'s `Body`, `MemberBody`, `GoblinBody` and the dispatch `UnitBody`, CLI-02g-C) and what they call of `models/member.cairo` and `models/goblin.cairo` (the snapshot's reads, the lifecycle, the conditions, the interrupt), `types/infliction.cairo`, `durations.cairo`; the effect entry (`EntryTrait`: `line`, `value`, `duration`, `class`, `pack`, `unpack`)                                                                                                                                 | `body.jsonl`                      | 327         |
 | `src/executor.ts`, `src/trap.ts`              | a trap's trigger (CLI-02g-D, D-257): `TrapLibrary::trigger` (`systems/trap.cairo`), `TrapTrait`'s lookup and source (`types/trap.cairo`: `locate`, `free`, `trigger`, `terrain`, `by_member`, `by_goblin`, `entries`, `occupied`, `write`) and the executor's trap path (`types/executor.cairo`: `trigger`, `trap`, `strike`, `resolve`, `entries`, `ops`, `hold`, `guards`, `spell`, `put`, `actor`, `DefenceTrait`, `holding`, `Levered`'s cache)                                                                                         | `trap.jsonl`, `segment2.jsonl`    | 63, 44      |
+| `src/tick.ts`, `src/ai.ts`                    | the ticks with a fight (CLI-02g-F, D-257): `TickLibrary::ticks` (`systems/tick.cairo`), `TickTrait::run` with `Delegate`'s rules (`types/world.cairo`, `types/executor.cairo`: perception and the awake set, step 1's conclusions through the executor, `carrier`, `legal`, step 2 in `AiLibrary::act`, step 3, the defeat), the goblins' acts (`AiTrait`, `types/ai.cairo`; `FloodTrait::next_step_away`), the goblin and member tick rules (`src/body/`), `SegmentTrait::ticks`' path                                                     | `tick.jsonl`, `segment2.jsonl`    | 131, 44     |
 | `src/fate.ts`                                 | `fate::domain`, `fate::derive` and the purposes (`contracts/logic/src/fate.cairo`), Poseidon through `@scure/starknet`                                                                                                                                                                                                                                                                                                                                                                                                                      | `fate.jsonl`                      | 227         |
 | `src/packing.ts`                              | `contracts/logic/src/packing.cairo`: `split`, `limbs`, `join`, `peel`, `fits`, the field readers, `Lanes32`, `Lanes16`, `Counter`, `Bitmap`                                                                                                                                                                                                                                                                                                                                                                                                 | `packing.jsonl`                   | 520         |
 | `src/movement.ts`                             | the moves of a played batch (ENG-07, CLI-02c): the window's board around the adventurer (`SegmentTrait::board`, `BoardTrait::position`, `AssemblyTrait::origin`), a Move's ticks (`TickMathTrait::move_ticks`), the tick's flood (`Bfs::flood`, `FloodTrait`) and step 0's awake set (`TickTrait::awake`)                                                                                                                                                                                                                                   | `movement.jsonl`                  | 94          |
@@ -59,11 +60,13 @@ only if it checks every digest and consumes every recorded call (D-255): a call 
 other inputs, a call the row lacks or a recorded call left unused fails the row, naming the call's
 index and kind (`src/parity/replayer.test.ts`).
 Lots D to F replace the replayer with ports, class by class; the batch preview needs those ports,
-since it predicts batches nobody recorded (D-255). `TrapLibrary::trigger` (lot D) and
-`ActionLibrary::act` (lot E) are ported (below): on a `segment2.jsonl` row the replayer still
-takes each recorded trap or action call (its kind, its digest, its place in the span), and the
-port's result, felt for felt, must equal it; the port's is what `run` loads. `ticks` stays
-replayed (lot F).
+since it predicts batches nobody recorded (D-255). All three are ported: `TrapLibrary::trigger`
+(lot D), `ActionLibrary::act` (lot E) and `TickLibrary::ticks` (lot F), below. On a
+`segment2.jsonl` row the replayer still takes each recorded call (its kind, its digest, its place
+in the span), and the port's result, felt for felt, must equal it; the port's is what `run` loads.
+The replayer stays, as the test of `run` itself: it alone checks that `run` makes exactly the
+calls the row recorded, with the inputs it recorded (D-255); comparing the ports' results alone
+would not see a call made with other inputs that return the same words.
 
 **Not mirrored**: two branches, which throw `NotMirrored` (`unported`,
 `src/segment/unported.test.ts`, `src/action.test.ts`):
@@ -118,8 +121,9 @@ than 8 goblins awake (`tick: more than 8 awake`). No row of `segment2.jsonl` rec
 the cases are `src/parity/refusals.ts`', hand copies of the Cairo unit tests where they exist, run by
 `src/segment/goblin.test.ts` and, against each mutant that drops a refusal, by
 `src/parity/mutants.test.ts`. The lifecycle and condition rules of both kinds, the infliction and
-the durations are `src/body/`'s (below); the tick's rules (`GoblinTickTrait::regenerate`,
-`conclude`, `lapse`, the members' activation) wait for RV-03c.
+the durations are `src/body/`'s (below), and so are the tick's rules (`GoblinTickTrait`'s `start`,
+`recover`, `use_instant`, `conclude`, `lapse`, `regenerate`; `MemberTickTrait::conclude`), since
+lot F.
 
 `segment.jsonl`'s rows hold a simplified adventurer. Their decoder builds its words as the
 unit-test fixture's member (max health 480, no regeneration, no effect or skill), and its classes
@@ -157,8 +161,9 @@ Nine are holes of `trap.jsonl`, reported to track game: a position, a chunk colu
 past the location landing on a chunk no row's ground holds (rows 42, 47, 48); `locate`'s guard of a
 tile West of `ORIGIN`, which Cairo has too, not killed by any row (RV-03a2); no goblin placer's
 payload guarded; no entrant holding an `ARMOR` effect on a trap's hit; no payload's entry other than
-its hit guarded; no payload with a `CURE` entry; no dead goblin entering. Two
-are equivalent on the trap path: `trap`'s and `entries`' checks of a dead entrant mask each other.
+its hit guarded; no payload with a `CURE` entry; no dead goblin entering. On the trap path,
+`trap`'s and `entries`' checks of a dead entrant mask each other; since `tick.jsonl` (lot F),
+`entries`' is killed by its row 85 (a carrier's hit killing a goblin before its burn), so 10 survive.
 Two are equivalent outright, marked `equivalent`: the same guard's South half, whose chunk is below
 0, which no ground holds, and the block's cap at 63, which no state reaches: a member's charges are
 6 bits (`MemberEffects` 16–21, read modulo 64), a goblin's too (rows 213 and 214), a `BLOCK` grant
@@ -198,8 +203,8 @@ position; a carrier of `SINGLE` entries reads its source and the addressed entit
 source's terms (`offence`: a member's weapon, passives and held `PENETRATION`, a goblin's caste
 weapon; `penetration`, `attack`), each actor in order (`on`: the hit, then the other entries), the
 source's side of a landed weapon hit, and each actor written back, a carrier's awake goblins
-gathered into one write of the awake set (`put` with `pending`, `flush`: `Levered`'s lever). Not
-here: `conclude` and `legal` (an activation's end) and the goblins' acts (lot F).
+gathered into one write of the awake set (`put` with `pending`, `flush`: `Levered`'s lever). An
+activation's end (`carrier`, `legal`) and the goblins' acts are the ticks' (below).
 
 `act.jsonl`'s rows are its README's: row 0 the content, 175 `act` rows (one call of the class
 each), 19 `defence` and 28 `offence` rows (`Body::defence`, `Body::offence` through `UnitBody`). On
@@ -222,12 +227,76 @@ from a bar slot above 0; no `act` row landing an attack skill with passives or a
 `PENETRATION`; no `ATTACK_BONUS` or `HIT_PENETRATION` entry; no `PENETRATION` of scope `ALL` held
 (two mutants); no `ON_ATTACK_CONDITION`; no `act` row with `LIFE_STEAL_ON_HIT` or `ENERGY_ON_HIT`
 (only `offence` row 182 reads them); no hit whose filter takes the source's side; no `SINGLE`
-`TILE` entry reaching an actor; no wide carrier near a member at 0 health; no two actors of a
-carrier whose index order is not their position order; no carrier holding a hit and another entry
-whose set holds an actor the hit's does not. Three are `equivalent`: a refusal's words stored back
+`TILE` entry reaching an actor; no wide carrier near a member at 0 health; no carrier holding a hit
+and another entry whose set holds an actor the hit's does not. A 17th, two actors of a carrier whose
+index order is not their position order, is killed since lot F by `tick.jsonl`'s row 85 (the Cinder
+Ring kills goblin 9 before goblin 8: tile order). Three are `equivalent`: a refusal's words stored back
 (every refusal comes before any write, and a store of a load gives the words back); the awake
 goblins written at once rather than gathered (the mirror's world is one array); a trap placed on a
 wall (through `act`, `aim`'s reach refuses a walled tile first).
+
+## The ticks
+
+`src/tick.ts` is `TickLibrary::ticks`, computed (CLI-02g-F, D-257): `ticksClass` loads the words
+through the content and runs `TickTrait::run` with `Delegate`'s rules and a fresh `Cache`, then
+stores the words back; `src/index.ts` exports it as `tickTicks`, a `Classes.ticks`. One tick: the
+adventurer at 0 before it stops it (step 5 only); step 0 the clock, the flags, perception and the
+awake set (`perceive`: design/18's table, a noticing goblin's pack engaged, the eight nearest by
+`movement.ts`'s `awake`); step 1 the members' activations due, then the awake set's, ascending
+(`conclude`, `lapse`, a recovery over cleared), each concluded carrier through `legal` and
+`action.ts`'s `carry`; step 2 (`step`); step 3 (`regenerate`); step 5 (`segment.ts`'s `check`).
+The world is one array of goblins with their awake flags: a write is immediate where Cairo gathers
+pending ones, which it flushes before every executor call and when the step ends, so every read
+sees the same values.
+
+Step 2 crosses `AiLibrary`'s boundary as Cairo does: `step` stores the members and the awake set,
+computes the frozen goblins' tiles and the roster count (D-238), and `src/ai.ts`'s `aiClass` runs
+`AiTrait::step` on that world with a fresh `Cache`: each goblin's act (its first usable skill, its
+weapon, a step on the tick's flood toward the adventurer or away, the roster's hold), each carrier
+through `carry`, each trap entered through `trap.ts`'s `triggerClass`; the words come back loaded.
+Step 1's and step 2's carriers run on their call's whole world (lot E's reading of `Delegate`'s
+sub-world). `segment.ts`'s `path` is `SegmentTrait::ticks`' choice (the class, the fast path,
+none), which `tick.jsonl`'s `skip` rows hold.
+
+`tick.jsonl`'s rows are its README's: row 0 the content, 120 `ticks` rows (one call of the class
+each) and 10 `skip` rows. `segment2.jsonl`'s `ticks` calls (25, in rows 2–4, 6, 10, 12–14, 16–22,
+25, 29, 46 and 47) are computed by the port and equal their recordings (`src/parity/parity.test.ts`).
+
+Of the tick's 156 mutants, 103 are killed by the tables (and three earlier survivors with them:
+the fast path's adrenaline decay, `tick.jsonl` row 20; `entries`' dead entrant and the actors'
+position order, row 85). Eight are `equivalent`: the attackers' cap (the awake set holds at most
+8); step 2 called with a goblin knocked down to `T`, busy or resolved and no other free (three
+mutants: `AiTrait::capped` checks the same, and acts on none); a member at 0 read by perception or
+regenerated in step 3 (two: the tick stops first); a `SELF` carrier's target checked (its source,
+alive, on its own tile); the frozen tiles in a step's `blocked` (they are the flood's obstacles,
+never in a layer). 45 survive, holes of `tick.jsonl` reported to track game:
+
+- perception: no row with two members in the window (a goblin's nearest; a notice by the first
+  undone by the second); no goblins of two chunks (the pack's chunk); no Alerted goblin in a
+  noticing pack;
+- step 1: no two goblins concluding at `T` whose order matters; no goblin activating its caste slot
+  3; no goblin killed in step 1 while activating; no activation whose target has died or left the
+  reach (`legal`, and its dead target); no lapse below the stored recharge; no concluding skill
+  that is not an attack with `k ≥ n + 2`; no concluding caste skill whose entries change with the
+  rank; no member's carrier bringing a member to 0; no member down or gone before a companion (the
+  goblins' target), nor member 0 outside the board's window;
+- step 2: no companion alive when the adventurer is downed in step 1 or 2; no awake set holding a
+  resolved or dead goblin beside one free to act (`capped`'s checks, two mutants);
+  no Runt reaching its empty slots 2 and 3; no goblin starting an activation of 1; no instant
+  non-attack skill of a goblin whose weapon costs `k > 1`; no goblin skill addressing a `TILE`; no
+  caste skill used now whose entries change with the rank; no goblin turning to use a skill or its
+  weapon (they all face the adventurer); no `MOVEMENT` effect held by a crippled goblin stepping
+  (two mutants); no flood stopped at its cap (three: `FLOOD_DEPTH`, `next_step_away`'s top layer
+  and its unreached walker); no frozen goblin on a shortest path; no dead goblin on a path (awake
+  or frozen); no adventurer on an unwalkable tile; the roster (D-238): no awake goblin away at a
+  full roster, no two walkers leaving in one step, no step between two chunks away from home, no
+  step home freeing an entry, no Fleeing goblin held by a full roster; no trap killing its entrant
+  or changing a member; no goblin dying in step 2;
+- step 3: no caste whose health regeneration is not 0 pips; no Engaged goblin outside the set with
+  a member's adrenaline above 0.
+
+"`fits` compares with the goblins before the segment" keeps its `survives` until track game's
+RV-03a2 rules on it.
 
 ## Where the vectors come from
 
