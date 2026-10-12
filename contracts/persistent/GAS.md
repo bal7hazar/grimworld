@@ -183,6 +183,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_lifecycle::test_enter_refuses_after_a_new_rules_class` | 52626262 | 55236723 | 4.96 % | 0 | 5952 | 2026-10-11 | fde8a90 |
 | `test_lifecycle::test_enter_refuses_after_an_input_rewritten` | 63487098 | 66634741 | 4.96 % | 0 | 6624 | 2026-10-12 | e933338 |
 | `test_lifecycle::test_enter_reserves_the_belt` | 49897846 | 52371886 | 4.96 % | 0 | 6432 | 2026-10-11 | fde8a90 |
+| `test_lifecycle::test_reenter_after_a_defeat` | 62962441 | 66110564 | 5.00 % | 0 | 7008 | 2026-10-12 | 030ef55 |
 | `test_lifecycle::test_report_moved` | 50857050 | 53379050 | 4.96 % | 0 | 6432 | 2026-10-11 | fde8a90 |
 | `test_lifecycle::test_report_open` | 49966578 | 52444054 | 4.96 % | 0 | 6720 | 2026-10-11 | fde8a90 |
 | `test_lifecycle::test_report_refusals` | 50535253 | 53041163 | 4.96 % | 0 | 5952 | 2026-10-11 | fde8a90 |

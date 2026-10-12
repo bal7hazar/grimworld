@@ -1116,8 +1116,7 @@ mod tests {
     // weapon's, the skill's (the fire spell at goblin 10, 7 away; aimed at a tile) and the item's
     // (the bomb, count 1, at a tile 7 away; the dart, count 1, at the member).
     #[test]
-    // gas: raised, RV-03a2: four more refusals, Reach and Target on the skill and item arms (#447
-    // review)
+    // gas: raised, RV-03a2: four more refusals (#447's review)
     #[available_gas(l2_gas: 47372276)] // ceil(1.05 × 45116453 measured)
     fn test_no_carry_before_a_refusal() {
         let base = bench();
