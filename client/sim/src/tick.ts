@@ -19,7 +19,7 @@
 // Step 2 crosses the class boundary as Cairo does: the members and the awake set stored, the frozen
 // goblins' tiles and the roster count computed here, the words loaded back (`ai.ts`'s `aiClass`).
 
-import { aiClass } from "./ai";
+import { aiClass, chunk, spawnOf } from "./ai";
 import { carry } from "./action";
 import * as body from "./body";
 import * as gm from "./body/goblin";
@@ -34,7 +34,7 @@ import {
   carrier,
   legal,
 } from "./executor";
-import { add, div, mul, panic, u16, u8 } from "./felt";
+import { add, div, mul, panic, sub, u16, u8 } from "./felt";
 import { awake, position as boardPosition } from "./movement";
 import { MAX_GOBLINS, check } from "./segment";
 import type { Classes, TicksCall } from "./segment/classes";
@@ -112,8 +112,7 @@ export function clear_flags(world: World): void {
 
 /** `TickTrait::pack`: a goblin's pack, its spawn chunk's 0 (`k` below 5) or 1. */
 export function pack(entity: number): number {
-  const offset = BigInt(entity - FIRST_GOBLIN);
-  if (offset < 0n) panic("u16_sub Overflow");
+  const offset = sub(u16, BigInt(entity), BigInt(FIRST_GOBLIN));
   const stride = BigInt(GOBLINS_STRIDE);
   return Number(add(u16, mul(u16, div(u16, offset, stride), 2n), (offset % stride) / 5n));
 }
@@ -284,9 +283,7 @@ export function step(world: World, sheets: Sheets, rules: Rules, resolved: numbe
   for (const goblin of world.goblins) {
     if (!goblinModel.is_alive(goblin) || goblin.awake) continue;
     const { x, y } = goblinModel.place(goblin);
-    const spawn = Number(div(u16, BigInt(goblin.entity - FIRST_GOBLIN), BigInt(GOBLINS_STRIDE)));
-    const chunk = add(u8, mul(u8, BigInt(Math.floor(y / 15)), 15n), BigInt(Math.floor(x / 15)));
-    if (BigInt(spawn) !== chunk) listed = Number(add(u8, BigInt(listed), 1n));
+    if (chunk(x, y) !== spawnOf(goblin.entity)) listed = Number(add(u8, BigInt(listed), 1n));
     const position = boardPosition(board, x, y);
     if (position < FAR) frozen |= 1n << BigInt(position);
   }
