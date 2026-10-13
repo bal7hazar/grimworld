@@ -119,7 +119,7 @@ replacement is written here and after ENG-01 §10's table.
 | Entrypoint | §10 estimate | Accepted, measured | By |
 |---|---:|---:|---|
 | `register` | 2,409,583 | 2,650,000 | ENG-04, D-144 |
-| `create_adventurer`, cold / initialised | 4,501,991 / 4,080,539 | 4,700,000 / 4,350,000 | ENG-04, D-144 |
+| `create_adventurer`, cold / initialised | 4,501,991 / 4,080,539 | 4,894,960 / 4,532,960 | HUB-ROWS (node), D-295 |
 | `delete_adventurer` (two list pages) | 1,150,347 | 1,750,000 | ENG-04, D-144 |
 | `set_account_owner`, 7 inside | 2,721,351 | 3,700,000, re-measured by ENG-06 | ENG-04, D-144 |
 
