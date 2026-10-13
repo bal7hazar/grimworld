@@ -2124,7 +2124,7 @@ to Sepolia is SPK-1's (E), so every event price is an **estimate**:
 - TrialPassed: 4 felts, 52,773
 
 Computation is E, with its basis in §9.3's branch, except a figure marked **(node, M)**: measured on
-the node, which then is the row (D-158, D-279; `buy_skill`, SKILL-01). A row's **target** is its most expensive branch,
+the node, which then is the row (D-158, D-279; `buy_skill`, SKILL-01; `register`, `create_adventurer` and `travel`, HUB-ROWS, D-293). A row's **target** is its most expensive branch,
 in the state named: **initialised** (every `first` key exists) or **cold** (none does). When the two
 states' worst branches differ, both are named.
 
@@ -2143,12 +2143,12 @@ states' worst branches differ, both are named.
 | `play`, weight 10, the cap of 16 goblins (E-16), first records weighed (E-1), ticks as alone | objective and defeat | 2 | 5 | 1,320,673 | 0 / 64 → **47,336,950** | 3 / 59 → **48,537,162** |
 | `play`, one 3-tick action alone, 42 goblins (E-21) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 111 → **20,556,791** | 88 / 22 → **57,612,495** |
 | `play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, not adopted) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 68 → **19,177,695** | 46 / 22 → **38,564,487** |
-| `register` | registered | 0 | 0 | 0 | 3 / 1 → **2,409,583** | 3 / 1 → **2,409,583** |
+| `register` | registered | 0 | 0 | 0 | 3 / 1 → **2,636,720** (node, M) | 3 / 1 → **2,636,720** (node, M) |
 | `set_account_owner`, 7 adventurers inside | changed | 7 | 2 | 0 | 1 / 9 → **2,721,351** | 1 / 9 → **2,721,351** |
-| `create_adventurer` | created | 1 | 2 | 0 | 6 / 3 → **4,080,539** | 7 / 2 → **4,501,991** |
+| `create_adventurer` | created | 1 | 2 | 0 | 6 / 3 → **4,532,960** (node, M) | 7 / 2 → **4,894,960** (node, M) |
 | `delete_adventurer` | deleted | 0 | 1 | 0 | 0 / 4 → **1,150,347** | 0 / 4 → **1,150,347** |
 | `set_build` | set | 1 | 4 | 0 | 0 / 3 → **1,369,635** | 0 / 3 → **1,369,635** |
-| `travel` | travelled | 0 | 2 | 46,336 | 0 / 1 → **1,005,587** | 0 / 1 → **1,005,587** |
+| `travel` | travelled | 0 | 2 | 46,336 | 0 / 1 → **1,266,560** (node, M) | 0 / 1 → **1,266,560** (node, M) |
 | `display_title` | displayed | 0 | 3 | 52,773 | 0 / 0 → **935,072** | 0 / 0 → **935,072** |
 | `accept_quest` | accepted | 1 | 2 | 0 | 0 / 2 → **1,427,323** | 2 / 0 → **2,270,227** |
 | `abandon_quest` | abandoned | 0 | 2 | 0 | 0 / 1 → **1,159,251** | 0 / 1 → **1,159,251** |

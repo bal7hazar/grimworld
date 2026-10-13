@@ -406,19 +406,22 @@ def B(name, compute, calls, calldata, events, keys, basis="", node=None):
 
 
 row("`register`", B("registered", 200_000, [], 0, {}, Keys().many(
-    [("H.account_of", "me"), ("H.account", ACCT, "owner"), ("H.account", ACCT, "record")], "new").add(("H.next_account",), "old")))
+    [("H.account_of", "me"), ("H.account", ACCT, "owner"), ("H.account", ACCT, "record")], "new").add(("H.next_account",), "old"),
+    node=(2_636_720, 2_636_720)))
 row("`set_account_owner`, 7 adventurers inside", B("changed", 200_000, ["instances"] * 7, 2, {}, Keys()
     .add(("H.account", ACCT, "owner"), "old").add(("H.account_of", "old owner"), "old").add(("H.account_of", "new owner"), "new")
     .many([("I.member", f"slot{i}", "controller") for i in range(7)], "old"), "E-19"))
 row("`create_adventurer`", B("created", 300_000, ["registry"], 2, {}, Keys()
     .many([("H.adventurer", "new", w) for w in ("core", "place", "build", "belt", "equipped", "name")], "new")
-    .many([("H.next_adventurer",), ("H.account", ACCT, "record")], "old").add(("H.acct_list", ACCT, 0), "first")))
+    .many([("H.next_adventurer",), ("H.account", ACCT, "record")], "old").add(("H.acct_list", ACCT, 0), "first"),
+    node=(4_532_960, 4_894_960)))
 row("`delete_adventurer`", B("deleted", 200_000, [], 1, {}, Keys()
     .many([("H.core", ADV), ("H.account", ACCT, "record"), ("H.acct_list", ACCT, 0), ("H.acct_list", ACCT, 1)], "old"),
     "a swap removal: the hole's page, the last page"))
 row("`set_build`", B("set", 300_000, ["registry"], 4, {}, Keys().many(
     [("H.build", ADV), ("H.belt", ADV), ("H.equipped", ADV)], "old")))
-row("`travel`", B("travelled", 100_000, [], 2, ev(AdventurerLocated=1), Keys().add(("H.place", ADV), "old")))
+row("`travel`", B("travelled", 100_000, [], 2, ev(AdventurerLocated=1), Keys().add(("H.place", ADV), "old"),
+                     node=(1_266_560, 1_266_560)))
 row("`display_title`", B("displayed", 50_000, [], 3, ev(TitleDisplayed=1), Keys(), "event only (T-1)"))
 row("`accept_quest`", B("accepted", 400_000, ["registry"], 2, {}, Keys().add(("H.quiver", ADV, 0), "first")
     .add(("H.known", ADV, 0), "first"), "skills given at acceptance"))
@@ -431,6 +434,10 @@ row("`claim_quest`", B("claimed, a trial promoting", 600_000, ["registry"], 2, e
 row("`claim_title`", B("claimed", 400_000, [], 2, {}, Keys().add(("H.quiver", ADV, "claim"), "new")))
 # SKILL-01 (D-279): measured on the node, a smoke step of the lifecycle probe: the first skill (the
 # known page new) 2,002,960, the second (overwritten) 1,600,960.
+# HUB-ROWS (D-279, D-293): `register`, `create_adventurer` and `travel` are measured the same way (a
+# scratch copy of the probe, two runs identical): `register` the first and the later accounts alike;
+# `create_adventurer` the first (cold) and the later ones; `travel` with the place changed (hub 5 to
+# hub 1), the probe's second hub being a gate to a second town.
 row("`buy_skill`", B("bought", 200_000, ["registry"], 2, {}, Keys().add(("H.known", ADV, 0), "first").add(("H.gold", ADV), "old"),
                      node=(1_600_960, 2_002_960)))
 row("`buy`", B("equipment", 300_000, ["registry"], 4, {}, Keys().add(("H.item", "bought", "base"), "new")
