@@ -2199,9 +2199,12 @@ packing, the batch's codec, the probes, deployments). None executes an entrypoin
 implementing lots' benchmarks, each against its row above.
 
 **Targets replaced by measurements** (D-144, the rule in cost-budget.md §2): `register` 2,650,000;
-`create_adventurer` 4,700,000 cold, 4,350,000 initialised; `delete_adventurer` 1,750,000;
+`create_adventurer` 4,894,960 cold, 4,532,960 initialised (node, M, HUB-ROWS #487; D-295, replacing
+D-144's 4,700,000 / 4,350,000); `delete_adventurer` 1,750,000;
 `set_account_owner` with 7 inside 3,700,000 (re-measured by ENG-06). The table above stays the
-script's output; these figures supersede its targets for those rows.
+script's output; these figures supersede its targets for those rows. `travel`'s row, 1,266,560
+(node, M), is a raw node receipt: net of the node's fixed part (189,141, ENG-06) it is 1,077,419,
+which is +7.1 % on the 1,005,587 estimate, not +26 %.
 
 **Measured by ENG-06** (D-148, and the orchestrator's +10 % under D-144): `enter`, a later entry
 without a belt, 4,100,000; `leave` to a hub and `travel_back` 2,350,000; `set_account_owner` with 7
