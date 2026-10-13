@@ -9,8 +9,8 @@ use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
 use grimworld_logic::models::skill::SkillTrait;
 use grimworld_logic::packing::{
-    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, TWO_POW_128,
-    byte_at, field, fits, join, low_field, split, u16_at, u32_at,
+    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at,
+    field, fits, join, low_field, split, u16_at, u32_at,
 };
 use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::Loadout;
@@ -363,14 +363,16 @@ pub impl KnownSkillsImpl of KnownSkillsTrait {
         }
     }
 
-    /// The page with bit `bit` (0 to 249) set, which `knows` says is clear.
+    /// The page with bit `bit` (0 to 249) set: an or on the word's two limbs, so that a bit already
+    /// set stays set and the page is unchanged. `LIVE` (bit 250) and the stored encoding are kept.
     fn learned(page: Bitmap, bit: u8) -> Bitmap {
-        let added: felt252 = if bit < 128 {
-            BitTrait::pow2(bit).into()
+        let wide: u256 = page.bits.into();
+        let (low, high) = if bit < 128 {
+            (wide.low | BitTrait::pow2(bit), wide.high)
         } else {
-            BitTrait::pow2(bit - 128).into() * TWO_POW_128
+            (wide.low, wide.high | BitTrait::pow2(bit - 128))
         };
-        Bitmap { bits: page.bits + added }
+        Bitmap { bits: u256 { low, high }.try_into().unwrap() }
     }
 
     /// The skills a page knows, counted up to `cap`: one step a skill, each clearing the lowest

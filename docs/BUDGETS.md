@@ -1160,7 +1160,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `models::adventurer::tests::test_known_skills_bits` | 158060 | 165963 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::adventurer::tests::test_known_skills_past_page_255` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::adventurer::tests::test_new_adventurer_words` | 131370 | 137939 | 2026-10-02 | f55176c |
-| grimworld_persistent | `models::adventurer::tests::test_skill_trainer` | 456801 | 479642 | 2026-10-12 | 3c40338 |
+| grimworld_persistent | `models::adventurer::tests::test_skill_trainer` | 477553 | 479642 | 2026-10-12 | a0f6447 |
 | grimworld_persistent | `models::balance::tests::test_apply` | 134180 | 140889 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::balance::tests::test_balance_pages` | 164160 | 172368 | 2026-10-02 | f55176c |
 | grimworld_persistent | `models::balance::tests::test_belt_merge` | 510730 | 536267 | 2026-10-02 | f55176c |
@@ -1269,12 +1269,12 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_build::test_bar_profession` | 80577263 | 83954917 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_belt_counts_within_the_pack` | 83289926 | 86784071 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_belt_items` | 81851303 | 85292029 | 2026-10-12 | e933338 |
-| grimworld_persistent | `test_build::test_buy_skill_already_known` | 75494370 | 79269089 | 2026-10-12 | 3c40338 |
-| grimworld_persistent | `test_build::test_buy_skill_not_affordable` | 76336520 | 80153346 | 2026-10-12 | 3c40338 |
-| grimworld_persistent | `test_build::test_buy_skill_not_in_content` | 75724170 | 79510379 | 2026-10-12 | 3c40338 |
-| grimworld_persistent | `test_build::test_buy_skill_ownership_refusals` | 77009110 | 80859566 | 2026-10-12 | 3c40338 |
-| grimworld_persistent | `test_build::test_buy_skill_then_set_build` | 83912275 | 88107889 | 2026-10-12 | 3c40338 |
-| grimworld_persistent | `test_build::test_buy_skill_worst_case` | 75932440 | 79729062 | 2026-10-12 | 3c40338 |
+| grimworld_persistent | `test_build::test_buy_skill_already_known` | 75503096 | 79269089 | 2026-10-12 | a0f6447 |
+| grimworld_persistent | `test_build::test_buy_skill_not_affordable` | 76349609 | 80153346 | 2026-10-12 | a0f6447 |
+| grimworld_persistent | `test_build::test_buy_skill_not_in_content` | 75737259 | 79510379 | 2026-10-12 | a0f6447 |
+| grimworld_persistent | `test_build::test_buy_skill_ownership_refusals` | 77030925 | 80859566 | 2026-10-12 | a0f6447 |
+| grimworld_persistent | `test_build::test_buy_skill_then_set_build` | 83925364 | 88107889 | 2026-10-12 | a0f6447 |
+| grimworld_persistent | `test_build::test_buy_skill_worst_case` | 75941166 | 79729062 | 2026-10-12 | a0f6447 |
 | grimworld_persistent | `test_build::test_equipment_owned_and_wearable` | 88104230 | 91837830 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_equipment_slots_and_hands` | 87812688 | 91513830 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_build::test_set_build_empty` | 83414020 | 86908994 | 2026-10-12 | e933338 |
@@ -1301,6 +1301,8 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_fate::test_fate_at_the_configured_address` | 4996776 | 5246615 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_fate::test_fate_deterministic_per_transaction_and_domain` | 948708 | 996144 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_fate::test_fate_values_distinct_through_derive` | 4028088 | 4229493 | 2026-10-03 | ffef058 |
+| grimworld_persistent | `test_known_skills::test_learned_a_clear_bit_sets_only_that_bit` | 772042 | 810645 | 2026-10-12 | a0f6447 |
+| grimworld_persistent | `test_known_skills::test_learned_a_known_bit_leaves_the_page_unchanged` | 200054 | 210057 | 2026-10-12 | a0f6447 |
 | grimworld_persistent | `test_lifecycle::test_enter` | 52570696 | 55178378 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_lifecycle::test_enter_after_other_records_changed` | 58911077 | 61826801 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_lifecycle::test_enter_after_set_build` | 60234759 | 63217570 | 2026-10-12 | e933338 |
