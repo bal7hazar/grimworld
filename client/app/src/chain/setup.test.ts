@@ -420,6 +420,25 @@ describe("the deployment's build (CLI-11d3)", () => {
     expect(world).toMatchObject({ inside: true, build: FULL, belt: 0n });
   });
 
+  it("re-entry whose full set_build executes and fails: the bar with an empty belt", async () => {
+    const { sent, built, world } = fakeChain();
+    await restore(built);
+    Object.assign(world, { inside: false, hub: START_HUB, next: "failed" });
+    sent.length = 0;
+    await enter(built, 2);
+    expect(sent).toEqual([["set_build"], ["set_build"], ["enter"]]);
+    expect(world).toMatchObject({ inside: true, build: FULL, belt: 0n });
+  });
+
+  it("re-entry whose full set_build ends unknown (a status that never settled): an error, no fallback", async () => {
+    const { sent, built, world } = fakeChain();
+    await restore(built);
+    Object.assign(world, { inside: false, hub: START_HUB, next: "unknown" });
+    sent.length = 0;
+    await expect(enter(built, 2)).rejects.toMatchObject({ name: "SetupFailed", status: "unknown" });
+    expect(sent).toEqual([["set_build"]]);
+  });
+
   it("resumes a setup stopped between its empty entry and its build: credit, build, enter", async () => {
     const { sent, built, world, credited } = fakeChain();
     // Entered built empty (the first pass stopped there), still on gate 2's anchor

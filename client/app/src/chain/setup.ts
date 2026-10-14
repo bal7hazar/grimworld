@@ -189,6 +189,16 @@ const refusedSend = (error: unknown): boolean =>
     error.code === "refused" &&
     !(error.cause instanceof Error && error.cause.name === "ChainRefused"));
 
+/**
+ * The chain refused the full build: the fee estimate was refused, or the execution ran and
+ * failed. Any other `SetupFailed` (a status that stayed `unknown`) is not a refusal of the build.
+ */
+const refusedBuild = (error: unknown): boolean =>
+  (error instanceof SetupFailed && error.status === "failed") ||
+  (error instanceof AccountError &&
+    error.code === "refused" &&
+    !(error.cause instanceof Error && error.cause.name === "ChainRefused"));
+
 /** Until no credit runs: polled at the execution's pace. */
 async function idle(deps: SetupDeps, credit: Credit): Promise<void> {
   for (;;) {
@@ -282,7 +292,7 @@ export async function enter(deps: SetupDeps, adventurerId: number): Promise<void
         call(deps.hub, "set_build", id, bar, beltWord(build.belt), 0n),
       ]);
     } catch (error) {
-      if (!refusedSend(error)) throw error;
+      if (!refusedBuild(error)) throw error;
       await run(deps, "set_build", [call(deps.hub, "set_build", id, bar, 0n, 0n)]);
     }
     await runAround(deps, "enter", [call(deps.hub, "enter", id, BigInt(START_GATE))]);
