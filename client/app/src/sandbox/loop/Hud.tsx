@@ -1,6 +1,6 @@
 import { type CSSProperties, memo, useRef } from "react";
 import { Bar, Icon, Panel, Portrait, useHudMode } from "../../chrome/Chrome";
-import { Chips } from "../../combat/Chips";
+import { Chips } from "../../combat/ChipRow";
 import type { Chip } from "../../combat/state";
 import { ADVENTURER, type AdventurerSheet } from "../fixtures/hubs";
 import { hudSheet, readParams } from "../params";

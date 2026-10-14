@@ -1,4 +1,4 @@
-import { Illegal, actionAct, memberPlace, neighbor, reach, shapes } from "@grimworld/sim";
+import { ORIGIN, Illegal, actionAct, memberPlace, neighbor, reach, shapes } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import type { Tile } from "../render/view";
 import { readWorld } from "./fromWords";
@@ -81,6 +81,28 @@ describe("targeting reads client/sim's aim (§4.1, §4.3)", () => {
     expect(has(aim.reach, tileFrom(1802))).toBe(true);
     expect(has(aim.reach, tileFrom(1803))).toBe(false);
     expect(outcome(actRow(89))).toEqual({ illegal: Illegal.Reach });
+  });
+
+  it("a TILE carrier armed at tile (0, 7) skips the off-board tiles of the window", () => {
+    // Row 88's world with the adventurer put at the spawn tile (0, 7), seven columns and nine
+    // rows into the window: it reaches tiles with a negative x or y, on which `BoardTrait::tile`
+    // panics (`u8_add Overflow`)
+    const row = actRow(88);
+    const board = { ...row.board, x: ORIGIN - 7, y: ORIGIN - 2 };
+    const cw = readWorld(row.words, ACT, row.ground, board);
+    const member = cw.world.members[0]!;
+    const was = memberPlace(member);
+    const moved = BigInt(-was.x + 256 * (7 - was.y)) * 2n ** 32n;
+    member.words = { ...member.words, state: member.words.state + moved };
+    expect(memberPlace(member)).toMatchObject({ x: 0, y: 7 });
+    expect(tileOf(board, 0)).toEqual({ x: -7, y: -2 });
+    const aim = aiming(cw, { kind: "skill", slot: 0 })!;
+    expect(aim.addressing).toBe("tile");
+    expect(aim.reach.length + aim.greyed.length).toBeGreaterThan(0);
+    for (const t of [...aim.reach, ...aim.greyed]) {
+      expect(t.x).toBeGreaterThanOrEqual(0);
+      expect(t.y).toBeGreaterThanOrEqual(0);
+    }
   });
 
   it("a tile in range but out of sight is greyed, and aim refuses it with Reach", () => {
