@@ -224,7 +224,7 @@ a refusal the words and the ground are the case's, felt for felt. `segment2.json
 state and health, `TrapTrait::occupied` and a wide carrier's candidates its AI state alone (rows
 217 to 222 hold goblins dead by one field only).
 
-Of the action's 154 mutants, 145 are killed by the tables and 4 by `actcases.ts` (`mixed`'s guard,
+Of the action's 154 mutants, 146 are killed by the tables and 4 by `actcases.ts` (`mixed`'s guard,
 its `SELF` arm, the `ALLY` one that makes a `TILE` then `ALLY` carrier run on the whole world, and
 one that refuses a kept shape: `TILE` counted with `ALLY`; the two other such mutants, `SELF`
 counted as a `TILE` one and every `TILE` carrier refused, are killed by the tables, the second by
@@ -236,14 +236,18 @@ bit of slot 0 read for every slot (224, 225), a negative `NEXT_SPELL_COST` (226)
 from bar slot 1 (227), an attack skill's scope (228, 229), `ATTACK_BONUS` (230), `HIT_PENETRATION`
 (231), a `PENETRATION` of scope `ALL` not taken (233, 234), an `ON_ATTACK_CONDITION` (235, 236),
 `LIFE_STEAL_ON_HIT` (237), `ENERGY_ON_HIT` (238), a dead member a wide carrier's candidate (240), a
-`SINGLE` `TILE` entry (241), the hit given to every set's actor (243). 2 survive, reported to track
-game: a bomb or a trap taking held penetration (row 232 throws the bomb holding `PENETRATION` of
-scope `ALL`, but `resolve` reads a bomb's or a trap's penetration nowhere, Cairo's neither: only an
-`offence` row of scope 3 can tell it); the source in its own hit's set (row 239 puts it there, but
-the source's bits reach `apply` only, where `HIT_BIT` is entry 3's bit, and skill 82 holds one
-entry: a carrier of four entries is needed). A 17th, two actors of a carrier whose
+`SINGLE` `TILE` entry (241), the hit given to every set's actor (243). RV-03a3's rows (244–250, the
+`offence` rows of held `ALL` penetration, read through the same content row 223) settle the last
+two: a bomb or a trap taking held penetration is killed by 247, 248 and 250 (`resolve` reads a
+bomb's or a trap's penetration nowhere, Cairo's neither, so no `act` row could tell it; an
+`offence` row of scope 3 does; 244–246 and 249 are its controls); the source in its own hit's set
+is `equivalent` by track game's ruling in RV-03a3 (`contracts/logic/vectors/README.md`,
+`act.jsonl`), checked against the port: the source's bits reach `apply` (`executor.ts`) only,
+which tests bit `2^k` of op `k` over `ops`, so `HIT_BIT` (8) is entry 3's bit, and `read` takes
+the entries for `k < 3` (a potion's one, a weapon's none), one `Op` an entry: the loop never
+reaches bit 8. None survives. A 17th, two actors of a carrier whose
 index order is not their position order, is killed since lot F by `tick.jsonl`'s row 85 (the Cinder
-Ring kills goblin 9 before goblin 8: tile order). Three are `equivalent`: a refusal's words stored back
+Ring kills goblin 9 before goblin 8: tile order). Four are `equivalent`: the source in its own hit's set (above), a refusal's words stored back
 (every refusal comes before any write, and a store of a load gives the words back); the awake
 goblins written at once rather than gathered (the mirror's world is one array); a trap placed on a
 wall (through `act`, `aim`'s reach refuses a walled tile first).
@@ -277,9 +281,11 @@ row at or before it, `contentRow`: rows 1–130 row 0's, rows 132–170 row 131'
 (25, in rows 2–4, 6, 10, 12–14, 16–22, 25, 29, 46 and 47) are computed by the port and equal their
 recordings (`src/parity/parity.test.ts`).
 
-Of the tick's 156 mutants, 103 are killed by the tables (and three earlier survivors with them:
-the fast path's adrenaline decay, `tick.jsonl` row 20; `entries`' dead entrant and the actors'
-position order, row 85). Eight are `equivalent`: the attackers' cap (the awake set holds at most
+Of the tick's 156 mutants, 145 are killed by the tables (103 before RV-03d's rows, and three
+earlier survivors with them: the fast path's adrenaline decay, `tick.jsonl` row 20; `entries`'
+dead entrant and the actors' position order, row 85) and 11 are `equivalent` (counted in
+`src/parity/mutants.test.ts`: the tick's mutants are its last 156, from `run`'s stop after a
+defeat). Eight of the 11 are `equivalent` from the first rows: the attackers' cap (the awake set holds at most
 8); step 2 called with a goblin knocked down to `T`, busy or resolved and no other free (three
 mutants: `AiTrait::capped` checks the same, and acts on none); a member at 0 read by perception or
 regenerated in step 3 (two: the tick stops first); a `SELF` carrier's target checked (its source,
@@ -318,8 +324,8 @@ side fails until both agree.
   crash (a TypeError, a ReferenceError, a stack overflow) must say with `crash` why the crash is
   the mutant's own divergence; otherwise it fails, as a broken mutant. A mutant no input tells
   from the mirror is marked `equivalent`: neither the tables nor the unit tests' cases may kill it.
-  Of the 693 mutants, 6 survive and 18 are `equivalent` (since RV-03d's rows, CLI-10o; 51 and 15
-  before, 78 and 13 before RV-03a2's). The mutants run in a pool of at most four
+  Of the 693 mutants, 4 survive and 19 are `equivalent` (since RV-03a3's rows, CLI-10p; 6 and 18
+  after RV-03d's, CLI-10o; 51 and 15 before, 78 and 13 before RV-03a2's). The mutants run in a pool of at most four
   worker threads (`src/parity/mutate.ts`), each a few dozen mutants then a fresh one: no copy is
   written, a module hook serves the mutated file and the modules that import it from memory, and
   the modules the mutant does not reach are loaded once per worker and shared.
