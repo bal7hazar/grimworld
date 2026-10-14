@@ -240,8 +240,9 @@ class Node:
     """The local node and the first pre-funded account, through the JSON-RPC and `sncast`."""
 
     def __init__(self, url, address, key, logs, salt=None, name="deployer"):
-        check_url(url)
+        self.check_url(url)
         self.url, self.address, self.salt, self.name, self.logs = url, address, salt, name, logs
+        self.sent = []  # the hash of each transaction `sncast` sent (OPS-02a counts them)
         os.makedirs(logs, exist_ok=True)
         # DEPLOY-BUILD-FOR: another account of the same node gets a file of its own, by process
         self.accounts = os.path.join(logs, "accounts-devnet-deploy.json" if name == "deployer"
@@ -250,6 +251,13 @@ class Node:
             os.remove(self.accounts)
         self.key = key
 
+    check_url = staticmethod(check_url)  # OPS-02a: the Sepolia node checks its own URL
+
+    @staticmethod
+    def redact(text):
+        """OPS-02a: what an error message goes through; the Sepolia node hides its variables here."""
+        return text
+
     def rpc(self, method, params):
         body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
         request = urllib.request.Request(self.url, data=body,
@@ -257,7 +265,7 @@ class Node:
         with urllib.request.urlopen(request, timeout=60) as response:
             answer = json.load(response)
         if "error" in answer:
-            raise RuntimeError(f"{method}: {answer['error']}")
+            raise RuntimeError(self.redact(f"{method}: {answer['error']}"))
         return answer["result"]
 
     def sncast(self, package, *args, account=True):
@@ -266,7 +274,11 @@ class Node:
                              capture_output=True, text=True)
         if out.returncode != 0:
             # sncast echoes the command's arguments only on a usage error, never the key we import
-            raise RuntimeError(f"sncast {' '.join(args[:4])}: {out.stdout[-2000:]} {out.stderr[-2000:]}")
+            raise RuntimeError(self.redact(
+                f"sncast {' '.join(args[:4])}: {out.stdout[-2000:]} {out.stderr[-2000:]}"))
+        sent = re.search(r"Transaction Hash:\s*(0x[0-9a-fA-F]+)", out.stdout)
+        if sent and args[0] not in ("call", "account"):
+            self.sent.append(sent.group(1))
         return out.stdout + out.stderr
 
     def import_account(self):
@@ -309,7 +321,7 @@ class Node:
         tx = field("Transaction Hash", out)
         receipt = self.rpc("starknet_getTransactionReceipt", {"transaction_hash": tx})
         if receipt.get("execution_status") != "SUCCEEDED":
-            raise RuntimeError(f"{function} reverted: {receipt.get('revert_reason')}")
+            raise RuntimeError(self.redact(f"{function} reverted: {receipt.get('revert_reason')}"))
         return receipt
 
     def view(self, package, contract, function, *calldata):
@@ -382,6 +394,47 @@ def seed_records():
     records += [(7, row[0], pack_record(row)) for row in seed_rows("packs", 17)]
     records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 16)]
     return records
+
+
+def deploy_core(node, address):
+    """The game's classes and contracts, in OPERATIONS §7's order: `Registry`, `set_zone_checks` at once
+    (before any record), `TxHashFate`, the libraries, `Hub`, `Instances`, `Hub.set_contracts`, the play
+    classes (keys 0-6, GoblinsLibrary last). Shared by this script and `sepolia_deploy.py` (OPS-02a); `node`
+    declares (`node.declare(package, name)`) and deploys. Returns `classes` (name: class hash, the JSON's
+    `classes` key, in its order) and the four addresses."""
+    classes = {}
+    registry_class = node.declare("persistent", "Registry")
+    registry = node.deploy("persistent", registry_class, address)
+    # ENG-09 (D-245): the zone checks are set right after the Registry, before any record
+    classes["zone_checks"] = node.declare("persistent", "ZoneChecks")
+    node.invoke(registry, "set_zone_checks", classes["zone_checks"])
+    classes["tx_hash_fate"] = node.declare("persistent", "TxHashFate")
+    fate = node.deploy("persistent", classes["tx_hash_fate"])
+    classes["reveal_library"] = node.declare("logic", "RevealLibrary")
+    classes["hosts_library"] = node.declare("logic", "HostsLibrary")
+    classes["trap_library"] = node.declare("logic", "TrapLibrary")
+    classes["hub"] = node.declare("persistent", "Hub")
+    hub = node.deploy("persistent", classes["hub"], address, registry, 3, 4, fate)
+    classes["flatten_library"] = node.declare("logic", "FlattenLibrary")
+    classes["instances"] = node.declare("ephemeral", "Instances")
+    instances = node.deploy("ephemeral", classes["instances"], address, hub, registry, fate,
+                            classes["reveal_library"], classes["hosts_library"],
+                            classes["trap_library"])
+    node.invoke(hub, "set_contracts", registry, instances, 4, fate, classes["flatten_library"])
+    play = {}
+    for key_, (package, name) in enumerate(PLAY_CLASSES):
+        play[name] = node.declare(package, name)
+        node.invoke(instances, "set_play_class", key_, play[name])
+    return {"classes": {"registry": registry_class, **classes,
+                        **{re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower(): h
+                           for name, h in play.items()}},
+            "registry": registry, "fate": fate, "hub": hub, "instances": instances}
+
+
+def write_seed(node, registry):
+    """The records of `seed_records()`, one `Registry.set_record` each."""
+    for kind, rid, parts in seed_records():
+        node.invoke(registry, "set_record", kind, rid, len(parts), *parts)
 
 
 def build_word(bar):
@@ -720,31 +773,10 @@ def main(argv):
     chain = bytes.fromhex(node.rpc("starknet_chainId", [])[2:]).decode()
     node.import_account()
 
-    classes = {}
-    registry_class = node.declare("persistent", "Registry")
-    registry = node.deploy("persistent", registry_class, address)
-    # ENG-09 (D-245): the zone checks are set right after the Registry, before any record
-    classes["zone_checks"] = node.declare("persistent", "ZoneChecks")
-    node.invoke(registry, "set_zone_checks", classes["zone_checks"])
-    classes["tx_hash_fate"] = node.declare("persistent", "TxHashFate")
-    fate = node.deploy("persistent", classes["tx_hash_fate"])
-    classes["reveal_library"] = node.declare("logic", "RevealLibrary")
-    classes["hosts_library"] = node.declare("logic", "HostsLibrary")
-    classes["trap_library"] = node.declare("logic", "TrapLibrary")
-    classes["hub"] = node.declare("persistent", "Hub")
-    hub = node.deploy("persistent", classes["hub"], address, registry, 3, 4, fate)
-    classes["flatten_library"] = node.declare("logic", "FlattenLibrary")
-    classes["instances"] = node.declare("ephemeral", "Instances")
-    instances = node.deploy("ephemeral", classes["instances"], address, hub, registry, fate,
-                            classes["reveal_library"], classes["hosts_library"],
-                            classes["trap_library"])
-    node.invoke(hub, "set_contracts", registry, instances, 4, fate, classes["flatten_library"])
-    play = {}
-    for key_, (package, name) in enumerate(PLAY_CLASSES):
-        play[name] = node.declare(package, name)
-        node.invoke(instances, "set_play_class", key_, play[name])
-    for kind, rid, parts in seed_records():
-        node.invoke(registry, "set_record", kind, rid, len(parts), *parts)
+    core = deploy_core(node, address)
+    classes, registry, fate, hub, instances = (core["classes"], core["registry"], core["fate"],
+                                               core["hub"], core["instances"])
+    write_seed(node, registry)
 
     node.invoke(hub, "register")
     node.invoke(hub, "create_adventurer", short("Aldric"), 1)
@@ -769,9 +801,7 @@ def main(argv):
     result = {
         "node_url": url, "chain_id": chain, "commit": commit(), "account": address,
         "salt": None if args.salt is None else hex(args.salt),
-        "classes": {"registry": registry_class, **classes,
-                    **{re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower(): h
-                       for name, h in play.items()}},
+        "classes": classes,
         "contracts": {"registry": registry, "tx_hash_fate": fate, "hub": hub,
                       "instances": instances},
         "adventurer_id": adventurer, "instance_id": instance, "slot": instance >> 32,
