@@ -12,6 +12,7 @@ import {
   openChain,
   parseDeployment,
 } from "./network";
+import { type Credit, createCredit } from "./credit";
 import { BURNER_FUNDS } from "./setup";
 
 const NODE = "http://127.0.0.1:5050";
@@ -117,6 +118,42 @@ describe("parseDeployment (§2.2)", () => {
       { ...deploymentJson, contracts: { ...contracts, registry: 17 } },
     ]) {
       expect(parseDeployment(body), JSON.stringify(body)).toBeUndefined();
+    }
+  });
+});
+
+describe("parseDeployment's build (CLI-11d3)", () => {
+  const build = {
+    mode: "full",
+    bar: [1, 2, 3, 4, 0, 0, 0, 0],
+    belt: [
+      { item: 1, count: 2 },
+      { item: 23, count: 1 },
+    ],
+  };
+
+  it("keeps a full build's bar and belt", () => {
+    expect(parseDeployment({ ...deploymentJson, build })).toEqual({
+      ...deployment,
+      build: { bar: build.bar, belt: build.belt },
+    });
+  });
+
+  it("drops an empty build, or a build of another shape, and keeps the rest", () => {
+    for (const bad of [
+      { ...build, mode: "empty" },
+      { ...build, bar: [0, 0, 0, 0, 0, 0, 0, 0] },
+      { ...build, bar: [1, 2, 3] },
+      { ...build, bar: [1, 2, 3, 4, 0, 0, 0, 65536] },
+      { ...build, belt: [{ item: 1 }] },
+      { ...build, belt: [{ item: 1, count: 256 }] },
+      { ...build, belt: [1, 2, 3, 4, 5].map((item) => ({ item, count: 1 })) },
+      null,
+      "full",
+    ]) {
+      expect(parseDeployment({ ...deploymentJson, build: bad }), JSON.stringify(bad)).toEqual(
+        deployment,
+      );
     }
   });
 });
@@ -271,6 +308,52 @@ describe("openChain (§2.2, §2.3, §3.1)", () => {
   });
 });
 
+describe("openChain with the credit (CLI-11d3, caveat c)", () => {
+  /** A credit whose state the test sets. */
+  function credit(
+    state: "idle" | "running" | "unusable",
+  ): Credit & { set(next: typeof state): void } {
+    let now = state;
+    const base = createCredit(async () => ({
+      status: 200,
+      body: JSON.stringify({ state: now, credits: 0 }),
+    }));
+    return { ...base, set: (next) => void (now = next) };
+  }
+
+  it("refuses every send and funding once the devnet was left mid-credit", async () => {
+    const node = devnet();
+    const f = fakes(true);
+    const devnetCredit = credit("idle");
+    const opened = await openChain(NODE, deployment, {
+      fetch: node.fetch,
+      storage: memoryStorage(),
+      credit: devnetCredit,
+      ...f,
+    });
+    expect(opened.credit).toBe(devnetCredit);
+    await opened.provider.createOrRestore();
+    const register = { to: "0x13", entrypoint: "register", calldata: [] };
+    await opened.provider.execute([register]);
+    expect(f.sent).toHaveBeenCalledTimes(1);
+    devnetCredit.set("unusable");
+    const refused = new ChainRefused("devnet left mid-credit: redeploy");
+    await expect(opened.provider.execute([register])).rejects.toMatchObject({ cause: refused });
+    await expect(opened.assertChain()).rejects.toEqual(refused);
+    expect(f.sent).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens without a credit as before", async () => {
+    const opened = await openChain(NODE, deployment, {
+      fetch: devnet().fetch,
+      storage: memoryStorage(),
+      ...fakes(),
+    });
+    expect(opened.credit).toBeUndefined();
+    await expect(opened.assertChain()).resolves.toBeUndefined();
+  });
+});
+
 describe("the chain mode's files (§2.3)", () => {
   const sources = import.meta.glob<string>("./**/*.{ts,tsx}", {
     query: "?raw",
@@ -290,6 +373,14 @@ describe("the chain mode's files (§2.3)", () => {
       .filter(([path]) => !/\.test\.tsx?$/.test(path))
       .filter(([, text]) => /from\s+["']starknet["']/.test(text));
     expect(library).toEqual([]);
+  });
+
+  it("hold no call of account 0's: no set_contracts, no report, no admin (D-273, CLI-11d3)", () => {
+    const admin = files
+      .filter(([path]) => !/\.test\.tsx?$/.test(path))
+      .filter(([, text]) => /set_contracts|["'`]report["'`]|set_admin|"instances"\s*:/.test(text))
+      .map(([path]) => path);
+    expect(admin).toEqual([]);
   });
 
   it("name the burner's chain and funder factories in network.ts only", () => {
