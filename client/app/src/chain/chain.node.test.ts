@@ -66,22 +66,33 @@ function memoryStorage(): KeyStorage {
   };
 }
 
-/** A provider that records the entrypoints of each execution it sends, and their ids. */
+/**
+ * A provider that records the entrypoints of each execution it sends, and their ids; those the node
+ * refused before sending (their fee estimate reverts: the build's probe, CLI-11d2) apart.
+ */
 function recording(provider: AccountProvider) {
   const sent: string[][] = [];
   const ids: ExecutionId[] = [];
+  const refused: string[][] = [];
   const wrapped: AccountProvider = {
     createOrRestore: () => provider.createOrRestore(),
     async execute(calls) {
-      sent.push(calls.map((c) => c.entrypoint));
-      const id = await provider.execute(calls);
+      const names = calls.map((c) => c.entrypoint);
+      let id: ExecutionId;
+      try {
+        id = await provider.execute(calls);
+      } catch (error) {
+        refused.push(names);
+        throw error;
+      }
+      sent.push(names);
       ids.push(id);
       return id;
     },
     status: (id) => provider.status(id),
     signOut: () => provider.signOut(),
   };
-  return { provider: wrapped, sent, ids };
+  return { provider: wrapped, sent, ids, refused };
 }
 
 async function settled(status: () => Promise<ExecutionStatus>): Promise<ExecutionStatus> {
@@ -106,6 +117,7 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
     reader: opened.reader,
     ...deployment.contracts,
     pollMs: 100,
+    ...(opened.kit ? { kit: opened.kit } : {}),
   });
   const cost = async (sent: string[][], ids: ExecutionId[]) => {
     for (const [i, id] of ids.entries()) {
@@ -123,9 +135,26 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
   });
 
   it("makes the burner a player: funded by account 1, registered, built, entered", async () => {
-    const { provider, sent, ids } = recording(opened.provider);
+    const { provider, sent, ids, refused } = recording(opened.provider);
     player = await restore(deps(provider));
-    expect(sent).toEqual([["register", "create_adventurer"], ["set_build"], ["enter"]]);
+    if (opened.kit === undefined) {
+      expect(sent).toEqual([["register", "create_adventurer"], ["set_build"], ["enter"]]);
+    } else {
+      // CLI-11d2: the build's set_build is refused (no skill known, an empty pack), the harness
+      // funds the pack and the gold in an instance it leaves, the four skills are bought, and the
+      // build is set again
+      expect(refused).toEqual([["set_build"]]);
+      expect(sent).toEqual([
+        ["register", "create_adventurer"],
+        ["set_build"],
+        ["enter"],
+        ["travel_back"],
+        ...opened.kit.build.bar.filter((id) => id !== 0).map(() => ["buy_skill"]),
+        ["set_build"],
+        ["enter"],
+      ]);
+      expect(await opened.kit.hubInstances()).toBe(BigInt(deployment.contracts.instances));
+    }
     expect(player.adventurerId).not.toBe(raw.adventurer_id);
     expect(player.adventurerId).toBe(2);
     expect(BigInt(player.address)).not.toBe(0n);
@@ -184,6 +213,41 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
         `total ${total} fri of 10^20 funded`,
     );
   }, 180_000);
+
+  it.skipIf(found === undefined || deployment.full === undefined)(
+    "the burner's adventurer carries the full build: the bar's four skills and the belt",
+    async () => {
+      const { instances, registry } = deployment.contracts;
+      const placement = await opened.reader.placement(instances, player.adventurerId);
+      const load = () =>
+        readState(opened.reader, {
+          instances,
+          registry,
+          instanceId: placement.instanceId,
+          adventurerId: player.adventurerId,
+        });
+      const stages = createStages(await load(), {
+        simulator: createRpcSimulator({ nodeUrl: raw.node_url, sender: player.address }),
+        send: () => Promise.reject(new Error("only read here")),
+        load,
+      });
+      const controller = createChainController({
+        stages,
+        enter: () => Promise.reject(new Error("no")),
+      });
+      const view = controller.combat.snapshot().view;
+      expect(view, "the combat view needs the state's content").not.toBeNull();
+      const { bar, belt } = view!.state.adventurer;
+      const { build } = deployment.full!;
+      expect(bar.filter((slot) => slot.skill !== null).map((slot) => slot.skill!.id)).toEqual(
+        build.bar.filter((id) => id !== 0),
+      );
+      expect(
+        belt.filter((slot) => slot.item !== null).map((slot) => [slot.item, slot.count]),
+      ).toEqual(build.belt.map(({ item, count }) => [item, count]));
+    },
+    60_000,
+  );
 
   // CLI-11b: the batch and its preview on the burner's adventurer, sent through the guarded provider
   // and CLI-11a's own check (§2.3), in the instance it entered again above
@@ -368,9 +432,9 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
 });
 
 // CLI-11d: skills and belt items on the deployment's own adventurer, built `--build full` (SEED-02:
-// four skills on the bar, a belt of healing ×2 and a REGENERATION potion). The burner's adventurer
-// is built empty (`set_build`, `EMPTY_BUILD`), so the full build is the deployment's, adventurer
-// `adventurer_id`, which account 0 owns. Only simulated, never sent: the world is drawn again on
+// four skills on the bar, a belt of healing ×2 and a REGENERATION potion), on the deployment's
+// adventurer, `adventurer_id`, which account 0 owns (the burner's carries the same build since
+// CLI-11d2, checked above, and `verify:chain` plays it). Only simulated, never sent: the world is drawn again on
 // every deployment (entropy), so no entity, tile or goblin count is assumed; the targets come from
 // the state read back.
 type FullBuild = {
