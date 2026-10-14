@@ -14,8 +14,9 @@
 // seam of the classes (`seam`, CLI-02g-C) is the same: no row records an Illegal refusal whose call
 // changed the ground, nor a class that mutates its inputs; `parity/seam.ts`' cases (the list
 // `segment/unported.test.ts` runs) must kill it. So is a mutant of the trap class (`trap`,
-// CLI-02g-D) that reads another goblin's caste than the placer's: the table's goblins share one
-// caste; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill it. So is a mutant of
+// CLI-02g-D) no row reaches; `parity/trapcases.ts`' cases (the list `trap.test.ts` runs) must kill
+// it (the three that read another goblin's caste than the placer's are the tables' since
+// trap.jsonl 86, RV-03a2). So is a mutant of
 // the action class (`act`, CLI-02g-E) that runs a mixed-target carrier: no table holds one;
 // `parity/actcases.ts`' cases (the list `action.test.ts` runs) must kill it.
 
@@ -1188,8 +1189,8 @@ const MUTANTS: readonly Mutant[] = [
     file: "segment.ts",
     from: "    before = fit.after;\n",
     to: "",
-    survives:
-      "a goblin left unrecorded by an Engaged-only change (rows 22, 46, 47) is recorded by any later change, whether compared with the segment's start or with the words after the previous action (46), and skipped when nothing more changes (47); only a later action that puts its words back to the segment's start separates the two (its AI state back from Engaged, nothing else changed), which no row does",
+    equivalent:
+      "the two differ only for a goblin left unrecorded by an Engaged-only change whose later action puts its words back to the segment's start (its AI state back from Engaged, nothing else changed), and no AI state leaves `ENGAGED` but for `DEAD` (perception, a cornered Fleeing goblin and a struck sleeper engage; every other write is a death): track game's ruling, RV-03a2 (`vectors/README.md`, `segment2.jsonl`)",
   },
   {
     name: "a caste missing from the content is not refused (NO_CASTE)",
@@ -1502,13 +1503,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "  if (c === condition.CRIPPLED) return crippled(member);\n  return member.knocked;",
     to: "  return member.knocked;",
   },
+  // Killed by body.jsonl 327 (RV-03a2)
   {
     name: "hold's step 1: a carrier held to t not held (deadline > t)",
     file: "body/member.ts",
     from: "    if (old.deadline >= t && old.potion === held.potion) {",
     to: "    if (old.deadline > t && old.potion === held.potion) {",
-    survives:
-      "no row holds again a carrier held to exactly T (193–196 hold skill 5 over itself held to 60 or 49; 197 holds skill 6 beside skill 5 held to 50): step 1's `old.deadline ≥ t` is not vectored at `t`",
   },
   {
     name: "hold's step 1: a skill and a potion of one carrier number are the same",
@@ -1522,13 +1522,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (held.deadline >= old.deadline) put(",
     to: "if (held.deadline > old.deadline) put(",
   },
+  // Killed by body.jsonl 328 (RV-03a2)
   {
     name: "hold's step 1: a potion is the same by its belt slot, not its item",
     file: "body/member.ts",
     from: "        ? belt_item(member, old.carrier) === item\n",
     to: "        ? old.carrier === held.carrier\n",
-    survives:
-      "the table's belt holds four different items (100 to 103), so a belt slot and its item always agree (203, 204, 324): no row holds a potion whose item another belt slot also holds, so step 1's comparison of the items, not the slots, is not vectored",
   },
   {
     name: "hold's step 2 skipped (a stance does not replace the stance)",
@@ -1698,13 +1697,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "(1n << BigInt(6 * (damage_type - 1)))",
     to: "(1n << BigInt(6 * damage_type))",
   },
+  // Killed by body.jsonl 333 (RV-03a2)
   {
     name: "a goblin's interrupt ignores caste slot 3 (LAST_SLOT)",
     file: "body/goblin.ts",
     from: "if (slot > activation.LAST_SLOT) return;",
     to: "if (slot >= activation.LAST_SLOT) return;",
-    survives:
-      "no row knocks down a goblin activating caste slot 3 (153–159 use slot 2): `LAST_SLOT`'s bound is not vectored",
   },
   {
     name: "a goblin recovering is interrupted",
@@ -1986,39 +1984,35 @@ const MUTANTS: readonly Mutant[] = [
     seam: true,
   },
 
+  // Killed by trap.jsonl 64 (RV-03a2)
   {
     name: "the window's last position read as inside (locate)",
     file: "trap.ts",
     from: "if (position >= FAR || position >= 240) return undefined;",
     to: "if (position > 240) return undefined;",
-    survives:
-      "position 240 (row 16) lands on chunk 15's tile 15, which no row's ground holds: row 42 with chunk 15 holding a trap on tile 15",
   },
+  // Killed by trap.jsonl 65 (RV-03a2)
   {
     name: "a chunk column past the location is in it (locate)",
     file: "trap.ts",
     from: "if (chunk >= MAX_CHUNKS || cx >= CHUNK_SIDE) return undefined;",
     to: "if (chunk >= MAX_CHUNKS) return undefined;",
-    survives:
-      "column 16 wraps to the next row's chunk, which no row's ground holds: row 47 with chunk 16 (cy 0, cx 16) holding a trap on its tile",
   },
+  // Killed by trap.jsonl 66, 67 on the bound (RV-03a2)
   {
     name: "a chunk row past the location is in it (locate)",
     file: "trap.ts",
     from: "if (chunk >= MAX_CHUNKS || cx >= CHUNK_SIDE) return undefined;",
     to: "if (cx >= CHUNK_SIDE) return undefined;",
-    survives:
-      "chunk row 16 is chunk 240 and up, which no row's ground holds: row 48 with chunk 240 holding a trap on its tile",
   },
   // `locate`'s guard of a tile before the location's first, which Cairo has too, before its
-  // `x - ORIGIN` would underflow. West: not killed by any row (RV-03a2). South: equivalent
+  // `x - ORIGIN` would underflow. West: killed by row 68 (RV-03a2). South: equivalent
+  // Killed by trap.jsonl 68 (RV-03a2)
   {
     name: "a tile West of the location is in it (locate)",
     file: "trap.ts",
     from: "if (x < ORIGIN || y < ORIGIN) return undefined;",
     to: "if (y < ORIGIN) return undefined;",
-    survives:
-      "no row's board reaches West of `ORIGIN`: with x < ORIGIN and y ≥ ORIGIN + 15, TS finds a real tile of chunk 15·cy − 1 where Cairo returns none: a trigger row with such a board, its ground holding a trap on that tile",
   },
   {
     name: "a tile South of the location is in it (locate)",
@@ -2184,34 +2178,33 @@ const MUTANTS: readonly Mutant[] = [
     to: "  const goblin",
     crash: "the goblin not carried is read all the same: a TypeError where Cairo finds none",
   },
+  // The kit, the rank and the level of goblin 0 (the Hob, 44), not the placer's (45, a Runt):
+  // killed by trap.jsonl 86, whose placer and entrant are of distinct castes (RV-03a2); before it,
+  // only `parity/trapcases.ts` killed them
   {
     name: "the kit of another goblin's caste, not the placer's (by_goblin)",
     file: "trap.ts",
     from: "const kit = sheets.kits[goblin.caste_at];",
     to: "const kit = sheets.kits[world.goblins[0]!.caste_at];",
-    trap: true,
   },
   {
     name: "the rank of another goblin's caste, not the placer's (by_goblin)",
     file: "trap.ts",
     from: "const rank = sheets.castes[goblin.caste_at]!.rank;",
     to: "const rank = sheets.castes[world.goblins[0]!.caste_at]!.rank;",
-    trap: true,
   },
   {
     name: "the level of another goblin, not the placer's (by_goblin)",
     file: "trap.ts",
     from: "level: goblinLevel(goblin),",
     to: "level: goblinLevel(world.goblins[0]!),",
-    trap: true,
   },
+  // Killed by trap.jsonl 79 against 80 (RV-03a2)
   {
     name: "a goblin placer's guards all held (by_goblin)",
     file: "trap.ts",
     from: 'const held = guards({ kind: "G", goblin }, entries(sheets, payload));',
     to: "const held = 7;",
-    survives:
-      "no goblin placer's payload is guarded: a row with a `BELOW_HALF` caste trap skill, its placer above and below half",
   },
   {
     name: "a goblin placer's caste slot fixed at 2 (from_param)",
@@ -2262,8 +2255,8 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: `  return true;
 `,
-    survives:
-      "equivalent alone: `entries` stops at a dead entrant too, so either check masks the other (rows 7 and 30 kill the two together); `on` (lot E) runs `entries` without `trap`'s check",
+    equivalent:
+      "on the trap path `entries` checks the same `alive` before every entry it applies, and no entry before it can kill (a `HEAL`, a `CONDITION`, a `CURE`, an `ENERGY` or a holding entry lowers no health), so either check masks the other (rows 7 and 30 kill the two together; `on` runs `entries` without `trap`'s check): track game's ruling, RV-03a2 (`vectors/README.md`, `trap.jsonl`)",
   },
   {
     name: "a trap's hit of class Weapon (blocked, evaded, arced)",
@@ -2317,12 +2310,12 @@ const MUTANTS: readonly Mutant[] = [
     equivalent:
       "nothing holds a `BLOCK` above 63: a member's charges are 6 bits (`MemberEffects` 16–21, read modulo 64 by `held`), a goblin's too (rows 213 and 214), `hold` clamps a `BLOCK` grant to `MAX_BLOCK` (tick.jsonl rows 72, 73 and 80: 63, 62 and a grant of 64 clamped to 63), and `defence.block` takes one slot's charges, never a sum",
   },
+  // Killed by trap.jsonl 71, and 73, 75, 76 (RV-03a2)
   {
     name: "the target's ARMOR effects ignored (resolve)",
     file: "executor.ts",
     from: "armor_effects: BigInt(defence.effects),",
     to: "armor_effects: 0n,",
-    survives: "no entrant holds an `ARMOR` effect: a trap row on an entrant holding one",
   },
   {
     name: "the member's cached defence read whatever the tick (Levered)",
@@ -2355,13 +2348,12 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: "",
   },
+  // Killed by trap.jsonl 81 against 82 (RV-03a2)
   {
     name: "an entry's guard ignored (entries)",
     file: "executor.ts",
     from: "if ((bits & held & b) !== 0 && op.kind !== kind.EMPTY) {",
     to: "if ((bits & b) !== 0 && op.kind !== kind.EMPTY) {",
-    survives:
-      "no payload holds a guarded entry other than its hit: a trap skill whose condition is `BELOW_HALF`, its placer above half",
   },
   {
     name: "a condition through no infliction (entries)",
@@ -2381,12 +2373,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "return { ...nothing(), kind: e.kind, v: clamp(value(e, r), 0, MAX_VALUE) };",
     to: "return nothing();",
   },
+  // Killed by trap.jsonl 83 (RV-03a2)
   {
     name: "a CURE entry applies nothing (ops)",
     file: "executor.ts",
     from: "if (e.kind === kind.CURE) return { ...nothing(), kind: e.kind, param: e.param };",
     to: "if (e.kind === kind.CURE) return nothing();",
-    survives: "no trap payload holds a `CURE` entry",
   },
   {
     name: "a holding entry applies nothing (ops)",
@@ -2415,13 +2407,12 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: "",
   },
+  // Killed by trap.jsonl 85 (RV-03a2)
   {
     name: "a dead goblin at 0 health killed again (put)",
     file: "executor.ts",
     from: "if (goblinModel.is_alive(goblin) && goblin.health === 0) {",
     to: "if (goblin.health === 0) {",
-    survives:
-      "no goblin entrant is dead already: `actor` finds a dead goblin's record, a trap row with one entering",
   },
   // ---- The action class and the executor's carrier (CLI-02g-E, act.jsonl)
   {
@@ -2535,13 +2526,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (attack && weapon_required(member, slot))",
     to: "if (weapon_required(member, slot))",
   },
+  // Killed by act.jsonl 224 and 225 (RV-03a2)
   {
     name: "the weapon-required bit of slot 0 read for every slot",
     file: "action.ts",
     from: "two(40 + slot), 2n)",
     to: "two(40), 2n)",
-    survives:
-      "no row holds the bit of another slot than 0 alone with the attack skill on that slot: an attack skill on slot 1 with slot 0's bit only (legal), or with slot 1's (refused)",
   },
   {
     name: "an attack skill of activation 0 counted instant (Instant)",
@@ -2877,13 +2867,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "c < held.deadline",
     to: "c <= held.deadline",
   },
+  // Killed by act.jsonl 226 (RV-03a2)
   {
     name: "a negative NEXT_SPELL_COST added (glyphs)",
     file: "action.ts",
     from: "if (v > 0) off += v;",
     to: "off += v;",
-    survives:
-      "no glyph's `NEXT_SPELL_COST` is negative at its rank: a glyph of a negative value held with a spell",
   },
   {
     name: "a glyph's slot not in the mask (glyphs)",
@@ -2940,13 +2929,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "[small(bits % 0x10n), small(bits / 0x10n)]",
     to: "[small(bits / 0x10n), small(bits % 0x10n)]",
   },
+  // Killed by act.jsonl 227 (RV-03a2)
   {
     name: "a slot's pairs one bit a slot (quick_cast_matches)",
     file: "action.ts",
     from: "40 + 2 * slot",
     to: "40 + slot",
-    survives:
-      "no spell counts for a quick-cast pair from a bar slot above 0: the fire spell on slot 1 with `MemberStats` 170 set",
   },
   {
     name: "the second counter at the first's lane (casts)",
@@ -3024,28 +3012,26 @@ const MUTANTS: readonly Mutant[] = [
     from: "return { entries: [], context, weapon: true };",
     to: "return { entries: [], context, weapon: false };",
   },
+  // Killed by act.jsonl 228 and 229 (RV-03a2)
   {
     name: "an attack skill's scope a spell's (read)",
     file: "executor.ts",
     from: "scope: attack ? 1 : 2,",
     to: "scope: 2,",
-    survives:
-      "no `act` row lands an attack skill with passives or a held `PENETRATION` of scope `WEAPON` or `ATTACK_SKILL` (the `offence` rows set the scope themselves): the attack skill with the passives of 183–190, or holding the edge",
   },
+  // Killed by act.jsonl 230 (RV-03a2)
   {
     name: "ATTACK_BONUS ignored (modifiers)",
     file: "executor.ts",
     from: "if (e.kind === kind.ATTACK_BONUS) bonus = clamp(value(e, rank), 0, MAX_VALUE);",
     to: "if (false) bonus = clamp(value(e, rank), 0, MAX_VALUE);",
-    survives: "no skill of the content holds an `ATTACK_BONUS` entry: an attack skill with one",
   },
+  // Killed by act.jsonl 231 (RV-03a2)
   {
     name: "HIT_PENETRATION ignored (modifiers)",
     file: "executor.ts",
     from: "      else if (e.kind === kind.HIT_PENETRATION) {",
     to: "      else if (false) {",
-    survives:
-      "no skill of the content holds a `HIT_PENETRATION` entry: an attack skill with one, on an armored goblin",
   },
   {
     name: "a bomb or a trap takes held penetration (penetration)",
@@ -3054,7 +3040,7 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: "",
     survives:
-      "no `PENETRATION` effect of scope `ALL` is held: the bomb (scope 3) thrown holding one, which it must not take",
+      "no row reads a bomb's or a trap's penetration: act.jsonl 232 throws the bomb holding `PENETRATION` 30 of scope `ALL`, but `resolve` reads the penetration of a weapon hit or a spell only (`readsPassives`, Cairo's too), so no `act` row can tell it: an `offence` row of scope 3 holding skill 79",
   },
   {
     name: "an attack skill does not take WEAPON (penetration)",
@@ -3068,12 +3054,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "(cls === 2 && s === scope.SPELL) ||",
     to: "",
   },
+  // Killed by act.jsonl 233 and 234 (RV-03a2)
   {
     name: "an effect of ALL not taken (penetration)",
     file: "executor.ts",
     from: "s === scope.ALL ||",
     to: "",
-    survives: "no `PENETRATION` effect of scope `ALL` is held: a weapon hit or a spell holding one",
   },
   {
     name: "a PENETRATION effect not capped at 100 (penetration)",
@@ -3201,14 +3187,13 @@ const MUTANTS: readonly Mutant[] = [
     from: "range: small(field(low, two(112), 0x100n)),",
     to: "range: small(field(low, two(104), 0x100n)),",
   },
+  // Killed by act.jsonl 235 and 236 (RV-03a2)
   {
     name: "an ON_ATTACK_CONDITION not gathered (attack)",
     file: "executor.ts",
     from: `        conditions.push([e.param, value(e, held.rank)]);
 `,
     to: "",
-    survives:
-      "no effect of the content is an `ON_ATTACK_CONDITION`: the sword's hit holding one (and one with charges, spent on a landed hit)",
   },
   {
     name: "a landed weapon hit not counted (on)",
@@ -3217,13 +3202,12 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: "",
   },
+  // Killed by act.jsonl 237 (RV-03a2)
   {
     name: "LIFE_STEAL_ON_HIT ignored (on)",
     file: "executor.ts",
     from: "if (steal > 0 && body.alive(unit)) {",
     to: "if (false) {",
-    survives:
-      "no `act` row lands a weapon hit with `LIFE_STEAL_ON_HIT` (`MemberKit` 128; only `offence` row 182 reads it): the sword on goblin 8 with it set, the member below its max health",
   },
   {
     name: "a stopped hit does not stop the carrier (on)",
@@ -3243,7 +3227,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "const own_hit = b === HIT_BIT && same(candidate, actor);",
     to: "const own_hit = false;",
     survives:
-      "no hit's filter takes the source's side (every `DAMAGE` entry is `FOES`): a `DAMAGE` entry of filter `ALLIES` on a disc around the source",
+      "act.jsonl 239 puts the source in its own `ALLIES` hit's set, but the source's bits go to `apply` (Cairo's `entries`), which reads `HIT_BIT` (8) only as entry 3's bit, and skill 82 holds one entry: a carrier of an `ALLIES` hit around its source and a held fourth entry whose set leaves the source out",
   },
   {
     name: "a weapon hit addresses no entity (actors)",
@@ -3257,13 +3241,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (e.target === target.FOE || e.target === target.ALLY) targets_entity = true;",
     to: "if (e.target === target.FOE) targets_entity = true;",
   },
+  // Killed by act.jsonl 241 (RV-03a2)
   {
     name: "a SINGLE TILE entry read narrow (actors)",
     file: "executor.ts",
     from: "if (e.shape !== shapes.SINGLE || e.target === target.TILE) wide = true;",
     to: "if (e.shape !== shapes.SINGLE) wide = true;",
-    survives:
-      "no `SINGLE` `TILE` entry reaches an actor (Snare and the instant trap are `TRAP`s, the bomb a `DISC_1`): a potion or a skill of `SINGLE` on a goblin's tile",
   },
   {
     name: "a SELF entry centred on the address (actors)",
@@ -3277,6 +3260,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "e.kind === kind.DAMAGE ? HIT_BIT : bit(k)",
     to: "bit(k)",
   },
+  // Killed by act.jsonl 240 (RV-03a2)
   {
     name: "a dead member a candidate of a wide carrier (actors)",
     file: "executor.ts",
@@ -3284,8 +3268,6 @@ const MUTANTS: readonly Mutant[] = [
         const { x, y } = memberPlace(member);`,
     to: `      if (true) {
         const { x, y } = memberPlace(member);`,
-    survives:
-      "no wide carrier reaches a member at 0 health: the bomb's disc holding member 1 at 0 health, with an `ALLIES` entry",
   },
   {
     name: "a DEAD goblin a candidate of a wide carrier (actors)",
@@ -3314,13 +3296,12 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: "",
   },
+  // Killed by act.jsonl 243 (RV-03a2)
   {
     name: "the hit given to every set's actor (run)",
     file: "executor.ts",
     from: "hit: (bits & HIT_BIT) !== 0 && hit_held,",
     to: "hit: hit_held,",
-    survives:
-      "no carrier holds a hit and another entry whose set holds an actor the hit's does not: a fire spell on a foe with a `DISC_1` `CONDITION` around it, a second goblin in the disc",
   },
   {
     name: "the source's own entries not applied (run)",
@@ -3336,14 +3317,13 @@ const MUTANTS: readonly Mutant[] = [
 `,
     to: "",
   },
+  // Killed by act.jsonl 238 (RV-03a2)
   {
     name: "ENERGY_ON_HIT not gained (run)",
     file: "executor.ts",
     from: `    if (terms.energy > 0) body.energize(source, terms.energy, sheets);
 `,
     to: "",
-    survives:
-      "no `act` row lands a weapon hit with `ENERGY_ON_HIT` (`MemberKit` 136; only `offence` row 182 reads it): the sword on goblin 8 with it set, the member below its max energy",
   },
   {
     name: "the awake goblins never gathered (put)",
@@ -3437,12 +3417,12 @@ const MUTANTS: readonly Mutant[] = [
     act: true,
   },
   {
-    // Refuses `[TILE, SELF]`, which is legal content (R-44)
+    // Refuses `[TILE, SELF]`, which is legal content (R-44), and a lone `TILE` spell: killed by
+    // act.jsonl 241, the fire spell on a `SINGLE` `TILE` (RV-03a2)
     name: "every carrier with a TILE entry refused: TILE first with SELF later too (mixed)",
     file: "action.ts",
     from: "return tile && (entity || (!attack && first === target.SELF));",
     to: "return tile && (entity || !attack);",
-    act: true,
   },
   {
     name: "run does not stop after the tick that defeats",
