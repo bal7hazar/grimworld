@@ -580,8 +580,8 @@ The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `rev
 
 ## `act.jsonl`: the adventurer's action, `ActionTrait::act` (RV-03b, D-257)
 
-Printed by `types::action::tests::vectors::test_act_vectors_0` to `_14` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
-107–127, 128–143, 144–157, 158–176, 177–204, 205–214, 215–222, 223–231, 232–238, 239–243), split for snforge's step
+Printed by `types::action::tests::vectors::test_act_vectors_0` to `_15` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
+107–127, 128–143, 144–157, 158–176, 177–204, 205–214, 215–222, 223–231, 232–238, 239–243, 244–250), split for snforge's step
 limit, each part with its digest. Where
 `segment2.jsonl` records the action class's result for a replay, this table tests a port of the class itself: each
 `act` row is one call of `ActionLibrary::act` (the real class, declared in the test), which loads the words through
@@ -655,8 +655,9 @@ executor tests' member.
 | `act`, by slot, a negative glyph, the attack skill's terms (8) | 224–231 | the attack skill (2 strikes, 8 quarters) on bar slot 1 with slot 0's weapon-required bit only (`MemberStats` 40): legal (224); with slot 1's (41): `Kind` (225); a glyph of −2 (skill 77) held in effect slot 0 to `c + 5`: the fire spell costs its full 15 thirds, the glyph consumed (`D = c`) (226); the fire spell on bar slot 1 counting for pair 0 (`MemberStats` 170; pair 0 of N 5, its counter at 4): the bonus, activation 2 (227); the attack skill (scope 1) with the passives of every scope (`MemberBar` 136–200, as 183–190) on goblin 8 (228); holding the edge (`PENETRATION` 20, `WEAPON`) (229); skill 78 (`ATTACK_BONUS` 10) and skill 85 (`HIT_PENETRATION` 50), attack skills of activation 0, on goblin 8 (armor 40) (230, 231) |
 | `act`, the source's side of a hit (7) | 232–238 | holding skill 79 (`PENETRATION` 30 of scope `ALL`) in effect slot 2: the bomb (count 1) on goblin 8's tile (scope 3: none taken) (232), the sword (taken) (233), the instant spell (taken) (234); the sword holding skill 80 (`ON_ATTACK_CONDITION` Poison 4) in slot 0: goblin 8 poisoned to 204 (235); with skill 81 (`ON_ATTACK_CONDITION` Bleeding 6, 2 charges) in slot 1 beside it: both applied, the charge spent (2 to 1) (236); `LIFE_STEAL_ON_HIT` 3 (`MemberKit` 128), the member at 400 of 480: 403 (237); `ENERGY_ON_HIT` 2 (136), at 30 thirds: 36 (238) |
 | `act`, the target sets (5) | 239–243 | skill 82 (fire 40 on `DISC_1` around the member, filter `ALLIES`) with member 1 West of it (111): member 1 hit (400 → 287, `HIT`), the member not (239); member 1 there at 0 health: no candidate, nothing (240); skill 83 (fire 40 on a `SINGLE` `TILE`) on goblin 8's tile: hit (241); the bomb (count 1) on 113, goblin 8 on 114 and goblin 9 on 113, both at 1 health: killed 9 then 8, ascending position, not index order (242); skill 84 (fire 40 on a foe, Burning 3 on `DISC_1` around it) on goblin 8 (113), goblin 9 on 114: 9 burns, not hit (243) |
+| `offence`, held `ALL` penetration (7) | 244–250 | RV-03a3 (D-257), after every earlier id: the member holding skill 79 (`PENETRATION` 30 of scope `ALL`) in effect slot 2 to `t`: a plain weapon hit (scope 0), an attack skill (`Weapon`, scope 1), the fire entry as a spell (scope 2): 30 taken; a bomb (`Item`, scope 3) and a trap (`Trap`, scope 3): none (244–248); goblin 8 holding it: a spell taken, a trap none (249, 250) |
 
-Per `fn`: `content` 2, `act` 195, `defence` 19, `offence` 28.
+Per `fn`: `content` 2, `act` 195, `defence` 19, `offence` 35.
 
 **Row 223** (RV-03a2): every row from 223 on reads the content of row 223, the last `content` row before it; rows
 1–222 read row 0's. It is row 0's with skills 77–85 appended, every one instant (activation 0) and free: 77 a glyph of
@@ -678,10 +679,21 @@ member a candidate of a wide carrier: 240 (a hit of filter `ALLIES` on it would 
 alive check); a `SINGLE` `TILE` entry read narrow: 241; the actors not in ascending position: 242; the hit given to
 every set's actor (`run`): 243.
 
-Two still survive (rows 232 and 239 do not kill them). A bomb or a trap takes held penetration (`penetration`):
-`resolve` reads penetration only for a weapon hit or a spell (`types/hit.cairo` 252, 325–327). The source in its own
-hit's set (`actors`): the source's bits reach only `entries` (`types/executor.cairo` 1935–1938, 2741), where `HIT_BIT`
-8 is entry 3's bit (2324–2326, 2858–2859), and skill 82 holds a single entry.
+**RV-03a3's rows** (the two RV-03a2 left standing). A bomb or a trap takes held penetration (`penetration`, mutant
+481): 247 and 248 (a member's bomb and trap holding skill 79: penetration 0, the mutant's 30) and 250 (a goblin's
+trap), against 244–246 and 249, which take it. No `act` row can kill it: `resolve` reads penetration only for a weapon
+hit or a spell (`types/hit.cairo` 252, 325–327), so row 232's bomb discards it; `Body::offence` returns it in the
+`Offence` it builds, from `ExecutorTrait::penetration(lever, self, scope, …)` (`types/executor.cairo` 580 for a member,
+770 for a goblin), whose `class == 3` early return (2577) the mutant removes.
+
+**The source in its own hit's set (`actors`, mutant 509) is equivalent.** The mutant sets `own_hit` false
+(`types/executor.cairo` 2741), so the source takes `HIT_BIT` (8) from a hit set that holds it (row 239's). The source's
+bits reach only `entries` (1933–1939: the source's turn is that call, then `continue`), which applies op `k` when bit
+`2^k` is set (2324–2326, `bit` 2858–2859): `HIT_BIT` is entry 3's bit. No carrier has an entry 3: a skill's entries are
+read for `k` in 0…2 (`read`, 2452; a `SkillSheet` packs three, `entry1` to `entry3`, `types/tick.cairo` 113–115), a potion's one (2480–2482), a
+weapon's none (2446), and `ops` has one `Op` an entry (2353), so `entries`' loop ends at bit 4 and never reads bit 8.
+A source with no other bit enters the list under the mutant only to apply nothing. Track CV's port is the same
+(`client/sim/src/executor.ts`: `apply` 612–643 over `ops`, the entries read for `k < 3`). Row 239 stays its witness.
 
 **The inventory** (what the earlier tables already pin of `act`). `segment2.jsonl` reaches `ActionLibrary::act` in its
 combat rows, but through `ActionRecorder`: each row records the class's result for the segment to replay, so a mirror

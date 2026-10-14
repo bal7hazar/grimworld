@@ -1643,7 +1643,7 @@ fn test_act_vectors_14() {
 // hit (scope 3) never takes; no `act` row can show it, `resolve` reading penetration of a weapon
 // hit or a spell only.
 #[test]
-#[available_gas(l2_gas: 2000000000)]
+#[available_gas(l2_gas: 95144671)] // ceil(1.05 × 90613972 measured)
 fn test_act_vectors_15() {
     let t = table_2();
     let mut digest: Array<felt252> = array![];
@@ -1739,4 +1739,5 @@ const ACT_DIGEST_13: felt252 =
     3176533727201977987469364170763399164895871530069662833270276512284174446524;
 const ACT_DIGEST_14: felt252 =
     965705507953071005487549611047696454075520364973681577494560792299333371081;
-const ACT_DIGEST_15: felt252 = 0;
+const ACT_DIGEST_15: felt252 =
+    3369404342547317277746575153716820682249534639394267514847011043546253937437;
