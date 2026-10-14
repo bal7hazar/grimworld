@@ -17,7 +17,8 @@ export type ChainRefusal =
   | "not on this machine"
   | "no deployment"
   | "deployment of another node"
-  | "not a test chain";
+  | "not a test chain"
+  | "devnet left mid-credit: redeploy";
 
 export type ChainParam =
   | { readonly kind: "none" }

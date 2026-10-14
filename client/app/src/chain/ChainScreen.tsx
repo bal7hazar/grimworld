@@ -17,6 +17,7 @@ import { RoomSandbox, Sandbox } from "../sandbox/Sandbox";
 import type { SandboxController } from "../sandbox/controller";
 import { ChainPanel } from "./ChainPanel";
 import { type ChainController, createChainController } from "./ChainController";
+import { CreditFailed, createCredit, httpCreditRequest } from "./credit";
 import { ChainRefused, type Opened, fetchDeployment, openChain } from "./network";
 import { type ChainParam, type ChainRefusal, logRefusal, refusalLine } from "./params";
 import { type ChainState, createSentReads, readState, sendBatch } from "./send";
@@ -54,6 +55,7 @@ interface Session {
  */
 function failure(error: unknown): string {
   if (error instanceof SetupFailed) return `${error.step} ${error.status}`;
+  if (error instanceof CreditFailed) return "credit failed";
   if (error instanceof AccountError) return error.code;
   return error instanceof Error ? error.name : "unknown";
 }
@@ -112,14 +114,24 @@ function start(nodeUrl: string): Promise<Shown> {
     opening = (async (): Promise<Shown> => {
       try {
         const deployment = await fetchDeployment();
-        const opened = await openChain(nodeUrl, deployment);
+        // The development server's credit, for a deployment with a build only (CLI-11d3)
+        const credit = deployment.build ? createCredit(httpCreditRequest()) : undefined;
+        const opened = await openChain(nodeUrl, deployment, credit ? { credit } : {});
         const { provider, reader } = opened;
-        const setup = { provider, reader, ...deployment.contracts };
+        const setup = {
+          provider,
+          reader,
+          ...deployment.contracts,
+          ...(deployment.build && credit ? { build: deployment.build, credit } : {}),
+        };
         const player = await restore(setup);
         return { kind: "ready", session: await begin(opened, nodeUrl, player, setup) };
       } catch (error) {
         // A refusal before a send or a funding reaches here inside the account's error
         const refused = error instanceof AccountError ? error.cause : error;
+        // The script's own line (it holds no key) goes to the console, not on screen
+        if (error instanceof CreditFailed)
+          console.warn("grimworld.credit-failed", { line: error.line });
         if (refused instanceof ChainRefused) return { kind: "refused", reason: refused.reason };
         return { kind: "failed", what: failure(error) };
       }
