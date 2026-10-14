@@ -56,6 +56,47 @@ describe("serveDeployment (the dev server's /deployment.json, CLI-11 §2.2)", ()
     });
   });
 
+  it("serves the build's ids only: mode, bar and belt (CLI-11d3)", () => {
+    const build = {
+      mode: "full",
+      bar: [1, 2, 3, 4, 0, 0, 0, 0],
+      belt: [
+        { item: 1, count: 2 },
+        { item: 23, count: 1 },
+      ],
+    };
+    const full = {
+      ...deployment,
+      build: {
+        ...build,
+        belt: [
+          { item: 1, count: 2, key: "0xk" },
+          { item: 23, count: 1 },
+        ],
+        pack: [{ item: 1, count: 4 }],
+        gold: 260,
+        skills: { instant_attack: 1 },
+        account: "0xk",
+      },
+    };
+    const answer = serveDeployment(file("full.json", JSON.stringify(full)));
+    if (answer.status !== 200) throw new Error("not served");
+    expect(answer.body).not.toContain("0xk");
+    expect(JSON.parse(answer.body)).toEqual({ ...deployment, build });
+    // A build of another shape is dropped whole
+    for (const bad of [
+      { ...build, bar: ["1"] },
+      { ...build, belt: [{ item: 1 }] },
+      [build],
+      null,
+    ]) {
+      const shaped = serveDeployment(
+        file("bad.json", JSON.stringify({ ...deployment, build: bad })),
+      );
+      expect(shaped.status === 200 && JSON.parse(shaped.body)).toEqual(deployment);
+    }
+  });
+
   it("is 404 without the variable, without the file, or for a file that is not a JSON object", () => {
     expect(serveDeployment(undefined)).toEqual({ status: 404 });
     expect(serveDeployment("")).toEqual({ status: 404 });

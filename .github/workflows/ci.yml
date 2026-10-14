@@ -590,7 +590,7 @@ jobs:
       # (scripts/with-node.sh); the JSON names no key.
       - name: test:node:preview
         run: |
-          scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$RUNNER_TEMP/deployment.json" &&
+          scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --build full --out "$RUNNER_TEMP/deployment.json" &&
             GRIMWORLD_DEPLOYMENT="$RUNNER_TEMP/deployment.json" pnpm --filter @grimworld/app test:node:preview'
 
   # SMOKE-CI (D-290): the devnet deploy smoke test (`scripts/tests/devnet_deploy_smoke.py`: OPS-01a/b, SEED-02)

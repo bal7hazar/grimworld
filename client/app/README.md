@@ -72,7 +72,7 @@ game that OPS-01a's `scripts/devnet_deploy.py` deploys. From the repository root
 are built (`scripts/lock.sh --heavy scarb --manifest-path contracts/Scarb.toml build`):
 
 ```
-scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
+scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --build full --out "$PWD/.with-node/deployment.json" &&
   GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node:preview'
 ```
 
@@ -129,15 +129,18 @@ checked by CLI-11a), so the page talks to the node directly, with no proxy. To p
 repository root, after the classes are built:
 
 ```
-scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
+scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --build full --out "$PWD/.with-node/deployment.json" &&
   GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app dev'
 ```
 
-and open the printed link, `/?chain=http://127.0.0.1:<port>`.
+and open the printed link, `/?chain=http://127.0.0.1:<port>`. With `--build full` the burner is built
+with SEED-02's build (CLI-11d3, below); without it, it is built empty.
 
 The node test `src/chain/chain.node.test.ts` runs after the preview's, on the same node, one file
-after the other (`test:node:preview`, CI's `client-node` job). It makes the burner a player, restores
-it from a second provider on the same storage without sending anything, closes the instance with
+after the other (`test:node:preview`, CI's `client-node` job, on a `--build full` deployment since
+CLI-11d2, so its full-build tests of the deployment's own adventurer run there). It makes the
+burner a player, restores it from a second provider on the same storage without sending anything,
+closes the instance with
 `Instances.travel_back`, and enters the same adventurer again (`set_build`, then `enter`). It prints
 what each execution cost. It reads `GRIMWORLD_DEPLOYMENT`, or `.with-node/deployment.json` at the
 repository's root while that file's node answers. The whole run on a fresh node, after the classes
@@ -241,10 +244,99 @@ a developer's tool and says "batch", "simulated" and "sent".
   fresh read.
 
 To see it work, in a node that lives for one command, after the classes are built:
-`pnpm --filter @grimworld/app verify:chain`. `verify-chain.mjs` deploys, opens `?chain=`, plays a
-Wait with `Space`, sends it with `B`, checks the three stages (the sent outcome equal to the
-simulated one, no field differing) and that no log, page or URL holds the burner's key, and
-captures the panel at each stage into `VERIFY_SHOTS_DIR`.
+`pnpm --filter @grimworld/app verify:chain`. `verify-chain.mjs` deploys (`--build full`), opens
+`?chain=`, plays a Wait with `Space`, sends it with `B`, checks the three stages (the sent outcome
+equal to the simulated one, no field differing) and that no log, page or URL holds the burner's
+key, and captures the panel at each stage into `VERIFY_SHOTS_DIR`.
+
+### Skills and belt items on chain (CLI-11d)
+
+`?chain=` also draws the combat screen's elements over the map, fed by the state read back
+(`docs/briefs/CLI-05-combat-ui.md` §4.4, §7.2, §9): the skill bar and the belt under the map, the
+target zone over them, the log in a panel (desktop) or its last line (phone).
+
+- **The state** (`world.ts`, `ChainController.ts`). `combatWorldOf` loads the mirror's words, the
+  batch's content and the ground on the window's board (`combat/fromWords.ts`). It reads the state
+  **after the batch planned so far** (the prediction's words and `Prediction.ground`), so the bar,
+  the belt, the chips and the aim follow the plan: a potion in the batch is already gone from its
+  slot, a skill in it already recharges. The `CombatController` is made again at each change of
+  the batch; with no content, or the controlled member not 0, there is no combat view.
+- **Inputs.** A tap on a slot, `1`–`8`, `Z X C V`, arms it; the second tap on a self-addressed slot,
+  a tap on a marked goblin or tile, or `F` then `Enter`, plays it: one `skill` action (an entity or a
+  tile, `x + 256 y`) or one `item` action on an entity. `Esc` disarms. `Wait` and `Turn` on the bar
+  are `Space` and `R`.
+- **Refused before the batch** (§4.4). The mirror is run on the planned actions plus the new one; an
+  `Illegal` at the new action is one line ("Not enough energy.", "Out of reach.", "None left.", …),
+  the slot stays armed and the batch is unchanged. A slot that is not ready (recharging, empty belt,
+  no adrenaline) says its line on the tap and is not armed. Where the mirror cannot say
+  (`NotMirrored`), the action is added and the simulation decides. A tap on a gate, a chest or a
+  lever says "Not available yet." and adds no `interact` (`objectAt`: the chunk's objects that are
+  no trap).
+- **The log** (§7.2). The predicted lines of the batch come from `combat/log.ts`'s `batchLines` on
+  the runs of each prefix (`Prefixes`, through `record.ts`'s wrapper of the native classes), kept
+  per action so an input adds only its own. After a send, the lines of the played actions are
+  confirmed when the sent result matches the prediction, and struck with "The world corrected
+  itself" when it does not. A refusal is a muted line of its own status, `refused`, which no send
+  confirms or strikes, kept in input order after the lines of the actions planned before it
+  (CLI-11d2). Entering again clears the log.
+- **Names** (`combat/names.ts`, Q-1): a copy of the table `contracts/seed/README.md` keeps under
+  "Names for the client"; `names.test.ts` reads that table, so the copy follows it. An unknown id is
+  "Skill 12".
+- **Known gap.** The map's overlay draws its reach from the sandbox's stand-in (`wiring.ts`'s
+  `combatAim`), not from `targeting.ts`: the controller's aim, which plays, is the exact one.
+
+`verify:chain` also checks the bar (eight slots), the belt (four), a tap on an empty slot, the log's
+line for the Wait predicted and then confirmed, and a ready skill of the burner's bar armed, played
+and its lines confirmed (a bar with no ready skill fails the run).
+
+### The burner's build (CLI-11d3)
+
+With a `--build full` deployment (its JSON's `build` key, mode `full`), the burner's adventurer
+carries SEED-02's build: the four bar skills and the belt of the healing potion ×2 and item 23 ×1.
+`/deployment.json` serves the build's ids only (`mode`, `bar`, `belt`). Without a full build,
+`EMPTY_BUILD` stays as before. The mainnet guard is unchanged.
+
+- **Account 0 stays node-side** (D-273, CLI-11 §3.4). Nothing in the browser holds a deployment or
+  admin key, repoints `Hub.instances`, calls `set_contracts` or sends a `report`; `network.test.ts`
+  scans `chain/` for it. The credit is track game's `scripts/devnet_deploy.py --credit-only`, run
+  by the development server.
+- **The endpoint** (`src/dev/credit.ts`, mounted by `vite.config.ts` in the dev server only,
+  `apply: "serve"`). `POST /devnet/credit` with `{"adventurer": <id>}` (`application/json`, nothing
+  else: no key, no address, no path) runs the credit-only mode for that adventurer and answers
+  `{adventurer_id, instance_id, gold, pack}`; `GET` answers `{state, credits}`. It answers only a
+  request from `127.0.0.1` or `::1` (403 otherwise), refuses (403) a deployment with no full build
+  or whose node is not `http://127.0.0.1:<port>`, and drops `NODE_URL` from the script's
+  environment, so it runs against the deployment's node. `vite build` carries none of it, and the
+  app's client of it is behind `import.meta.env.DEV`: the site's `dist/` holds neither the path nor
+  `credit-only`.
+- **The first entry** (`setup.ts`, game's order): `register` and `create_adventurer`, `set_build`
+  empty, `enter` by gate 1; the credit (260 gold, the pack of twice the belt); then one execution:
+  `Instances.leave` by gate 2 at the instance's sequence, `buy_skill` ×4 and `set_build` with the
+  build; then `enter`. One execution, so the skills are known exactly when the build is stored; a
+  leave the chain refuses reverts it whole.
+- **How a built burner is known.** From the Hub's own view: `Hub.adventurer`'s stored `Build`
+  word (word 2, `LIVE` aside) equals the build's bar word (`builtWith`). `set_build` refuses a bar
+  of unknown skills, so this says the skills are known. The views of known skills and of the pack
+  panic NOT_IMPLEMENTED, and a flag in `localStorage` would outlive its node (a restarted node keeps
+  the burner's key, not its adventurer); the view answers the same after a reload or from a second
+  provider. A reload between the empty entry and the build (inside, not built) resumes at the
+  credit.
+- **Re-entry (`N`)**: a built burner sends `set_build` with the build, then `enter`. When the chain
+  refuses it (the potions spent, the pack no longer covers the belt), it sends the bar with an empty
+  belt instead, which needs no pack.
+- **Caveat (a)**: while a credit runs, `Hub.instances` points at account 0 for a few transactions,
+  so any `enter` or `leave` on that node reverts. The burner waits while one runs (`GET`), and an
+  `enter` or the build's execution that fails while one ran (the count of credits moved) is sent
+  again after it, at most twice, never shown as a failure. A batch that closes its instance during
+  another burner's credit is not retried (only the setup's steps are).
+- **Caveat (b)**: credits are serialised by the dev server (one at a time, in order) and by the
+  script's lock file in `$WITH_NODE_LOG_DIR`: one log directory per node.
+- **Caveat (c)**: a run that outlives 180 s is killed (its own child process, by its pid). A killed
+  run may leave `Hub.instances` pointing at account 0, and the next run does not repair it, so the
+  devnet is then unusable for the dev server's life: every credit is refused (409), and the app's
+  guard refuses every send and funding with "chain mode refused: devnet left mid-credit: redeploy".
+  Nothing in the client repairs it: **redeploy** (stop the command, run it again; it is cheap, and
+  `--salt <felt>` gives the same world back on the same build).
 
 ## Combat UI (`src/combat/`, CLI-05)
 
@@ -291,7 +383,7 @@ with the fight's actors (`sandbox/wiring.ts`'s `fightWorld`). The sandbox stays 
   while armed) or a plain bordered square; a monogram on its kind's ground, a flask drawn by code,
   the keys on desktop, the costs and counts on dark badges (`chrome/contrast.ts`'s `SLOT_TEXT`), one
   state per slot (§2.2) never by colour alone. A long press or a right click inspects a slot.
-- **`Chips.tsx`**: the letter chips with their figures, in the status band (`Hud`) and the target
+- **`ChipRow.tsx`**: the letter chips with their figures, in the status band (`Hud`) and the target
   zone; **`TargetZone.tsx`**: the selected goblin (its caste, a small red bar from the pack's
   `bar_small_fill_health`, its mark, chips and activation in words), at a fixed height;
   **`CombatLog.tsx`**: the desktop's right panel (12 lines, scrolling back) and the phone's last

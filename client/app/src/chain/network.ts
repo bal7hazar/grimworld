@@ -11,8 +11,9 @@ import {
   createStarknetChain,
 } from "../account";
 import { type Reader, type Rpc, SimulationError, createReader, createRpc } from "../preview";
+import type { Credit } from "./credit";
 import type { ChainRefusal } from "./params";
-import { BURNER_FUNDS, FUNDER_INDEX } from "./setup";
+import { BURNER_FUNDS, type Build, FUNDER_INDEX } from "./setup";
 
 /**
  * The chain mode's target (CLI-11 §2.2, §2.3): the deployment the development server serves, the
@@ -45,11 +46,13 @@ export interface Contracts {
   readonly instances: string;
 }
 
-/** What the mode reads of the deployment: its node, its chain and its contracts. */
+/** What the mode reads of the deployment: its node, its chain, its contracts and its build. */
 export interface Deployment {
   readonly nodeUrl: string;
   readonly chainId: bigint;
   readonly contracts: Contracts;
+  /** SEED-02's build (`--build full`), which the burner's adventurer is given (CLI-11d3). */
+  readonly build?: Build;
 }
 
 const HEX = /^0x[0-9a-fA-F]{1,64}$/;
@@ -65,20 +68,47 @@ function chainIdOf(value: unknown): bigint | undefined {
   return felt;
 }
 
+/** A whole number below `2 ** bits`. */
+const below = (value: unknown, bits: number): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 && value < 2 ** bits;
+
+/**
+ * The `build` key's ids when it is a full build: eight skill ids (u16) and at most four belt lanes
+ * (an item, u32, and a count, u8). An empty build, or another shape, is no build.
+ */
+function buildOf(value: unknown): Build | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { mode, bar, belt } = value as Record<string, unknown>;
+  if (mode !== "full" || !Array.isArray(bar) || bar.length !== 8) return undefined;
+  if (!bar.every((skill) => below(skill, 16)) || !bar.some((skill) => skill !== 0)) {
+    return undefined;
+  }
+  if (!Array.isArray(belt) || belt.length > 4) return undefined;
+  const lanes = belt.map((lane: unknown) => {
+    const { item, count } = (lane ?? {}) as Record<string, unknown>;
+    return below(item, 32) && below(count, 8) ? { item, count } : undefined;
+  });
+  if (lanes.some((lane) => lane === undefined)) return undefined;
+  return { bar: bar as number[], belt: lanes as Build["belt"] };
+}
+
 /**
  * The deployment's shape, or undefined: `node_url` a string, `chain_id` a chain id, and the four
- * addresses of `contracts`, each a hex string. Nothing else of the body is kept.
+ * addresses of `contracts`, each a hex string; `build` when it is a full build. Nothing else of the
+ * body is kept.
  */
 export function parseDeployment(body: unknown): Deployment | undefined {
   if (typeof body !== "object" || body === null) return undefined;
-  const { node_url, chain_id, contracts } = body as Record<string, unknown>;
+  const { node_url, chain_id, contracts, build } = body as Record<string, unknown>;
   const chainId = chainIdOf(chain_id);
   if (typeof node_url !== "string" || chainId === undefined) return undefined;
   if (typeof contracts !== "object" || contracts === null) return undefined;
   const c = contracts as Record<string, unknown>;
   const names = ["registry", "tx_hash_fate", "hub", "instances"] as const;
   if (!names.every((name) => typeof c[name] === "string" && HEX.test(c[name]))) return undefined;
+  const full = buildOf(build);
   return {
+    ...(full ? { build: full } : {}),
     nodeUrl: node_url,
     chainId,
     contracts: {
@@ -176,6 +206,8 @@ export interface Opened {
   readonly reader: Reader;
   readonly provider: AccountProvider;
   readonly assertChain: () => Promise<void>;
+  /** The burner's credit (CLI-11d3), when the deployment has a build. */
+  readonly credit?: Credit;
 }
 
 export interface OpenOptions {
@@ -186,6 +218,11 @@ export interface OpenOptions {
   /** The burner's chain and funder (tests fake them; the real ones by default). */
   makeChain?: (config: ChainConfig) => BurnerChain;
   makeFunder?: (config: NodeFunderConfig) => Funder;
+  /**
+   * The development server's credit (CLI-11d3): once it says the devnet was left mid-credit,
+   * the check refuses every send and funding.
+   */
+  credit?: Credit;
 }
 
 /**
@@ -193,6 +230,8 @@ export interface OpenOptions {
  * the deployment is the node's (the same `node_url`, as written, and the node's chain id), and
  * `assertTestChain` passes. The funder is the node's pre-funded account `FUNDER_INDEX`, read from
  * the node and held in memory only. Refusals are `ChainRefused`; nothing is signed before them.
+ * With `options.credit`, the check also refuses a devnet left mid-credit (caveat c of
+ * `devnet_deploy.py --credit-only`): "devnet left mid-credit: redeploy".
  */
 export async function openChain(
   nodeUrl: string,
@@ -205,7 +244,11 @@ export async function openChain(
   if ((await chainIdAt(rpc)) !== deployment.chainId) {
     throw new ChainRefused("deployment of another node");
   }
-  const assertChain = () => assertTestChain(rpc);
+  const { credit } = options;
+  const assertChain = async () => {
+    await assertTestChain(rpc);
+    await credit?.assertUsable();
+  };
   await assertChain();
   const funder = (await predeployed(rpc))[FUNDER_INDEX];
   if (funder === undefined) throw new ChainRefused("not a test chain");
@@ -229,5 +272,6 @@ export async function openChain(
     reader: createReader({ nodeUrl, fetch: fetchImpl }),
     provider,
     assertChain,
+    ...(credit ? { credit } : {}),
   };
 }

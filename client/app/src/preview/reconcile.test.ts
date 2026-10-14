@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlayAction } from "./actions";
 import { playedTrace, view } from "./fixtures";
-import { type ParityRecord, type Prediction, reconcile } from "./reconcile";
+import { type ParityRecord, type Prediction, predict, reconcile } from "./reconcile";
 import { type ChainOutcome, Outcome, Stop, extractOutcome } from "./trace";
 
 const actions: PlayAction[] = [{ kind: "move", direction: 0 }, { kind: "wait" }];
@@ -275,5 +275,32 @@ describe("reconcile", () => {
       expect(result.mirror).toMatchObject({ kind: "predicted", moved: true });
       expect(result.mismatches).toEqual([]);
     });
+  });
+});
+
+describe("the prediction carries the run's ground (CLI-11d, CLI-05 brief §7.2)", () => {
+  it("keeps the ground the run ends on, and none where the run gives none", () => {
+    const ground: Prediction["ground"] = [];
+    const quiet = () => undefined;
+    const withGround = predict(actions, () => ({ ...agreeing(), ground }), quiet);
+    expect(withGround).toMatchObject({ kind: "predicted", played: 2 });
+    expect(withGround.kind === "predicted" && withGround.ground).toBe(ground);
+    const without = predict(actions, () => agreeing(), quiet);
+    expect(without.kind === "predicted" && "ground" in without).toBe(false);
+  });
+
+  it("takes the ground of the run that is kept when a heavy action is undone", () => {
+    const first: Prediction["ground"] = [];
+    const kept: Prediction["ground"] = [];
+    const runs = [
+      { ...agreeing(), done: { ...agreeing().done, heavy: true, undo: true }, ground: first },
+      { ...agreeing(), ground: kept },
+    ];
+    const result = predict(
+      actions,
+      () => runs.shift()!,
+      () => undefined,
+    );
+    expect(result.kind === "predicted" && result.ground).toBe(kept);
   });
 });

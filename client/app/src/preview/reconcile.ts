@@ -1,3 +1,4 @@
+import type { Ground } from "@grimworld/sim";
 import type { PlayAction } from "./actions";
 import { type ChainOutcome, Stop } from "./trace";
 
@@ -77,13 +78,23 @@ export type Prediction = {
   done: MirrorDone;
   /** The controlled member ended in another 3 × 3 window of chunks than it started in. */
   moved?: boolean;
+  /** The ground after the segment (`Ran.ground`), for the combat screen and the log (CLI-11d). */
+  ground?: Ground;
 };
 
 /** The mirror run on the batch's state with these actions; may throw `NotMirrored`. */
 export type Predict = (actions: readonly PlayAction[]) => Prediction;
 
 export type MirrorResult =
-  | { kind: "predicted"; played: number; stop: Stop; words: MirrorWords; moved: boolean }
+  | {
+      kind: "predicted";
+      played: number;
+      stop: Stop;
+      words: MirrorWords;
+      moved: boolean;
+      /** The ground the prediction ends on, when the mirror gives it (CLI-11d). */
+      ground?: Ground;
+    }
   | { kind: "not-mirrored"; reason: string };
 
 export type Mismatch = { field: string; chain: unknown; mirror: unknown };
@@ -120,6 +131,7 @@ export function predict(
   let first: Prediction;
   let words: MirrorWords;
   let moved: boolean;
+  let ground: Ground | undefined;
   try {
     first = run(actions);
     if (first.done.reveal) {
@@ -128,6 +140,7 @@ export function predict(
     const kept = first.done.undo ? run(actions.slice(0, first.done.played)) : first;
     words = kept.words;
     moved = kept.moved ?? false;
+    ground = kept.ground;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (!(error instanceof Error && error.name === "NotMirrored")) {
@@ -144,7 +157,14 @@ export function predict(
         : words.defeated
           ? Stop.Defeated
           : Stop.None;
-  return { kind: "predicted", played: done.played, stop, words, moved };
+  return {
+    kind: "predicted",
+    played: done.played,
+    stop,
+    words,
+    moved,
+    ...(ground === undefined ? {} : { ground }),
+  };
 }
 
 /**

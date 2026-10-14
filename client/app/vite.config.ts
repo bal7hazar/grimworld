@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { type Plugin, defineConfig } from "vite";
+import { createCreditRunner, fromLoopback } from "./src/dev/credit.js";
 import { serveArt } from "./src/dev/serveArt.js";
 import { serveDeployment } from "./src/dev/serveDeployment.js";
 
@@ -44,14 +45,45 @@ function devArt(): Plugin {
  * The deployment the chain mode plays on (CLI-11 §2.2): `GRIMWORLD_DEPLOYMENT` names the keyless
  * JSON `scripts/devnet_deploy.py --out` writes; the development server serves its known fields at
  * `/deployment.json`, and prints the link to open. Without the variable, `/deployment.json` is 404.
- * A build (`vite build`, the site) serves nothing of it.
+ * `/devnet/credit` (CLI-11d3, `src/dev/credit.ts`) runs track game's credit-only mode for the
+ * burner's adventurer, node-side: the browser sends only the adventurer's id. A build (`vite build`,
+ * the site) serves nothing of either.
  */
 function devDeployment(): Plugin {
   const path = process.env.GRIMWORLD_DEPLOYMENT;
+  const credit = createCreditRunner({
+    deploymentPath: path,
+    root: fileURLToPath(new URL("../..", import.meta.url)),
+  });
   return {
     name: "grimworld-dev-deployment",
     apply: "serve",
     configureServer(server) {
+      server.middlewares.use("/devnet/credit", (req, res) => {
+        const remote = req.socket.remoteAddress;
+        if (!fromLoopback(remote)) {
+          // Refused before the body is read: this machine only
+          res.statusCode = 403;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "loopback only" }));
+          return;
+        }
+        let body = "";
+        req.on("data", (chunk) => {
+          // An adventurer's id needs a few bytes: a larger body is not read further
+          if (body.length < 1024) body += String(chunk);
+        });
+        req.on("end", () => {
+          void credit
+            .request(remote, req.method ?? "", req.headers["content-type"], body)
+            .then((answer) => {
+              res.statusCode = answer.status;
+              res.setHeader("Cache-Control", "no-store");
+              res.setHeader("Content-Type", "application/json");
+              res.end(answer.body);
+            });
+        });
+      });
       server.middlewares.use("/deployment.json", (_req, res) => {
         const answer = serveDeployment(path);
         res.statusCode = answer.status;

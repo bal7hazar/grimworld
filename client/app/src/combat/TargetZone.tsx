@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { Bar, Panel } from "../chrome/Chrome";
-import { Chips } from "./Chips";
+import { Chips } from "./ChipRow";
 import type { CombatGoblin, CombatState } from "./state";
 
 /**

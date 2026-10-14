@@ -20,6 +20,15 @@
 // - the URL did not change, and nothing the page logged holds the burner's key (D-273);
 // - no page error.
 //
+// CLI-11d adds, on the same page: the combat screen's elements (the skill bar of eight slots, the
+// belt of four, the target zone, the log), the log's line for the Wait predicted (muted) and then
+// confirmed by the send, a tap on an empty slot that does nothing and says nothing, and, when the
+// bar holds a skill, that skill armed (its second tap plays it, or its key and Enter), the batch
+// holding the `skill` action, its log lines predicted and then confirmed after `B`. Since CLI-11d3
+// the burner's adventurer carries the deployment's build (`--build full`: the development server's
+// `/devnet/credit` runs game's credit-only mode, `setup.ts` buys the skills and sets the build), so
+// its bar holds ready skills, and a bar with none fails the run.
+//
 // Env: GRIMWORLD_DEPLOYMENT (required: the deployment's file), VERIFY_PORT (default 5198),
 // VERIFY_CHANNEL (the browser), VERIFY_ROOT (the checkout, the repository's root by default),
 // VERIFY_SHOTS_DIR (the captures; default the untracked `.verify-out/`; D-73: never committed,
@@ -134,6 +143,32 @@ try {
   const before = await page.evaluate(() => document.querySelector("[data-tile]")?.dataset.tile);
   ok(typeof before === "string" && before.includes(","), `the adventurer stands on ${before}`);
   ok((await text(page, '[data-panel="batch"]'))?.includes("empty"), "the batch starts empty");
+  // CLI-11d: the combat screen's elements, fed by the state read back
+  const slots = await page.evaluate(() => ({
+    bar: document.querySelectorAll("[data-skill-bar] [data-slot]").length,
+    belt: document.querySelectorAll("[data-belt] [data-belt-slot]").length,
+    dock: document.querySelector("[data-combat-dock]") !== null,
+    target: document.querySelector("[data-target]") !== null,
+    log: document.querySelector("[data-combat-log]") !== null,
+    skills: [...document.querySelectorAll("[data-skill-bar] [data-slot]")].map(
+      (e) => e.dataset.state,
+    ),
+  }));
+  console.log(`combat screen: ${JSON.stringify(slots)}`);
+  ok(slots.dock && slots.bar === 8, "the skill bar shows eight slots under the map");
+  ok(slots.belt === 4, "the belt shows four slots");
+  ok(slots.target && slots.log, "the target zone and the log are on screen");
+  const armedSkill = slots.skills.findIndex((state) => state === "ready");
+  // An empty slot does nothing and says nothing (CLI-05 brief §2.4)
+  if (slots.skills.includes("empty")) {
+    const empty = slots.skills.indexOf("empty");
+    await page.click(`[data-skill-bar] [data-slot="${empty}"]`);
+    ok(
+      (await text(page, "[data-said]")) === "" &&
+        (await text(page, "[data-chain-panel]"))?.includes("batch 0/10"),
+      "a tap on an empty slot says nothing and adds nothing",
+    );
+  }
   await page.screenshot({ path: join(shots, "chain-0-ready.png") });
 
   // A Wait: stage 1 at once
@@ -154,6 +189,19 @@ try {
   ok(
     mirror.includes("not mirrored") || /^\d+,\d+,\d$/.test(ghost ?? ""),
     "the predicted tile is a ghost",
+  );
+  const logLines = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("[data-combat-log] li, [data-chain-log] li")].map((li) => [
+        li.textContent,
+        li.dataset.status,
+      ]),
+    );
+  const predicted = await logLines();
+  console.log(`log after the Wait: ${JSON.stringify(predicted)}`);
+  ok(
+    predicted.some(([line, status]) => line === "You waited" && status === "predicted"),
+    "the log shows the Wait as a predicted line",
   );
   await page.screenshot({ path: join(shots, "chain-1-mirror.png") });
 
@@ -222,7 +270,52 @@ try {
     beside !== null && beside.replace(/^simulated: /, "") === simulated.replace(/^simulated: /, ""),
     "stage 2 stays beside stage 3",
   );
+  const confirmed = await logLines();
+  console.log(`log after the send: ${JSON.stringify(confirmed)}`);
+  ok(
+    confirmed.some(([line, status]) => line === "You waited" && status === "confirmed"),
+    "the log shows the Wait as a confirmed line once the batch is sent",
+  );
   await page.screenshot({ path: join(shots, "chain-3-sent.png") });
+
+  // A skill armed and played, when the bar holds one
+  ok(armedSkill >= 0, "the burner's bar holds a ready skill (the deployment's build, CLI-11d3)");
+  if (armedSkill >= 0) {
+    await page.click(`[data-skill-bar] [data-slot="${armedSkill}"]`);
+    ok(
+      (await page.evaluate(
+        (n) => document.querySelector(`[data-slot="${n}"]`)?.getAttribute("aria-pressed"),
+        armedSkill,
+      )) === "true",
+      "a tap on a ready skill arms it",
+    );
+    await page.screenshot({ path: join(shots, "chain-4-armed.png") });
+    await page.click(`[data-skill-bar] [data-slot="${armedSkill}"]`);
+    const played = await until(
+      page,
+      "the skill is in the batch",
+      () => text(page, '[data-panel="batch"]'),
+      (line) => line?.includes("skill"),
+      5_000,
+    );
+    console.log(`batch: ${played}`);
+    const skillLog = await logLines();
+    ok(
+      skillLog.some(([line, status]) => /^You used /.test(line) && status === "predicted"),
+      "the log shows the skill as a predicted line",
+    );
+    await page.screenshot({ path: join(shots, "chain-5-skill.png") });
+    await page.keyboard.press("KeyB");
+    await until(
+      page,
+      "the skill is sent",
+      () => logLines(),
+      (lines) => lines.some(([line, status]) => /^You used /.test(line) && status === "confirmed"),
+      120_000,
+    );
+    ok(true, "the skill's lines are confirmed after the send");
+    await page.screenshot({ path: join(shots, "chain-6-skill-sent.png") });
+  }
 
   // D-273: nothing the page logged or shows holds the burner's key; the URL is unchanged
   const key = await page.evaluate(() => {

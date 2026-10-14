@@ -25,6 +25,14 @@ a non-local URL, and sends nothing then; on a devnet it credits exactly the four
 `Hub.instances` and fails when the read-back is not the `Instances` address. The Keccak behind the storage
 key is checked against a known selector.
 
+DEPLOY-BUILD-FOR: on this node, `check_modes` runs the two modes of `devnet_deploy.py` that build another account's
+adventurer. Predeployed account 1 is CV's "burner": it registers, creates an adventurer and enters; `--credit-only`
+credits it (the instance id read from the chain, no owner call), it leaves, buys the four skills, builds, and its
+next entry debits the belt (the pack holds twice the belt after the entry and the leave, not three times).
+`--give-build` builds a new adventurer of account 2 the same way, and the refusals run: a non-local node, a missing
+deployment, an index outside 1-9, an adventurer the account does not own, a credit of an adventurer that is not
+inside an instance. No JSON holds a key.
+
 SMOKE-CI (D-290): the potion words of the seed (`seed_records.item` and `regeneration_item`) are compared with
 `SEED_HEAL` and `SEED_REGEN`, parsed from `contracts/logic/src/types/action.cairo`; the job `devnet-smoke` of
 `.github/workflows/ci.yml` runs this file.
@@ -272,6 +280,158 @@ def check_salt(node, dep):
         assert salt == devnet_deploy.deploy_salt(1, hex(class_hash)), f"{name}: the salt did not reach sncast"
 
 
+OUTPUTS = []  # the stdout and stderr of every `run_mode`, checked for keys at the end
+
+
+def run_mode(*args, env=None):
+    done = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "devnet_deploy.py"), *args],
+                          cwd=ROOT, capture_output=True, text=True, env={**os.environ, **(env or {})})
+    OUTPUTS.append(done.stdout + done.stderr)
+    return done
+
+
+def nonce(node):
+    return int(node.rpc("starknet_getNonce", {"block_id": "latest", "contract_address": node.address}), 16)
+
+
+def predeployed_node(dep, index, name):
+    """A `Node` for devnet's predeployed account `index` (its key read from the node, never printed)."""
+    probe = devnet_deploy.Node(dep["node_url"], dep["account"], "unused", logs(), name="smoke-probe")
+    account = probe.rpc("devnet_getPredeployedAccounts", {})[index]
+    probe.close()
+    node = devnet_deploy.Node(dep["node_url"], account["address"], account["private_key"], logs(), name=name)
+    node.import_account()
+    return node, account["private_key"]
+
+
+def check_debit(owner, hub, instances, adventurer, belt):
+    """The next entry debits the belt: after it and the leave (which credits the reserve back) the pack
+    holds exactly twice the belt: `set_build` takes it and refuses one more."""
+    inside = devnet_deploy.entered(owner.invoke(hub, "enter", adventurer, 1), instances)
+    owner.invoke(instances, "leave", inside, adventurer, 0, HUB_GATE_BACK)
+    item, count = belt[0]["item"], belt[0]["count"]
+    owner.invoke(hub, "set_build", adventurer, EMPTY_BUILD, item + ((2 * count) << 128), 0)
+    try:
+        owner.invoke(hub, "set_build", adventurer, EMPTY_BUILD, item + ((2 * count + 1) << 128), 0)
+    except RuntimeError:
+        return
+    raise AssertionError("the entry did not debit the belt: the pack holds more than twice the belt")
+
+
+def check_modes(dep):
+    """DEPLOY-BUILD-FOR: `--credit-only` for account 1's burner, `--give-build` for account 2, refusals."""
+    hub, instances = dep["contracts"]["hub"], dep["contracts"]["instances"]
+    plan = devnet_deploy.build_plan()
+    belt = [{"item": i, "count": c} for i, c in plan["belt"]]
+    secrets = []
+    with tempfile.TemporaryDirectory() as tmp:
+        deployment = os.path.join(tmp, "deployment.json")
+        with open(deployment, "w") as f:
+            json.dump(dep, f)
+        # the burner: its own account, adventurer, entry (an empty build, so the snapshot is fresh)
+        burner, key = predeployed_node(dep, 1, "burner")
+        secrets.append(key)
+        burner.invoke(hub, "register")
+        before = devnet_deploy.Node.view(burner, "persistent", hub, "account_of", int(burner.address, 16))
+        account = before[0]
+        assert account, before
+        burner.invoke(hub, "create_adventurer", devnet_deploy.short("Burner"), 1)
+        words = burner.view("persistent", hub, "account", account)
+        adventurer = words[3:3 + words[2]][-1]
+        burner.invoke(hub, "set_build", adventurer, EMPTY_BUILD, 0, 0)
+        inside = devnet_deploy.entered(burner.invoke(hub, "enter", adventurer, 1), instances)
+        # a credit-only run is refused for an adventurer that is not inside an instance (account 0's
+        # adventurer is, so a new one of account 1 that has not entered)
+        burner.invoke(hub, "create_adventurer", devnet_deploy.short("Idle"), 1)
+        idle = burner.view("persistent", hub, "account", account)
+        idle = idle[3:3 + idle[2]][-1]
+        assert idle != adventurer
+        refusal = run_mode("--credit-only", "--deployment", deployment, "--adventurer", str(idle))
+        assert refusal.returncode != 0 and "not inside an instance" in refusal.stderr, refusal.stderr
+        # the mode: credits, makes no owner call, reads the instance from the chain
+        out = os.path.join(tmp, "credit.json")
+        nonce_before = nonce(burner)
+        done = run_mode("--credit-only", "--deployment", deployment, "--adventurer", str(adventurer),
+                        "--out", out)
+        assert done.returncode == 0, done.stderr
+        with open(out) as f:
+            credited = json.load(f)
+        assert credited["adventurer_id"] == adventurer and credited["instance_id"] == inside, credited
+        assert credited["gold"] == devnet_deploy.GOLD == 260, credited
+        assert credited["pack"] == [{"item": b["item"], "count": 2 * b["count"]} for b in belt], credited
+        assert credited["instance_read_from"] == "Instances.placement", credited
+        assert nonce(burner) == nonce_before, "--credit-only sent a transaction from the burner's account"
+        # the gold itself has no read (`Hub.gold` and `balances` are NOT_IMPLEMENTED): it is proved by the
+        # four `buy_skill` below, which cost exactly 260 and are refused without it
+        assert devnet_deploy.hub_instances(burner, hub) == int(instances, 16), "Hub.instances not restored"
+        # still inside, so an owner call refuses until the burner leaves; then its own calls build it
+        try:
+            burner.invoke(hub, "buy_skill", adventurer, list(plan["skills"].values())[0])
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("a buy_skill inside an instance passed")
+        burner.invoke(instances, "leave", inside, adventurer, 0, HUB_GATE_BACK)
+        for skill in plan["skills"].values():
+            burner.invoke(hub, "buy_skill", adventurer, skill)
+        bar = list(plan["skills"].values()) + [0] * (8 - len(plan["skills"]))
+        burner.invoke(hub, "set_build", adventurer, devnet_deploy.build_word(bar),
+                      devnet_deploy.belt_word(plan["belt"]), 0)
+        check_debit(burner, hub, instances, adventurer, belt)
+        gone = run_mode("--credit-only", "--deployment", deployment, "--adventurer", str(adventurer))
+        assert gone.returncode != 0 and "not inside an instance" in gone.stderr, gone.stderr
+        burner.close()
+        # --give-build: account 2, a new adventurer, the output without a key, the same debit
+        owner, key = predeployed_node(dep, 2, "smoke-owner")
+        secrets.append(key)
+        gave = os.path.join(tmp, "give.json")
+        done = run_mode("--give-build", "--deployment", deployment, "--account", "2", "--out", gave)
+        assert done.returncode == 0, done.stderr
+        with open(gave) as f:
+            given = json.load(f)
+        assert int(given["account"], 16) == int(owner.address, 16) and given["adventurer_id"], given
+        assert given["build"]["mode"] == "full" and given["build"]["gold"] == 260, given
+        assert given["build"]["belt"] == belt and given["build"]["dropped"] == {}, given["build"]
+        assert set(given["build"]) == set(dep_full_keys()), sorted(given["build"])
+        check_build_of(owner, given, hub)
+        check_debit(owner, hub, instances, given["adventurer_id"], belt)
+        assert devnet_deploy.hub_instances(owner, hub) == int(instances, 16), "Hub.instances not restored"
+        # refusals: an adventurer the account does not own (the chain's), a non-local node, no deployment,
+        # an index outside 1-9
+        other = run_mode("--give-build", "--deployment", deployment, "--account", "2", "--adventurer",
+                         str(adventurer))
+        assert other.returncode != 0 and "refused" in other.stderr, other.stderr
+        local = run_mode("--credit-only", "--deployment", deployment, "--adventurer", "1",
+                         env={"NODE_URL": "http://example.com:5050"})
+        assert local.returncode != 0 and "local node only" in local.stderr, local.stderr
+        missing = run_mode("--give-build", "--deployment", os.path.join(tmp, "none.json"), "--account", "1")
+        assert missing.returncode != 0 and "no deployment" in missing.stderr, missing.stderr
+        for index in ("0", "10"):
+            bad = run_mode("--give-build", "--deployment", deployment, "--account", index)
+            assert bad.returncode != 0 and "1 to 9" in bad.stderr, bad.stderr
+        no_key = run_mode("--give-build", "--deployment", deployment, "--account", owner.address,
+                          "--key-env", "SMOKE_NO_SUCH_KEY")
+        assert no_key.returncode != 0 and "--key-env" in no_key.stderr, no_key.stderr
+        for text in [json.dumps(credited), json.dumps(given), *OUTPUTS]:
+            for secret in secrets:
+                assert secret.lower().removeprefix("0x").lstrip("0") not in text.lower(), "a key leaked"
+        owner.close()
+    print("devnet_deploy smoke (--credit-only, --give-build, refusals): ok")
+
+
+def dep_full_keys():
+    return ("mode", "bar", "belt", "pack", "pack_after_entry", "derived", "gold", "dropped", "skills")
+
+
+def check_build_of(owner, given, hub):
+    """The adventurer of `--give-build` read back from the chain: its bar and belt are the JSON's."""
+    build = given["build"]
+    words = owner.view("persistent", hub, "adventurer", given["adventurer_id"])[1:]
+    bar = devnet_deploy.build_word(build["bar"])
+    belt = devnet_deploy.belt_word([(b["item"], b["count"]) for b in build["belt"]])
+    assert words[BUILD] == bar + LIVE and words[BELT] == belt + LIVE, [hex(w) for w in words]
+
+
 def full():
     """On a node of its own (started by `main`): the script with `--build full`, and its checks."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -354,6 +514,7 @@ def main():
     assert first != devnet_deploy.deploy_salt(2, "0x1") and max(first, other) < 1 << 250
     print("devnet_deploy smoke: ok")
     print(json.dumps(dep, indent=2))
+    check_modes(dep)
     # a node of its own for `--build full`: its log directory apart, so node.log is not overwritten
     with tempfile.TemporaryDirectory() as tmp:
         env = {**os.environ, "WITH_NODE_LOG_DIR": os.path.join(tmp, "node")}
