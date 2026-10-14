@@ -27,12 +27,12 @@ import { actClass } from "../action";
 import { crippled as goblinCrippled, set_place } from "../segment/goblin";
 import { crippled, sheets as indexed } from "../segment/words";
 import { world, words } from "../segment/world";
-import { readTable } from "./table";
+import { contentRow, readTable } from "./table";
 
-/** The class's call of `act.jsonl`'s row `id` (an `act` row), its content row 0's. */
+/** The class's call of `act.jsonl`'s row `id` (an `act` row), its latest `content` row's. */
 export function call(id: number): ActCall {
   const rows = readTable("act.jsonl");
-  const head = new Felts(rows[0]!.ok!);
+  const head = new Felts(rows[contentRow(rows, id)]!.ok!);
   const content = readContent(head);
   head.end();
   const read = new Felts(rows[id]!.case);

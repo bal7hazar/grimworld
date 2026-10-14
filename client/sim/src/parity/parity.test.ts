@@ -115,9 +115,9 @@ describe("parity with the Cairo code", () => {
       struck: 16,
       landed: 15,
       halved: 3,
-      inflict: 50,
+      inflict: 55,
       cure: 19,
-      hold: 25,
+      hold: 27,
       spend: 7,
       line: 36,
       value: 3,
@@ -130,7 +130,7 @@ describe("parity with the Cairo code", () => {
 
   it("covers every fn of trap.jsonl with its count", () => {
     const counts = replay(table("trap.jsonl"), readTable("trap.jsonl"));
-    expect(Object.fromEntries(counts)).toEqual({ content: 1, trigger: 52, free: 10 });
+    expect(Object.fromEntries(counts)).toEqual({ content: 2, trigger: 75, free: 10 });
   });
 
   it("computes segment2.jsonl's trap calls natively, each equal to its recording", () => {
@@ -158,7 +158,7 @@ describe("parity with the Cairo code", () => {
 
   it("covers every fn of act.jsonl with its count", () => {
     const counts = replay(table("act.jsonl"), readTable("act.jsonl"));
-    expect(Object.fromEntries(counts)).toEqual({ content: 1, act: 175, defence: 19, offence: 28 });
+    expect(Object.fromEntries(counts)).toEqual({ content: 2, act: 195, defence: 19, offence: 28 });
   });
 
   it("computes segment2.jsonl's act calls natively, each equal to its recording", () => {

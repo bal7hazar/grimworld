@@ -16,12 +16,12 @@ import {
   writeWords,
 } from "../segment/serde";
 import { triggerClass } from "../trap";
-import { readTable } from "./table";
+import { contentRow, readTable } from "./table";
 
-/** The class's call of `trap.jsonl`'s row `id` (a `trigger` row), its content row 0's. */
+/** The class's call of `trap.jsonl`'s row `id` (a `trigger` row), its latest `content` row's. */
 export function call(id: number): TriggerCall {
   const rows = readTable("trap.jsonl");
-  const head = new Felts(rows[0]!.ok!);
+  const head = new Felts(rows[contentRow(rows, id)]!.ok!);
   const content = readContent(head);
   head.end();
   const read = new Felts(rows[id]!.case);
