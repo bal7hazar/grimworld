@@ -70,12 +70,14 @@ function fakeScript(end?: { code: number; stdout?: string; stderr?: string }) {
 }
 
 const post = (adventurer: unknown) => JSON.stringify({ adventurer });
+/** The remote address of a request from this machine. */
+const LOCAL = "127.0.0.1";
 
 describe("the dev server's /devnet/credit (CLI-11d3)", () => {
   it("runs the credit-only mode for the adventurer, and answers its known fields", async () => {
     const script = fakeScript({ code: 0, stdout: JSON.stringify(OUTPUT) });
     const runner = createCreditRunner({ deploymentPath: FULL, root: "/repo", spawn: script.spawn });
-    const answer = await runner.request("POST", "application/json", post(2));
+    const answer = await runner.request(LOCAL, "POST", "application/json", post(2));
     expect(answer.status).toBe(200);
     expect(JSON.parse(answer.body)).toEqual({
       adventurer_id: 2,
@@ -100,6 +102,35 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
     expect(runner.state()).toEqual({ state: "idle", credits: 1 });
   });
 
+  it("answers only on loopback: any other remote address is 403, before anything runs", async () => {
+    const script = fakeScript({ code: 0, stdout: JSON.stringify(OUTPUT) });
+    const runner = createCreditRunner({ deploymentPath: FULL, root: "/repo", spawn: script.spawn });
+    for (const remote of [
+      undefined,
+      "",
+      "192.168.1.20",
+      "10.0.0.1",
+      "::ffff:192.168.1.20",
+      "fe80::1",
+      "127.0.0.2",
+      "0.0.0.0",
+    ]) {
+      for (const method of ["GET", "POST"]) {
+        const answer = await runner.request(remote, method, "application/json", post(2));
+        expect([answer.status, JSON.parse(answer.body)], `${method} from ${remote}`).toEqual([
+          403,
+          { error: "loopback only" },
+        ]);
+      }
+    }
+    expect(script.runs).toEqual([]);
+    expect(runner.state()).toEqual({ state: "idle", credits: 0 });
+    for (const remote of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) {
+      expect((await runner.request(remote, "GET", undefined, "")).status, remote).toBe(200);
+    }
+    expect((await runner.request("::1", "POST", "application/json", post(2))).status).toBe(200);
+  });
+
   it("takes the adventurer's id only: any other body is 400, and nothing runs", async () => {
     const script = fakeScript({ code: 0, stdout: JSON.stringify(OUTPUT) });
     const runner = createCreditRunner({ deploymentPath: FULL, root: "/repo", spawn: script.spawn });
@@ -115,12 +146,14 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
       JSON.stringify({ adventurer: 2, key: "0xk" }),
       JSON.stringify({ adventurer: 2, deployment: "/etc/passwd" }),
     ]) {
-      expect((await runner.request("POST", "application/json", body)).status, body).toBe(400);
+      expect((await runner.request(LOCAL, "POST", "application/json", body)).status, body).toBe(
+        400,
+      );
     }
     // A form or a text body, which another origin may send without a preflight
-    expect((await runner.request("POST", "text/plain", post(2))).status).toBe(400);
-    expect((await runner.request("POST", undefined, post(2))).status).toBe(400);
-    expect((await runner.request("PUT", "application/json", post(2))).status).toBe(405);
+    expect((await runner.request(LOCAL, "POST", "text/plain", post(2))).status).toBe(400);
+    expect((await runner.request(LOCAL, "POST", undefined, post(2))).status).toBe(400);
+    expect((await runner.request(LOCAL, "PUT", "application/json", post(2))).status).toBe(405);
     expect(script.runs).toEqual([]);
   });
 
@@ -128,7 +161,7 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
     const script = fakeScript({ code: 0, stdout: JSON.stringify(OUTPUT) });
     const answer = async (path: string | undefined) => {
       const runner = createCreditRunner({ deploymentPath: path, root: "/r", spawn: script.spawn });
-      const { status, body } = await runner.request("POST", "application/json", post(2));
+      const { status, body } = await runner.request(LOCAL, "POST", "application/json", post(2));
       return [status, JSON.parse(body).error];
     };
     expect(await answer(undefined)).toEqual([404, "no deployment"]);
@@ -161,7 +194,7 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
       stderr: "progress\ndevnet_deploy: adventurer 2 is not inside an instance\n",
     });
     const runner = createCreditRunner({ deploymentPath: FULL, root: "/r", spawn: script.spawn });
-    const answer = await runner.request("POST", "application/json", post(2));
+    const answer = await runner.request(LOCAL, "POST", "application/json", post(2));
     expect(answer.status).toBe(502);
     expect(JSON.parse(answer.body)).toEqual({
       error: "devnet_deploy: adventurer 2 is not inside an instance",
@@ -170,7 +203,7 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
     // An answer that is not the mode's JSON is a failure too
     const odd = fakeScript({ code: 0, stdout: '{"adventurer_id": "2"}' });
     const second = createCreditRunner({ deploymentPath: FULL, root: "/r", spawn: odd.spawn });
-    expect((await second.request("POST", "application/json", post(2))).status).toBe(502);
+    expect((await second.request(LOCAL, "POST", "application/json", post(2))).status).toBe(502);
   });
 
   it("caveat (c): a run past its timeout is killed, its own child only, and the devnet is unusable", async () => {
@@ -183,7 +216,7 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
         timeoutMs: 1000,
         spawn: script.spawn,
       });
-      const pending = runner.request("POST", "application/json", post(2));
+      const pending = runner.request(LOCAL, "POST", "application/json", post(2));
       await vi.advanceTimersByTimeAsync(0);
       expect(runner.state()).toEqual({ state: "running", credits: 1 });
       await vi.advanceTimersByTimeAsync(1000);
@@ -192,10 +225,10 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
       expect(answer).toEqual({ status: 409, body: JSON.stringify({ error: UNUSABLE }) });
       expect(runner.state()).toEqual({ state: "unusable", credits: 1 });
       // Every later credit is refused, and nothing runs again
-      const later = await runner.request("POST", "application/json", post(2));
+      const later = await runner.request(LOCAL, "POST", "application/json", post(2));
       expect(later.status).toBe(409);
       expect(script.runs).toHaveLength(1);
-      expect(JSON.parse((await runner.request("GET", undefined, "")).body)).toEqual({
+      expect(JSON.parse((await runner.request(LOCAL, "GET", undefined, "")).body)).toEqual({
         state: "unusable",
         credits: 1,
       });
@@ -207,8 +240,8 @@ describe("the dev server's /devnet/credit (CLI-11d3)", () => {
   it("caveat (b): credits run one at a time, in the order asked", async () => {
     const script = fakeScript();
     const runner = createCreditRunner({ deploymentPath: FULL, root: "/r", spawn: script.spawn });
-    const first = runner.request("POST", "application/json", post(2));
-    const second = runner.request("POST", "application/json", post(3));
+    const first = runner.request(LOCAL, "POST", "application/json", post(2));
+    const second = runner.request(LOCAL, "POST", "application/json", post(3));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(script.runs.map((run) => run.args.at(-1))).toEqual(["2"]);
     expect(runner.state()).toEqual({ state: "running", credits: 1 });

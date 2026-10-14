@@ -18,6 +18,11 @@ import { join } from "node:path";
  *   of credits started. The burner reads it around its own `enter` and `leave` (caveat a: while a
  *   credit runs, `Hub.instances` is account 0 and they revert), and before every send (caveat c).
  *
+ * Loopback only: a request whose remote address is not `127.0.0.1` or `::1` (or `::ffff:127.0.0.1`,
+ * how a dual-stack socket reports the IPv4 loopback) is refused, 403, before its body is read
+ * (`--host 0.0.0.0` would otherwise open it to the network). The endpoint lives in Vite's dev
+ * middleware only (`apply: "serve"`): `vite build` carries none of it.
+ *
  * A run that outlives `timeoutMs` is killed, its own child process only, by its pid. A killed run
  * may leave `Hub.instances` pointing at account 0, and the next run does not repair it (game's
  * review), so from then on the devnet is unusable: every credit is refused, and the app refuses
@@ -26,6 +31,13 @@ import { join } from "node:path";
  */
 
 export type CreditState = "idle" | "running" | "unusable";
+
+/** The remote addresses of this machine that may call the endpoint. */
+const LOOPBACK: ReadonlySet<string> = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+/** Whether a request's remote address is the machine's own. */
+export const fromLoopback = (remote: string | undefined): boolean =>
+  remote !== undefined && LOOPBACK.has(remote);
 
 /** What the runner uses of the script's process (`ChildProcess`'s part, so tests fake it). */
 export interface CreditChild {
@@ -135,8 +147,13 @@ export interface CreditRunner {
   state(): { readonly state: CreditState; readonly credits: number };
   /** `POST` with the body's text. */
   credit(body: string): Promise<CreditAnswer>;
-  /** The request as the server receives it: its method, content type and body. */
-  request(method: string, contentType: string | undefined, body: string): Promise<CreditAnswer>;
+  /** The request as the server receives it: its remote address, method, content type and body. */
+  request(
+    remote: string | undefined,
+    method: string,
+    contentType: string | undefined,
+    body: string,
+  ): Promise<CreditAnswer>;
 }
 
 export function createCreditRunner(options: CreditOptions): CreditRunner {
@@ -237,7 +254,8 @@ export function createCreditRunner(options: CreditOptions): CreditRunner {
   return {
     state,
     credit,
-    async request(method, contentType, body) {
+    async request(remote, method, contentType, body) {
+      if (!fromLoopback(remote)) return refusal(403, "loopback only");
       if (method === "GET") return json(200, state());
       if (method !== "POST") return refusal(405, "GET or POST");
       // A JSON body: a page of another origin cannot send it without a preflight

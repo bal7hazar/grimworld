@@ -114,8 +114,10 @@ function start(nodeUrl: string): Promise<Shown> {
     opening = (async (): Promise<Shown> => {
       try {
         const deployment = await fetchDeployment();
-        // The development server's credit, for a deployment with a build only (CLI-11d3)
-        const credit = deployment.build ? createCredit(httpCreditRequest()) : undefined;
+        // The development server's credit, for a deployment with a build only (CLI-11d3); the
+        // site's build drops the branch, so no client of the endpoint is bundled
+        const credit =
+          import.meta.env.DEV && deployment.build ? createCredit(httpCreditRequest()) : undefined;
         const opened = await openChain(nodeUrl, deployment, credit ? { credit } : {});
         const { provider, reader } = opened;
         const setup = {

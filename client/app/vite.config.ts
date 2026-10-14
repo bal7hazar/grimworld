@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { type Plugin, defineConfig } from "vite";
-import { createCreditRunner } from "./src/dev/credit.js";
+import { createCreditRunner, fromLoopback } from "./src/dev/credit.js";
 import { serveArt } from "./src/dev/serveArt.js";
 import { serveDeployment } from "./src/dev/serveDeployment.js";
 
@@ -60,6 +60,14 @@ function devDeployment(): Plugin {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use("/devnet/credit", (req, res) => {
+        const remote = req.socket.remoteAddress;
+        if (!fromLoopback(remote)) {
+          // Refused before the body is read: this machine only
+          res.statusCode = 403;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "loopback only" }));
+          return;
+        }
         let body = "";
         req.on("data", (chunk) => {
           // An adventurer's id needs a few bytes: a larger body is not read further
@@ -67,7 +75,7 @@ function devDeployment(): Plugin {
         });
         req.on("end", () => {
           void credit
-            .request(req.method ?? "", req.headers["content-type"], body)
+            .request(remote, req.method ?? "", req.headers["content-type"], body)
             .then((answer) => {
               res.statusCode = answer.status;
               res.setHeader("Cache-Control", "no-store");
