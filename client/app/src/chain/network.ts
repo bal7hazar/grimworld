@@ -12,7 +12,8 @@ import {
 } from "../account";
 import { type Reader, type Rpc, SimulationError, createReader, createRpc } from "../preview";
 import type { Credit } from "./credit";
-import type { ChainRefusal } from "./params";
+import { CONTRACT_NAMES, type Network, SEPOLIA } from "./networks";
+import { type ChainRefusal, keylessEndpoint } from "./params";
 import { BURNER_FUNDS, type Build, FUNDER_INDEX } from "./setup";
 
 /**
@@ -168,10 +169,16 @@ async function predeployed(rpc: Rpc): Promise<{ address: string; private_key: st
  * it.
  */
 export async function assertTestChain(rpc: Rpc): Promise<void> {
+  await assertTestChainId(rpc);
+  await predeployed(rpc);
+}
+
+/** The chain id half of `assertTestChain`: `SN_SEPOLIA` only, `SN_MAIN` refused by name. */
+async function assertTestChainId(rpc: Rpc): Promise<bigint> {
   const id = await chainIdAt(rpc);
   if (id === SN_MAIN) throw new ChainRefused("not a test chain");
   if (id !== SN_SEPOLIA) throw new ChainRefused("not a test chain");
-  await predeployed(rpc);
+  return id;
 }
 
 /** A chain whose `send` awaits the check first. */
@@ -274,4 +281,76 @@ export async function openChain(
     assertChain,
     ...(credit ? { credit } : {}),
   };
+}
+
+/** `starknet_getClassHashAt`'s answer for an address that holds no contract. */
+const CONTRACT_NOT_FOUND = 20;
+
+/**
+ * The start check of a public deployment (CLI-11e1, D-154): the class hash at each of its four
+ * addresses must equal the recorded one. A mismatch or a missing contract is "Sepolia contracts
+ * differ from the record", the reason only; any other error of the node is thrown as it is.
+ */
+export async function assertRecordedClasses(rpc: Rpc, network: Network): Promise<void> {
+  for (const name of CONTRACT_NAMES) {
+    const { address, classHash } = network.contracts[name];
+    let found: unknown;
+    try {
+      found = await rpc("starknet_getClassHashAt", {
+        block_id: "latest",
+        contract_address: address,
+      });
+    } catch (error) {
+      if (error instanceof SimulationError && error.code === CONTRACT_NOT_FOUND) {
+        throw new ChainRefused("Sepolia contracts differ from the record");
+      }
+      throw error;
+    }
+    if (typeof found !== "string" || !HEX.test(found) || BigInt(found) !== BigInt(classHash)) {
+      throw new ChainRefused("Sepolia contracts differ from the record");
+    }
+  }
+}
+
+/**
+ * The development server's `/sepolia.json` (`src/dev/serveSepolia.ts`): `{ node_url }`, a keyless
+ * https endpoint. Anything else (a 404, the site's `index.html`, a keyed or http URL) is "no
+ * Sepolia endpoint".
+ */
+export async function fetchSepoliaEndpoint(
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+  url = "/sepolia.json",
+): Promise<string> {
+  let endpoint: string | undefined;
+  try {
+    const response = await fetchImpl(url, { headers: { accept: "application/json" } });
+    if (response.status === 200) {
+      endpoint = keylessEndpoint((JSON.parse(await response.text()) as { node_url?: unknown }).node_url);
+    }
+  } catch {
+    endpoint = undefined;
+  }
+  if (endpoint === undefined) throw new ChainRefused("no Sepolia endpoint");
+  return endpoint;
+}
+
+/**
+ * Opens the mode on Sepolia (CLI-11e1, under the development server only): reads, never a send.
+ * The chain id must be `SN_SEPOLIA` (`SN_MAIN` refused by name, as `assertTestChain` does), then
+ * the recorded classes must be at their addresses. Sepolia has no pre-funded account, so the mode
+ * needs FND-08's funding service, which CLI-11e2 adds: until then it stops there, before any
+ * funding, with "Sepolia: funding service not configured (CLI-11e2)". No chain, funder or account
+ * is built.
+ */
+export async function openSepolia(
+  nodeUrl: string,
+  options: { fetch?: typeof fetch; network?: Network } = {},
+): Promise<never> {
+  const network = options.network ?? SEPOLIA;
+  const rpc = createRpc(nodeUrl, options.fetch ?? globalThis.fetch.bind(globalThis));
+  if ((await assertTestChainId(rpc)) !== chainIdOf(network.chainId)) {
+    throw new ChainRefused("deployment of another node");
+  }
+  await assertRecordedClasses(rpc, network);
+  throw new ChainRefused("Sepolia: funding service not configured (CLI-11e2)");
 }

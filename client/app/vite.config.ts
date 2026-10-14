@@ -6,6 +6,7 @@ import { type Plugin, defineConfig } from "vite";
 import { createCreditRunner, fromLoopback } from "./src/dev/credit.js";
 import { serveArt } from "./src/dev/serveArt.js";
 import { serveDeployment } from "./src/dev/serveDeployment.js";
+import { serveSepolia } from "./src/dev/serveSepolia.js";
 
 /**
  * The atlas `tools/art` builds (D-73: never committed, never bundled). The development server
@@ -111,8 +112,39 @@ function devDeployment(): Plugin {
   };
 }
 
+/**
+ * Sepolia under the development server only (CLI-11e1, D-301): `/sepolia.json` answers the keyless
+ * https endpoint `?chain=sepolia` plays on, `GRIMWORLD_SEPOLIA_RPC` or PublicNode's by default
+ * (`src/dev/serveSepolia.ts`). A build serves nothing of it, and the app reads `?chain=sepolia` only
+ * behind `import.meta.env.DEV`.
+ */
+function devSepolia(): Plugin {
+  const setting = process.env.GRIMWORLD_SEPOLIA_RPC;
+  return {
+    name: "grimworld-dev-sepolia",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use("/sepolia.json", (_req, res) => {
+        const answer = serveSepolia(setting);
+        res.statusCode = answer.status;
+        res.setHeader("Cache-Control", "no-store");
+        if (answer.status !== 200) {
+          res.end();
+          return;
+        }
+        res.setHeader("Content-Type", "application/json");
+        res.end(answer.body);
+      });
+      if (serveSepolia(setting).status !== 200) {
+        // The setting's value is never printed: a keyed URL would carry its key
+        server.config.logger.info("  sepolia: GRIMWORLD_SEPOLIA_RPC is not a keyless https URL");
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), devArt(), devDeployment()],
+  plugins: [react(), devArt(), devDeployment(), devSepolia()],
   build: {
     rollupOptions: {
       // The game (`index.html`) and the map editor (`editor.html`, CLI-09 O-1): two pages, two

@@ -18,7 +18,14 @@ import type { SandboxController } from "../sandbox/controller";
 import { ChainPanel } from "./ChainPanel";
 import { type ChainController, createChainController } from "./ChainController";
 import { CreditFailed, createCredit, httpCreditRequest } from "./credit";
-import { ChainRefused, type Opened, fetchDeployment, openChain } from "./network";
+import {
+  ChainRefused,
+  type Opened,
+  fetchDeployment,
+  fetchSepoliaEndpoint,
+  openChain,
+  openSepolia,
+} from "./network";
 import { type ChainParam, type ChainRefusal, logRefusal, refusalLine } from "./params";
 import { type ChainState, createSentReads, readState, sendBatch } from "./send";
 import { type Player, SetupFailed, restore } from "./setup";
@@ -31,6 +38,11 @@ import { type Stages, createStages } from "./stages";
  * draws the instance the chain holds (the sandbox's own renderer on `world.ts`'s world, §6.2), turns
  * the inputs into the batch (`ChainController`, §4.1), shows the three stages of its preview in the
  * panel (§5), and sends it on `B` (§4.3), entering again on `N` once the instance closed (§3.4).
+ *
+ * CLI-11e1: `?chain=sepolia`, under the development server only, opens OPS-02's deployment on the
+ * served endpoint: the chain id and the recorded classes are checked, then the mode stops before
+ * any funding (CLI-11e2 adds the funder). The branch is behind `import.meta.env.DEV`, so the site's
+ * build drops it with `networks.ts`.
  *
  * Loaded by `App.tsx` with a dynamic `import()` only, so the sandbox's bundle does not carry
  * starknet.js.
@@ -61,8 +73,8 @@ function failure(error: unknown): string {
 }
 
 /**
- * One start per node URL for the page's life: React's development double effect must not register
- * or enter twice.
+ * One start per node URL (or `"sepolia"`, which no node URL spells) for the page's life: React's
+ * development double effect must not register or enter twice.
  */
 const started = new Map<string, Promise<Shown>>();
 
@@ -143,15 +155,35 @@ function start(nodeUrl: string): Promise<Shown> {
   return opening;
 }
 
+/** Sepolia (CLI-11e1): its checks, then the stop before funding; always a refusal or a failure. */
+function startSepolia(): Promise<Shown> {
+  let opening = started.get("sepolia");
+  if (opening === undefined) {
+    opening = (async (): Promise<Shown> => {
+      try {
+        return await openSepolia(await fetchSepoliaEndpoint());
+      } catch (error) {
+        if (error instanceof ChainRefused) return { kind: "refused", reason: error.reason };
+        return { kind: "failed", what: failure(error) };
+      }
+    })();
+    started.set("sepolia", opening);
+  }
+  return opening;
+}
+
 export default function ChainScreen({ param }: { param: Exclude<ChainParam, { kind: "none" }> }) {
   const [shown, setShown] = useState<Shown>(() =>
     param.kind === "refused" ? { kind: "refused", reason: param.reason } : { kind: "opening" },
   );
 
   useEffect(() => {
-    if (param.kind !== "chain") return;
+    let opening: Promise<Shown>;
+    if (param.kind === "chain") opening = start(param.nodeUrl);
+    else if (import.meta.env.DEV && param.kind === "sepolia") opening = startSepolia();
+    else return;
     let alive = true;
-    void start(param.nodeUrl).then((next) => {
+    void opening.then((next) => {
       if (alive) setShown(next);
     });
     return () => {
