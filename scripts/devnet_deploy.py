@@ -39,7 +39,12 @@ another world (the goblins track CV records). With `--salt`, every `sncast deplo
 build give the same addresses), and a re-run on a fresh node (same build, same node seed) draws the same
 world. "Same build" means the same class hashes, and in this repository those depend on the build's path:
 the same commit built elsewhere (another worktree, the CI, the VPS) gives other addresses and another
-world. The entry's transaction hash also holds the fee bounds, so the draw is the same only under
+world. Why: the Cairo compiler writes the absolute build path into the closure type names of Sierra ids
+(upstream starkware-libs/cairo#10358, D-183), so class hashes, and with them the addresses, the `enter`
+transaction hash and the drawn world, change with the checkout path (gas, Sierra felt counts and CASM do
+not). So the same world needs the same commit, the same Scarb, single-threaded builds and the same absolute
+checkout path; any machine that builds at one fixed path gets the same world. Adopting a Scarb release that
+carries the fix (cairo#10359) reverses it (D-183). The entry's transaction hash also holds the fee bounds, so the draw is the same only under
 devnet's default gas prices, as `with-node.sh` starts it, and `sncast`'s tip of 0. Without it nothing changes (a random salt per deploy, `salt` is null in the JSON). The fixed salt
 is for the devnet only; the node itself is fixed (`with-node.sh` uses devnet's seed 0 accounts).
 
