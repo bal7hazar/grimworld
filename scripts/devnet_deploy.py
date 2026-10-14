@@ -29,6 +29,20 @@ the REGENERATION skill, in that order, slots 0 to 3; belt: the healing potion (i
 potion (item 23) x1; pack: twice the belt, so the entry debits the belt and one re-entry with it is covered.
 Seed ids come from `build_plan()`, which reads `seed_records()`'s rows, never hard-coded.
 
+DEPLOY-SALT (`--salt <felt>`, opt-in): `sncast deploy` draws a random salt, so each run on a fresh node
+gets other addresses. They reach the entry's transaction hash (the `Hub.enter` call names the Hub, and
+its calldata and the sender's nonce follow the same history), and `TxHashFate.fate` is
+`poseidon(transaction hash, domain)` (`contracts/persistent/src/systems/fate.cairo:31`), consumed by
+`Instances.begin`'s entry draw (`contracts/ephemeral/src/systems/instances.cairo:874`): another address,
+another world (the goblins track CV records). With `--salt`, every `sncast deploy` gets the salt
+`sha256("<salt>:<class hash>")` truncated to 250 bits (one salt per class, so two runs of the same
+build give the same addresses), and a re-run on a fresh node (same build, same node seed) draws the same
+world. "Same build" means the same class hashes, and in this repository those depend on the build's path:
+the same commit built elsewhere (another worktree, the CI, the VPS) gives other addresses and another
+world. The entry's transaction hash also holds the fee bounds, so the draw is the same only under
+devnet's default gas prices, as `with-node.sh` starts it, and `sncast`'s tip of 0. Without it nothing changes (a random salt per deploy, `salt` is null in the JSON). The fixed salt
+is for the devnet only; the node itself is fixed (`with-node.sh` uses devnet's seed 0 accounts).
+
 Local node only: it refuses any NODE_URL that is not 127.0.0.1 and never reads a Sepolia variable.
 It runs once per node: a node whose first account has already sent a transaction is refused (exit 1)
 with a message, and nothing is deployed. The node must be a devnet whose `devnet_getPredeployedAccounts`
@@ -49,6 +63,7 @@ read. Its keys, all strings of hex felts unless noted:
                        ai_library, action_library, executor_library, segment_library,
                        goblins_library}: class hashes
     contracts         {registry, tx_hash_fate, hub, instances}: addresses
+    salt              the `--salt` value as a hex string (DEPLOY-SALT), or null without the option
     adventurer_id     the adventurer created, built and entered (a number)
     instance_id       the instance it entered: `InstanceEntered`'s id (a number)
     slot              the instance's slot, `instance_id >> 32` (a number)
@@ -60,6 +75,7 @@ read. Its keys, all strings of hex felts unless noted:
                        dropped: {name: reason} for each part the seed or the chain cannot give (empty)}
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -168,9 +184,9 @@ def assert_local_devnet(node):
 class Node:
     """The local node and the first pre-funded account, through the JSON-RPC and `sncast`."""
 
-    def __init__(self, url, address, key, logs):
+    def __init__(self, url, address, key, logs, salt=None):
         check_url(url)
-        self.url, self.address = url, address
+        self.url, self.address, self.salt = url, address, salt
         os.makedirs(logs, exist_ok=True)
         self.accounts = os.path.join(logs, "accounts-devnet-deploy.json")
         if os.path.exists(self.accounts):
@@ -210,8 +226,9 @@ class Node:
     def deploy(self, package, class_hash, *calldata):
         args = ["--constructor-calldata", *[hex(c) if isinstance(c, int) else c for c in calldata]] \
             if calldata else []
+        fixed = ["--salt", hex(deploy_salt(self.salt, class_hash))] if self.salt is not None else []
         out = self.sncast(package, "--account", "deployer", "--wait", "deploy", "--url", self.url,
-                          "--class-hash", class_hash, *args)
+                          "--class-hash", class_hash, *fixed, *args)
         return field("Contract Address", out)
 
     def invoke(self, contract, function, *calldata):
@@ -235,6 +252,19 @@ class Node:
         if not match:
             raise RuntimeError(f"{function}: no raw response in: {out}")
         return [int(f.strip(), 16) for f in match.group(1).split(",") if f.strip()]
+
+
+def deploy_salt(salt, class_hash):
+    """DEPLOY-SALT: the salt of the deploy of `class_hash` under `--salt`: a hash of both, 250 bits."""
+    digest = hashlib.sha256(f"{salt:#x}:{int(class_hash, 16):#x}".encode()).digest()
+    return int.from_bytes(digest, "big") & ((1 << 250) - 1)
+
+
+def felt(text):
+    value = int(text, 0)
+    if not 0 <= value < 1 << 251:
+        raise argparse.ArgumentTypeError("not a felt (0 to 2^251)")
+    return value
 
 
 def hub_instances(node, hub):
@@ -344,6 +374,9 @@ def parse(argv):
     parser.add_argument("--build", choices=("empty", "full"), default="empty",
                         help="the adventurer's build: empty (default: an empty bar, no belt) or "
                              "full (a belt of the seed's potions and a pack for a second entry)")
+    parser.add_argument("--salt", type=felt, default=None,
+                        help="a fixed salt for every deploy (DEPLOY-SALT), so that two runs on fresh "
+                             "nodes give the same addresses and the same world; default: random")
     return parser.parse_args(argv)
 
 
@@ -377,7 +410,8 @@ def main(argv):
     except KeyError as missing:
         sys.exit(f"devnet_deploy: {missing} is not set (run under scripts/with-node.sh)")
     node = Node(url, address, key,
-                os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node")))
+                os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node")),
+                args.salt)
 
     try:
         predeployed = node.rpc("devnet_getPredeployedAccounts", {})
@@ -442,6 +476,7 @@ def main(argv):
 
     result = {
         "node_url": url, "chain_id": chain, "commit": commit(), "account": address,
+        "salt": None if args.salt is None else hex(args.salt),
         "classes": {"registry": registry_class, **classes,
                     **{re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower(): h
                        for name, h in play.items()}},
