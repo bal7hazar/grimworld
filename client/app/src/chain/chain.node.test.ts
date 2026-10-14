@@ -111,7 +111,8 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
   let player: Player;
   /** What each execution of the burner cost, in fri (§3.3: does 100 STRK last a session?). */
   const fees: [string, bigint][] = [];
-  const { build } = deployment;
+  // The body runs when skipped too, without a deployment
+  const build = found === undefined ? undefined : deployment.build;
   const runner = createCreditRunner({ deploymentPath, root: ROOT });
   const credit = createCredit((method, body) =>
     runner.request("127.0.0.1", method, "application/json", body ?? ""),

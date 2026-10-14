@@ -24,11 +24,10 @@
 // belt of four, the target zone, the log), the log's line for the Wait predicted (muted) and then
 // confirmed by the send, a tap on an empty slot that does nothing and says nothing, and, when the
 // bar holds a skill, that skill armed (its second tap plays it, or its key and Enter), the batch
-// holding the `skill` action, its log lines predicted and then confirmed after `B`. The burner's
-// adventurer is built empty until CLI-11d3 (`setup.ts` sends `set_build` with `EMPTY_BUILD` before
-// each `enter`; track game is asked for a devnet entry point that builds a fresh adventurer): its
-// bar is empty, the skill step prints a named SKIP line, and the skill on chain is the node test's
-// (`chain.node.test.ts`, the deployment's own adventurer, `verify:chain` deploying `--build full`).
+// holding the `skill` action, its log lines predicted and then confirmed after `B`. Since CLI-11d3
+// the burner's adventurer carries the deployment's build (`--build full`: the development server's
+// `/devnet/credit` runs game's credit-only mode, `setup.ts` buys the skills and sets the build), so
+// its bar holds ready skills, and a bar with none fails the run.
 //
 // Env: GRIMWORLD_DEPLOYMENT (required: the deployment's file), VERIFY_PORT (default 5198),
 // VERIFY_CHANNEL (the browser), VERIFY_ROOT (the checkout, the repository's root by default),
@@ -280,12 +279,8 @@ try {
   await page.screenshot({ path: join(shots, "chain-3-sent.png") });
 
   // A skill armed and played, when the bar holds one
-  if (armedSkill < 0) {
-    console.log(
-      "SKIP a skill armed and played: burner built empty until CLI-11d3 (no ready skill on its " +
-        "bar); the node test plays the full build's skills on the deployment's adventurer",
-    );
-  } else {
+  ok(armedSkill >= 0, "the burner's bar holds a ready skill (the deployment's build, CLI-11d3)");
+  if (armedSkill >= 0) {
     await page.click(`[data-skill-bar] [data-slot="${armedSkill}"]`);
     ok(
       (await page.evaluate(
