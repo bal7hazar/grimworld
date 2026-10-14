@@ -150,6 +150,7 @@ pub mod errors {
     pub const TRAP_ENTRY: felt252 = 'carrier: trap entry';
     pub const PAYLOAD: felt252 = 'carrier: trap payload';
     pub const MIXED_TARGETS: felt252 = 'carrier: mixed targets';
+    pub const TAKES_NOBODY: felt252 = 'carrier: takes nobody';
     pub const DISC_1: felt252 = 'carrier: disc 1 not a potion';
     pub const AREA: felt252 = 'carrier: area after the MVP';
 }
@@ -469,7 +470,7 @@ pub impl EntryAssert of EntryAssertTrait {
     /// in an attack; an attack's entries all `FOE`, `SINGLE`; a `TRAP` entry first, `TILE`,
     /// `SINGLE`, its payload `FOE`, `SINGLE`; no `TILE` entry
     /// beside a `FOE` or `ALLY` one, no `SELF` entry before an addressed one, `TRAP` aside (D-271,
-    /// D-276); `DISC_1`
+    /// D-276); no `SELF`, `SINGLE` entry on `FOES`, which takes nobody (R-45, D-289); `DISC_1`
     /// only in a potion; no `DISC_2`, `DISC_3` in the MVP's content; a potion's entry does not
     /// scale.
     fn assert_carrier(entries: Span<Entry>, carrier: Carrier) {
@@ -522,6 +523,16 @@ pub impl EntryAssert of EntryAssertTrait {
                     entities = entities || t == target::FOE || t == target::ALLY;
                     assert(!(tiles && entities) && !(addressed && selfed), errors::MIXED_TARGETS);
                     selfed = selfed || t == target::SELF;
+                    // R-45 (D-289): a set of `SELF`, `SINGLE` holds the caster alone, and the
+                    // caster is never its own foe: under `FOES` it takes nobody. A hit modifier
+                    // is not a set (it rides the hit's).
+                    assert(
+                        !(t == target::SELF
+                            && s == shape::SINGLE
+                            && *entry.filter == filter::FOES
+                            && !entry.is_hit_modifier()),
+                        errors::TAKES_NOBODY,
+                    );
                 }
                 if k == kind::DAMAGE {
                     assert(carrier != Carrier::Attack && hit.is_none(), errors::TWO_HITS);

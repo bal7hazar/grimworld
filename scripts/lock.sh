@@ -15,7 +15,7 @@
 #
 # --wait <s> (or GRIMWORLD_LOCK_WAIT=<s>) bounds the wait for the locks, both together, to <s> seconds:
 # past it the command does not run, the script prints "build lock busy for <s> s" and exits 75. The
-# command still runs only under the locks, never around them (FND-13: the pre-push check waits 90 s).
+# command still runs only under the locks, never around them (FND-13: the pre-push check waits 15 s by default, PREPUSH_LOCK_WAIT).
 #
 # Only build and test commands are wrapped: the audit profile allows `scripts/lock.sh …`, so
 # this script must not become a way to run anything else.
