@@ -375,7 +375,12 @@ export function createChainController(deps: ControllerDeps): ChainController {
     refresh();
   }
 
-  /** The sent batch settled (§7.2 item 4): its predicted lines confirmed, or struck if it differs. */
+  /**
+   * The sent batch settled (§7.2 item 4): its predicted lines confirmed, or struck if it differs.
+   * A send the mirror did not predict (a reveal, `NotMirrored`) or that did not play settles
+   * nothing: its predicted lines stay as they were, and so do its refusals, in their place among
+   * them, until a later settle moves them all to `history` or a new instance clears the log.
+   */
   function settle(sent: NonNullable<StagesState["sent"]>) {
     const { result } = sent;
     if (result.kind !== "sent" || result.chain.kind !== "played") return;
@@ -561,7 +566,9 @@ export function createChainController(deps: ControllerDeps): ChainController {
       try {
         const chain = await deps.enter();
         stages.install(chain);
+        // A new instance: its log starts empty, the refusals of the last one's batch included
         history.clear();
+        refusals = [];
         rebuild();
         set({ entering: false, selected: null });
         return true;

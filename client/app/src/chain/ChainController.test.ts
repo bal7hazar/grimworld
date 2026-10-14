@@ -842,6 +842,29 @@ describe("the log from the mirror (§7.2)", () => {
     expect(combat.snapshot().log).toEqual([A, B]);
   });
 
+  it("clears a refusal on entering again, after a send the mirror did not predict (review t-0012)", async () => {
+    const W: LogLine = { text: "You waited", tone: "event", status: "predicted" };
+    const { fake, controller, combat } = combatSetup(57, {
+      lines: (_, actions) => actions.map(() => [W]),
+      run: refusing(Illegal.Recharging),
+    });
+    controller.wait();
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    // Sent, and settled with no prediction (NotMirrored): nothing settles, the refusal stays
+    const sent = played([]) as unknown as { result: { mirror: unknown } };
+    sent.result.mirror = { kind: "not-mirrored", reason: "a reveal" };
+    fake.setSent(sent as unknown as StagesState["sent"]);
+    expect(combat.snapshot().log).toEqual([
+      W,
+      { text: "Recharging.", tone: "refusal", status: "refused" },
+    ]);
+    // The instance closes, and N enters again: the new instance's log is empty
+    fake.setPhase("closed");
+    expect(await controller.enterAgain()).toBe(true);
+    expect(combat.snapshot().log).toEqual([]);
+  });
+
   it("keeps a refusal in input order, and a send neither confirms nor strikes it (review t-0008)", () => {
     const W: LogLine = { text: "You waited", tone: "event", status: "predicted" };
     const R: LogLine = { text: "Recharging.", tone: "refusal", status: "refused" };
