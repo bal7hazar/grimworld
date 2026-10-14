@@ -1,3 +1,4 @@
+import { hash } from "starknet";
 import { describe, expect, it, vi } from "vitest";
 import type { BurnerChain, Funder, KeyStorage, NodeFunderConfig } from "../account";
 import { LOCAL_ACCOUNT_CLASS } from "../account";
@@ -5,6 +6,7 @@ import { createRpc } from "../preview";
 import {
   ChainRefused,
   type Deployment,
+  INSTANCES_KEY,
   SN_MAIN,
   SN_SEPOLIA,
   assertTestChain,
@@ -115,6 +117,55 @@ describe("parseDeployment (§2.2)", () => {
       { ...deploymentJson, contracts: { ...contracts, hub: undefined } },
       { ...deploymentJson, contracts: { ...contracts, instances: "hub" } },
       { ...deploymentJson, contracts: { ...contracts, registry: 17 } },
+    ]) {
+      expect(parseDeployment(body), JSON.stringify(body)).toBeUndefined();
+    }
+  });
+});
+
+describe("parseDeployment, a --build full deployment (CLI-11d2)", () => {
+  const full = {
+    ...deploymentJson,
+    classes: { hub: "0x1", flatten_library: "0xf1" },
+    build: {
+      mode: "full",
+      bar: [1, 2, 3, 4, 0, 0, 0, 0],
+      belt: [
+        { item: 1, count: 2 },
+        { item: 23, count: 1 },
+      ],
+      pack: [],
+      gold: 260,
+    },
+  };
+
+  it("keeps the build, the deployment's account and the flattening library", () => {
+    expect(parseDeployment(full)?.full).toEqual({
+      build: { bar: full.build.bar, belt: full.build.belt, gold: 260n },
+      account: "0x64b4",
+      flatten: "0xf1",
+    });
+  });
+
+  it("keeps no build for an empty one, or none", () => {
+    expect(parseDeployment({ ...full, build: { ...full.build, mode: "empty" } })).toEqual(
+      deployment,
+    );
+    expect(parseDeployment({ ...full, build: undefined })).toEqual(deployment);
+  });
+
+  it("refuses a full build without its shape", () => {
+    const { build } = full;
+    for (const body of [
+      { ...full, build: { ...build, bar: [1, 2, 3] } },
+      { ...full, build: { ...build, bar: [1, 2, 3, 4, 0, 0, 0, -1] } },
+      { ...full, build: { ...build, bar: [1, 2, 3, 4, 0, 0, 0, 65536] } },
+      { ...full, build: { ...build, belt: [{ item: 1, count: 0 }] } },
+      { ...full, build: { ...build, belt: [{ item: 1, count: 256 }] } },
+      { ...full, build: { ...build, belt: Array(5).fill({ item: 1, count: 1 }) } },
+      { ...full, build: { ...build, gold: "260" } },
+      { ...full, account: undefined },
+      { ...full, classes: { hub: "0x1" } },
     ]) {
       expect(parseDeployment(body), JSON.stringify(body)).toBeUndefined();
     }
@@ -268,6 +319,65 @@ describe("openChain (§2.2, §2.3, §3.1)", () => {
       cause: new ChainRefused("not a test chain"),
     });
     expect(f.sent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("openChain's harness (CLI-11d2, D-280)", () => {
+  const withBuild = (account: string): Deployment => ({
+    ...deployment,
+    full: {
+      build: { bar: [1, 0, 0, 0, 0, 0, 0, 0], belt: [], gold: 50n },
+      account,
+      flatten: "0xf1",
+    },
+  });
+
+  it("is built only for a full build", async () => {
+    const node = devnet();
+    expect((await openChain(NODE, deployment, { fetch: node.fetch, ...fakes() })).kit).toBe(
+      undefined,
+    );
+  });
+
+  it("sends as the node's account 0, the deployment's own, through the guard", async () => {
+    const node = devnet();
+    const f = fakes(true);
+    const { kit } = await openChain(NODE, withBuild("0xa0"), { fetch: node.fetch, ...f });
+    expect(kit).toMatchObject({ admin: { address: "0xa0" }, fate: "0x12", flatten: "0xf1" });
+    const call = { to: "0x13", entrypoint: "set_contracts", calldata: [] };
+    await kit!.admin.execute([call]);
+    expect(f.sent).toHaveBeenCalledWith("0xk0", "0xa0", [call]);
+    // On SN_MAIN (faked), refused before `send`
+    node.answers.starknet_chainId = hex(SN_MAIN);
+    await expect(kit!.admin.execute([call])).rejects.toEqual(new ChainRefused("not a test chain"));
+    expect(f.sent).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a deployment whose account is not the node's account 0", async () => {
+    const node = devnet();
+    await expect(
+      openChain(NODE, withBuild("0xa1"), { fetch: node.fetch, ...fakes() }),
+    ).rejects.toEqual(new ChainRefused("deployment of another node"));
+  });
+
+  it("reads Hub.instances from its storage slot, sn_keccak of its name", async () => {
+    expect(BigInt(hash.getSelectorFromName("instances"))).toBe(INSTANCES_KEY);
+    const node = devnet();
+    const fetch = vi.fn(async (url: unknown, init?: RequestInit) => {
+      const { method, params } = JSON.parse(String(init?.body)) as {
+        method: string;
+        params: unknown;
+      };
+      if (method !== "starknet_getStorageAt") return node.fetch(url as string, init);
+      expect(params).toEqual({
+        contract_address: "0x13",
+        key: `0x${INSTANCES_KEY.toString(16)}`,
+        block_id: "latest",
+      });
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x14" }));
+    }) as unknown as typeof globalThis.fetch;
+    const { kit } = await openChain(NODE, withBuild("0xa0"), { fetch, ...fakes() });
+    expect(await kit!.hubInstances()).toBe(0x14n);
   });
 });
 

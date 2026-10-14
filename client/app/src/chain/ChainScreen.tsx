@@ -113,8 +113,8 @@ function start(nodeUrl: string): Promise<Shown> {
       try {
         const deployment = await fetchDeployment();
         const opened = await openChain(nodeUrl, deployment);
-        const { provider, reader } = opened;
-        const setup = { provider, reader, ...deployment.contracts };
+        const { provider, reader, kit } = opened;
+        const setup = { provider, reader, ...deployment.contracts, ...(kit ? { kit } : {}) };
         const player = await restore(setup);
         return { kind: "ready", session: await begin(opened, nodeUrl, player, setup) };
       } catch (error) {
