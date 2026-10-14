@@ -104,6 +104,7 @@ TABLES = {
         "grimworld_logic::types::action::tests::vectors::test_act_vectors_12",
         "grimworld_logic::types::action::tests::vectors::test_act_vectors_13",
         "grimworld_logic::types::action::tests::vectors::test_act_vectors_14",
+        "grimworld_logic::types::action::tests::vectors::test_act_vectors_15",
     ],
     "tick.jsonl": [
         "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_0",

@@ -1605,8 +1605,8 @@ fn test_act_vectors_14() {
     let mut id: u32 = ACT_PART_14;
     let goblins = array![goblin(8, AT + 1, 0, 100)];
     // Fire 40 on `DISC_1` around the member, filter `ALLIES`: member 1 West of it (position 111)
-    // hit, the member not (never in its own hit's set); member 1 there at 0 health: not a
-    // candidate, nothing (no `HIT` flag).
+    // hit, the member not (never in its own hit's set; not separated: mutant 509 is equivalent,
+    // see README); member 1 there at 0 health: not a candidate, nothing (no `HIT` flag).
     for health in array![400_u16, 0] {
         let mut friend = ally(AT - 1);
         friend.health = health;
@@ -1639,6 +1639,60 @@ fn test_act_vectors_14() {
     finish(digest, ACT_DIGEST_14);
 }
 
+// RV-03a3 (D-257): `offence` holding `PENETRATION` 30 of scope `ALL`, which a bomb's or a trap's
+// hit (scope 3) never takes; no `act` row can show it, `resolve` reading penetration of a weapon
+// hit or a spell only.
+#[test]
+#[available_gas(l2_gas: 95144671)] // ceil(1.05 × 90613972 measured)
+fn test_act_vectors_15() {
+    let t = table_2();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = ACT_PART_15;
+    let at = CLOCK;
+    let fire = entry(kind::DAMAGE, damage::FIRE, 40, 70, target::FOE, shape::SINGLE, filter::FOES);
+    let bomb = entry(kind::DAMAGE, damage::FIRE, 30, 30, target::TILE, shape::DISC_1, filter::FOES);
+    let fire_at = crate::types::executor::tests::at(@t.sheets, FIRE);
+    // The member holding skill 79 in effect slot 2 to `t`: a plain weapon hit (scope 0), an
+    // attack skill (1), a spell (2) take its 30; a bomb (`Item`, scope 3) and a trap (`Trap`,
+    // scope 3) none.
+    let mut m = hero(@t, array![]);
+    holding(ref m, 2, EVERY, false, 0, at, 12);
+    let rows: Array<(HitClass, Entry, u8, u32)> = array![
+        (HitClass::Weapon, fire, 0, fire_at), (HitClass::Weapon, fire, 1, fire_at),
+        (HitClass::Spell, fire, 2, fire_at), (HitClass::Item, bomb, 3, 0),
+        (HitClass::Trap, fire, 3, fire_at),
+    ];
+    for (class, e, scope, carrier_at) in rows {
+        offence_row(
+            ref digest,
+            ref id,
+            @t,
+            Unit::M(m),
+            class,
+            e,
+            0,
+            0,
+            context(12, 2, FIRE, carrier_at, scope, at),
+        );
+    }
+    // Goblin 8 holding it: a spell (scope 2) takes it, a trap (scope 3) does not.
+    let held = goblin_holding(EVERY, 0, at, 12);
+    for (class, scope) in array![(HitClass::Spell, 2_u8), (HitClass::Trap, 3)] {
+        offence_row(
+            ref digest,
+            ref id,
+            @t,
+            Unit::G(held),
+            class,
+            fire,
+            0,
+            0,
+            context(12, 2, FIRE, fire_at, scope, at),
+        );
+    }
+    finish(digest, ACT_DIGEST_15);
+}
+
 /// The first id of each part, and each part's digest.
 const ACT_PART_1: u32 = 27;
 const ACT_PART_2: u32 = 43;
@@ -1654,6 +1708,7 @@ const ACT_PART_11: u32 = 215;
 const ACT_PART_12: u32 = 223;
 const ACT_PART_13: u32 = 232;
 const ACT_PART_14: u32 = 239;
+const ACT_PART_15: u32 = 244;
 const ACT_DIGEST_0: felt252 =
     1030940271732062604804669110503688872228708044099169595645925593071242230283;
 const ACT_DIGEST_1: felt252 =
@@ -1684,3 +1739,5 @@ const ACT_DIGEST_13: felt252 =
     3176533727201977987469364170763399164895871530069662833270276512284174446524;
 const ACT_DIGEST_14: felt252 =
     965705507953071005487549611047696454075520364973681577494560792299333371081;
+const ACT_DIGEST_15: felt252 =
+    3369404342547317277746575153716820682249534639394267514847011043546253937437;
