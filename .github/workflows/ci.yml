@@ -333,6 +333,16 @@ jobs:
       - name: build
         run: pnpm build
 
+      # CLI-11d4: the dev server's credit route (scripts/devnet_deploy.py --credit-only) must not
+      # reach the deployed bundle.
+      - name: no credit route in the bundle
+        run: |
+          if grep -rnE "devnet/credit|credit-only" client/app/dist; then
+            echo "client/app/dist holds the dev-only credit route (matches above)" >&2
+            exit 1
+          fi
+          echo "client/app/dist holds no credit route"
+
       # The client and the indexer (D-153). Their build outputs are in the root .gitignore, which
       # prettier reads, so the `build` above does not reach this check.
       - name: prettier
