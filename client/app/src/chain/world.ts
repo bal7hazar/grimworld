@@ -155,7 +155,12 @@ export function combatWorldOf(
     const first = words.members[0];
     if (first === undefined) return undefined;
     const { x, y } = memberPlace(first.state);
-    return readWorld(words, content, after?.ground ?? segment.ground, segmentBoard(segment.area, x, y));
+    return readWorld(
+      words,
+      content,
+      after?.ground ?? segment.ground,
+      segmentBoard(segment.area, x, y),
+    );
   } catch (error) {
     if (error instanceof NotMirrored) return undefined;
     console.warn("grimworld.combat-world", error instanceof Error ? error.message : String(error));

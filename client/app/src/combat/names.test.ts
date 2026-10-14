@@ -30,7 +30,13 @@ describe("names (Q-1)", () => {
 
   it("names every id of a full build's bar and belt", () => {
     // `scripts/devnet_deploy.py --build full`: skills 1 to 4, a belt of healing ×2 and item 23 ×1
-    const build = { bar: [1, 2, 3, 4, 0, 0, 0, 0], belt: [{ item: 1, count: 2 }, { item: 23, count: 1 }] };
+    const build = {
+      bar: [1, 2, 3, 4, 0, 0, 0, 0],
+      belt: [
+        { item: 1, count: 2 },
+        { item: 23, count: 1 },
+      ],
+    };
     for (const id of build.bar.filter((s) => s !== 0)) {
       expect(NAMES.skill(id)).not.toMatch(/^Skill \d+$/);
     }

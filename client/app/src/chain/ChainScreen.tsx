@@ -219,7 +219,9 @@ function Play({ session }: { session: Session }) {
 
   // The map draws the combat overlay of the state after the batch, and the armed slot's reach
   useEffect(() => {
-    mapView?.setCombat(view ? { state: view.state, armed: view.armed, preview: view.preview } : null);
+    mapView?.setCombat(
+      view ? { state: view.state, armed: view.armed, preview: view.preview } : null,
+    );
   }, [mapView, view]);
 
   /** Places stage 1's markers over the map, with the camera as last drawn. */
@@ -443,7 +445,13 @@ const styles: Record<string, CSSProperties> = {
     color: "#f2c94c",
     textAlign: "center",
   },
-  zone: { position: "absolute", left: "50%", bottom: 250, transform: "translateX(-50%)", zIndex: 5 },
+  zone: {
+    position: "absolute",
+    left: "50%",
+    bottom: 250,
+    transform: "translateX(-50%)",
+    zIndex: 5,
+  },
   logPanel: { position: "absolute", right: 8, top: 56, width: 280, zIndex: 5 },
   logLine: { position: "absolute", left: 8, right: 8, top: 8, zIndex: 5 },
   page: { position: "fixed", inset: 0, background: "#1b1b1f" },

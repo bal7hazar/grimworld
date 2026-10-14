@@ -564,12 +564,17 @@ describe("a slot as an action (CLI-05 brief §4.1, §4.4)", () => {
       entity: 0,
     });
     // `Item` carries an entity only
-    expect(slotAction({ kind: "item", slot: 0 }, { tile: true, at: { x: 1, y: 1 } })).toBeUndefined();
+    expect(
+      slotAction({ kind: "item", slot: 0 }, { tile: true, at: { x: 1, y: 1 } }),
+    ).toBeUndefined();
   });
 
   it("has no combat view where the state holds no content", () => {
     const fake = fakeStages();
-    const controller = createChainController({ stages: fake.stages, enter: async () => recordedChain() });
+    const controller = createChainController({
+      stages: fake.stages,
+      enter: async () => recordedChain(),
+    });
     expect(controller.combat.snapshot().view).toBeNull();
     controller.combat.slot({ kind: "skill", slot: 0 });
     expect(fake.actions()).toEqual([]);
@@ -581,9 +586,7 @@ describe("a slot as an action (CLI-05 brief §4.1, §4.4)", () => {
     expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 3 });
     expect(fake.actions()).toEqual([]);
     combat.slot({ kind: "skill", slot: 3 });
-    expect(fake.actions()).toEqual([
-      { kind: "skill", slot: 3, target: { tile: false, value: 0 } },
-    ]);
+    expect(fake.actions()).toEqual([{ kind: "skill", slot: 3, target: { tile: false, value: 0 } }]);
     // The view is made again on the batch: nothing is armed
     expect(combat.snapshot().view?.armed).toBeNull();
   });
@@ -593,9 +596,7 @@ describe("a slot as an action (CLI-05 brief §4.1, §4.4)", () => {
     combat.slot({ kind: "skill", slot: 0 });
     expect(combat.snapshot().view?.aim).toMatchObject({ addressing: "foe", marked: [8] });
     expect(combat.actor(8)).toBe(true);
-    expect(fake.actions()).toEqual([
-      { kind: "skill", slot: 0, target: { tile: false, value: 8 } },
-    ]);
+    expect(fake.actions()).toEqual([{ kind: "skill", slot: 0, target: { tile: false, value: 8 } }]);
   });
 
   it("F cycles the targets and Enter plays on the one reached", () => {
@@ -603,9 +604,7 @@ describe("a slot as an action (CLI-05 brief §4.1, §4.4)", () => {
     combat.slot({ kind: "skill", slot: 0 });
     expect(combat.cycle(1)).toBe(true);
     expect(combat.go()).toBe(true);
-    expect(fake.actions()).toEqual([
-      { kind: "skill", slot: 0, target: { tile: false, value: 8 } },
-    ]);
+    expect(fake.actions()).toEqual([{ kind: "skill", slot: 0, target: { tile: false, value: 8 } }]);
   });
 
   it("a belt slot is a potion: armed, then drunk on the adventurer", () => {
@@ -740,7 +739,10 @@ describe("interactions are not available (§4.4)", () => {
 
   it("a tap on a gate, a chest or a lever says so and adds no interact", () => {
     const fake = fakeStages(withObject());
-    const controller = createChainController({ stages: fake.stages, enter: async () => recordedChain() });
+    const controller = createChainController({
+      stages: fake.stages,
+      enter: async () => recordedChain(),
+    });
     expect(controller.tap({ x: 1, y: 7 })).toEqual({ kind: "none" });
     expect(controller.get().note).toBe("Not available yet.");
     expect(fake.actions()).toEqual([]);
@@ -809,7 +811,9 @@ describe("the log from the mirror (§7.2)", () => {
 
   it("keeps the last 100 lines", () => {
     const many = Array.from({ length: 120 }, (_, i) => ({ ...A, text: `line ${i}` }));
-    const { combat } = combatSetup(48, { lines: (_, actions) => (actions.length === 0 ? [] : [many]) });
+    const { combat } = combatSetup(48, {
+      lines: (_, actions) => (actions.length === 0 ? [] : [many]),
+    });
     combat.slot({ kind: "skill", slot: 1 });
     combat.slot({ kind: "skill", slot: 1 });
     const log = combat.snapshot().log;

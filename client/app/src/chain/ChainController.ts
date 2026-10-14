@@ -193,7 +193,11 @@ export function createChainController(deps: ControllerDeps): ChainController {
     const before = seen;
     seen = now;
     if (now.sent !== before.sent && now.sent !== undefined) settle(now.sent);
-    if (now.chain !== before.chain || now.planned !== before.planned || now.mirror !== before.mirror) {
+    if (
+      now.chain !== before.chain ||
+      now.planned !== before.planned ||
+      now.mirror !== before.mirror
+    ) {
       rebuild();
     }
     if (now.line === line) return;
@@ -215,7 +219,8 @@ export function createChainController(deps: ControllerDeps): ChainController {
   const prefixes = new Prefixes<MirrorState>((base, actions) =>
     runRecorded({ ...segmentOf(base), actions }, nativeClasses),
   );
-  let lineCache: { base: MirrorState; actions: readonly PlayAction[]; lines: LogLine[][] } | undefined;
+  let lineCache:
+    { base: MirrorState; actions: readonly PlayAction[]; lines: LogLine[][] } | undefined;
   const combatListeners = new Set<() => void>();
   let combat:
     | { readonly world: CombatWorld; readonly view: CombatController; readonly stop: () => void }
@@ -258,7 +263,10 @@ export function createChainController(deps: ControllerDeps): ChainController {
     } catch (error) {
       // No prediction (`NotMirrored`): no predicted lines; a mirror failure is `stages`' to log
       if (!(error instanceof NotMirrored)) {
-        console.warn("grimworld.log-failure", error instanceof Error ? error.message : String(error));
+        console.warn(
+          "grimworld.log-failure",
+          error instanceof Error ? error.message : String(error),
+        );
       }
       return [];
     }
@@ -296,8 +304,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
   /** Plays an armed slot on a target: one action put into the batch, or one refusal line. */
   function play(armed: Armed, target: CombatTarget) {
     const action = slotAction(armed, target);
-    const line =
-      action === undefined ? refusalLine(Illegal.Target)! : verdict(action, armed);
+    const line = action === undefined ? refusalLine(Illegal.Target)! : verdict(action, armed);
     if (line !== undefined) {
       history.refuse(line);
       set({ note: line, turning: false });
@@ -329,15 +336,23 @@ export function createChainController(deps: ControllerDeps): ChainController {
       predicted?.ground === undefined
         ? undefined
         : { words: predicted.words, ground: predicted.ground };
-    const world = deps.combatWorld
-      ? deps.combatWorld(now)
-      : combatWorldOf(now.chain.mirror, after);
+    const world = deps.combatWorld ? deps.combatWorld(now) : combatWorldOf(now.chain.mirror, after);
     combat?.stop();
     combat = undefined;
     if (world !== undefined) {
       const view = new CombatController(stateOf(world, NAMES));
       view.setRules({
-        aim: (_, armed) => aiming(world, armed),
+        aim: (_, armed) => {
+          // `aiming` asks client/sim's `aim` of every tile of the window, those beyond the
+          // location's edge included, and the loader panics on a negative tile (`u8_add`): a TILE
+          // slot near the edge has no aim, never a thrown input (a defect of `targeting.ts`)
+          try {
+            return aiming(world, armed);
+          } catch (error) {
+            console.warn("grimworld.aim-failure", error instanceof Error ? error.message : error);
+            return null;
+          }
+        },
         play: (at, armed, target) => {
           play(armed, target);
           return at;
