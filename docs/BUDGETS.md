@@ -1009,6 +1009,10 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::tick::tests::test_sheets_read_oracle` | 1780780 | 1869819 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_0` | 695836210 | 730628021 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_1` | 480768677 | 504807111 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_10` | 498330000 | 523246500 | 2026-10-14 | 18acf68 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_11` | 205624639 | 215905871 | 2026-10-14 | 18acf68 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_12` | 620008774 | 651009213 | 2026-10-14 | 18acf68 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_13` | 913213120 | 958873776 | 2026-10-14 | 18acf68 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_2` | 632359698 | 663977683 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_3` | 603439756 | 633611744 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_4` | 532154960 | 558762708 | 2026-10-11 | bfb3756 |
@@ -1016,6 +1020,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_6` | 375847491 | 394639866 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_7` | 260597898 | 273627793 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_8` | 610162567 | 640670696 | 2026-10-12 | 030ef55 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_9` | 808750481 | 849188006 | 2026-10-14 | 18acf68 |
 | grimworld_logic | `types::trap::tests::test_cost_trigger` | 9909207 | 10404668 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::trap::tests::test_cost_trigger_fixture` | 9120500 | 9576525 | 2026-10-07 | 44961f2 |
 | grimworld_logic | `types::trap::tests::test_example_trap` | 12400449 | 13019107 | 2026-10-10 | 0bf80ab |
