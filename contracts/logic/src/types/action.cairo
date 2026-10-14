@@ -1112,8 +1112,12 @@ mod tests {
     // (every `Illegal` but `Blocked`, the segment's), the carries counted, is refused with none;
     // the legal combat actions carry once. Snare is made instant here (0 ticks), so its `Trap`
     // refusal sits on the path that carries now: a carry moved before it is seen (#447's review).
+    // `Reach` and `Target` are refused on each arm that aims (#447's review, RV-03a2): the
+    // weapon's, the skill's (the fire spell at goblin 10, 7 away; aimed at a tile) and the item's
+    // (the bomb, count 1, at a tile 7 away; the dart, count 1, at the member).
     #[test]
-    #[available_gas(l2_gas: 34991061)] // ceil(1.05 × 33324820 measured)
+    // gas: raised, RV-03a2: four more refusals (#447's review)
+    #[available_gas(l2_gas: 47372276)] // ceil(1.05 × 45116453 measured)
     fn test_no_carry_before_a_refusal() {
         let base = bench();
         let mut skills = array![];
@@ -1124,7 +1128,13 @@ mod tests {
             }
             skills.append(sheet);
         }
-        let sheets = Content { skills: skills.span(), potions: base.potions, castes: base.castes }
+        let mut potions = array![];
+        potions.append_span(base.potions);
+        let dart = entry(
+            kind::DAMAGE, damage::PIERCING, 20, 20, target::FOE, shape::SINGLE, filter::FOES,
+        );
+        potions.append(PotionSheet { id: 102, entry: dart.pack(), range: 4, ..Default::default() });
+        let sheets = Content { skills: skills.span(), potions: potions.span(), castes: base.castes }
             .sheets();
         let kit = array![STANCE, FIRE, RAGE, SNARE].span();
         let mut cases: Array<(u32, Member, Action, Result<u8, Illegal>)> = array![];
@@ -1154,6 +1164,17 @@ mod tests {
             .append((CLOCK, base, Action::Skill((2, Target::Entity(8))), Err(Illegal::Adrenaline)));
         cases.append((CLOCK, base, Action::Attack(0), Err(Illegal::Target)));
         cases.append((CLOCK, base, Action::Attack(9), Err(Illegal::Reach)));
+        cases.append((CLOCK, base, Action::Skill((1, Target::Entity(10))), Err(Illegal::Reach)));
+        cases
+            .append(
+                (CLOCK, base, Action::Skill((1, Target::Tile(tile(AT + 1)))), Err(Illegal::Target)),
+            );
+        let mut m = base;
+        m.set_belt_count(0, 1);
+        cases.append((CLOCK, m, Action::Item((0, tile(AT + 7))), Err(Illegal::Reach)));
+        let mut m = base;
+        m.set_belt_count(2, 1);
+        cases.append((CLOCK, m, Action::Item((2, 0)), Err(Illegal::Target)));
         let mut m = base;
         m.energy = 30;
         cases
@@ -1178,7 +1199,12 @@ mod tests {
         let mut refused = 0;
         for (clock, member, action, expected) in cases {
             let mut world = Fixture::world(
-                clock, array![member], array![goblin(8, AT + 1, 0, 100), goblin(9, AT + 3, 0, 100)],
+                clock,
+                array![member],
+                array![
+                    goblin(8, AT + 1, 0, 100), goblin(9, AT + 3, 0, 100),
+                    goblin(10, AT + 7, 0, 100),
+                ],
             );
             let mut spy = Spy { rules: fresh(), carried: 0 };
             let result = ActionTrait::act(ref world, @sheets, ref spy, 0, action);
@@ -1190,6 +1216,6 @@ mod tests {
                 assert(spy.carried == 1, 'one carry');
             }
         }
-        assert(refused == 15, 'every refusal');
+        assert(refused == 19, 'every refusal');
     }
 }

@@ -216,7 +216,7 @@ The cases (48):
 | `content` (1) | 0 | the table's content |
 | `combat` (12) | 1–11, 44 | the `_` arm, goblin 264 beside the adventurer, then a Wait: an Attack out of reach (1, `Reach`, the words kept), a spell on the goblin (2), Cinder Ring on itself (3, 2 ticks), a potion (4), an Attack on no entity (5, `Target`), an instant spell (6, 0 ticks charged 1); `Heavy` (`heavy`, the words kept): 0 ticks with no weight left (7), 2 ticks with 1 left (8), the potion with none (9); appended, 44: the instant trap skill 10 refused as `Heavy` after a Wait spent the weight, the ground unchanged (D-259); alone, a spell (10: the member activating, its ticks through `TickLibrary`) and a potion (11: its ticks on the fast path) after a Wait |
 | `ticks` (4) | 12–15 | `Self::ticks` through `TickLibrary`: two Waits beside goblin 264 (12); 2 owed ticks, no action (13); a goblin awake outside the window, so not calm (14); an asleep one there, calm: the fast path, no call (15) |
-| `fits` (9) | 16–22, 46, 47 | the goblin records of a Wait beside goblin 264 with no record (`touched` bit clear, E-1: 1 more): `ran` and the weight 1, refused (16, `undo`); weight 2, taken (17, 0 left); the invocation's first action, unbound (18); with a record, taken (19); held by an earlier segment, nothing added (20); E-16's 17th record refused (21, `undo`); the untouched one engaged (22): goblin 248 asleep beside the adventurer notices it and engages its pack, 249, outside the window and not awake, changes only its AI state (1 to 3) and is not counted (`changed` holds 248 alone); appended by RV-03c, 46 and 47 (the same goblin changed by two actions of one segment, track CV's `fits` mutant): 248 asleep beside the adventurer engages its pack at the first Wait's tick; 249, of that pack, in the window on (19, 22), knocked down to 41 and at its energy's max, changes only its AI state there (no record, E-1's exception); knocked down to 41 (46), it acts at the second Wait's tick (it starts an activation: a change against its words after the first Wait, its first record); to 42 (47), it changes nothing more |
+| `fits` (9) | 16–22, 46, 47 | the goblin records of a Wait beside goblin 264 with no record (`touched` bit clear, E-1: 1 more): `ran` and the weight 1, refused (16, `undo`); weight 2, taken (17, 0 left); the invocation's first action, unbound (18); with a record, taken (19); held by an earlier segment, nothing added (20); E-16's 17th record refused (21, `undo`); the untouched one engaged (22): goblin 248 asleep beside the adventurer notices it and engages its pack, 249, outside the window and not awake, changes only its AI state (1 to 3) and is not counted (`changed` holds 248 alone); appended by RV-03c, 46 and 47 (two actions of one segment changing one goblin, and E-1's exception across them; they do not separate the `fits` mutant that compares with the goblins before the segment, which is equivalent: see below the table): 248 asleep beside the adventurer engages its pack at the first Wait's tick; 249, of that pack, in the window on (19, 22), knocked down to 41 and at its energy's max, changes only its AI state there (no record, E-1's exception); knocked down to 41 (46), it acts at the second Wait's tick (it starts an activation: a change against its words after the first Wait, its first record); to 42 (47), it changes nothing more |
 | `defeated` (3) | 23–25 | `world.defeated` breaks the loop: the adventurer at 0 health, defeated by the owed tick before the first action (23, `played` 0, no `illegal`); at 1 health with Bleeding, Poison and Burning, on the first Wait's tick, on the fast path (24) and through `TickLibrary` (25) |
 | `trap` (5) | 26–28, 43, 45 | a Move West onto local (6, 7) of chunk 16, then a Wait: a terrain trap (26, `param` skill 2), a used one (27, no call), a placed trap of goblin 264, outside the window (28: its words go with the call); appended, 43: the terrain trap with goblin 265 dead and in the world's `killed`, the call's `killed` empty; appended, 45 (FIX-02, D-266): a terrain trap of skill 10, which no member or goblin of the call holds: on chain the content holds it only because `play` reads the unused terrain traps' skills (`GoblinsLibrary`, FIX-02b), and the client's content must too |
 | `occupied` (2) | 29–30 | a Wait, then a Move West onto goblin 264: `Blocked` from `TrapTrait::occupied` (29); dead, it does not block (30) |
@@ -229,10 +229,21 @@ The cases (48):
 Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 9, `defeated` 3, `trap` 5, `occupied` 2, `companions` 3,
 `regeneration` 3, `movement` 2, `turn` 2, `follow` 2.
 
+**`fits` against the goblins before the segment is equivalent** (track CV's candidate 17, RV-03a2). `fits` compares
+each goblin's words with those after the previous action (`before`, `types/play.cairo` 533–537, its first value the
+world after the owed ticks, 169); the mutant keeps the segment's start instead. The two differ only for a goblin whose
+words after an action equal the segment's start while differing from the previous action's: a goblin left unrecorded
+by an Engaged-only change (542–545: E-1's exception) whose AI state goes back to its start value at a later action,
+nothing else changed. No AI state leaves `ENGAGED` but for `DEAD`: perception engages a goblin at or below `ALERTED`
+(`types/world.cairo` 590–595, written at 616); a Fleeing goblin cornered engages (`types/ai.cairo` 270–278); a goblin
+struck asleep or on watch engages (`types/executor.cairo` 830–837); every other write is a death (`ExecutorTrait::put`
+2008–2011, `World::kill` `types/world.cairo` 937–945, step 3's at 438–441). An Engaged goblin goes back to no earlier
+state within a segment, so no row can kill the mutant, and none is appended.
+
 ## `trap.jsonl`: a trap's trigger, `TrapTrait::trigger` (RV-03a, D-257)
 
-Printed by `types::trap::tests::vectors::test_trap_vectors_0` to `_4` (ids 0–13, 14–23, 24–35, 36–58, 59–62), split
-for snforge's step limit, each part with its digest. Where `segment2.jsonl` records the trap class's result for a replay,
+Printed by `types::trap::tests::vectors::test_trap_vectors_0` to `_7` (ids 0–13, 14–23, 24–35, 36–58, 59–62, 63–68,
+69–78, 79–86), split for snforge's step limit, each part with its digest. Where `segment2.jsonl` records the trap class's result for a replay,
 this table tests a port of the class itself: each row is one call of `TrapLibrary::trigger` (the real class, declared
 in the test), which loads the words through the content, finds the entrant by its entity
 (`ExecutorTrait::actor`: none, nothing triggers), runs `TrapTrait::trigger` with a fresh `Cache`, and stores the words
@@ -269,14 +280,45 @@ position 142, chunk 0's tile 142. A trap's hit is never blocked or evaded and ha
 | `trigger`, the lookup (13) | 36–48 | the object written: a chest on the tile at 0, the trap at 1 (36); a chunk of 3 objects, used traps on the tile at 0 and 1, the trap at 2 (37); the trap on another tile, nothing (38); chunk 0 the ground's second entry, entry 1 written (39); no chunk 0, nothing (40); chunk 0 twice, the trap in the second: only the first is read, nothing (41). The position: 240, outside, nothing (42); 239, chunk 15's tile 14 (43); a negative origin on the x axis, `(−5, 0)`: position 0 before the location, nothing, position 5 its tile (0, 0) (44, 45; the y axis: 59, 60); origin x 210, position 14 chunk 14's tile 14 (46); origin x 240, chunk column 16, nothing (47); origin y 240, chunk row 16, nothing (48) |
 | `free` (10) | 49–58 | an empty chunk: 0 (49); a chest elsewhere at 0: 1 (50); a used placed trap, a used terrain trap at 0: 0 (51, 52); a chest on the tile, an unused trap on it: none (53, 54); a used trap on the tile at 1: 1 (55); full, a used vein at 1: none (56); full, a used trap at 2: 2 (57); an empty object (kind 0) whose tile is the tile: 0 (58) |
 | `trigger`, appended (4) | 59–62 | RV-03a's fix loop 1 (the review of #440), after every earlier id: a negative origin on the y axis, `(0, −5)`: position 0 before the location, nothing (59), position 75 (row 5) its tile (0, 0), chunk 0's tile 0 (60); goblin 45's trap from caste slot 0 (skill 24) and slot 3 (skill 27), neither holding an entry: it triggers on the member, nothing applied, the trap used (61, 62) |
+| `content` (1) | 63 | RV-03a2 (D-257), after every earlier id: the content of rows 63–86 (below) |
+| `trigger`, the lookup's bounds (5) | 64–68 | each ground holding an unused terrain trap where a port without the bound would look, nothing triggered: position 240 (chunk 15's tile 15 if read as inside) (64); origin x 240, position 14 (chunk column 16; chunk 16's tile 14 without the column's bound) (65); origin y 240, position 0 (chunk 240) (66); origin y 225 (chunk 225, `MAX_CHUNKS`, on the bound) (67); origin `(−5, 15)`, position 15 (x before the location; chunk 14's tiles 10 and 25 without the West guard) (68) |
+| `trigger`, the entrant's defence (10) | 69–78 | the member under goblin 45's trap (Snare's earth at rank 12) with `ARMOR_VS` 9 against earth (`MemberStats` 224) (69); goblin 44 under the member's Snare, Hob's `ARMOR_VS` 9 against earth (70); the member's armor 10, stance sum 4 and enchanted sum 3 (`MemberBar` 232, `MemberKit` 184, 192) holding Brace (a stance) and the shield (`ARMOR` 30, an enchantment) (71), holding neither (72); the member holding the shield to 305 (the clock: held) and 304 (lapsed) (73, 74); the rust (−20, clamped to 0) and the shield (75); goblin 44 holding the shield to 305 and 304, the rust alone (76–78) |
+| `trigger`, the payload (8) | 79–86 | goblin 45's trap from caste slot 3 (skill 27: earth guarded `BELOW_HALF`, Knocked down 2), the placer at 140 of 280 (not held: the knock-down alone) and 139 (held) (79, 80); the member's from bar slot 3 holding skill 74 (Crippled guarded `BELOW_HALF`) on goblin 44, the placer at 400 (not held: the hit alone) and 239 (held) (81, 82); bar slot 3 holding skill 47 (heal 30, cure Bleeding, 5 energy) on goblin 44 bleeding to 400: 130, cured (`D = T − 1`), 15 thirds (83); bar slot 3 holding the shield: goblin 44 holds it to 309 (84); a dead goblin (health 0, `DEAD`) entering the member's Snare: it triggers, nothing applied, `killed` empty (85); goblin 45 a Runt of level 16 (rank 6), goblin 44 (the world's first goblin) a Hob of level 10: Runt's slot 2 (skill 30: earth, Poison 4) at rank 6 and level 16 on the member (86) |
 
-Per `fn`: `content` 1, `trigger` 52, `free` 10. `place` and `spot` (placing, `free` with the window's checks) are not
+Per `fn`: `content` 2, `trigger` 75, `free` 10.
+
+**Row 63** (RV-03a2): every row from 63 on reads the content of row 63, the last `content` row before it; rows 1–62 read
+row 0's. It is row 0's with: Hob's caste skill 27 (its slot 3) a trap skill of the pit's payload (earth 30 to 60
+guarded `BELOW_HALF`, Knocked down 2); Runt's caste skill 30 (its slot 2) a trap skill of earth 10 to 40 and Poison 4;
+Hob's `ARMOR_VS` 9 against earth (type 7, bits 36–41); Runt's rank 6; skill 73, the rust (a hex holding `ARMOR` −20);
+skill 74, a trap skill of earth 10 to 40 and Crippled 3 guarded `BELOW_HALF`.
+
+**Track CV's surviving mutants of the trap port (#444), RV-03a2's rows.** By the mutant's name in
+`client/sim/src/parity/mutants.test.ts`: the window's last position read as inside (`locate`): 64; a chunk column past
+the location is in it: 65; a chunk row past the location is in it: 66 (and 67 on the bound); a tile West of the
+location is in it: 68; a goblin placer's guards all held (`by_goblin`): 79 (not held) against 80; the target's
+`ARMOR` effects ignored (`resolve`): 73, 75, 76; an expired effect still defends (`DefenceTrait::member`, `::goblin`):
+74, 77 against 73, 76; an `ARMOR` effect not clamped at 0 (`DefenceTrait::add`): 75, 78; an entry's guard ignored
+(`entries`): 81 (not held) against 82; a `HEAL` and a `CURE` entry apply nothing (`ops`): 83; a holding entry applies
+nothing: 84; a dead goblin at 0 health killed again (`put`): 85; the kit, the rank and the level of another goblin's
+caste, not the placer's (`by_goblin`, the `trap` mutants of `parity/trapcases.ts`): 86 (placer and entrant of distinct
+castes, #440's review; the world's first goblin, 44, is the Hob). The entrant's `ARMOR_VS` against the trap's type: 69,
+70; its armor terms (`DefenceTrait::member`'s armor, stance and enchanted sums, read only in a stance or enchanted):
+71 against 72.
+
+**The dead-entrant split cannot be built.** "An entrant killed by the hit takes the other entries (`trap`)" (the
+mutant returning `true` from `ExecutorTrait::trap`) is equivalent on the trap path: `trigger` runs `entries` only when
+`trap` returns the entrant alive (`types/executor.cairo` 2085–2086, `trap` returns `target.alive()` at 2115), and
+`entries` checks the same `target.alive()` before every entry it applies (2327); no entry before it can kill (a
+`HEAL`, a `CONDITION`, a `CURE`, an `ENERGY` or a holding entry lowers no health), so the two checks read the same
+value and either masks the other. Rows 7 and 30 kill the two dropped together. `entries`' own check is pinned without
+`trap`'s by the `act` rows, whose carriers reach it through `ExecutorTrait::on` (2123), which has no `trap` check. `place` and `spot` (placing, `free` with the window's checks) are not
 in this table (the trap unit tests `test_place` and `test_example_trap` hold them; RV-03b's `act` places).
 
 ## `body.jsonl`: the `Body` operations and the effect entry's (RV-03a, D-257)
 
-Printed by `types::executor::tests::body::test_body_vectors_0` to `_5` (ids 0–51, 52–122, 123–172, 173–220,
-221–311, 312–326), split for snforge's step limit, each part with its digest. One line: `{"id", "fn", "case", "ok"}`, every
+Printed by `types::executor::tests::body::test_body_vectors_0` to `_6` (ids 0–51, 52–122, 123–172, 173–220,
+221–311, 312–326, 327–333), split for snforge's step limit, each part with its digest. One line: `{"id", "fn", "case", "ok"}`, every
 felt in hex (a negative integer `P − |v|`).
 
 **Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`body_content`): the fixtures' (`Fixture::
@@ -361,10 +403,11 @@ adrenaline 0 of 20). `T`, the `t` of every operation that takes one, is 50.
 | `class` (26) | 276–301 | every kind 0–24, and 255 |
 | `pack`, `unpack` (10) | 302–311 | each in turn on: the empty entry, earth 10 to 40, energy −5 to −17, every field at its layout's maximum (the durations at `MAX_BASE_DURATION`), `scope` alone |
 | appended: `armor_vs` (12), `hold` (3) | 312–326 | RV-03a's fix loop 1 (the review of #440), after every earlier id: `armor_vs` on every lane, a member's per-type armors 5 to 12 and 63 (types 1 to 9) at types 4 to 8 (312–316), a Runt goblin (11 to 19) at types 2 to 8 (317–323); `hold`, belt potion 2 beside potion 1 held in slot 0 (not the same item: slot 1) (324); step 2's `!old.potion`, both sides: belt potion 3 held in slot 0 (its sheet at position 3, where stance 4 sits), stance 3 goes to slot 1 (325); stance 4 held in slot 0, stance 3 takes slot 0 (326) |
+| appended: `hold` (2), `inflict` (5) | 327–333 | RV-03a2 (D-257), track CV's surviving mutants of the body port (#443), after every earlier id: `hold`'s step 1 at its bound, skill 5 held in slot 0 to `T` and held again to 60: the same carrier, slot 0 (327); step 1's potion compared by its item: belt slots 1 and 2 both holding item 101 (`MemberKit` 64–95), belt potion 1 held in slot 0, belt potion 2 (the sheet of item 101, position 1) held to 60: the same item, slot 0 (328); Knocked down interrupting the member's activation of bar slots 4, 5, 6 and 7 (spells of recharge 10: `R = T + 9`), every lane of the recharges word holding `40 + slot` before, the high limb's lanes (329–332); a goblin activating caste slot 3 (`LAST_SLOT`), knocked down: interrupted, its slot 3 recharging to `T + 19` (333) |
 
 Per `fn`: `content` 1, `health` 2, `max_health` 2, `is_member` 2, `place` 2, `alive` 9, `knocked` 6, `asleep` 3,
 `halves` 4, `armor_vs` 22, `infliction` 2, `enchant_percent` 2, `slots` 2, `effect` 5, `wound` 10, `heal` 13,
-`energize` 14, `struck` 16, `landed` 15, `halved` 3, `inflict` 50, `cure` 19, `hold` 25, `spend` 7, `line` 36,
+`energize` 14, `struck` 16, `landed` 15, `halved` 3, `inflict` 55, `cure` 19, `hold` 27, `spend` 7, `line` 36,
 `value` 3, `duration` 16, `class` 26, `pack` 5, `unpack` 5.
 
 **The inventory** (what the earlier tables already pin of these operations). `hit.jsonl` pins `HitTrait::resolve`,
@@ -391,6 +434,11 @@ and a later deadline (an equal one would hide a mutant `≥`/`>`: both give the 
 status, a goblin's its AI state; a goblin's `heal` and `cure` guard on alive, a member's `wound` and `landed` do not;
 Crippled lives in the timers word). Each branch of a dispatch has a row (each condition 1–5, each `KindClass`, every
 step of §5.7's slot choice). Track CV names further cases for surviving mutants; they are appended, as `hit.jsonl`'s.
+
+**Track CV's surviving mutants of the body port (#443), RV-03a2's rows.** By the mutant's name in
+`client/sim/src/parity/mutants.test.ts`: `hold`'s step 1, a carrier held to `t` not held (`deadline > t`): 327 (it
+would go to slot 1); a potion the same by its belt slot, not its item: 328 (slot 1); `recharge_at`'s high limb (bar
+slots 4–7): 329–332; a goblin's interrupt ignoring caste slot 3 (`LAST_SLOT`, `>` against `≥`): 333.
 
 ## `hit.jsonl`: one hit (CBT-03a)
 
@@ -530,8 +578,9 @@ The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `rev
 
 ## `act.jsonl`: the adventurer's action, `ActionTrait::act` (RV-03b, D-257)
 
-Printed by `types::action::tests::vectors::test_act_vectors_0` to `_10` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
-107–127, 128–143, 144–157, 158–176, 177–204, 205–214), split for snforge's step limit, each part with its digest. Where
+Printed by `types::action::tests::vectors::test_act_vectors_0` to `_14` (ids 0–26, 27–42, 43–69, 70–94, 95–106,
+107–127, 128–143, 144–157, 158–176, 177–204, 205–214, 215–222, 223–231, 232–238, 239–243), split for snforge's step
+limit, each part with its digest. Where
 `segment2.jsonl` records the action class's result for a replay, this table tests a port of the class itself: each
 `act` row is one call of `ActionLibrary::act` (the real class, declared in the test), which loads the words through
 the content, runs `ActionTrait::act` for member 0 with `Delegate` rules whose carrier runs through the real
@@ -600,8 +649,37 @@ executor tests' member.
 | `offence` (28) | 177–204 | the member's sword, a plain weapon hit (scope 0): bonus 0, 5, 255; its requirement not met (`MemberStats` 176); a range of 3 (not melee); `LIFE_STEAL_ON_HIT` 3 and `ENERGY_ON_HIT` 2 (`MemberKit` 128, 136) (177–182); the passives (`MemberBar` 136, 160, 184 for scope 0: +10, −5, 3; 144, 168, 192 for 1: 20, 6, 4; 152, 176, 200 for 2: −30, 7, 5) and the call's penetration 7: a plain weapon hit, an attack skill (`Weapon`, scope 1), the fire entry (40 to 70) as a spell at ranks 0, 6, 12 (level 20: strength 60), a bomb (`Item`, scope 3: the potion's strength 30, no passives), a trap (`Trap`, scope 3), a cold entry of −20 (its base clamped to 0) (183–190); the edge (`PENETRATION` 20, `WEAPON`) and the focus (150 clamped to 100, `SPELL`) held to `t`: scopes 0, 1, 2, 3 (191–194); to `t − 1`: none (195–198); a goblin (a Hob of caste rank 12, a sword of 30, range 1, slashing, level 10): its weapon hit at bonus 0 and 5, a spell, a trap; holding the edge: its weapon hit, a spell (199–204) |
 | `act`, the struck target (10) | 205–214 | appended for track CV's trap port (#444): the sword on goblin 8 holding Brace (`BLOCK`), the member in its front arc (facing 0): blocked, 2 charges to 1, 1 to 0 (the effect ends) (205, 206); the member behind it (facing 3): landed, the charges kept (207); the attack skill: blocked, a charge spent (208); knocked down to `t₀ = c + 1` (held: landed, not blocked) and to `c` (lapsed: blocked) (209, 210); asleep (its first hit neither blocked nor evaded, D-179: landed) and on watch (blocked) (211, 212); 63 charges (the cap, `MAX_BLOCK`: blocked, to 62) and 62 (to 61) (213, 214) |
 | `act`, the bar rank and one-field deaths (8) | 215–222 | appended for #447's review: the rune (instant, `SELF`) on bar slot 2 at ranks 3 and 9 (slot 0 at 12), held at the slot's rank, the rank the carrier takes (`Carrier::Skill((at, member.rank(slot)))`) (215, 216); goblin 8 dead by one field only, at health 0 and Engaged (217–219), at health 100 and `DEAD` (220–222): the sword (`Target`: `locate` reads both), the instant trap on its tile (`TrapTrait::occupied` reads the AI state), the bomb on its tile (count 1) |
+| `content` (1) | 223 | RV-03a2 (D-257), after every earlier id: the content of rows 223–243 (below) |
+| `act`, by slot, a negative glyph, the attack skill's terms (8) | 224–231 | the attack skill (2 strikes, 8 quarters) on bar slot 1 with slot 0's weapon-required bit only (`MemberStats` 40): legal (224); with slot 1's (41): `Kind` (225); a glyph of −2 (skill 77) held in effect slot 0 to `c + 5`: the fire spell costs its full 15 thirds, the glyph consumed (`D = c`) (226); the fire spell on bar slot 1 counting for pair 0 (`MemberStats` 170; pair 0 of N 5, its counter at 4): the bonus, activation 2 (227); the attack skill (scope 1) with the passives of every scope (`MemberBar` 136–200, as 183–190) on goblin 8 (228); holding the edge (`PENETRATION` 20, `WEAPON`) (229); skill 78 (`ATTACK_BONUS` 10) and skill 85 (`HIT_PENETRATION` 50), attack skills of activation 0, on goblin 8 (armor 40) (230, 231) |
+| `act`, the source's side of a hit (7) | 232–238 | holding skill 79 (`PENETRATION` 30 of scope `ALL`) in effect slot 2: the bomb (count 1) on goblin 8's tile (scope 3: none taken) (232), the sword (taken) (233), the instant spell (taken) (234); the sword holding skill 80 (`ON_ATTACK_CONDITION` Poison 4) in slot 0: goblin 8 poisoned to 204 (235); with skill 81 (`ON_ATTACK_CONDITION` Bleeding 6, 2 charges) in slot 1 beside it: both applied, the charge spent (2 to 1) (236); `LIFE_STEAL_ON_HIT` 3 (`MemberKit` 128), the member at 400 of 480: 403 (237); `ENERGY_ON_HIT` 2 (136), at 30 thirds: 36 (238) |
+| `act`, the target sets (5) | 239–243 | skill 82 (fire 40 on `DISC_1` around the member, filter `ALLIES`) with member 1 West of it (111): member 1 hit (400 → 287, `HIT`), the member not (239); member 1 there at 0 health: no candidate, nothing (240); skill 83 (fire 40 on a `SINGLE` `TILE`) on goblin 8's tile: hit (241); the bomb (count 1) on 113, goblin 8 on 114 and goblin 9 on 113, both at 1 health: killed 9 then 8, ascending position, not index order (242); skill 84 (fire 40 on a foe, Burning 3 on `DISC_1` around it) on goblin 8 (113), goblin 9 on 114: 9 burns, not hit (243) |
 
-Per `fn`: `content` 1, `act` 175, `defence` 19, `offence` 28.
+Per `fn`: `content` 2, `act` 195, `defence` 19, `offence` 28.
+
+**Row 223** (RV-03a2): every row from 223 on reads the content of row 223, the last `content` row before it; rows
+1–222 read row 0's. It is row 0's with skills 77–85 appended, every one instant (activation 0) and free: 77 a glyph of
+`NEXT_SPELL_COST` −2; 78 an attack skill holding `ATTACK_BONUS` 10; 79 an enchantment holding `PENETRATION` 30 of scope
+`ALL`; 80 a preparation holding `ON_ATTACK_CONDITION` Poison 4; 81 one holding `ON_ATTACK_CONDITION` Bleeding 6 with 2
+charges; 82 a spell of fire 40 on `DISC_1` around its source, filter `ALLIES`; 83 a spell of fire 40 on a `SINGLE`
+`TILE` (range 6); 84 a spell of fire 40 on a foe and Burning 3 on `DISC_1` around it (range 6); 85 an attack skill
+holding `HIT_PENETRATION` 50 (row 0's skill 49 holds one too, but at activation 1: it would not land in the action).
+None mixes `TILE` with `FOE` or `ALLY` (D-271).
+
+**Track CV's surviving mutants of the act port (#450), RV-03a2's rows.** By the mutant's name in
+`client/sim/src/parity/mutants.test.ts`: the weapon-required bit of slot 0 read for every slot: 224, 225; a negative
+`NEXT_SPELL_COST` added (`glyphs`): 226; a slot's pairs one bit a slot (`quick_cast_matches`): 227; an attack skill's
+scope a spell's (`read`): 228, 229; `ATTACK_BONUS` ignored (`modifiers`): 230; `HIT_PENETRATION` ignored: 231; an
+effect of `ALL` not taken: 233, 234; an
+`ON_ATTACK_CONDITION` not gathered (`attack`): 235, 236 (and the charge spent on a landed hit); `LIFE_STEAL_ON_HIT`
+ignored (`on`): 237; `ENERGY_ON_HIT` not gained (`run`): 238; a dead
+member a candidate of a wide carrier: 240 (a hit of filter `ALLIES` on it would set its `HIT` flag: `struck` has no
+alive check); a `SINGLE` `TILE` entry read narrow: 241; the actors not in ascending position: 242; the hit given to
+every set's actor (`run`): 243.
+
+Two still survive (rows 232 and 239 do not kill them). A bomb or a trap takes held penetration (`penetration`):
+`resolve` reads penetration only for a weapon hit or a spell (`types/hit.cairo` 252, 325–327). The source in its own
+hit's set (`actors`): the source's bits reach only `entries` (`types/executor.cairo` 1935–1938, 2741), where `HIT_BIT`
+8 is entry 3's bit (2324–2326, 2858–2859), and skill 82 holds a single entry.
 
 **The inventory** (what the earlier tables already pin of `act`). `segment2.jsonl` reaches `ActionLibrary::act` in its
 combat rows, but through `ActionRecorder`: each row records the class's result for the segment to replay, so a mirror
@@ -622,8 +700,11 @@ is not `act`'s (the segment's Move): no row gives it. `ActionTrait::aim`, `energ
 the item's `Empty`, `Belt` and `aim` before its count. `types::action::tests::test_no_carry_before_a_refusal` pins it:
 the in-class executor behind a `Carry` that counts its calls, each refusal `act` gives is refused with no carry, and
 each legal combat action carries once. Its Snare is instant (0 ticks), so its `Trap` refusal is on the path that
-carries at once: a carry moved before that refusal fails the test. In this table, every refusal's words and ground are
-the case's.
+carries at once: a carry moved before that refusal fails the test. `Reach` and `Target` are refused there on each arm
+that aims (RV-03a2, #447's review): the weapon's (goblin 9 at 2, `Reach`; the member, `Target`), the skill's (the fire
+spell at goblin 10, 7 away, `Reach`; aimed at a tile, `Target`) and the item's (the bomb, count 1, at a tile 7 away,
+`Reach`; the dart, count 1, at the member, `Target`): 19 refusals, none carrying. In this table, every refusal's words
+and ground are the case's.
 
 **Track CV's surviving mutants of the trap port (#444)**, killed by `act` rows only (a trap's hit is never blocked, so
 `trap.jsonl` cannot): `ExecutorTrait::strike`'s block spend (a blocked weapon hit spends one charge of the blocking
@@ -667,6 +748,12 @@ step 2 in one call of the real `AiLibrary`, whose carriers go through `ExecutorL
 through the real `TrapLibrary`; step 3 and step 5 in process), and stores the words and the ground back. `AiLibrary::act`
 alone is not a port's boundary (its inputs, the frozen tiles and the roster count, are computed by `TickLibrary`'s
 `Delegate::step`), so it is vectored through `ticks`. The ticks `play` runs without the class are the `skip` rows.
+The `skip` rows do not call `SegmentTrait::ticks`: their printer (`types::tick::tests::vectors::skip`) holds a copy of
+its choice of path (none, the fast path, the class), so a change to that branch in `play` must be made in the copy too
+(RV-03a2, #456's review). `MAX_ATTACKERS` (8) is unreachable from `ticks`: the goblins that act in step 2 are the
+awake set's (`AiTrait::capped` walks `world.woken()`), at most `MAX_AWAKE` = 8 (`WorldAssert::assert_awake`), so
+`attacks < MAX_ATTACKERS` holds for each of them and the cap never makes one hold; a mutant of the bound (`≤` for `<`)
+is equivalent, and no row reaches it.
 
 One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every value its Cairo `Serde` (as `segment2.jsonl`; a
 negative integer `P − |v|`).
@@ -717,8 +804,9 @@ Per `fn`: `content` 1, `ticks` 120, `skip` 10.
 not 7 (`MemberEffects`, an effect's bits 16–21; bit 22 is free and `MemberTrait::held` reads the charges modulo 64),
 and the grant clamps to 63 (`ExecutorTrait::hold`, `MAX_BLOCK`), so no tick puts a member at 64: the bound the tick
 reaches is pinned instead, 72 (63, blocked, to 62) and 73 (62), and the grant at 64 clamped to 63, 80; a row above it
-(`resolve`'s `defence.block > MAX_BLOCK`) cannot come from any words and goes to RV-03a2. Adrenaline's decay: 20–23
-(the member, out of combat), 100, 101 (a goblin not Engaged: 1 to 0), 103 and 104 (kept in combat). The same goblin
+(`resolve`'s `defence.block > MAX_BLOCK`) cannot come from any words and goes to RV-03a2. Adrenaline's decay: the
+member 20–23; a goblin not Engaged 101 (2 to 1) and 102 (1 to 0); Engaged, kept 103; the member beside an Engaged
+goblin, kept 104; the member beside an Alerted one, decays 105 (corrected by RV-03a2, #456's review). The same goblin
 changed twice in one call: 115 and 116 here; `fits` is the segment's, so `segment2.jsonl` 46 and 47 are appended for
 it. `REGENERATION`: row 0's skill 80 and potion 101; 25–31 (the member), 106, 107 (a goblin), each on both sides of
 its deadline.

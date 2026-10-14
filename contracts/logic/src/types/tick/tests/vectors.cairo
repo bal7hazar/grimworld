@@ -848,7 +848,8 @@ fn test_tick_vectors_7() {
 // away from theirs (asleep on (100, 100), chunk 96: entities 24–33, 40–49, … of spawn chunks
 // 1–6, outside the window), it steps; with 60, the roster is full: it holds its tile.
 #[test]
-#[available_gas(l2_gas: 640669436)] // ceil(1.05 × 610161367 measured)
+// gas: raised, RV-03a2: regenerated from one run (#456's review, minor 2)
+#[available_gas(l2_gas: 640670696)] // ceil(1.05 × 610162567 measured)
 fn test_tick_vectors_8() {
     let t = table();
     let mut digest: Array<felt252> = array![];

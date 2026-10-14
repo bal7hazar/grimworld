@@ -899,6 +899,48 @@ fn appended(content: @Content, sheets: @Sheets) -> Array<(Unit, Op)> {
     rows
 }
 
+/// RV-03a2 (D-257): track CV's surviving mutants of the body port (#443), after every earlier id.
+fn surviving(content: @Content, sheets: @Sheets) -> Array<(Unit, Op)> {
+    let mut rows = array![];
+    let m = member(content);
+    let five = at(sheets, 5);
+    // `hold`'s step 1 at its bound: skill 5 held in slot 0 to `T` (held: `old.deadline ≥ t`),
+    // held again to 60: the same carrier, slot 0 (`>` would put it in slot 1, the lowest free).
+    let held_t = m_holding(m, 0, held(5, false, 0, T, 12), sheets);
+    rows.append((Unit::M(held_t), hold(held(5, false, 0, 60, 12), five, false)));
+    // Step 1's potion compared by its item, not its belt slot: belt slots 1 and 2 both hold item
+    // 101 (`MemberKit` 64–95 made 101), belt potion 1 held in slot 0 to 60; belt potion 2 (the
+    // sheet of item 101, position 1) is the same item: slot 0.
+    let mut words = Fixture::member_words(Fixture::spec());
+    words.kit -= two(64);
+    let twice = Fixture::load_member(words, content);
+    let potion = m_holding(twice, 0, held(1, true, 0, 60, 0), sheets);
+    rows.append((Unit::M(potion), hold(held(2, true, 0, 60, 0), 1, false)));
+    // Knocked down (value 2) interrupting the member's activation of bar slots 4 to 7 (spells of
+    // recharge 10: `R = T + 9`), their lanes in the recharges word's high limb; every lane holding
+    // a recharge `40 + slot` before, so that only the slot's lane moves.
+    let none: Infliction = Default::default();
+    let kd = condition::KNOCKED_DOWN;
+    for slot in 4..8_u8 {
+        let mut acting = member(content);
+        for lane in 0..8_u8 {
+            acting.set_recharge(lane, 40 + lane.into());
+        }
+        acting.act_slot = slot;
+        acting.act_target = 264;
+        acting.act_deadline = 55;
+        rows.append((Unit::M(synced(acting)), Op::Inflict((kd, 2, none, T))));
+    }
+    // A goblin activating caste slot 3 (`LAST_SLOT`: activating; Hob's shout, recharge 20),
+    // knocked down: interrupted, its slot 3 recharging to `T + 19`.
+    let mut last = goblin(content);
+    last.act_slot = activation::LAST_SLOT;
+    last.act_target = 0;
+    last.act_deadline = 55;
+    rows.append((Unit::G(gsynced(last)), Op::Inflict((kd, 2, none, T))));
+    rows
+}
+
 fn hold(h: Held, at: u32, stance: bool) -> Op {
     Op::Hold((h, at, stance, T))
 }
@@ -1059,12 +1101,25 @@ fn test_body_vectors_5() {
     finish(digest, BODY_DIGEST_5);
 }
 
+// Appended by RV-03a2 (D-257): track CV's surviving mutants (#443), after every earlier id.
+#[test]
+#[available_gas(l2_gas: 167799202)] // ceil(1.05 × 159808763 measured)
+fn test_body_vectors_6() {
+    let content = body_content();
+    let sheets = content.sheets();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = BODY_PART_6;
+    run(ref digest, ref id, @sheets, surviving(@content, @sheets));
+    finish(digest, BODY_DIGEST_6);
+}
+
 /// The first id of each part, and each part's digest.
 const BODY_PART_1: u32 = 52;
 const BODY_PART_2: u32 = 123;
 const BODY_PART_3: u32 = 173;
 const BODY_PART_4: u32 = 221;
 const BODY_PART_5: u32 = 312;
+const BODY_PART_6: u32 = 327;
 const BODY_DIGEST_0: felt252 =
     1598459221565441623804350022951177107043960060755901037354943566470590002612;
 const BODY_DIGEST_1: felt252 =
@@ -1077,3 +1132,5 @@ const BODY_DIGEST_4: felt252 =
     3116694715749133080887387106960700414459042789108760740297312786033004326793;
 const BODY_DIGEST_5: felt252 =
     180299553724079398759478913516279442118061555934969195638265543515182710644;
+const BODY_DIGEST_6: felt252 =
+    2429298052524284503116930073981651924323587693382478258366592473340700994381;

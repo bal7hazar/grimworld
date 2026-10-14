@@ -2616,8 +2616,10 @@ mod tests {
         finish(digest, SEGMENT2_DIGEST_4);
     }
 
-    // Appended (RV-03c, track CV's `fits` mutant: `before` kept from the segment's start): the
-    // same goblin changed by two actions of one segment. Goblin 248 (chunk 15's first, asleep
+    // Appended (RV-03c): two actions of one segment changing the same goblin, and E-1's exception
+    // across them. They do not separate track CV's `fits` mutant that keeps `before` from the
+    // segment's start: it is equivalent (an AI state never goes back from Engaged within a segment,
+    // `vectors/README.md`, RV-03a2). Goblin 248 (chunk 15's first, asleep
     // beside the adventurer) notices it at the first Wait's tick and engages its pack; 249, of
     // the same pack, in the window on (19, 22), knocked down to 41 (that tick), at its energy's
     // max, changes only its AI state (Engaged, no record: E-1's exception); at the second Wait's

@@ -810,7 +810,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::test_facing_first_step` | 10790532 | 11316399 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `types::action::tests::test_instant_and_attack_skill` | 13637141 | 14293085 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `types::action::tests::test_item_bomb` | 12202795 | 12812935 | 2026-10-07 | faa262c |
-| grimworld_logic | `types::action::tests::test_no_carry_before_a_refusal` | 33324820 | 34991061 | 2026-10-11 | 8c5e62b |
+| grimworld_logic | `types::action::tests::test_no_carry_before_a_refusal` | 45116453 | 47372276 | 2026-10-12 | 030ef55 |
 | grimworld_logic | `types::action::tests::test_quick_cast_counters` | 23884 | 25079 | 2026-10-07 | 44961f2 |
 | grimworld_logic | `types::action::tests::test_seed_potions_drunk` | 18502080 | 19427184 | 2026-10-12 | b4e0603 |
 | grimworld_logic | `types::action::tests::test_spell_activation` | 11766275 | 12336834 | 2026-10-10 | 0bf80ab |
@@ -820,6 +820,9 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_1` | 749679518 | 787163494 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_10` | 376325231 | 395141493 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_11` | 274928792 | 288675232 | 2026-10-11 | 8c5e62b |
+| grimworld_logic | `types::action::tests::vectors::test_act_vectors_12` | 371102080 | 389657184 | 2026-10-12 | 030ef55 |
+| grimworld_logic | `types::action::tests::vectors::test_act_vectors_13` | 253864234 | 266557446 | 2026-10-12 | 030ef55 |
+| grimworld_logic | `types::action::tests::vectors::test_act_vectors_14` | 247158810 | 259516751 | 2026-10-12 | 030ef55 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_2` | 917175573 | 963034352 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_3` | 895078369 | 939832288 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_4` | 345222427 | 362483549 | 2026-10-11 | 731ada5 |
@@ -834,6 +837,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::executor::tests::body::test_body_vectors_3` | 729510547 | 765947697 | 2026-10-11 | 3d86a31 |
 | grimworld_logic | `types::executor::tests::body::test_body_vectors_4` | 101402968 | 106473117 | 2026-10-11 | 3d73583 |
 | grimworld_logic | `types::executor::tests::body::test_body_vectors_5` | 148803663 | 156243847 | 2026-10-11 | 3d86a31 |
+| grimworld_logic | `types::executor::tests::body::test_body_vectors_6` | 159808763 | 167799202 | 2026-10-12 | 030ef55 |
 | grimworld_logic | `types::executor::tests::test_adrenaline_every_n` | 11725370 | 12311639 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::executor::tests::test_asleep_first_hit` | 10239007 | 10750958 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::executor::tests::test_carrier_without_actor` | 9452529 | 9925156 | 2026-10-07 | faa262c |
@@ -1011,7 +1015,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_5` | 885903659 | 930198842 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_6` | 375847491 | 394639866 | 2026-10-11 | bfb3756 |
 | grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_7` | 260597898 | 273627793 | 2026-10-11 | bfb3756 |
-| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_8` | 610162567 | 640669436 | 2026-10-11 | bfb3756 |
+| grimworld_logic | `types::tick::tests::vectors::test_tick_vectors_8` | 610162567 | 640670696 | 2026-10-12 | 030ef55 |
 | grimworld_logic | `types::trap::tests::test_cost_trigger` | 9909207 | 10404668 | 2026-10-07 | faa262c |
 | grimworld_logic | `types::trap::tests::test_cost_trigger_fixture` | 9120500 | 9576525 | 2026-10-07 | 44961f2 |
 | grimworld_logic | `types::trap::tests::test_example_trap` | 12400449 | 13019107 | 2026-10-10 | 0bf80ab |
@@ -1025,6 +1029,9 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_2` | 448911915 | 471357511 | 2026-10-11 | 3d73583 |
 | grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_3` | 513332191 | 538998801 | 2026-10-11 | 3d73583 |
 | grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_4` | 150781700 | 158320785 | 2026-10-11 | 3d86a31 |
+| grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_5` | 232241009 | 243853060 | 2026-10-12 | 030ef55 |
+| grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_6` | 373997731 | 392697618 | 2026-10-12 | 030ef55 |
+| grimworld_logic | `types::trap::tests::vectors::test_trap_vectors_7` | 305251677 | 320514261 | 2026-10-12 | 030ef55 |
 | grimworld_logic | `types::window::tests::test_arc_facing_invalid` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::window::tests::test_arc_melee` | 2198880 | 2308824 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::window::tests::test_arc_ranged` | 6010 | 6311 | 2026-10-02 | f55176c |
@@ -1308,6 +1315,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_lifecycle::test_enter_refuses_after_a_new_rules_class` | 52626262 | 55236723 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_lifecycle::test_enter_refuses_after_an_input_rewritten` | 63487098 | 66634741 | 2026-10-12 | e933338 |
 | grimworld_persistent | `test_lifecycle::test_enter_reserves_the_belt` | 49897846 | 52371886 | 2026-10-11 | fde8a90 |
+| grimworld_persistent | `test_lifecycle::test_reenter_after_a_defeat` | 62962441 | 66110564 | 2026-10-12 | 030ef55 |
 | grimworld_persistent | `test_lifecycle::test_report_moved` | 50857050 | 53379050 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_lifecycle::test_report_open` | 49966578 | 52444054 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_lifecycle::test_report_refusals` | 50535253 | 53041163 | 2026-10-11 | fde8a90 |
