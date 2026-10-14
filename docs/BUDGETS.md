@@ -823,6 +823,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_12` | 371102080 | 389657184 | 2026-10-12 | 030ef55 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_13` | 253864234 | 266557446 | 2026-10-12 | 030ef55 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_14` | 247158810 | 259516751 | 2026-10-12 | 030ef55 |
+| grimworld_logic | `types::action::tests::vectors::test_act_vectors_15` | 90613972 | 95144671 | 2026-10-14 | 05070ba |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_2` | 917175573 | 963034352 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_3` | 895078369 | 939832288 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_4` | 345222427 | 362483549 | 2026-10-11 | 731ada5 |
