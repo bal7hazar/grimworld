@@ -72,7 +72,7 @@ game that OPS-01a's `scripts/devnet_deploy.py` deploys. From the repository root
 are built (`scripts/lock.sh --heavy scarb --manifest-path contracts/Scarb.toml build`):
 
 ```
-scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
+scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --build full --out "$PWD/.with-node/deployment.json" &&
   GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app test:node:preview'
 ```
 
@@ -129,11 +129,12 @@ checked by CLI-11a), so the page talks to the node directly, with no proxy. To p
 repository root, after the classes are built:
 
 ```
-scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with-node/deployment.json" &&
+scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --build full --out "$PWD/.with-node/deployment.json" &&
   GRIMWORLD_DEPLOYMENT="$PWD/.with-node/deployment.json" pnpm --filter @grimworld/app dev'
 ```
 
-and open the printed link, `/?chain=http://127.0.0.1:<port>`.
+and open the printed link, `/?chain=http://127.0.0.1:<port>`. With `--build full` the burner is built
+with SEED-02's build (CLI-11d3, below); without it, it is built empty.
 
 The node test `src/chain/chain.node.test.ts` runs after the preview's, on the same node, one file
 after the other (`test:node:preview`, CI's `client-node` job, on a `--build full` deployment since
@@ -281,17 +282,61 @@ target zone over them, the log in a panel (desktop) or its last line (phone).
 - **Names** (`combat/names.ts`, Q-1): a copy of the table `contracts/seed/README.md` keeps under
   "Names for the client"; `names.test.ts` reads that table, so the copy follows it. An unknown id is
   "Skill 12".
-- **Known gaps.** (1) The burner's adventurer is built empty (`setup.ts` sends `set_build` with
-  `EMPTY_BUILD` before every `enter`) until track game provides a devnet entry point that builds a
-  fresh adventurer (CLI-11d3), so in the browser its bar is empty and `verify:chain`'s skill step
-  prints a SKIP; the full build is the deployment's own adventurer, which `chain.node.test.ts`
-  previews through the same controller (a potion, two skills, refusals). (2) The map's overlay
-  draws its reach from the sandbox's stand-in (`wiring.ts`'s `combatAim`), not from
-  `targeting.ts`: the controller's aim, which plays, is the exact one.
+- **Known gap.** The map's overlay draws its reach from the sandbox's stand-in (`wiring.ts`'s
+  `combatAim`), not from `targeting.ts`: the controller's aim, which plays, is the exact one.
 
 `verify:chain` also checks the bar (eight slots), the belt (four), a tap on an empty slot, the log's
-line for the Wait predicted and then confirmed, and, when the bar holds a skill, that skill armed,
-played and its lines confirmed.
+line for the Wait predicted and then confirmed, and a ready skill of the burner's bar armed, played
+and its lines confirmed (a bar with no ready skill fails the run).
+
+### The burner's build (CLI-11d3)
+
+With a `--build full` deployment (its JSON's `build` key, mode `full`), the burner's adventurer
+carries SEED-02's build: the four bar skills and the belt of the healing potion ×2 and item 23 ×1.
+`/deployment.json` serves the build's ids only (`mode`, `bar`, `belt`). Without a full build,
+`EMPTY_BUILD` stays as before. The mainnet guard is unchanged.
+
+- **Account 0 stays node-side** (D-273, CLI-11 §3.4). Nothing in the browser holds a deployment or
+  admin key, repoints `Hub.instances`, calls `set_contracts` or sends a `report`; `network.test.ts`
+  scans `chain/` for it. The credit is track game's `scripts/devnet_deploy.py --credit-only`, run
+  by the development server.
+- **The endpoint** (`src/dev/credit.ts`, mounted by `vite.config.ts` in the dev server only,
+  `apply: "serve"`). `POST /devnet/credit` with `{"adventurer": <id>}` (`application/json`, nothing
+  else: no key, no address, no path) runs the credit-only mode for that adventurer and answers
+  `{adventurer_id, instance_id, gold, pack}`; `GET` answers `{state, credits}`. It answers only a
+  request from `127.0.0.1` or `::1` (403 otherwise), refuses (403) a deployment with no full build
+  or whose node is not `http://127.0.0.1:<port>`, and drops `NODE_URL` from the script's
+  environment, so it runs against the deployment's node. `vite build` carries none of it, and the
+  app's client of it is behind `import.meta.env.DEV`: the site's `dist/` holds neither the path nor
+  `credit-only`.
+- **The first entry** (`setup.ts`, game's order): `register` and `create_adventurer`, `set_build`
+  empty, `enter` by gate 1; the credit (260 gold, the pack of twice the belt); then one execution:
+  `Instances.leave` by gate 2 at the instance's sequence, `buy_skill` ×4 and `set_build` with the
+  build; then `enter`. One execution, so the skills are known exactly when the build is stored; a
+  leave the chain refuses reverts it whole.
+- **How a built burner is known.** From the Hub's own view: `Hub.adventurer`'s stored `Build`
+  word (word 2, `LIVE` aside) equals the build's bar word (`builtWith`). `set_build` refuses a bar
+  of unknown skills, so this says the skills are known. The views of known skills and of the pack
+  panic NOT_IMPLEMENTED, and a flag in `localStorage` would outlive its node (a restarted node keeps
+  the burner's key, not its adventurer); the view answers the same after a reload or from a second
+  provider. A reload between the empty entry and the build (inside, not built) resumes at the
+  credit.
+- **Re-entry (`N`)**: a built burner sends `set_build` with the build, then `enter`. When the chain
+  refuses it (the potions spent, the pack no longer covers the belt), it sends the bar with an empty
+  belt instead, which needs no pack.
+- **Caveat (a)**: while a credit runs, `Hub.instances` points at account 0 for a few transactions,
+  so any `enter` or `leave` on that node reverts. The burner waits while one runs (`GET`), and an
+  `enter` or the build's execution that fails while one ran (the count of credits moved) is sent
+  again after it, at most twice, never shown as a failure. A batch that closes its instance during
+  another burner's credit is not retried (only the setup's steps are).
+- **Caveat (b)**: credits are serialised by the dev server (one at a time, in order) and by the
+  script's lock file in `$WITH_NODE_LOG_DIR`: one log directory per node.
+- **Caveat (c)**: a run that outlives 180 s is killed (its own child process, by its pid). A killed
+  run may leave `Hub.instances` pointing at account 0, and the next run does not repair it, so the
+  devnet is then unusable for the dev server's life: every credit is refused (409), and the app's
+  guard refuses every send and funding with "chain mode refused: devnet left mid-credit: redeploy".
+  Nothing in the client repairs it: **redeploy** (stop the command, run it again; it is cheap, and
+  `--salt <felt>` gives the same world back on the same build).
 
 ## Combat UI (`src/combat/`, CLI-05)
 
