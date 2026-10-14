@@ -145,7 +145,8 @@ describe("the sheets read from the recorded records", () => {
 
   it("reads the deployment's potion: a heal of 20, not a regeneration", () => {
     // devnet_deploy.py's `item(POTION)`: `HEAL` (3), 20 at both ranks, `SELF`
-    const entry = 3n + (20n << 16n) + (20n << 32n) + (1n << 88n);
+    // and, since SEED-02 (#478), the ALLIES filter (bit 91): the word the recording holds
+    const entry = 3n + (20n << 16n) + (20n << 32n) + (1n << 88n) + (1n << 91n);
     expect(readPotionSheet(1, partsOf(ITEM, 1))).toEqual({
       id: 1,
       regen: 0,
@@ -245,23 +246,22 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     expect(calls).toBe(3);
   });
 
-  it("reads the recorded goblin's caste and its skill: the adventurer has an empty build, no belt", async () => {
+  it("reads the recorded goblins' castes and their skill: the adventurer has an empty build, no belt", async () => {
     const recordedView = view();
-    expect(recordedView.goblins).toHaveLength(1);
-    const [listed] = recordedView.goblins;
-    const caste = Number((listed!.state >> 64n) & 0xffffn);
+    expect(recordedView.goblins.length).toBeGreaterThan(0);
+    // The distinct castes (state bits 64-79), in the order the goblins are listed
+    const castes = [
+      ...new Set(recordedView.goblins.map((g) => Number((g.state >> 64n) & 0xffffn))),
+    ];
     const count = { calls: [] as [number, number][] };
     const { content, calls } = await assembleContent(recordedView, registry(count), []);
     expect(content).toEqual({
       skills: [readSkillSheet(1, partsOf(SKILL, 1))],
       potions: [],
-      castes: [readCasteSheet(caste, partsOf(CASTE, caste))],
+      castes: castes.map((caste) => readCasteSheet(caste, partsOf(CASTE, caste))),
     });
-    expect(count.calls).toEqual([
-      [CASTE, caste],
-      [SKILL, 1],
-    ]);
-    expect(calls).toBe(2);
+    expect(count.calls).toEqual([...castes.map((caste) => [CASTE, caste]), [SKILL, 1]]);
+    expect(calls).toBe(castes.length + 1);
   });
 });
 

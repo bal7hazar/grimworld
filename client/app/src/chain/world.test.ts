@@ -7,6 +7,7 @@ import {
   type RegionChunk,
   decodeInstanceView,
 } from "../preview/view";
+import { SIGHT_RADIUS, distance } from "../sandbox/placeholders";
 import { initialState, toView } from "../sandbox/wiring";
 import { stateOf } from "../combat/fromWords";
 import { recordedBefore as noGoblins } from "../preview/recorded";
@@ -48,16 +49,26 @@ describe("the world built from a recorded view and region (§6.2)", () => {
     const world = chainWorld(recorded());
     const adventurer = world.actors.find((a) => a.id === world.adventurerId);
     expect(adventurer).toMatchObject({ side: "adventurer", tile: { x: 0, y: 7 }, facing: 0 });
-    // The recording: entity 8 on (12, 1), on watch (ai 1: no mark)
+    // The recording's first goblin: its entity, its tile (state bits 0-7 x, 8-15 y in chunk 0),
+    // on watch (ai 1: no mark)
+    const [first] = view().goblins;
+    const tile = { x: Number(first!.state & 0xffn), y: Number((first!.state >> 8n) & 0xffn) };
     const goblin = world.actors.find((a) => a.side === "goblin");
-    expect(goblin).toMatchObject({ id: 8, tile: { x: 12, y: 1 }, facing: 0, mark: null });
-    expect(world.actors).toHaveLength(2);
+    expect(goblin).toMatchObject({ id: first!.entity, tile, facing: 0, mark: null });
+    expect(world.actors).toHaveLength(1 + view().goblins.length);
     // And so does the view the renderer gets from it
     const drawn = toView(initialState(world));
     expect(drawn.actors.find((a) => a.id === drawn.adventurerId)?.tile).toEqual({ x: 0, y: 7 });
-    // The goblin is beyond the adventurer's sight (radius 6), which is the sandbox's own fog: the
-    // world holds it, the map shows it once it is seen
-    expect(drawn.actors.find((a) => a.id === 8)).toBeUndefined();
+    // The first goblin is within the adventurer's sight (radius 6, the sandbox's own fog): the map
+    // shows it where the world holds it
+    expect(distance(adventurer!.tile, tile)).toBeLessThanOrEqual(SIGHT_RADIUS);
+    expect(drawn.actors.find((a) => a.id === first!.entity)?.tile).toEqual(tile);
+    // A goblin beyond sight is in the world and not on the map
+    const far = world.actors.find(
+      (a) => a.side === "goblin" && distance(adventurer!.tile, a.tile) > SIGHT_RADIUS,
+    );
+    expect(far).toBeDefined();
+    expect(drawn.actors.find((a) => a.id === far!.id)).toBeUndefined();
   });
 
   it("draws a goblin in sight where the view puts it", () => {
