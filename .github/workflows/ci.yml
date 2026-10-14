@@ -83,7 +83,8 @@ jobs:
     if: needs.discover.outputs.cairo != '[]'
     name: cairo (${{ matrix.dir }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45: the contracts leg measured about 28 minutes on 2026-10-14; the limit only stops a hung job.
+    timeout-minutes: 45
     # D-176 (FND-10's scope, folded into FND-11): the compiler's withdraw_gas placement follows rayon's
     # thread order, so every measured or declared build is single-threaded (docs/CAIRO.md §2).
     env:
