@@ -80,6 +80,13 @@ export const tileOf = (board: SegmentBoard, p: number): Tile => ({
 export const positionOf = (board: SegmentBoard, tile: Tile): number =>
   position(board, tile.x, tile.y);
 
+/**
+ * Whether `BoardTrait::tile` takes the tile: `x + 256 y` and `position` add `ORIGIN` to each in a u8,
+ * so a negative coordinate, or one above `255 - ORIGIN`, panics the loader (`u8_add Overflow`).
+ */
+const onBoard = (tile: Tile): boolean =>
+  tile.x >= 0 && tile.y >= 0 && tile.x <= 255 - ORIGIN && tile.y <= 255 - ORIGIN;
+
 /** A tile as an action's `Target.value`: `x + 256 y` (`BoardTrait::tile`). */
 export const tileValue = (tile: Tile): number => tile.x + 256 * tile.y;
 
@@ -150,6 +157,7 @@ export function aiming(cw: CombatWorld, armed: Armed): Aiming | null {
       if (!reach(EVERY, from, p, range)) continue;
       const walkable = ((open >> BigInt(p)) & 1n) === 1n;
       const tile = tileOf(cw.board, p);
+      if (addressed === target.TILE && !onBoard(tile)) continue;
       let tinted: boolean;
       if (addressed === target.TILE) {
         tinted =
