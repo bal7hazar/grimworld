@@ -202,8 +202,8 @@ const call = (to: string, entrypoint: string, ...calldata: bigint[]): Call => ({
 /**
  * The harness (D-280), as `devnet_deploy.py`'s `fund_pack`: the adventurer, in gate 1's hub, enters
  * with the empty bar; the administrator points `Hub.instances` at itself and sends one Open report
- * that credits the gold and twice the belt to the pack, then points it back and reads it back (in a
- * `finally`, so a failed report restores it too); the adventurer travels back to the start hub.
+ * that credits the gold and twice the belt to the pack, then points it back and reads it back (after
+ * a failed report too); the adventurer travels back to the start hub.
  */
 async function fund(deps: SetupDeps, kit: Kit, adventurerId: number): Promise<void> {
   const id = BigInt(adventurerId);
@@ -247,14 +247,16 @@ async function fund(deps: SetupDeps, kit: Kit, adventurerId: number): Promise<vo
     0n,
   );
   await run(deps, "harness", [contracts(kit.admin.address)], kit.admin);
-  try {
-    await run(deps, "report", [report], kit.admin);
-  } finally {
-    await run(deps, "harness", [contracts(deps.instances)], kit.admin);
-    if ((await kit.hubInstances()) !== BigInt(deps.instances)) {
-      throw new SetupFailed("harness", "unknown");
-    }
+  const failed = await run(deps, "report", [report], kit.admin).then(
+    () => undefined,
+    (error: unknown) => ({ error }),
+  );
+  // Restored and read back whether the report passed or not; its failure is thrown after
+  await run(deps, "harness", [contracts(deps.instances)], kit.admin);
+  if ((await kit.hubInstances()) !== BigInt(deps.instances)) {
+    throw new SetupFailed("harness", "unknown");
   }
+  if (failed !== undefined) throw failed.error;
   const { header } = await deps.reader.instanceState(deps.instances, instanceId);
   await run(deps, "travel_back", [
     call(deps.instances, "travel_back", instanceId, id, BigInt(header.sequence)),

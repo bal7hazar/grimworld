@@ -126,7 +126,7 @@ with a dynamic `import()`, so the sandbox's bundle carries no starknet.js.
   the pack yet, so its refusal is the probe: refused, the devnet harness (D-280) funds the pack and
   the gold as `scripts/devnet_deploy.py`'s `fund_pack` does (the adventurer enters with the empty
   bar; the node's account 0, which must be the deployment's own, points `Hub.instances` at itself
-  for one Open report that credits the gold and twice the belt, points it back in a `finally` and
+  for one Open report that credits the gold and twice the belt, points it back, even after a failed report, and
   reads the storage back; the adventurer travels back), each bar skill is bought (a known one is
   refused and skipped), and `set_build` is sent again. The kit exists only on the local node,
   through the same guard; without a `build` key, the empty bar.
