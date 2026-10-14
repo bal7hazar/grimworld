@@ -324,6 +324,14 @@ def main():
             continue
         raise AssertionError(f"check_url accepted {bad}")
     devnet_deploy.check_url(dep["node_url"])
+    # DEPLOY-SALT: without the option the JSON names no salt; the option is accepted, and its salts
+    # are fixed, apart per class and below 2^250 (no second deployment here)
+    assert "salt" in dep and dep["salt"] is None, dep.get("salt", "no salt key")
+    assert devnet_deploy.parse(["--salt", "0x1"]).salt == 1
+    assert devnet_deploy.parse([]).salt is None
+    first, other = (devnet_deploy.deploy_salt(1, h) for h in ("0x1", "0x2"))
+    assert first == devnet_deploy.deploy_salt(1, "0x1") != other
+    assert first != devnet_deploy.deploy_salt(2, "0x1") and max(first, other) < 1 << 250
     print("devnet_deploy smoke: ok")
     print(json.dumps(dep, indent=2))
     # a node of its own for `--build full`: its log directory apart, so node.log is not overwritten
