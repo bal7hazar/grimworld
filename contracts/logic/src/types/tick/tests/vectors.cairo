@@ -1007,7 +1007,7 @@ fn roster(count: u32, first: Array<Goblin>, last: Array<Goblin>) -> Array<Goblin
 // legal; the goblins' target; perception with two members, two chunks' packs, an Alerted goblin
 // of a noticing pack; combat; an unwalkable adventurer.
 #[test]
-#[available_gas(l2_gas: 2000000000)]
+#[available_gas(l2_gas: 849188006)] // ceil(1.05 × 808750481 measured)
 fn test_tick_vectors_9() {
     let t = rv03d_table();
     let mut digest: Array<felt252> = array![];
@@ -1106,7 +1106,7 @@ fn test_tick_vectors_9() {
 // caste's rank now and at a conclusion; FX-15's recovery of a spell; a `TILE` skill; a slot 3
 // activation; the caste's regeneration; a `MOVEMENT` effect on both sides of its deadline.
 #[test]
-#[available_gas(l2_gas: 2000000000)]
+#[available_gas(l2_gas: 523246500)] // ceil(1.05 × 498330000 measured)
 fn test_tick_vectors_10() {
     let t = rv03d_table();
     let mut digest: Array<felt252> = array![];
@@ -1170,7 +1170,7 @@ fn test_tick_vectors_10() {
 // The flood: a dead goblin's tile, a frozen goblin on the walker's path, its cap of 15 layers
 // toward and away; a goblin killed by the trap it enters.
 #[test]
-#[available_gas(l2_gas: 2000000000)]
+#[available_gas(l2_gas: 215905871)] // ceil(1.05 × 205624639 measured)
 fn test_tick_vectors_11() {
     let t = rv03d_table();
     let mut digest: Array<felt252> = array![];
@@ -1219,7 +1219,7 @@ fn test_tick_vectors_11() {
 // (y 15) chunk 15, the rows above chunk 0. An awake goblin away from home counted (166); two
 // walkers stepping out, the second at a full roster (167).
 #[test]
-#[available_gas(l2_gas: 2000000000)]
+#[available_gas(l2_gas: 651009213)] // ceil(1.05 × 620008774 measured)
 fn test_tick_vectors_12() {
     let t = rv03d_table();
     let mut digest: Array<felt252> = array![];
@@ -1243,7 +1243,7 @@ fn test_tick_vectors_12() {
 // The roster: a step between two chunks away from home at a full roster (168); a step back home
 // before another goblin's step out (169); a Fleeing goblin held by a full roster (170).
 #[test]
-#[available_gas(l2_gas: 2000000000)]
+#[available_gas(l2_gas: 958873776)] // ceil(1.05 × 913213120 measured)
 fn test_tick_vectors_13() {
     let t = rv03d_table();
     let mut digest: Array<felt252> = array![];
@@ -1298,8 +1298,13 @@ const TICK_DIGEST_7: felt252 =
     2098845368569173313750160501583154709918690736208069666979095817737906594175;
 const TICK_DIGEST_8: felt252 =
     420744539860533300147543818911014254588995874583632251919375290186537202397;
-const TICK_DIGEST_9: felt252 = 0;
-const TICK_DIGEST_10: felt252 = 0;
-const TICK_DIGEST_11: felt252 = 0;
-const TICK_DIGEST_12: felt252 = 0;
-const TICK_DIGEST_13: felt252 = 0;
+const TICK_DIGEST_9: felt252 =
+    1582936084682011356724934723224209689162162094389447800301723069686502032179;
+const TICK_DIGEST_10: felt252 =
+    2914130800114593077479069006017798304399579241925116561820285687276277351682;
+const TICK_DIGEST_11: felt252 =
+    1693114807347113218296078483094324171208976754097543185292791108078556916425;
+const TICK_DIGEST_12: felt252 =
+    598054295845168536442622539257093553383864494982541506295327794208873639112;
+const TICK_DIGEST_13: felt252 =
+    2317030673723877786572998069192345230257708680292480223034773720851100888327;
