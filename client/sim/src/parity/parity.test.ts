@@ -186,7 +186,7 @@ describe("parity with the Cairo code", () => {
 
   it("covers every fn of tick.jsonl with its count", () => {
     const counts = replay(table("tick.jsonl"), readTable("tick.jsonl"));
-    expect(Object.fromEntries(counts)).toEqual({ content: 1, ticks: 120, skip: 10 });
+    expect(Object.fromEntries(counts)).toEqual({ content: 2, ticks: 159, skip: 10 });
   });
 
   it("computes segment2.jsonl's ticks calls natively, each equal to its recording", () => {

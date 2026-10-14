@@ -9,10 +9,19 @@ import {
 } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import { fromWords, markOf, trapsOf } from "./fromWords";
-import { contentOf, tickIds, tickRow } from "./vectors.testkit";
+import { contentAt, contentOf, tickIds, tickRow } from "./vectors.testkit";
 
+/** Row 0's content, which the rows before RV-03d's second `content` row (131) read. */
 const TICK = contentOf("tick.jsonl");
 const SHEETS = indexSheets(TICK);
+const sheetsOf = new Map([[TICK, SHEETS]]);
+/** The sheets of the content row `id` reads (`contentAt`). */
+function sheetsAt(id: number): ReturnType<typeof indexSheets> {
+  const content = contentAt("tick.jsonl", id);
+  let sheets = sheetsOf.get(content);
+  if (sheets === undefined) sheetsOf.set(content, (sheets = indexSheets(content)));
+  return sheets;
+}
 
 /** What a condition's chip must read at `clock`: `deadline − clock` while held at the next tick. */
 const left = (deadline: number, clock: number): number | null =>
@@ -24,8 +33,9 @@ describe("fromWords on RV-03c's tick table (§10, CLI-05a)", () => {
     for (const id of tickIds()) {
       const row = tickRow(id);
       const clock = row.words.clock;
-      const state = fromWords(row.words, TICK, row.ground, row.board);
-      const m = loadMember(row.words.members[0]!, SHEETS);
+      const content = contentAt("tick.jsonl", id);
+      const state = fromWords(row.words, content, row.ground, row.board);
+      const m = loadMember(row.words.members[0]!, sheetsAt(id));
       const a = state.adventurer;
       expect(a.tile, `row ${id}`).toEqual({ x: memberPlace(m).x, y: memberPlace(m).y });
       expect([a.health, a.maxHealth], `row ${id}`).toEqual([m.health, m.max_health]);
@@ -42,7 +52,7 @@ describe("fromWords on RV-03c's tick table (§10, CLI-05a)", () => {
         activating ? m.act_deadline - clock : null,
       );
       row.words.goblins.forEach((words, k) => {
-        const g = loadGoblin(words, SHEETS);
+        const g = loadGoblin(words, sheetsAt(id));
         const view = state.goblins[k]!;
         expect(view.entity).toBe(g.entity);
         expect(view.tile).toEqual({ x: goblinPlace(g).x, y: goblinPlace(g).y });

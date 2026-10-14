@@ -736,8 +736,9 @@ further cases for surviving mutants; they are appended, as `hit.jsonl`'s.
 
 ## `tick.jsonl`: the ticks with a fight, `TickLibrary::ticks` (RV-03c, D-257)
 
-Printed by `types::tick::tests::vectors::test_tick_vectors_0` to `_8` (ids 0–24, 25–40, 41–55, 56–71, 72–85,
-86–109, 110–118, 119–128, 129–130), split for snforge's step limit, each part with its digest. Where `segment2.jsonl`
+Printed by `types::tick::tests::vectors::test_tick_vectors_0` to `_13` (ids 0–24, 25–40, 41–55, 56–71, 72–85,
+86–109, 110–118, 119–128, 129–130, 131–147, 148–160, 161–165, 166–167, 168–170), split for snforge's step limit, each
+part with its digest. Where `segment2.jsonl`
 records the tick class's result for a replay, this table tests a port of the class itself.
 
 **The entry vectored, and why.** `TickLibrary::ticks` (`ITickLibrary`, `systems/tick.cairo`), the real class declared
@@ -797,8 +798,47 @@ board is the open window at the origin, the ground chunk 0 empty, `n` 1.
 | `ticks`, goblin order, the carrier, traps, defeats (9) | 110–118 | goblins 8 and 9 Alerted on `AT + 2` and `AT + 2 − 15`, the tile `AT + 1 − 15` walled: both would take `AT + 1`, the lower id first, the other holds (110); the ids swapped: the other moves first (111); a step onto the tile of an asleep goblin (13, not awake: frozen) refused, another taken (112); a step onto the member's Snare (bar slot 0, placer `(0, 0)`): it triggers through `TrapLibrary` (100 → 44, Crippled to 203, the trap used) (113); onto a terrain trap: nothing (FX-34) (114); **the same goblin three times in one tick**: Cinder Ring concluding at `T` strikes goblin 8 (280 → 153, Burning), it strikes in step 2, burns in step 3 (115); goblin 8 Alerted at 5 over 2 ticks, two steps (116); defeats: goblin 8's attack skill concluding at `T` on the adventurer at 1 (down at step 1, no step 2 or 3, the 2 ticks after not run) (117); goblin 8's weapon at step 2 on it at 1: goblin 9 does not act after it (118) |
 | `skip` (10) | 119–128 | alone: the fast path, 1 and 10 ticks (119, 120); `n` 0, defeated: none (121, 122); activating: `TickLibrary` (123); outside the window, Engaged (not calm: `TickLibrary`) and asleep (the fast path) (124, 125); in the window asleep and on watch (`TickLibrary`), dead (the fast path) (126–128) |
 | `ticks`, the roster (2) | 129–130 | goblin 248 (spawn chunk 15) Alerted on (7, 15), the adventurer on (7, 12): its step leaves its spawn chunk (D-238); with 59 other goblins away from theirs (asleep on (100, 100)) it steps (129); with 60 the roster is full: it holds (130) |
+| `content` (1) | 131 | RV-03d (D-257), after every earlier id: the content of rows 131–170 (below) |
+| `ticks`, the stops, step 1's order, step 2's set, the target, perception (16) | 132–147 | the adventurer at 1, member 1 on `AT − 2`, goblin 9 armed on `AT − 3` beside it: goblin 8's weapon downs it in step 2 (132), goblin 8's attack skill concluding at `T` in step 1 (133): goblin 9 does not act; skill 95 concluding at `T` downs member 1 (on `AT − 1`, at 1): goblin 8's activation to `T` not concluded (134); goblins 8 and 9 concluding at `T` on the adventurer at 1: 8's hit downs it, 9's activation not concluded (135); goblin 8 concluding at `T` (resolved), goblin 9 armed acts (136); Cinder Ring kills goblin 8 (90) activating to `T`: not concluded (137), kills goblin 9 (90) on `AT + 1`: goblin 8 Alerted on `AT + 2` steps onto its tile (138); a concluding target no longer legal: skill 96 on goblin 8, dead: no heal (139), goblin 8's attack skill on the adventurer 2 tiles away: no hit (140); the target, the first member alive in the window: member 0 outside it (on (7, 20)) (141) and down (status 1) (142), goblin 8 hits member 1; goblin 8 asleep 2 tiles from member 0 and 7 from member 1 (`AT − 5`): it notices (143); goblin 8 on watch at 2 notices: goblin 24 (chunk 1's pack 0) asleep at 4 not engaged (144), goblin 9 (pack 0) Alerted at 5 Engaged (145); the adventurer's adrenaline 2 beside an Engaged goblin outside the window: decays (146); the adventurer on a tile the window does not hold walkable: no flood, goblin 8 Alerted at 3 holds (147) |
+| `ticks`, the goblins' skills (13) | 148–160 | facing away: the weapon (148) and the fire spell (149) turn the goblin; slot 0 lapsed from `T − 1` (`T + 8`) below its stored `T + 50`: kept (150); a Runt, slot 0 recharging: slot 1 (activation 1) starts, `A = T + 1` (151); slots 0–2 recharging: its slot 3, the instant shout, no recovery (152); Gap: slot 2 empty, the shout (153); Shaman: slot 0 at rank 12 (fire 80) now (154), slot 1 concluding at `T` (rank 12, cleared: a spell) (155), slots 0 and 1 recharging: slot 2 on the adventurer's tile (156), slot 3's activation concluding at `T` (157), Alerted at 6, 3 pips (158); Crippled to `T` holding skill 94 (`MOVEMENT`) to `T` (a step of 1) and `T − 1` (of 2) (159, 160) |
+| `ticks`, the flood, a trap's kill (5) | 161–165 | goblin 8 Alerted on `AT + 2` steps onto `AT + 1`, where dead goblin 9 lies (161); goblin 8 asleep on (8, 4) (frozen), goblin 9 Fleeing on (7, 4): to (7, 3) (162); the adventurer on (1, 1), the flood at its cap: goblin 8 Alerted on (13, 8) (layer 15) steps (163), Fleeing on (13, 9) (16, beside layer 15) is not reached: cornered, Engaged (164); goblin 8 (50 health) killed by the member's Snare it enters (165) |
+| `ticks`, the roster (5) | 166–170 | as 129 and 130, 59 away frozen: goblin 120 (spawn chunk 7) Alerted on (2, 3), away: full, goblin 248 holds (166); goblins 248 on (5, 15) and 249 on (9, 15): 248 steps out (60), 249 holds (167); goblin 120 on (7, 15) steps into chunk 0, neither home (168); goblin 8 (chunk 0) on (5, 15) steps home (59), then 248 on (9, 15) out (60) (169); 60 away frozen, goblin 248 Fleeing on (7, 15): held by the full roster, still Fleeing (170) |
 
-Per `fn`: `content` 1, `ticks` 120, `skip` 10.
+Per `fn`: `content` 2, `ticks` 159, `skip` 10.
+
+**Row 131** (RV-03d): every row from 131 on reads the content of row 131, the last `content` row before it; rows
+1–130 read row 0's. It is row 0's with skills 90–96 and castes 3 and 4 appended. Skills: 90 an instant spell of fire
+20 to 80 with the rank on a foe (range 2, recharge 6); 91 the same at activation 1; 92 an instant spell of fire 40 on a
+`SINGLE` `TILE` (range 2); 93 a shout on itself at activation 1; 94 an enchantment holding `MOVEMENT`; 95 a spell of
+fire 40 on `RING_1` around its source, filter `ALLIES`, activation 1; 96 a spell of fire 40 on a foe then a heal of 30
+on itself (range 6, activation 1). Castes, the Hob's but: Shaman (3), `k` 3, health regeneration 13 (3 pips), skills
+90–93; Gap (4), skills 24, 25, none, 27 (slot 2 empty). None mixes `TILE` with `FOE` or `ALLY` (D-271): 92 is `TILE`
+alone, 96 is `FOE` then `SELF`. Rows 141 and 147 are inputs the class takes but `play` never passes: member 0 outside
+the board's window, and on a tile the window does not hold walkable (`AiTrait::flood` returns `None` there, so the
+class does not panic; a flood from it would, `Bfs::flood`).
+
+**Track CV's surviving mutants of the tick port (#459), RV-03d's rows.** By their number in #459's list (*Survive
+(45)*; each mutant's name is in `client/sim/src/parity/mutants.test.ts`): 1: 132; 2: 133; 3: 166; 4: 144; 5: 141;
+6: 142; 7: 161; 8: 163; 9: 162; 10: 147; 11: 135; 12: 165; 13: 140, 139; 14: 152; 16: 165; 17: 153; 18: 151; 19: 146;
+20: 145; 21: 148; 22: 167; 23: 168; 24: 169; 25: 149; 26: 134; 27: 150; 28: 157; 30: 155; 31: 158; 32: 159; 33: 160;
+34: 136; 35: 143; 36: 170; 37: 139; 38: 138; 39: 137; 41: 154; 42: 156; 43: 155; 44: 164; 45: 164. Some are built
+otherwise than #459 suggests: the Runt's slot 3 in row 0 is already an instant shout (skill 31, the fixtures'), so 152
+needs no new content (14); no caste of row 0 has an empty slot, Gap has (17); 134's carrier is on `RING_1`, since a
+skill takes `DISC_1` only as a potion (`ExecutorTrait::assert_carrier`) (26); a dead target is in no set, so a hit on it
+shows nothing: skill 96 heals its source after its foe entry, which the mutants run and the code does not (37, and 13).
+
+Three are equivalent, and no row is built for them:
+- 15, an entered trap's members not written back: a trap writes its entrant alone. `ExecutorTrait::trigger` gives every
+  entry the entrant as its set and writes only it (`types/executor.cairo` 2064–2090); `TrapTrait::trigger` reads the
+  placer and writes the ground (`types/trap.cairo` 189–228). The members cross `TrapLibrary` unchanged.
+- 29, a goblin's nearest member is its farthest (`d < near || near == FAR`): `near` is `FAR` only while every member
+  read so far is at `FAR`, and `d` is at most `FAR`, so both leave `near` at `min(near, d)` (`types/world.cairo`
+  568–574).
+- 40, a dead goblin acts (`AiTrait`): `AiTrait::act` returns at once for a state other than Engaged, Alerted or
+  Fleeing (`types/ai.cairo` 240–243), and a goblin not alive is `DEAD` or `LOOTED` (`is_alive` is `ai < DEAD`,
+  `models/goblin.cairo` 236–238), so it acts on nothing and the step's stop is unchanged.
+
+#459's eight equivalent mutants were read against the code and hold.
 
 **The rows asked for by name.** The block cap above 63 (track CV, 2026-10-11): a member's charge field holds 6 bits,
 not 7 (`MemberEffects`, an effect's bits 16–21; bit 22 is free and `MemberTrait::held` reads the charges modulo 64),

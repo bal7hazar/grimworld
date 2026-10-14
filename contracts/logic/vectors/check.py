@@ -115,6 +115,11 @@ TABLES = {
         "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_6",
         "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_7",
         "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_8",
+        "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_9",
+        "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_10",
+        "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_11",
+        "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_12",
+        "grimworld_logic::types::tick::tests::vectors::test_tick_vectors_13",
     ],
 }
 

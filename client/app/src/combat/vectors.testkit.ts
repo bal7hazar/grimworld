@@ -45,9 +45,25 @@ const felts = (values: readonly string[]): Felts => new Felts(values.map(BigInt)
 
 /** A table's content: its row 0's `ok`. */
 export function contentOf(file: string): Content {
-  const read = felts(rows(file)[0]!.ok!);
-  const content = readContent(read);
-  read.end();
+  return contentAt(file, 0);
+}
+
+const contents = new Map<string, Content>();
+
+/**
+ * The content row `id` of `file` reads: the `ok` of its last `content` row at or before it
+ * (client/sim's `contentRow`; `tick.jsonl` 131, RV-03d), decoded once.
+ */
+export function contentAt(file: string, id: number): Content {
+  let at = id;
+  while (rows(file)[at]!.fn !== "content") at -= 1;
+  const key = `${file} ${at}`;
+  let content = contents.get(key);
+  if (content === undefined) {
+    const read = felts(rows(file)[at]!.ok!);
+    contents.set(key, (content = readContent(read)));
+    read.end();
+  }
   return content;
 }
 
