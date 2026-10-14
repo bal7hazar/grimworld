@@ -236,6 +236,12 @@ def assert_local_devnet(node):
     return chain
 
 
+class RpcError(RuntimeError):
+    """A JSON-RPC error answer; `code` is the answer's error code (OPS-02a reads CLASS_HASH_NOT_FOUND, 28)."""
+
+    code = None
+
+
 class Node:
     """The local node and the first pre-funded account, through the JSON-RPC and `sncast`."""
 
@@ -265,7 +271,9 @@ class Node:
         with urllib.request.urlopen(request, timeout=60) as response:
             answer = json.load(response)
         if "error" in answer:
-            raise RuntimeError(self.redact(f"{method}: {answer['error']}"))
+            error = RpcError(self.redact(f"{method}: {answer['error']}"))
+            error.code = answer["error"].get("code") if isinstance(answer["error"], dict) else None
+            raise error
         return answer["result"]
 
     def sncast_cwd(self, package):
@@ -282,7 +290,8 @@ class Node:
         if out.returncode != 0:
             # sncast echoes the command's arguments only on a usage error, never the key we import
             raise RuntimeError(self.redact(
-                f"sncast {' '.join(args[:4])}: {out.stdout[-2000:]} {out.stderr[-2000:]}"))
+                f"sncast {' '.join(self.redact(' '.join(args[:4])).split())}: "
+                f"{self.redact(out.stdout)[-2000:]} {self.redact(out.stderr)[-2000:]}"))  # redact, then cut
         sent = re.search(r"Transaction Hash:\s*(0x[0-9a-fA-F]+)", out.stdout)
         if sent and args[0] not in ("call", "account"):
             self.sent.append(sent.group(1))

@@ -197,6 +197,44 @@ def check_command_line():
         sepolia_deploy.shutil.rmtree(logs)
 
 
+def check_cut_secret():
+    """A stub `sncast` whose long stderr holds the URL, the key and the address across the 2000-character
+    cut of the error message: redaction comes before the cut, so no fragment is left. Also the decimal and
+    upper-case forms."""
+    logs = tempfile.mkdtemp(prefix="smoke-cut-")
+    try:
+        url, address, key = FAKE["STARKNET_RPC_URL"], NOPREFIX["STARKNET_ACCOUNT_ADDRESS"], \
+            NOPREFIX["STARKNET_PRIVATE_KEY"]
+        values = {**FAKE, "STARKNET_ACCOUNT_ADDRESS": address, "STARKNET_PRIVATE_KEY": key}
+        redact = sepolia_deploy.Redactor(values)
+        node = sepolia_deploy.SepoliaNode(url, address, "unused", logs, {}, redact)
+        secrets = [url, url.upper().replace("HTTPS", "https"), key, address, str(int(address, 16)),
+                   str(int(key, 16))]
+        for secret in secrets:
+            for before in (3, len(secret) // 2, len(secret) - 3):  # characters of the secret before the cut
+                stderr = "x" * 500 + secret + "y" * (2000 - len(secret) + before)  # the cut falls inside it
+                tool = os.path.join(logs, "bin")
+                os.makedirs(tool, exist_ok=True)
+                fake = os.path.join(tool, "sncast")
+                with open(fake, "w") as handle:
+                    handle.write(f"#!/bin/sh\nprintf '%s' '{stderr}' >&2\nexit 1\n")
+                os.chmod(fake, 0o755)
+                old = os.environ["PATH"]
+                os.environ["PATH"] = tool + os.pathsep + old
+                try:
+                    node.sncast("persistent", "--account", "deployer", "invoke")
+                except RuntimeError as error:
+                    message = str(error)
+                else:
+                    raise AssertionError("the stub sncast did not fail")
+                finally:
+                    os.environ["PATH"] = old
+                for tail in (secret[-8:], secret[8:16]):  # a fragment of either end
+                    assert tail not in message, (secret, message[-300:])
+    finally:
+        sepolia_deploy.shutil.rmtree(logs)
+
+
 def check_chain_unit():
     """`check_chain` and `check_endpoint` on a stub, before any process: the chain id decides first."""
     class Log:
@@ -381,7 +419,7 @@ def check_rehearsal(real, node, run_id, logs):
     assert record["artefact"]["run"].endswith(f"/actions/runs/{run_id}"), record["artefact"]
     assert record["build_root"]["commit"] == record["commit"] and record["build_root"]["root"], record
     assert set(record) == {"network", "rehearsal", "chain_id", "commit", "artefact", "build_root", "classes",
-                           "contracts", "seed", "transactions", "total_fee"}, sorted(record)
+                           "contracts", "seed", "tools", "transactions", "total_fee"}, sorted(record)
     assert not any(key in text.lower() for key in ("private", "rpc_url", "127.0.0.1")), "a secret-like key"
 
     classes, contracts = record["classes"], record["contracts"]
@@ -425,6 +463,7 @@ def check_rehearsal(real, node, run_id, logs):
 def main():
     check_redactor()
     check_command_line()
+    check_cut_secret()
     check_chain_unit()
     url, address, key = (os.environ["NODE_URL"], os.environ["NODE_ACCOUNT_ADDRESS"],
                          os.environ["NODE_ACCOUNT_PRIVATE_KEY"])

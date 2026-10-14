@@ -71,7 +71,7 @@ class Redactor:
     number whatever the padding, the key by its number too."""
 
     def __init__(self, environ):
-        self.exact, self.numbers = [], []
+        self.exact, self.numbers, self.folded = [], [], []  # folded: compared without regard to case
         for name in VARIABLES:
             value = environ.get(name, "")
             if not value:
@@ -82,10 +82,13 @@ class Redactor:
                 pieces = [parts.netloc, parts.hostname or "", parts.path.strip("/"), parts.query,
                           parts.username or "", parts.password or ""]
                 pieces += [p for p in re.split(r"[/?&=]", parts.path + "?" + parts.query) if len(p) >= 8]
-                self.exact += [(p, name) for p in pieces if len(p) >= 4]
+                self.folded += [(p, name) for p in pieces if len(p) >= 4]  # a host is not case-sensitive, nor is an echo
             if name in ("STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY"):
-                try:  # with or without 0x, leading zeros or not
-                    self.numbers.append((int(value[2:] if value[:2] in ("0x", "0X") else value, 16), name))
+                try:  # with or without 0x, leading zeros or not; also as a decimal number
+                    number = int(value[2:] if value[:2] in ("0x", "0X") else value, 16)
+                    self.numbers.append((number, name))
+                    if len(str(number)) >= 8:
+                        self.exact.append((str(number), name))
                 except ValueError:
                     pass
         self.exact.sort(key=lambda pair: -len(pair[0]))  # the longest first: the URL before its host
@@ -94,6 +97,8 @@ class Redactor:
         text = str(text)
         for value, name in self.exact:
             text = text.replace(value, f"<{name}>")
+        for value, name in self.folded:
+            text = re.sub(re.escape(value), f"<{name}>", text, flags=re.IGNORECASE)
         for number, name in self.numbers:  # 0x0abc, 0xabc, 0x000...abc: one number
             # 0x0abc, 0xabc, 0x000...abc, and the same without 0x (a token of 8 hex digits or more)
             text = re.sub(r"(?<![0-9a-zA-Z])(0[xX])?0*([0-9a-fA-F]+)(?![0-9a-zA-Z])",
@@ -164,8 +169,8 @@ class SepoliaNode(dd.Node):
         try:
             self.rpc("starknet_getClass", {"block_id": "latest", "class_hash": class_hash})
             return True
-        except RuntimeError as error:
-            if "28" in str(error) or "not found" in str(error).lower():  # CLASS_HASH_NOT_FOUND
+        except dd.RpcError as error:
+            if error.code == 28:  # CLASS_HASH_NOT_FOUND
                 return False
             raise
 
@@ -442,6 +447,8 @@ def run(args, log, redact, environ):
             "contracts": {"registry": core["registry"], "tx_hash_fate": core["fate"], "hub": core["hub"],
                           "instances": core["instances"]},
             "seed": {"records": len(dd.seed_records()), "ids": seed_ids()},
+            "tools": {"sncast": subprocess.run(["sncast", "--version"], capture_output=True, text=True,
+                                               cwd=ROOT).stdout.strip()},
             "transactions": count, "total_fee": {"amount": str(fee), "unit": unit},
         }
         text = json.dumps(record)
