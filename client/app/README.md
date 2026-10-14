@@ -121,15 +121,6 @@ with a dynamic `import()`, so the sandbox's bundle carries no starknet.js.
   missing (`register` with `create_adventurer`; `create_adventurer`; `travel` when its hub is not
   gate 1's source; `set_build` before every `enter`; `enter`), each its own execution, so a reload
   or a failed step resumes from the views. `enter` alone enters again after an instance closes.
-- **The burner's build** (CLI-11d2, devnet only). With a `--build full` deployment (its `build`
-  key), `set_build` carries that build instead of the empty bar. No view reads the known skills or
-  the pack yet, so its refusal is the probe: refused, the devnet harness (D-280) funds the pack and
-  the gold as `scripts/devnet_deploy.py`'s `fund_pack` does (the adventurer enters with the empty
-  bar; the node's account 0, which must be the deployment's own, points `Hub.instances` at itself
-  for one Open report that credits the gold and twice the belt, points it back, even after a failed report, and
-  reads the storage back; the adventurer travels back), each bar skill is bought (a known one is
-  refused and skipped), and `set_build` is sent again. The kit exists only on the local node,
-  through the same guard; without a `build` key, the empty bar.
 - **The screen** (`ChainScreen.tsx`): CLI-11a made it minimal ("adventurer N in instance M", or the
   refusal's line over the sandbox); CLI-11c draws the instance (below). The refusal is unchanged.
 
@@ -146,9 +137,9 @@ and open the printed link, `/?chain=http://127.0.0.1:<port>`.
 
 The node test `src/chain/chain.node.test.ts` runs after the preview's, on the same node, one file
 after the other (`test:node:preview`, CI's `client-node` job, on a `--build full` deployment since
-CLI-11d2, so its full-build tests run there). It makes the burner a player (with the build bought
-through the harness, and checked on its bar and belt), restores
-it from a second provider on the same storage without sending anything, closes the instance with
+CLI-11d2, so its full-build tests of the deployment's own adventurer run there). It makes the
+burner a player, restores it from a second provider on the same storage without sending anything,
+closes the instance with
 `Instances.travel_back`, and enters the same adventurer again (`set_build`, then `enter`). It prints
 what each execution cost. It reads `GRIMWORLD_DEPLOYMENT`, or `.with-node/deployment.json` at the
 repository's root while that file's node answers. The whole run on a fresh node, after the classes
@@ -290,15 +281,13 @@ target zone over them, the log in a panel (desktop) or its last line (phone).
 - **Names** (`combat/names.ts`, Q-1): a copy of the table `contracts/seed/README.md` keeps under
   "Names for the client"; `names.test.ts` reads that table, so the copy follows it. An unknown id is
   "Skill 12".
-- **Known gaps.** (1) The development server's `/deployment.json` (`src/dev/serveDeployment.ts`)
-  serves only the deployment's known fields, and the `build` key is not one of them: in the
-  browser the burner's bar stays empty until it is, and `verify:chain` fails at its skill step
-  (the node test reads the file directly, and carries the build). (2) The map's overlay draws its reach from the
-  sandbox's stand-in (`wiring.ts`'s `combatAim`), not from `targeting.ts`: the controller's aim,
-  which plays, is the exact one. (3) The harness points `Hub.instances` at account 0 for one
-  report: another burner entering on the same node in that moment is refused, and a page closed
-  between the two `set_contracts` leaves the Hub so until the node restarts (devnet only). A setup
-  stopped inside the harness's instance plays that instance once, with the empty bar.
+- **Known gaps.** (1) The burner's adventurer is built empty (`setup.ts` sends `set_build` with
+  `EMPTY_BUILD` before every `enter`) until track game provides a devnet entry point that builds a
+  fresh adventurer (CLI-11d3), so in the browser its bar is empty and `verify:chain`'s skill step
+  prints a SKIP; the full build is the deployment's own adventurer, which `chain.node.test.ts`
+  previews through the same controller (a potion, two skills, refusals). (2) The map's overlay
+  draws its reach from the sandbox's stand-in (`wiring.ts`'s `combatAim`), not from
+  `targeting.ts`: the controller's aim, which plays, is the exact one.
 
 `verify:chain` also checks the bar (eight slots), the belt (four), a tap on an empty slot, the log's
 line for the Wait predicted and then confirmed, and, when the bar holds a skill, that skill armed,

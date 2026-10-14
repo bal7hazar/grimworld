@@ -1,4 +1,4 @@
-import { AccountError, type AccountProvider, type Call, type ExecutionStatus } from "../account";
+import type { AccountProvider, Call, ExecutionStatus } from "../account";
 import type { Reader } from "../preview";
 
 /**
@@ -11,18 +11,10 @@ import type { Reader } from "../preview";
 
 /** The node's pre-funded account that funds burners (0 is the deployment's; §3.1). */
 export const FUNDER_INDEX = 1;
-/** The deployment's own account, the Hub's administrator: the devnet harness only (D-280). */
-export const ADMIN_INDEX = 0;
 /** STRK given to each new burner: 100 STRK, in fri. */
 export const BURNER_FUNDS = 10n ** 20n;
 /** An empty bar (elite slot 255 at bit 168), as `scripts/devnet_deploy.py` sets it. */
 export const EMPTY_BUILD = 255n << 168n;
-export const BAR_SLOTS = 8;
-export const BELT_SLOTS = 4;
-/** `Hub.set_contracts`'s market, as `devnet_deploy.py` passes it. */
-const MARKET = 4n;
-/** `Outcome::Open`: a report that keeps the adventurer inside. */
-const OPEN = 0n;
 /** The gate entered: gate 1, the start hub's gate into the test zone (`devnet_deploy.py`). */
 export const START_GATE = 1;
 /** The burner's adventurer: `'Burner'`, a short string, of profession 1. */
@@ -41,60 +33,14 @@ const GATE = 4;
 /** `Adventurer`'s place word (`IHubViews::adventurer`, word 1): bits 64-79 hold its hub. */
 const PLACE = 1;
 
-/** The deployment's `--build full` (OPS-01b, SEED-02): skill ids by bar slot, the belt, the gold. */
-export interface Build {
-  readonly bar: readonly number[];
-  readonly belt: readonly { readonly item: number; readonly count: number }[];
-  /** What the four skills cost at the trainer (D-277), credited by the harness. */
-  readonly gold: bigint;
-}
-
-/** An account that sends executions: the burner's provider, or the harness's administrator. */
-export type Sender = Pick<AccountProvider, "execute" | "status"> & { readonly address: string };
-
-/**
- * The burner's build on devnet (CLI-11d2), and the harness that pays for it as
- * `scripts/devnet_deploy.py`'s `fund_pack` does (D-280, devnet only): no entrypoint credits gold or
- * fills a pack yet but `Hub.report`, so the Hub's administrator points `Hub.instances` at itself for
- * one Open report, then back. `network.ts` builds it only for a `--build full` deployment on the
- * local node.
- */
-export interface Kit {
-  readonly build: Build;
-  readonly admin: Sender;
-  readonly fate: string;
-  readonly flatten: string;
-  /** `Hub.instances` as the chain stores it (no view returns it). */
-  hubInstances(): Promise<bigint>;
-}
-
-/** `set_build`'s `Build` word without `LIVE`: 16 bits a slot, the elite slot empty. */
-export function buildWord(bar: readonly number[]): bigint {
-  return bar.reduce(
-    (word, skill, slot) => word | (BigInt(skill) << BigInt(16 * slot)),
-    EMPTY_BUILD,
-  );
-}
-
-/** `set_build`'s belt word: the items in lanes 0-3 (32 bits), their counts at bit 128 (8 bits). */
-export function beltWord(belt: Build["belt"]): bigint {
-  return belt.reduce(
-    (word, { item, count }, lane) =>
-      word | (BigInt(item) << BigInt(32 * lane)) | (BigInt(count) << BigInt(128 + 8 * lane)),
-    0n,
-  );
-}
-
 export interface SetupDeps {
   readonly provider: AccountProvider;
-  readonly reader: Pick<Reader, "call" | "placement" | "record" | "instanceState">;
+  readonly reader: Pick<Reader, "call" | "placement" | "record">;
   readonly hub: string;
   readonly instances: string;
   readonly registry: string;
   /** Between two asks of an execution's status, in ms. */
   readonly pollMs?: number;
-  /** The burner's build and its harness; without it, the empty bar. */
-  readonly kit?: Kit;
 }
 
 /** Where the burner's player stands once restored: inside an instance. */
@@ -122,38 +68,15 @@ const u32 = (felt: bigint | undefined, what: string): number => {
   return Number(felt);
 };
 
-/**
- * Sends one execution and waits until it settles; anything but `succeeded` is `SetupFailed`. The
- * burner sends, or `from`.
- */
-async function run(
-  deps: SetupDeps,
-  step: string,
-  calls: Call[],
-  from: Pick<AccountProvider, "execute" | "status"> = deps.provider,
-): Promise<void> {
-  const id = await from.execute(calls);
+/** Sends one execution and waits until it settles; anything but `succeeded` is `SetupFailed`. */
+async function run(deps: SetupDeps, step: string, calls: Call[]): Promise<void> {
+  const id = await deps.provider.execute(calls);
   const pollMs = deps.pollMs ?? 250;
   for (;;) {
-    const status = await from.status(id);
+    const status = await deps.provider.status(id);
     if (status === "succeeded") return;
     if (status !== "pending") throw new SetupFailed(step, status);
     await new Promise((resolve) => setTimeout(resolve, pollMs));
-  }
-}
-
-/**
- * `run`, where a refusal is an answer: false when the node refuses the execution before it is sent
- * (its fee estimate reverts) or it fails. Anything else, a refused chain included, throws.
- */
-async function attempt(deps: SetupDeps, step: string, calls: Call[]): Promise<boolean> {
-  try {
-    await run(deps, step, calls);
-    return true;
-  } catch (error) {
-    if (error instanceof SetupFailed && error.status === "failed") return false;
-    if (error instanceof AccountError && error.code === "refused") return false;
-    throw error;
   }
 }
 
@@ -200,80 +123,10 @@ const call = (to: string, entrypoint: string, ...calldata: bigint[]): Call => ({
 });
 
 /**
- * The harness (D-280), as `devnet_deploy.py`'s `fund_pack`: the adventurer, in gate 1's hub, enters
- * with the empty bar; the administrator points `Hub.instances` at itself and sends one Open report
- * that credits the gold and twice the belt to the pack, then points it back and reads it back (after
- * a failed report too); the adventurer travels back to the start hub.
- */
-async function fund(deps: SetupDeps, kit: Kit, adventurerId: number): Promise<void> {
-  const id = BigInt(adventurerId);
-  await run(deps, "set_build", [call(deps.hub, "set_build", id, EMPTY_BUILD, 0n, 0n)]);
-  await run(deps, "enter", [call(deps.hub, "enter", id, BigInt(START_GATE))]);
-  const { inside, instanceId } = await deps.reader.placement(deps.instances, adventurerId);
-  if (!inside) throw new SetupFailed("enter", "unknown");
-  const contracts = (instances: string) =>
-    call(
-      deps.hub,
-      "set_contracts",
-      BigInt(deps.registry),
-      BigInt(instances),
-      MARKET,
-      BigInt(kit.fate),
-      BigInt(kit.flatten),
-    );
-  const credits = kit.build.belt.flatMap(({ item, count }) => [BigInt(item), 2n * BigInt(count)]);
-  // `Results`: the instance, one contributor, no experience, the gold, the balances; no equipment,
-  // task, fact or location; Open, so no hub, next instance or belt
-  const report = call(
-    deps.hub,
-    "report",
-    instanceId,
-    1n,
-    id,
-    0n,
-    kit.build.gold,
-    BigInt(kit.build.belt.length),
-    ...credits,
-    0n,
-    0n,
-    0n,
-    0n,
-    OPEN,
-    0n,
-    0n,
-    0n,
-    0n,
-    0n,
-    0n,
-  );
-  await run(deps, "harness", [contracts(kit.admin.address)], kit.admin);
-  const failed = await run(deps, "report", [report], kit.admin).then(
-    () => undefined,
-    (error: unknown) => ({ error }),
-  );
-  // Restored and read back whether the report passed or not; its failure is thrown after
-  await run(deps, "harness", [contracts(deps.instances)], kit.admin);
-  if ((await kit.hubInstances()) !== BigInt(deps.instances)) {
-    throw new SetupFailed("harness", "unknown");
-  }
-  if (failed !== undefined) throw failed.error;
-  const { header } = await deps.reader.instanceState(deps.instances, instanceId);
-  await run(deps, "travel_back", [
-    call(deps.instances, "travel_back", instanceId, id, BigInt(header.sequence)),
-  ]);
-}
-
-/**
  * Step 4 of §3.4: the adventurer, in a hub, enters gate `START_GATE`. `Hub.travel` first only when
  * its hub is not the gate's source; `Hub.set_build` before every `enter` (the views cannot show
  * whether an earlier one ran, and it overwrites); `Hub.enter` alone, because the entry draws Fate.
  * This is also what `N` runs after an instance closes.
- *
- * With a kit (CLI-11d2), `set_build` carries the deployment's build, and its refusal is the probe:
- * no view reads the known skills or the pack yet, and `set_build` refuses a bar skill not known or
- * a belt the pack does not cover. Refused, the harness funds the pack and the gold (`fund`), each
- * skill of the bar is bought (a known one is refused, and skipped), and `set_build` is sent again,
- * now required to pass.
  */
 export async function enter(deps: SetupDeps, adventurerId: number): Promise<void> {
   const id = BigInt(adventurerId);
@@ -282,20 +135,7 @@ export async function enter(deps: SetupDeps, adventurerId: number): Promise<void
     gateSource(deps, START_GATE),
   ]);
   if (here !== source) await run(deps, "travel", [call(deps.hub, "travel", id, BigInt(source))]);
-  const { kit } = deps;
-  if (kit === undefined) {
-    await run(deps, "set_build", [call(deps.hub, "set_build", id, EMPTY_BUILD, 0n, 0n)]);
-  } else {
-    const { bar, belt } = kit.build;
-    const built = [call(deps.hub, "set_build", id, buildWord(bar), beltWord(belt), 0n)];
-    if (!(await attempt(deps, "set_build", built))) {
-      await fund(deps, kit, adventurerId);
-      for (const skill of bar.filter((skill) => skill !== 0)) {
-        await attempt(deps, "buy_skill", [call(deps.hub, "buy_skill", id, BigInt(skill))]);
-      }
-      await run(deps, "set_build", built);
-    }
-  }
+  await run(deps, "set_build", [call(deps.hub, "set_build", id, EMPTY_BUILD, 0n, 0n)]);
   await run(deps, "enter", [call(deps.hub, "enter", id, BigInt(START_GATE))]);
 }
 

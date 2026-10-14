@@ -24,10 +24,11 @@
 // belt of four, the target zone, the log), the log's line for the Wait predicted (muted) and then
 // confirmed by the send, a tap on an empty slot that does nothing and says nothing, and, when the
 // bar holds a skill, that skill armed (its second tap plays it, or its key and Enter), the batch
-// holding the `skill` action, its log lines predicted and then confirmed after `B`. CLI-11d2: with
-// a `--build full` deployment (`verify:chain` deploys one) the burner's adventurer carries the
-// deployment's build (`setup.ts`), so the skill step must run: a bar with no ready skill fails.
-// Only a deployment built empty skips it, with a SKIP line.
+// holding the `skill` action, its log lines predicted and then confirmed after `B`. The burner's
+// adventurer is built empty until CLI-11d3 (`setup.ts` sends `set_build` with `EMPTY_BUILD` before
+// each `enter`; track game is asked for a devnet entry point that builds a fresh adventurer): its
+// bar is empty, the skill step prints a named SKIP line, and the skill on chain is the node test's
+// (`chain.node.test.ts`, the deployment's own adventurer, `verify:chain` deploying `--build full`).
 //
 // Env: GRIMWORLD_DEPLOYMENT (required: the deployment's file), VERIFY_PORT (default 5198),
 // VERIFY_CHANNEL (the browser), VERIFY_ROOT (the checkout, the repository's root by default),
@@ -51,10 +52,7 @@ if (!deploymentPath) {
   process.exit(1);
 }
 mkdirSync(shots, { recursive: true });
-const deploymentJson = JSON.parse(readFileSync(deploymentPath, "utf8"));
-const nodeUrl = deploymentJson.node_url;
-/** CLI-11d2: the burner carries the deployment's build, so a full one has skills to play. */
-const fullBuild = deploymentJson.build?.mode === "full";
+const nodeUrl = JSON.parse(readFileSync(deploymentPath, "utf8")).node_url;
 
 let failures = 0;
 function ok(condition, label) {
@@ -282,12 +280,10 @@ try {
   await page.screenshot({ path: join(shots, "chain-3-sent.png") });
 
   // A skill armed and played, when the bar holds one
-  if (armedSkill < 0 && fullBuild) {
-    ok(false, "a skill armed and played: the full build's bar shows no ready skill");
-  } else if (armedSkill < 0) {
+  if (armedSkill < 0) {
     console.log(
-      "SKIP a skill armed and played: the deployment is built empty (no --build full), so the " +
-        "burner's bar is empty",
+      "SKIP a skill armed and played: burner built empty until CLI-11d3 (no ready skill on its " +
+        "bar); the node test plays the full build's skills on the deployment's adventurer",
     );
   } else {
     await page.click(`[data-skill-bar] [data-slot="${armedSkill}"]`);
