@@ -344,6 +344,64 @@ carries SEED-02's build: the four bar skills and the belt of the healing potion 
   Nothing in the client repairs it: **redeploy** (stop the command, run it again; it is cheap, and
   `--salt <felt>` gives the same world back on the same build).
 
+### Sepolia, under the development server only (CLI-11e1, D-301)
+
+OPS-02's deployment (`deployments/sepolia/2026-10-14-e588763.json`, #505) is known to the client,
+checked on the chain, and selectable **under the development server only**. Nothing is sent: the
+mode reads, then stops before any funding. The public site does not play on Sepolia (a later lot
+decides that).
+
+- **The record** (`networks.ts`). Sepolia's chain id, the four contracts' addresses with their
+  class hashes, the commit and the record's path (D-154). `networks.test.ts` reads the newest
+  record in `deployments/sepolia/` and checks the entry equals it, so a new record fails the test
+  until the entry follows. It holds no key, no account address and no node URL.
+- **Selecting it.** Open `/?chain=sepolia` on `pnpm --filter @grimworld/app dev`. `App.tsx` reads
+  the word only with `import.meta.env.DEV`, which `vite build` makes false, so on the site
+  `?chain=sepolia` is "not a URL", and the build drops the Sepolia branch of `ChainScreen.tsx` and
+  `networks.ts` with it. The endpoint is not in the URL and not in the bundle: the development
+  server answers `/sepolia.json` (`src/dev/serveSepolia.ts`) with `GRIMWORLD_SEPOLIA_RPC`, or
+  PublicNode's endpoint by default. It must be a keyless `https:` URL (no user information, no
+  query string or fragment, where a keyed URL carries its key), or nothing is served and the mode
+  is refused with "no Sepolia endpoint". The value of the setting is never printed. The loopback
+  rule of `?chain=<node url>` is unchanged: a remote URL there is still "not on this machine".
+- **Why a word and a served endpoint.** A word cannot carry a credential, and the site's build has
+  no server to answer `/sepolia.json` (it answers `index.html`, read as no endpoint), so the site
+  ships no node URL (D-273) by two separate locks. The client job of CI checks the built bundle
+  (`.github/workflows/ci.yml`, "no Sepolia in the bundle"): `dist/` must hold none of the eight hex
+  values of `networks.ts`, `sepolia.json`, the default endpoint's host or the two refusal lines.
+- **The start check** (`network.ts`, `openSepolia`). The chain id first, as `assertTestChain` reads
+  it (`SN_SEPOLIA` only, `SN_MAIN` refused by name); `assertTestChain` itself is unchanged and still
+  guards every send. Then `starknet_getClassHashAt` on each of the four addresses must answer the
+  recorded class hash: a mismatch or a missing contract is "chain mode refused: Sepolia contracts
+  differ from the record". A node error is a failure, not a refusal.
+- **Without a funder.** Sepolia has no pre-funded account. After both checks the mode stops with
+  "chain mode refused: Sepolia: funding service not configured (CLI-11e2)". No chain, funder or
+  account is built.
+- **What waits for CLI-11e2.** FND-08's funding service (`createServiceFunder`, after the owner's
+  two acts), the burner on Sepolia, and D-274's measurement of the view's L2 gas (§6.1).
+
+**The probe** (`probe-sepolia.mjs`, `pnpm --filter @grimworld/app probe:sepolia [--tx <hash>]
+<url>…`). It reaches the internet, so it is in neither `test` nor CI. For each endpoint it reports
+the chain id, the spec version, the class hash at each recorded address, and whether
+`starknet_traceTransaction` is served, tried on an OPS-02 transaction: the record holds no
+transaction hash, so the probe finds the Registry's deployment block by bisection and takes the
+transaction of that block whose events name the Registry (`--tx` gives one instead). A URL with
+user information or a query string is refused unprobed. Its answers on 2026-10-14, from the VPS:
+
+| Endpoint (keyless, https)                              | Chain id     | Spec   | Classes                                                            | `traceTransaction`                          |
+| ------------------------------------------------------ | ------------ | ------ | ------------------------------------------------------------------ | ------------------------------------------- |
+| `https://starknet-sepolia-rpc.publicnode.com`          | `SN_SEPOLIA` | 0.10.3 | 4/4 match                                                          | served                                      |
+| `https://api.cartridge.gg/x/starknet/sepolia`          | `SN_SEPOLIA` | 0.9.0  | 4/4 match                                                          | served                                      |
+| `https://starknet-sepolia.drpc.org`                    | `SN_SEPOLIA` | 0.10.3 | 4/4 match (one run of two: 2/4, the others "method not available") | not served ("method is not available")      |
+| `https://free-rpc.nethermind.io/sepolia-juno/v0_9`     | —            | —      | —                                                                  | "fetch failed" (no answer)                  |
+| `https://rpc.starknet-testnet.lava.build`              | —            | —      | —                                                                  | every call an error with no code            |
+| `https://starknet-sepolia.public.blastapi.io/rpc/v0_9` | —            | —      | —                                                                  | closed ("Blast API is no longer available") |
+
+The transaction traced was `0x1b96a41a1375bb3b507c46e08b5b0511093e88ef367ce065022761623e9f5d3`
+(the Registry's deployment, block 16590330). **The default is PublicNode's**: keyless, https, every
+answer right, the trace served, and a spec version starknet.js 10.8 knows (0.10.3). Cartridge
+is the fallback (`GRIMWORLD_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia`), on spec 0.9.
+
 ## Combat UI (`src/combat/`, CLI-05)
 
 The combat screens' model, written first without a screen (CLI-05a; the brief is
