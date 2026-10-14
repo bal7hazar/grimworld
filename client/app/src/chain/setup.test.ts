@@ -1,4 +1,4 @@
-import { hash, shortString } from "starknet";
+import { RpcError, hash, shortString } from "starknet";
 import { describe, expect, it } from "vitest";
 import {
   AccountError,
@@ -56,6 +56,8 @@ interface World {
   built: boolean;
   /** The status the next execution ends on. */
   next: ExecutionStatus;
+  /** An error the next execution throws instead of running (consumed), as the account module wraps it. */
+  rejectWith?: unknown;
   /** The `Build` and belt words of the last `set_build`, without `LIVE`. */
   build: bigint;
   belt: bigint;
@@ -69,6 +71,10 @@ interface World {
   /** Credits started (`Credit.status`). */
   credits: number;
 }
+
+/** The `RpcError` a node answers with, for a spec error code. */
+const rpcError = (code: number) =>
+  new RpcError({ code, message: `error ${code}` } as never, "starknet_estimateFee", {});
 
 /** The belt's `(item, count)` lanes from its word. */
 const lanesOf = (belt: bigint): [number, number][] =>
@@ -171,6 +177,11 @@ function fakeChain(start: Partial<World> = {}) {
     createOrRestore: async () => ({ address: ADDRESS }),
     async execute(calls) {
       sent.push(calls.map((c) => c.entrypoint));
+      if (world.rejectWith !== undefined) {
+        const cause = world.rejectWith;
+        world.rejectWith = undefined;
+        throw new AccountError("refused", { cause });
+      }
       expect(calls.every((c) => c.to === (c.entrypoint === "leave" ? INSTANCES : HUB))).toBe(true);
       const status = world.next;
       world.next = "succeeded";
@@ -181,7 +192,8 @@ function fakeChain(start: Partial<World> = {}) {
           calls.forEach(apply);
         } catch (error) {
           Object.assign(world, before);
-          throw new AccountError("refused", { cause: error });
+          // A call that reverts while the fee is estimated: TRANSACTION_EXECUTION_ERROR (41)
+          throw new AccountError("refused", { cause: Object.assign(rpcError(41), { error }) });
         }
       }
       const id = `0x${sent.length}`;
@@ -428,6 +440,46 @@ describe("the deployment's build (CLI-11d3)", () => {
     await enter(built, 2);
     expect(sent).toEqual([["set_build"], ["set_build"], ["enter"]]);
     expect(world).toMatchObject({ inside: true, build: FULL, belt: 0n });
+  });
+
+  it("re-entry whose estimate is refused with an execution error code (40, 41): the bar with an empty belt", async () => {
+    for (const code of [40, 41]) {
+      const { sent, built, world } = fakeChain();
+      await restore(built);
+      Object.assign(world, { inside: false, hub: START_HUB, rejectWith: rpcError(code) });
+      sent.length = 0;
+      await enter(built, 2);
+      expect(sent).toEqual([["set_build"], ["set_build"], ["enter"]]);
+      expect(world).toMatchObject({ inside: true, build: FULL, belt: 0n });
+    }
+  });
+
+  it("re-entry whose send fails on a nonce error (52) or a rate limit: an error, no second set_build", async () => {
+    for (const code of [52, 54, 63, 100]) {
+      const { sent, built, world } = fakeChain();
+      await restore(built);
+      Object.assign(world, { inside: false, hub: START_HUB, rejectWith: rpcError(code) });
+      sent.length = 0;
+      await expect(enter(built, 2)).rejects.toMatchObject({
+        name: "AccountError",
+        code: "refused",
+      });
+      expect(sent).toEqual([["set_build"]]);
+    }
+  });
+
+  it("re-entry whose refusal carries no RpcError (a non-Error cause): an error, no fallback", async () => {
+    for (const cause of [new Error("boom"), undefined]) {
+      const { sent, built, world } = fakeChain();
+      await restore(built);
+      Object.assign(world, { inside: false, hub: START_HUB, rejectWith: cause ?? "none" });
+      sent.length = 0;
+      await expect(enter(built, 2)).rejects.toMatchObject({
+        name: "AccountError",
+        code: "refused",
+      });
+      expect(sent).toEqual([["set_build"]]);
+    }
   });
 
   it("re-entry whose full set_build ends unknown (a status that never settled): an error, no fallback", async () => {
