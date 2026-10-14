@@ -41,12 +41,16 @@ FAKE = {"STARKNET_NETWORK": "sentinel-network-a1b2c3",
         "STARKNET_PRIVATE_KEY": "0x05e47c0de5ec12e7abcd"}
 
 
+NOPREFIX = {**FAKE, "STARKNET_ACCOUNT_ADDRESS": "05e47a1d0c0ffee1234",
+            "STARKNET_PRIVATE_KEY": "05e47c0de5ec12e7abcd"}  # no 0x, a leading zero
+
+
 def forms(name, value):
     """What a leak of `value` may look like in an output."""
     found = {value}
     if name in ("STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY"):
-        number = int(value, 16)
-        found |= {hex(number), f"{number:#066x}", f"0x{number:x}".upper().replace("0X", "0x"), str(number)}
+        number = int(value[2:] if value[:2] == "0x" else value, 16)
+        found |= {hex(number), f"{number:x}", f"{number:064x}", f"{number:#066x}", f"0x{number:x}".upper().replace("0X", "0x"), str(number)}
     if name == "STARKNET_RPC_URL":
         parts = devnet_deploy.urllib.parse.urlparse(value)
         found |= {parts.netloc, *[p for p in parts.path.split("/") if len(p) >= 8]}
@@ -157,6 +161,13 @@ def check_redactor():
     assert "sentinelapikey7788" not in clean and "sentinel-host-9c1d" not in clean, clean
     assert "0xabcd" in clean, "another number is left alone"
     assert "<STARKNET_RPC_URL>" in clean and "<STARKNET_ACCOUNT_ADDRESS>" in clean, clean
+    # a value without 0x, with a leading zero, in any padding
+    bare = sepolia_deploy.Redactor({**FAKE, "STARKNET_ACCOUNT_ADDRESS": NOPREFIX["STARKNET_ACCOUNT_ADDRESS"],
+                                    "STARKNET_PRIVATE_KEY": NOPREFIX["STARKNET_PRIVATE_KEY"]})
+    for echo in ("5e47a1d0c0ffee1234", "05e47a1d0c0ffee1234", "0x5e47a1d0c0ffee1234", "0x" + "5e47a1d0c0ffee1234".zfill(64),
+                 "5E47C0DE5EC12E7ABCD", "0x05e47c0de5ec12e7abcd"):
+        out = bare(f"account {echo} failed")
+        assert "5e47" not in out.lower(), (echo, out)
 
 
 def check_command_line():
@@ -285,7 +296,51 @@ def check_refusals(real, node, good_run):
         assert set(Stub.methods) <= {"starknet_chainId", "devnet_getPredeployedAccounts"}, Stub.methods
     finally:
         server.shutdown()
+    # the same, with an address and a key given without 0x (a leading zero)
+    server, url = start_stub("SN_SEPOLIA")
+    try:
+        stubbed = {**NOPREFIX, "STARKNET_RPC_URL": url}
+        Stub.echo = " ".join(stubbed.values()) + " 0x" + stubbed["STARKNET_ACCOUNT_ADDRESS"].lstrip("0")
+        run = Run(stubbed, "--artifact-run", str(good_run), "--devnet-rehearsal", "--out", "/dev/null")
+        run.refused("is not a starknet-devnet")
+    finally:
+        server.shutdown()
+    # a rehearsal's --out is never under deployments/sepolia
+    Run(real, "--artifact-run", str(good_run), "--devnet-rehearsal", "--out",
+        os.path.join(ROOT, "deployments", "sepolia", "x.json")).refused("under deployments/sepolia")
     assert nonce(node) == before, "a refusal sent a transaction"
+
+
+def check_sigterm(good_run):
+    """SIGTERM ends the run through the `finally`: the temporary folder (URL, key) is removed."""
+    import signal
+    import time
+
+    class Slow(Stub):
+        def do_POST(self):
+            time.sleep(20)
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Slow)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    logs = tempfile.mkdtemp(prefix="smoke-logs-")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("STARKNET_", "NODE_"))}
+    env.update({**NOPREFIX, "STARKNET_RPC_URL": f"http://127.0.0.1:{server.server_address[1]}",
+                "WITH_NODE_LOG_DIR": logs})
+    before = {n for n in leftovers() if n.startswith("sepolia-deploy-")}
+    process = subprocess.Popen([sys.executable, SCRIPT, "--artifact-run", str(good_run), "--dry-run",
+                                "--devnet-rehearsal", "--out", "/dev/null"], cwd=ROOT, env=env,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    for _ in range(100):  # the temporary folder exists once the script is waiting for the node
+        if {n for n in leftovers() if n.startswith("sepolia-deploy-")} - before:
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError("the script never created its temporary folder")
+    process.send_signal(signal.SIGTERM)
+    out, err = process.communicate(timeout=15)
+    server.shutdown()
+    assert process.returncode == 128 + signal.SIGTERM, (process.returncode, err)
+    assert {n for n in leftovers() if n.startswith("sepolia-deploy-")} == before, "the temporary folder stayed"
 
 
 def check_rehearsal(real, node, run_id, logs):
@@ -333,6 +388,17 @@ def check_rehearsal(real, node, run_id, logs):
     assert skills == [max(ids["skill"])], skills
     assert node.view("persistent", contracts["hub"], "account_of", int(node.address, 16)) == [0]  # no one yet
     assert node.view("ephemeral", contracts["instances"], "placement", 1) == [0, 0, 0]  # no adventurer
+    # a second rehearsal on the same node declares nothing again: every class is "already declared"
+    second_path = os.path.join(logs, "rehearsal-record-2.json")
+    again = Run(real, "--artifact-run", str(run_id), "--devnet-rehearsal", "--out", second_path)
+    assert again.code == 0, again.stderr
+    second = json.load(open(second_path))
+    assert second["classes"] == classes, "the class hashes changed"
+    assert again.stdout.count("already declared") == 16 and "declared class" not in again.stdout.replace(
+        "already declared, class", ""), again.stdout
+    assert second["transactions"] == record["transactions"] - 16, (second["transactions"], record["transactions"])
+    assert second["contracts"] != contracts, "a second deployment has other addresses"
+    assert "transaction 0x" in run.stdout and "declared class" in run.stdout and "deployed class" in run.stdout
     # the order: Registry's records were accepted (set_zone_checks was first), key 6 is GoblinsLibrary
     assert classes["goblins_library"] == list(classes.values())[-1]
     return record
@@ -351,6 +417,7 @@ def main():
     run_id = main_run()
     print(f"sepolia_deploy_smoke: artefact of run {run_id}")
     check_refusals(real, node, run_id)
+    check_sigterm(run_id)
     print("sepolia_deploy_smoke: refusals ok, nothing sent, no value leaked")
     record = check_rehearsal(real, node, run_id, logs)
     print(f"sepolia_deploy_smoke: rehearsal ok: {record['transactions']} transactions, fee "

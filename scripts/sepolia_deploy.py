@@ -44,6 +44,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -53,6 +54,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import devnet_deploy as dd  # noqa: E402  the deployment order, the seed and the node, shared
 
+REPO = "bal7hazar/grimworld"  # every `gh` call names it: the artefact is this repository's, whatever the checkout's remote
 NAME = "ops02a"  # no "sepolia" in a message: a STARKNET_NETWORK of that value would be redacted in it
 CHAIN = "SN_SEPOLIA"
 VARIABLES = ("STARKNET_NETWORK", "STARKNET_RPC_URL", "STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY")
@@ -82,8 +84,8 @@ class Redactor:
                 pieces += [p for p in re.split(r"[/?&=]", parts.path + "?" + parts.query) if len(p) >= 8]
                 self.exact += [(p, name) for p in pieces if len(p) >= 4]
             if name in ("STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY"):
-                try:
-                    self.numbers.append((int(value, 0), name))
+                try:  # with or without 0x, leading zeros or not
+                    self.numbers.append((int(value[2:] if value[:2] in ("0x", "0X") else value, 16), name))
                 except ValueError:
                     pass
         self.exact.sort(key=lambda pair: -len(pair[0]))  # the longest first: the URL before its host
@@ -93,9 +95,10 @@ class Redactor:
         for value, name in self.exact:
             text = text.replace(value, f"<{name}>")
         for number, name in self.numbers:  # 0x0abc, 0xabc, 0x000...abc: one number
-            text = re.sub(r"0[xX]0*([0-9a-fA-F]+)",
-                          lambda m, n=number, v=name: f"<{v}>" if int(m.group(1), 16) == n else m.group(0),
-                          text)
+            # 0x0abc, 0xabc, 0x000...abc, and the same without 0x (a token of 8 hex digits or more)
+            text = re.sub(r"(?<![0-9a-zA-Z])(0[xX])?0*([0-9a-fA-F]+)(?![0-9a-zA-Z])",
+                          lambda m, n=number, v=name: f"<{v}>" if (m.group(1) or len(m.group(2)) >= 8)
+                          and int(m.group(2), 16) == n else m.group(0), text)
         return text
 
 
@@ -124,10 +127,11 @@ class SepoliaNode(dd.Node):
 
     check_url = staticmethod(lambda url: None)  # this script checks the URL itself (`check_endpoint`)
 
-    def __init__(self, url, address, key, logs, files, redact):
+    def __init__(self, url, address, key, logs, files, redact, say=lambda text: None):
         super().__init__(url, address, key, logs)
         self.files = files
         self.redact = redact
+        self.say = say
         # The URL may carry an API key and `ps` shows a command line: `sncast` reads it from the
         # `snfoundry.toml` of its working folder (a private folder, 0600 file, removed with `logs`).
         self.home = os.path.join(logs, "sncast")
@@ -149,10 +153,43 @@ class SepoliaNode(dd.Node):
             del args[at:at + 2]
         return args
 
+    def sncast(self, package, *args, account=True):
+        before = len(self.sent)
+        out = super().sncast(package, *args, account=account)
+        for tx in self.sent[before:]:
+            self.say(f"transaction {tx}")
+        return out
+
+    def is_declared(self, class_hash):
+        try:
+            self.rpc("starknet_getClass", {"block_id": "latest", "class_hash": class_hash})
+            return True
+        except RuntimeError as error:
+            if "28" in str(error) or "not found" in str(error).lower():  # CLASS_HASH_NOT_FOUND
+                return False
+            raise
+
     def declare(self, package, name):
+        """A class the chain has already (an unchanged class keeps its hash; a retry meets it) is not
+        declared again: sncast 0.64 errors on it. The hash is computed from the artefact's file."""
+        path = self.files[(package, name)]
+        class_hash = hex(int(dd.field("Class Hash", super().sncast(
+            package, "utils", "class-hash", "--sierra-file", path, account=False)), 16))  # as declare prints it
+        if self.is_declared(class_hash):
+            self.say(f"{name}: already declared, class {class_hash}")
+            return class_hash
         out = self.sncast(package, "--account", self.name, "--wait", "declare-from", "--url", self.url,
-                          "--sierra-file", self.files[(package, name)])
-        return dd.field("Class Hash", out)
+                          "--sierra-file", path)
+        declared = dd.field("Class Hash", out)
+        if int(declared, 16) != int(class_hash, 16):
+            raise RuntimeError(f"{name}: declared class {declared} is not the file's {class_hash}")
+        self.say(f"{name}: declared class {declared}")
+        return declared
+
+    def deploy(self, package, class_hash, *calldata):
+        address = super().deploy(package, class_hash, *calldata)
+        self.say(f"deployed class {class_hash} at {address}")
+        return address
 
 
 def is_local(url):
@@ -206,10 +243,10 @@ def check_chain(node, rehearsal, log):
     return chain
 
 
-def gh(*args):
-    out = subprocess.run(["gh", *args], cwd=ROOT, capture_output=True, text=True)
+def gh(command, *args):
+    out = subprocess.run(["gh", *command.split(), "-R", REPO, *args], cwd=ROOT, capture_output=True, text=True)
     if out.returncode != 0:
-        raise RuntimeError(f"gh {' '.join(args[:3])}: {out.stderr.strip()[-500:]}")
+        raise RuntimeError(f"gh {command}: {out.stderr.strip()[-500:]}")
     return out.stdout
 
 
@@ -220,14 +257,18 @@ def find_run(args, log):
     if run is None:
         if not re.fullmatch(r"[0-9a-f]{40}", args.commit):
             log.die("--commit is the full 40-hex sha of a commit on main")
-        runs = json.loads(gh("run", "list", "--workflow", "ci.yml", "--branch", "main", "--event", "push",
+        runs = json.loads(gh("run list", "--workflow", "ci.yml", "--branch", "main", "--event", "push",
                              "--commit", args.commit, "--status", "success", "--limit", "5",
                              "--json", "databaseId"))
         if not runs:
             log.die(f"no successful push run of ci.yml on main for commit {args.commit}")
         run = runs[0]["databaseId"]
-    info = json.loads(gh("run", "view", str(run), "--json", "event,headBranch,headSha,url,workflowName,"
+    info = json.loads(gh("run view", str(run), "--json", "event,headBranch,headSha,url,workflowName,"
                                                            "conclusion"))
+    if not info["url"].startswith(f"https://github.com/{REPO}/actions/runs/"):
+        log.die(f"run {run}: not a run of {REPO}")
+    if info["conclusion"] != "success":
+        log.die(f"run {run}: conclusion {info['conclusion']!r}, not 'success'")
     if info["event"] != "push" or info["headBranch"] != "main":
         log.die(f"run {run}: event {info['event']!r} on branch {info['headBranch']!r}, not a push to "
                 "main (OPERATIONS §7: the artefact of a push to main, never a pull request's)")
@@ -242,7 +283,7 @@ def download(run, info, folder, log):
     """`gh run download` of `contract-classes-<sha>`; returns the class files and `build-root.json`."""
     name = f"contract-classes-{info['headSha']}"
     try:
-        gh("run", "download", str(run), "-n", name, "-D", folder)
+        gh("run download", str(run), "-n", name, "-D", folder)
     except RuntimeError as error:
         log.die(f"run {run}: no artefact {name} ({error})")
     with open(os.path.join(folder, "build-root.json")) as handle:
@@ -338,19 +379,22 @@ def run(args, log, redact, environ):
                 "never used on Sepolia)")
     if args.devnet_rehearsal and not args.out:
         log.die("--devnet-rehearsal needs --out: a rehearsal's record must not land in deployments/sepolia")
+    if args.devnet_rehearsal and os.path.abspath(args.out).startswith(RECORDS + os.sep):
+        log.die("--out is under deployments/sepolia: a rehearsal's record is never written there")
     missing = [name for name in VARIABLES if not environ.get(name)]
     if missing:
         log.die(f"{', '.join(missing)}: not set")
-    url, address = environ["STARKNET_RPC_URL"], environ["STARKNET_ACCOUNT_ADDRESS"]
-    try:
-        int(address, 16)
+    url = environ["STARKNET_RPC_URL"]
+    try:  # with or without 0x: sncast gets 0x<hex>; the redactor knows both forms
+        address = hex(int(environ["STARKNET_ACCOUNT_ADDRESS"], 16))
+        key = hex(int(environ["STARKNET_PRIVATE_KEY"], 16))
     except ValueError:
-        log.die("STARKNET_ACCOUNT_ADDRESS: not a hex address")
+        log.die("STARKNET_ACCOUNT_ADDRESS or STARKNET_PRIVATE_KEY: not hex")
     check_endpoint(url, args.devnet_rehearsal, log)
 
     logs = tempfile.mkdtemp(prefix="sepolia-deploy-")  # 0700: the accounts file holds the key
     try:
-        node = SepoliaNode(url, address, "unused", logs, {}, redact)
+        node = SepoliaNode(url, address, "unused", logs, {}, redact, log.say)
         chain = check_chain(node, args.devnet_rehearsal, log)
         run_id, info = find_run(args, log)
         name, root, files = download(run_id, info, os.path.join(logs, "artefact"), log)
@@ -370,17 +414,25 @@ def run(args, log, redact, environ):
         descriptor = os.open(descriptor_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         try:
             with os.fdopen(descriptor, "w") as handle:
-                handle.write(environ["STARKNET_PRIVATE_KEY"])
+                handle.write(key)
             node.sncast("persistent", "account", "import", "--url", url, "--name", node.name,
                         "--type", args.account_type, "--address", address,
                         "--private-key-file", descriptor_path)
         finally:
             os.remove(descriptor_path)
-        core = dd.deploy_core(node, address)
-        log.say("classes: " + ", ".join(f"{k} {v}" for k, v in core["classes"].items()))
-        log.say("contracts: " + ", ".join(f"{k} {core[k]}" for k in ("registry", "fate", "hub", "instances")))
-        dd.write_seed(node, core["registry"])
-        count, fee, unit = totals(node)
+        try:
+            core = dd.deploy_core(node, address)
+            log.say("classes: " + ", ".join(f"{k} {v}" for k, v in core["classes"].items()))
+            log.say("contracts: " + ", ".join(f"{k} {core[k]}" for k in ("registry", "fate", "hub", "instances")))
+            dd.write_seed(node, core["registry"])
+            count, fee, unit = totals(node)
+        except BaseException:  # what was sent so far, so that a retry knows what exists
+            try:
+                count, fee, unit = totals(node)
+                log.say(f"stopped after {count} transactions, fees so far {fee} {unit}", error=True)
+            except BaseException:
+                log.say(f"stopped after {len(node.sent)} transactions (fees unreadable)", error=True)
+            raise
         record = {
             "network": "Starknet Sepolia" if not args.devnet_rehearsal else "devnet rehearsal",
             "rehearsal": args.devnet_rehearsal, "chain_id": chain, "commit": info["headSha"],
@@ -405,8 +457,15 @@ def run(args, log, redact, environ):
         shutil.rmtree(logs, ignore_errors=True)
 
 
+def terminate(signum, frame):
+    """SIGTERM/SIGHUP end the run through the `finally` that removes the temporary folder (URL, key)."""
+    raise SystemExit(128 + signum)
+
+
 def main(argv, environ=os.environ):
     args = parse(argv)
+    for number in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(number, terminate)
     redact = Redactor(environ)
     log = Log(redact, os.path.join(environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node")),
                                    "sepolia-deploy.log"))
