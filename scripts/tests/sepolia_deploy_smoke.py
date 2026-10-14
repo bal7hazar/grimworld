@@ -106,10 +106,22 @@ def main_run():
 
 
 def pull_request_run():
-    runs = json.loads(gh("run", "list", "--workflow", "ci.yml", "--event", "pull_request", "--limit", "1",
-                         "--json", "databaseId"))
-    assert runs, "no pull request run of ci.yml"
+    """A finished, successful pull request run (the run of this very job is in progress, and the
+    conclusion guard would refuse it before the event guard is reached)."""
+    runs = json.loads(gh("run", "list", "--workflow", "ci.yml", "--event", "pull_request", "--status",
+                         "success", "--limit", "1", "--json", "databaseId"))
+    assert runs, "no successful pull request run of ci.yml"
     return runs[0]["databaseId"]
+
+
+def unsuccessful_main_run():
+    """A finished push run of main that did not succeed (failure or cancelled), or None."""
+    for status in ("failure", "cancelled"):
+        runs = json.loads(gh("run", "list", "--workflow", "ci.yml", "--branch", "main", "--event", "push",
+                             "--status", status, "--limit", "1", "--json", "databaseId"))
+        if runs:
+            return runs[0]["databaseId"]
+    return None
 
 
 def leftovers():
@@ -259,6 +271,12 @@ def check_refusals(real, node, good_run):
     before = nonce(node)
     run = Run(real, "--artifact-run", str(pr), "--devnet-rehearsal", "--out", "/dev/null")
     run.refused("not a push to main")
+    failed = unsuccessful_main_run()  # the conclusion guard, apart from the event guard above
+    if failed is None:
+        print("sepolia_deploy_smoke: no unsuccessful push run of main to check the conclusion guard")
+    else:
+        Run(real, "--artifact-run", str(failed), "--devnet-rehearsal", "--out", "/dev/null").refused(
+            "not 'success'")
     for option in ("--give-build", "--credit-only", "--build=full", "--deployment=x", "--account=1",
                    "--key-env=X", "--adventurer=1", "--salt=1"):
         run = Run(real, "--artifact-run", str(good_run), "--devnet-rehearsal", "--out", "/dev/null", option)
