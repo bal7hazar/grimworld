@@ -3460,13 +3460,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "  perceive(world, rules.board);\n",
     to: "",
   },
+  // Killed by tick.jsonl 133 (RV-03d)
   {
     name: "step 2 runs after step 1 stopped",
     file: "tick.ts",
     from: "if (!stopped && !step(world, sheets, rules, resolved)) regenerate(world, sheets);",
     to: "if (!step(world, sheets, rules, resolved) && !stopped) regenerate(world, sheets);",
-    survives:
-      "no row downs the adventurer in step 1 with a companion alive and a goblin free to act: with no living member the step acts on nothing",
   },
   {
     name: "step 3 runs after step 2 stopped",
@@ -3547,16 +3546,15 @@ const MUTANTS: readonly Mutant[] = [
     file: "tick.ts",
     from: "      if (d < near) near = d;",
     to: "      if (d < near || near === FAR) near = d;",
-    survives:
-      "no perception row with two members in the window, so a goblin's distance is to its one member",
+    equivalent:
+      "`near` is `FAR` only while every member read so far is at `FAR`, and `distance` is at most `FAR` (`FAR` outside the window, else a length inside it), so both leave `near` at `min(near, d)` (`types/world.cairo` 568–574): track game's ruling, RV-03d (`vectors/README.md`, `tick.jsonl`)",
   },
+  // Killed by tick.jsonl 143 (RV-03d)
   {
     name: "a goblin that noticed one member un-notices with the next",
     file: "tick.ts",
     from: "      if (goblinModel.is_alive(goblin) && !noticed) {",
     to: "      if (goblinModel.is_alive(goblin)) {",
-    survives:
-      "no perception row with two members in the window, the first noticed and the second not",
   },
   {
     name: "the pack's split at 6 goblins",
@@ -3564,20 +3562,19 @@ const MUTANTS: readonly Mutant[] = [
     from: "(offset % stride) / 5n",
     to: "(offset % stride) / 6n",
   },
+  // Killed by tick.jsonl 144 (RV-03d)
   {
     name: "the pack ignores the chunk",
     file: "tick.ts",
     from: "mul(u16, div(u16, offset, stride), 2n)",
     to: "mul(u16, div(u16, offset, stride), 0n)",
-    survives:
-      "no perception row with goblins of two chunks: a goblin of chunk 1 asleep beside a noticing goblin of chunk 0 (both pack 0 of their chunk)",
   },
+  // Killed by tick.jsonl 145 (RV-03d)
   {
     name: "an Alerted goblin of a noticing pack stays Alerted",
     file: "tick.ts",
     from: "      goblin.ai <= ai.ALERTED &&",
     to: "      goblin.ai < ai.ALERTED &&",
-    survives: "no perception row with an Alerted goblin in a pack another goblin of which notices",
   },
   {
     name: "a noticing pack engages every goblin",
@@ -3597,13 +3594,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "asleep: goblin.ai === ai.ASLEEP,",
     to: "asleep: false,",
   },
+  // Killed by tick.jsonl 139 and 140 (RV-03d)
   {
     name: "step 1 runs a carrier whose target is no longer legal",
     file: "tick.ts",
     from: "  if (!legal(world, sheets, rules.board, actor, carried, address)) return;\n",
     to: "",
-    survives:
-      "no row whose concluding activation's target has died or left the reach since it started (`legal` false at `A`)",
   },
   {
     name: "step 1's carrier runs at the clock before",
@@ -3623,20 +3619,19 @@ const MUTANTS: readonly Mutant[] = [
     from: "      member.status === 0 &&\n      member.health > 0\n",
     to: "      member.health > 0\n",
   },
+  // Killed by tick.jsonl 134 (RV-03d)
   {
     name: "a member's conclusion that downs the adventurer does not stop step 1",
     file: "tick.ts",
     from: "      if (is_down(world)) return [true, 0];\n",
     to: "",
-    survives: "no row where a member's concluding carrier brings a member inside to 0",
   },
+  // Killed by tick.jsonl 157 (RV-03d)
   {
     name: "a goblin's slot 3 activation is not one",
     file: "tick.ts",
     from: "    if (slot <= activation.LAST_SLOT) {",
     to: "    if (slot < activation.LAST_SLOT) {",
-    survives:
-      "no row with a goblin activating its caste slot 3 (the Hob's slot 3 is an instant shout)",
   },
   {
     name: "a goblin's activation lapses at its deadline",
@@ -3650,12 +3645,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "      if (deadline <= t && goblinModel.is_alive(goblin)) {",
     to: "      if (deadline <= t + 1 && goblinModel.is_alive(goblin)) {",
   },
+  // Killed by tick.jsonl 137 (RV-03d)
   {
     name: "a dead goblin's activation concludes or lapses",
     file: "tick.ts",
     from: "      if (deadline <= t && goblinModel.is_alive(goblin)) {",
     to: "      if (deadline <= t) {",
-    survives: "no row where a goblin activating is killed in step 1 before its turn",
   },
   {
     name: "a goblin that resolved acts in step 2",
@@ -3693,13 +3688,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "} else if (slot === activation.RECOVERING && deadline < t) {",
     to: "} else if (false) {",
   },
+  // Killed by tick.jsonl 135 (RV-03d)
   {
     name: "the awake set concludes in descending id",
     file: "tick.ts",
     from: "  for (let k = 0; k < set.length; k++) {\n    const index = set[k]!;\n    const goblin = { ...at(world.goblins, index) };\n    const slot",
     to: "  for (let k = set.length - 1; k >= 0; k--) {\n    const index = set[k]!;\n    const goblin = { ...at(world.goblins, index) };\n    const slot",
-    survives:
-      "no row with two goblins concluding at `T` whose order changes the result (one's carrier reaching the other)",
   },
   {
     name: "the goblins conclude before the members",
@@ -3737,12 +3731,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "    if (!goblinModel.is_alive(goblin) || goblin.awake) continue;",
     to: "    if (!goblinModel.is_alive(goblin)) continue;",
   },
+  // Killed by tick.jsonl 161 (RV-03d)
   {
     name: "the frozen tiles hold the dead goblins'",
     file: "tick.ts",
     from: "    if (!goblinModel.is_alive(goblin) || goblin.awake) continue;",
     to: "    if (goblin.awake) continue;",
-    survives: "no row with a dead goblin outside the awake set on a walker's path",
   },
   {
     name: "the roster counts the goblins at home",
@@ -3762,12 +3756,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "    world.members[m] = member;\n",
     to: "",
   },
+  // Killed by tick.jsonl 165 (RV-03d)
   {
     name: "step 2's kills not recorded",
     file: "tick.ts",
     from: "  world.killed.push(...out.words.killed);\n  return is_down(world);",
     to: "  return is_down(world);",
-    survives: "no row where a goblin dies in step 2 (a goblin's carrier or a trap killing one)",
   },
   {
     name: "step 2 never stops the tick",
@@ -3781,13 +3775,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "const engaged = world.goblins.some((goblin) => goblin.awake && goblin.ai === ai.ENGAGED);",
     to: "const engaged = false;",
   },
+  // Killed by tick.jsonl 146 (RV-03d)
   {
     name: "an Engaged goblin outside the awake set counts as combat",
     file: "tick.ts",
     from: "const engaged = world.goblins.some((goblin) => goblin.awake && goblin.ai === ai.ENGAGED);",
     to: "const engaged = world.goblins.some((goblin) => goblin.ai === ai.ENGAGED);",
-    survives:
-      "no row with an Engaged goblin outside the awake set and a member's adrenaline above 0 (row 55's member holds none)",
   },
   {
     name: "an Alerted goblin counts as combat",
@@ -3852,24 +3845,22 @@ const MUTANTS: readonly Mutant[] = [
     file: "ai.ts",
     from: "      goblinModel.is_alive(goblin) &&\n      (resolved & (2 ** k)) === 0\n    ) {",
     to: "      (resolved & (2 ** k)) === 0\n    ) {",
-    survives:
-      "no row with a goblin killed in step 1 in the awake set beside another free to act, so `AiLibrary` is called with the dead one in its set",
+    equivalent:
+      "`act` returns at once for a state other than Engaged, Alerted or Fleeing (`types/ai.cairo` 240–243), and a goblin not alive is `DEAD` or `LOOTED` (`is_alive` is `ai < DEAD`, `models/goblin.cairo` 236–238), so it acts on nothing; the `is_down` check it then reaches sees a world unchanged since the last, never down inside step 2 (step 1 stops the tick when a member is): track game's ruling, RV-03d (`vectors/README.md`, `tick.jsonl`)",
   },
+  // Killed by tick.jsonl 136 (RV-03d)
   {
     name: "a goblin that resolved acts (AiTrait)",
     file: "ai.ts",
     from: "      goblinModel.is_alive(goblin) &&\n      (resolved & (2 ** k)) === 0\n    ) {",
     to: "      goblinModel.is_alive(goblin)\n    ) {",
-    survives:
-      "no row with two goblins awake, one resolving in step 1 and the other free to act, so `AiLibrary` is called with the resolved one in its set",
   },
+  // Killed by tick.jsonl 132 (RV-03d)
   {
     name: "the step does not stop when the adventurer reaches 0",
     file: "ai.ts",
     from: "      if (is_down(world)) return [true, attacks];\n",
     to: "",
-    survives:
-      "no row downs the adventurer in step 2 with a companion alive in the window: the goblins after then find no living target and act on nothing",
   },
   {
     name: "the goblins act in descending id",
@@ -3877,13 +3868,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "  for (let k = 0; k < woken.length; k++) {",
     to: "  for (let k = woken.length - 1; k >= 0; k--) {",
   },
+  // Killed by tick.jsonl 166 (RV-03d)
   {
     name: "the roster's count leaves out the awake set's",
     file: "ai.ts",
     from: "const state: Step = { flood: undefined, listed: u8add(rules.listed, away(world)) };",
     to: "const state: Step = { flood: undefined, listed: rules.listed };",
-    survives:
-      "no row with an awake goblin away from its spawn chunk at a full roster (rows 129, 130: the walker is at home, the 59 or 60 others frozen)",
   },
   {
     name: "an Alerted goblin does nothing",
@@ -3921,13 +3911,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "    if (legal(world, sheets, rules.board, source, weapon, address)) {",
     to: "    if (true) {",
   },
+  // Killed by tick.jsonl 148 (RV-03d)
   {
     name: "a weapon attack does not turn the goblin",
     file: "ai.ts",
     from: "      goblinModel.set_place(moved, x, y, facing(from, target_at, facing0));",
     to: "      goblinModel.set_place(moved, x, y, facing0);",
-    survives:
-      "no row where a goblin attacks with its weapon while not facing its target (every row's goblins face the adventurer)",
   },
   {
     name: "a weapon attack does not recover",
@@ -3959,13 +3948,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "    world.goblins[index] = { ...goblin, ai: ai.ENGAGED };",
     to: "    world.goblins[index] = { ...goblin, ai: ai.FLEEING };",
   },
+  // Killed by tick.jsonl 153 (RV-03d)
   {
     name: "an empty caste slot read",
     file: "ai.ts",
     from: "    if (position === ABSENT || !(t > goblinModel.recharge(goblin, slot))) continue;",
     to: "    if (!(t > goblinModel.recharge(goblin, slot))) continue;",
-    survives:
-      "no row where an Engaged Runt (slots 2 and 3 empty) reaches its empty slots: `armed` sets every slot recharging, and its slot 0 is used first otherwise",
   },
   {
     name: "a skill recharging to T usable",
@@ -4003,12 +3991,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "    if (first.kind === kind.TRAP || goblin.energy < energy || goblin.adrenaline < adrenaline) {",
     to: "    if (first.kind === kind.TRAP || goblin.energy < energy || goblin.adrenaline <= adrenaline) {",
   },
+  // Killed by tick.jsonl 154 (RV-03d)
   {
     name: "a caste skill at rank 0",
     file: "ai.ts",
     from: "      rank: at(sheets.castes, goblin.caste_at).rank,\n    };",
     to: "      rank: 0,\n    };",
-    survives: "no row where a goblin's skill used now has entries that change with the rank",
   },
   {
     name: "a skill whose target is no longer legal used",
@@ -4022,13 +4010,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (sheet_kind === skill_kind.ATTACK || addressing === addressed.FOE) return [address, target_at];",
     to: "if (addressing === addressed.FOE) return [address, target_at];",
   },
+  // Killed by tick.jsonl 156 (RV-03d)
   {
     name: "a TILE skill addresses the target's row by 255",
     file: "ai.ts",
     from: "    return [x + 256 * y, target_at];",
     to: "    return [x + 255 * y, target_at];",
-    survives:
-      "no row where a goblin uses a skill addressing a `TILE` (`AiTrait::address`'s `x + 256 y`)",
   },
   {
     name: "a SELF skill faces its target",
@@ -4048,20 +4035,19 @@ const MUTANTS: readonly Mutant[] = [
     from: "  used.adrenaline = u8sub(used.adrenaline, Number(narrowU8(adrenaline)));\n",
     to: "",
   },
+  // Killed by tick.jsonl 149 (RV-03d)
   {
     name: "a skill does not turn the goblin",
     file: "ai.ts",
     from: "  goblinModel.set_place(used, x, y, facing(from, to, facing0));",
     to: "  goblinModel.set_place(used, x, y, facing0);",
-    survives: "no row where a goblin uses a skill on a target it does not face",
   },
+  // Killed by tick.jsonl 151 (RV-03d)
   {
     name: "an activation of 1 lands now",
     file: "ai.ts",
     from: "  if (sheet.activation >= 1) {",
     to: "  if (sheet.activation > 1) {",
-    survives:
-      "no row where a goblin starts a skill of activation 1 (the Runt's slot 1, after its slot 0 recharging)",
   },
   {
     name: "an activation's deadline one later",
@@ -4081,13 +4067,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "    gm.recover(used, at(sheets.kits, used.caste_at).weapon_ticks, t);\n  }\n  world.goblins[source.i] = used;",
     to: "  }\n  world.goblins[source.i] = used;",
   },
+  // Killed by tick.jsonl 152, 154 and 156 (RV-03d)
   {
     name: "every instant skill recovers",
     file: "ai.ts",
     from: "  if (sheet.kind === skill_kind.ATTACK) {",
     to: "  if (true) {",
-    survives:
-      "no row where a goblin whose weapon costs `k > 1` (a Runt) uses an instant skill that is not an attack (the Runt's caste holds only attack skills)",
   },
   {
     name: "an instant skill's carrier not run",
@@ -4103,13 +4088,12 @@ const MUTANTS: readonly Mutant[] = [
     equivalent:
       "the frozen tiles are the flood's obstacles, so never in a layer, and both `next_step` and `next_step_away` choose among the layers' tiles: `blocked`'s frozen part removes nothing more",
   },
+  // Killed by tick.jsonl 162 (RV-03d)
   {
     name: "the flood ignores the frozen tiles",
     file: "ai.ts",
     from: "  state.flood ??= flood(world, board, rules.frozen);",
     to: "  state.flood ??= flood(world, board, 0n);",
-    survives:
-      "no row where a frozen goblin lies on a walker's shortest path, so that the flood around it changes the step",
   },
   {
     name: "the flood computed at every walker",
@@ -4135,36 +4119,33 @@ const MUTANTS: readonly Mutant[] = [
     from: "    if (state.listed >= MAX_ROSTER) return true;",
     to: "    if (state.listed > MAX_ROSTER) return true;",
   },
+  // Killed by tick.jsonl 170 (RV-03d)
   {
     name: "a goblin held by the roster is cornered",
     file: "ai.ts",
     from: "    if (state.listed >= MAX_ROSTER) return true;",
     to: "    if (state.listed >= MAX_ROSTER) return false;",
-    survives: "no row with a Fleeing goblin held by a full roster (it stays Fleeing)",
   },
+  // Killed by tick.jsonl 167 (RV-03d)
   {
     name: "a step out of the spawn chunk takes no roster entry",
     file: "ai.ts",
     from: "    state.listed = u8add(state.listed, 1);\n",
     to: "",
-    survives:
-      "no row with two walkers stepping out of their spawn chunks in one step, the second at a full roster",
   },
+  // Killed by tick.jsonl 169 (RV-03d)
   {
     name: "a step back home frees no roster entry",
     file: "ai.ts",
     from: "    state.listed = u8sub(state.listed, 1);\n",
     to: "",
-    survives:
-      "no row where a goblin steps back into its spawn chunk before another steps out at a full roster",
   },
+  // Killed by tick.jsonl 166 and 168 (RV-03d)
   {
     name: "a step between two chunks away from home takes a roster entry",
     file: "ai.ts",
     from: "  if (here === spawn && there !== spawn) {",
     to: "  if (there !== spawn) {",
-    survives:
-      "no row where a goblin away from its spawn chunk steps into another chunk not its own at a full roster",
   },
   {
     name: "a step does not turn the goblin",
@@ -4172,12 +4153,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "  goblinModel.set_place(moved, nx, ny, facing(from, to, facing0));",
     to: "  goblinModel.set_place(moved, nx, ny, facing0);",
   },
+  // Killed by tick.jsonl 159 (RV-03d)
   {
     name: "a goblin's MOVEMENT effect not read",
     file: "ai.ts",
     from: "  const cost = gm.move_ticks(moved, t, movement(moved, sheets, t));",
     to: "  const cost = gm.move_ticks(moved, t, false);",
-    survives: "no row where a crippled goblin holding a `MOVEMENT` effect steps (FX-18)",
   },
   {
     name: "a crippled step does not recover",
@@ -4191,13 +4172,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "  enter(world, sheets, rules, index, to);\n",
     to: "",
   },
+  // Killed by tick.jsonl 147 (RV-03d)
   {
     name: "the flood from an unwalkable tile",
     file: "ai.ts",
     from: "  if (from >= FAR || (board.open & (1n << BigInt(from))) === 0n) return undefined;",
     to: "  if (from >= FAR) return undefined;",
-    survives:
-      "no row with the adventurer on a tile the board's window does not hold walkable (`flood` returns `None`, `Bfs::flood` would panic)",
   },
   {
     name: "the flood's obstacles hold the adventurer",
@@ -4205,35 +4185,33 @@ const MUTANTS: readonly Mutant[] = [
     from: "  const obstacles = felt(occupancy(world, board, from), frozen);",
     to: "  const obstacles = felt(occupancy(world, board, undefined), frozen);",
   },
+  // Killed by tick.jsonl 163 (RV-03d)
   {
     name: "the flood one layer short",
     file: "ai.ts",
     from: "export const FLOOD_DEPTH = 15;",
     to: "export const FLOOD_DEPTH = 14;",
-    survives: "no row with a walker 15 layers from the adventurer (D-127's cap)",
   },
+  // Killed by tick.jsonl 138 (RV-03d)
   {
     name: "a dead goblin's tile occupied",
     file: "ai.ts",
     from: "    if (!goblinModel.is_alive(goblin)) continue;\n    const { x, y } = goblinModel.place(goblin);\n    mark(",
     to: "    const { x, y } = goblinModel.place(goblin);\n    mark(",
-    survives: "no row with a dead goblin in the awake set (killed in step 1) on a walker's path",
   },
+  // Killed by tick.jsonl 142 (RV-03d)
   {
     name: "the goblins' target a member down",
     file: "ai.ts",
     from: "    if (is_alive(member) && position < FAR) return [m, position];",
     to: "    if (position < FAR) return [m, position];",
-    survives:
-      "no row with member 0 down or gone and a companion alive, so the target is always member 0",
   },
+  // Killed by tick.jsonl 141 (RV-03d)
   {
     name: "the goblins' target a member outside the window",
     file: "ai.ts",
     from: "    if (is_alive(member) && position < FAR) return [m, position];",
     to: "    if (is_alive(member)) return [m, position];",
-    survives:
-      "no row with member 0 outside the board's window (`play` never passes one; the class's input may)",
   },
   {
     name: "the goblins away count those at home",
@@ -4247,27 +4225,27 @@ const MUTANTS: readonly Mutant[] = [
     from: "  Number(add(u8, mul(u8, BigInt(Math.floor(y / 15)), 15n), BigInt(Math.floor(x / 15))));",
     to: "  Number(add(u8, mul(u8, BigInt(Math.floor(y / 15)), 16n), BigInt(Math.floor(x / 15))));",
   },
+  // Killed by tick.jsonl 160 (RV-03d)
   {
     name: "a MOVEMENT effect held past its deadline",
     file: "ai.ts",
     from: "  if (goblin.effect_at === ABSENT || t > goblin.effect_deadline) return false;",
     to: "  if (goblin.effect_at === ABSENT || t > goblin.effect_deadline + 1) return false;",
-    survives: "no row where a crippled goblin steps one tick after its `MOVEMENT` effect ended",
   },
+  // Killed by tick.jsonl 165 (RV-03d)
   {
     name: "an entered trap's kills not recorded",
     file: "ai.ts",
     from: "  world.killed.push(...out.words.killed);\n  return out.triggered;",
     to: "  return out.triggered;",
-    survives: "no row where a trap kills the goblin entering it (row 113: 100 to 44)",
   },
   {
     name: "an entered trap's members not written back",
     file: "ai.ts",
     from: "    world.members[m] = loadMember(words, sheets);\n",
     to: "",
-    survives:
-      "no row where a trap a goblin enters changes a member (a trap's entrant alone is written; a goblin's placer is never a member)",
+    equivalent:
+      "a trap writes its entrant alone: `ExecutorTrait::trigger` gives every entry the entrant as its set and writes only it (`types/executor.cairo` 2064–2090, `executor.ts`' `trigger`), and `TrapTrait::trigger` reads the placer and writes the ground (`types/trap.cairo` 189–228), so the members cross `TrapLibrary` unchanged and their write-back reloads the same members: track game's ruling, RV-03d (`vectors/README.md`, `tick.jsonl`)",
   },
   {
     name: "a goblin's weapon of 1 tick recovers",
@@ -4299,13 +4277,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (skill.kind === skill_kind.ATTACK && k >= n + 2) {",
     to: "if (skill.kind === skill_kind.ATTACK && k > n + 2) {",
   },
+  // Killed by tick.jsonl 155 and 157 (RV-03d)
   {
     name: "FX-15's recovery of any skill",
     file: "body/goblin.ts",
     from: "if (skill.kind === skill_kind.ATTACK && k >= n + 2) {",
     to: "if (k >= n + 2) {",
-    survives:
-      "no row where a goblin concludes a skill that is not an attack with a weapon of `k \u2265 n + 2` (the Runt holds only attack skills)",
   },
   {
     name: "FX-15's recovery one tick longer",
@@ -4319,21 +4296,19 @@ const MUTANTS: readonly Mutant[] = [
     from: "    goblin.act_deadline,\n    caste_skill(goblin, slot, sheets).recharge,",
     to: "    goblin.act_deadline + 1,\n    caste_skill(goblin, slot, sheets).recharge,",
   },
+  // Killed by tick.jsonl 150 (RV-03d)
   {
     name: "a lapse's recharge replaces a later one",
     file: "body/goblin.ts",
     from: "  if (deadline > recharge(goblin, slot)) set_recharge(goblin, slot, deadline);",
     to: "  set_recharge(goblin, slot, deadline);",
-    survives:
-      "no row where a lapsed activation's `A + r \u2212 1` is below the slot's stored recharge",
   },
+  // Killed by tick.jsonl 154, 155, 156, 157 and 158 (RV-03d)
   {
     name: "a goblin's caste regeneration not read",
     file: "body/goblin.ts",
     from: "    health_regen(goblin, sheets) +\n",
     to: "",
-    survives:
-      "no row with a caste of health regeneration other than 10 (0 pips): the table's castes hold none",
   },
   {
     name: "a goblin's conditions do not degenerate",
@@ -4389,13 +4364,12 @@ const MUTANTS: readonly Mutant[] = [
     from: '    return { kind: "Skill", at: position(member, slot), rank: rank(member, slot) };',
     to: '    return { kind: "Skill", at: position(member, slot), rank: 0 };',
   },
+  // Killed by tick.jsonl 155 (RV-03d)
   {
     name: "a goblin's concluded carrier at rank 0",
     file: "executor.ts",
     from: "    rank: at(sheets.castes, goblin.caste_at).rank,\n  };\n}",
     to: "    rank: 0,\n  };\n}",
-    survives:
-      "no row where a goblin's concluding skill's entries change with the rank (`v0` and `v12` equal, or a hit whose strength the rank does not read)",
   },
   {
     name: "a SELF carrier's target checked",
@@ -4405,12 +4379,12 @@ const MUTANTS: readonly Mutant[] = [
     equivalent:
       "a `SELF` carrier's address is its source (`aim`, `AiTrait::address`), alive when it concludes or acts and on its own tile, in every reach; the source is inside the window: member 0 centres it, and an awake goblin is in it",
   },
+  // Killed by tick.jsonl 139 (RV-03d)
   {
     name: "a dead target legal",
     file: "executor.ts",
     from: "    if (!alive) return false;\n    to = position;",
     to: "    to = position;",
-    survives: "no row whose concluding activation's target is dead at `A`",
   },
   {
     name: "any reach legal",
@@ -4418,12 +4392,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "  return inReach(board.open, from, to, reach);",
     to: "  return true;",
   },
+  // Killed by tick.jsonl 164 (RV-03d)
   {
     name: "a step away at the cap ignores the last layer",
     file: "movement.ts",
     from: "  if (capped(flood)) {\n    const top",
     to: "  if (false) {\n    const top",
-    survives: "no row with a Fleeing goblin on a flood stopped at its cap (15 layers)",
   },
   {
     name: "a step away takes the least layer",
@@ -4431,12 +4405,12 @@ const MUTANTS: readonly Mutant[] = [
     from: "  const hit = last(layers, free);",
     to: "  const hit = layers.map((layer) => layer & free).find((h) => h !== 0n);",
   },
+  // Killed by tick.jsonl 164 (RV-03d)
   {
     name: "a step away at the cap from an unreached walker",
     file: "movement.ts",
     from: "      if (source(flood, position) || last(layers, near) !== undefined) return lowest(top);\n      return undefined;",
     to: "      return lowest(top);",
-    survives: "no row with a Fleeing goblin beyond a flood stopped at its cap",
   },
   {
     name: "ticks of a defeated adventurer run",

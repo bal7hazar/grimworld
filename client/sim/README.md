@@ -271,9 +271,11 @@ Step 1's and step 2's carriers run on their call's whole world (lot E's reading 
 sub-world). `segment.ts`'s `path` is `SegmentTrait::ticks`' choice (the class, the fast path,
 none), which `tick.jsonl`'s `skip` rows hold.
 
-`tick.jsonl`'s rows are its README's: row 0 the content, 120 `ticks` rows (one call of the class
-each) and 10 `skip` rows. `segment2.jsonl`'s `ticks` calls (25, in rows 2–4, 6, 10, 12–14, 16–22,
-25, 29, 46 and 47) are computed by the port and equal their recordings (`src/parity/parity.test.ts`).
+`tick.jsonl`'s rows are its README's: rows 0 and 131 the content (each row reads the last `content`
+row at or before it, `contentRow`: rows 1–130 row 0's, rows 132–170 row 131's, RV-03d), 159
+`ticks` rows (one call of the class each) and 10 `skip` rows. `segment2.jsonl`'s `ticks` calls
+(25, in rows 2–4, 6, 10, 12–14, 16–22, 25, 29, 46 and 47) are computed by the port and equal their
+recordings (`src/parity/parity.test.ts`).
 
 Of the tick's 156 mutants, 103 are killed by the tables (and three earlier survivors with them:
 the fast path's adrenaline decay, `tick.jsonl` row 20; `entries`' dead entrant and the actors'
@@ -282,31 +284,14 @@ position order, row 85). Eight are `equivalent`: the attackers' cap (the awake s
 mutants: `AiTrait::capped` checks the same, and acts on none); a member at 0 read by perception or
 regenerated in step 3 (two: the tick stops first); a `SELF` carrier's target checked (its source,
 alive, on its own tile); the frozen tiles in a step's `blocked` (they are the flood's obstacles,
-never in a layer). 45 survive, holes of `tick.jsonl` reported to track game:
-
-- perception: no row with two members in the window (a goblin's nearest; a notice by the first
-  undone by the second); no goblins of two chunks (the pack's chunk); no Alerted goblin in a
-  noticing pack;
-- step 1: no two goblins concluding at `T` whose order matters; no goblin activating its caste slot
-  3; no goblin killed in step 1 while activating; no activation whose target has died or left the
-  reach (`legal`, and its dead target); no lapse below the stored recharge; no concluding skill
-  that is not an attack with `k ≥ n + 2`; no concluding caste skill whose entries change with the
-  rank; no member's carrier bringing a member to 0; no member down or gone before a companion (the
-  goblins' target), nor member 0 outside the board's window;
-- step 2: no companion alive when the adventurer is downed in step 1 or 2; no awake set holding a
-  resolved or dead goblin beside one free to act (`capped`'s checks, two mutants);
-  no Runt reaching its empty slots 2 and 3; no goblin starting an activation of 1; no instant
-  non-attack skill of a goblin whose weapon costs `k > 1`; no goblin skill addressing a `TILE`; no
-  caste skill used now whose entries change with the rank; no goblin turning to use a skill or its
-  weapon (they all face the adventurer); no `MOVEMENT` effect held by a crippled goblin stepping
-  (two mutants); no flood stopped at its cap (three: `FLOOD_DEPTH`, `next_step_away`'s top layer
-  and its unreached walker); no frozen goblin on a shortest path; no dead goblin on a path (awake
-  or frozen); no adventurer on an unwalkable tile; the roster (D-238): no awake goblin away at a
-  full roster, no two walkers leaving in one step, no step between two chunks away from home, no
-  step home freeing an entry, no Fleeing goblin held by a full roster; no trap killing its entrant
-  or changing a member; no goblin dying in step 2;
-- step 3: no caste whose health regeneration is not 0 pips; no Engaged goblin outside the set with
-  a member's adrenaline above 0.
+never in a layer). 45 survived, holes of `tick.jsonl` reported to track game; RV-03d's rows 132–170
+kill 42 of them (CLI-10o: each mark is now a kill naming its rows in `src/parity/mutants.test.ts`).
+The other three are `equivalent` by track game's ruling in RV-03d
+(`contracts/logic/vectors/README.md`, `tick.jsonl`), checked against the code and the mirror: an entered trap's members not written back
+(a trap writes its entrant alone, so the members cross `TrapLibrary` unchanged); a goblin's nearest
+member its farthest (`distance` is at most `FAR`, so `near` stays `min(near, d)`); a dead goblin
+acting (`act` returns at once for a state other than Engaged, Alerted or Fleeing). None of the
+tick's mutants survives.
 
 "`fits` compares with the goblins before the segment" is `equivalent` since track game's ruling in
 RV-03a2 (`contracts/logic/vectors/README.md`, `segment2.jsonl`): it differs only for a goblin whose
@@ -333,8 +318,8 @@ side fails until both agree.
   crash (a TypeError, a ReferenceError, a stack overflow) must say with `crash` why the crash is
   the mutant's own divergence; otherwise it fails, as a broken mutant. A mutant no input tells
   from the mirror is marked `equivalent`: neither the tables nor the unit tests' cases may kill it.
-  Of the 693 mutants, 51 survive and 15 are `equivalent` (since RV-03a2's rows, CLI-10m; 78 and 13
-  before). The mutants run in a pool of at most four
+  Of the 693 mutants, 6 survive and 18 are `equivalent` (since RV-03d's rows, CLI-10o; 51 and 15
+  before, 78 and 13 before RV-03a2's). The mutants run in a pool of at most four
   worker threads (`src/parity/mutate.ts`), each a few dozen mutants then a fresh one: no copy is
   written, a module hook serves the mutated file and the modules that import it from memory, and
   the modules the mutant does not reach are loaded once per worker and shared.
