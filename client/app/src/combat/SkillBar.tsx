@@ -130,7 +130,8 @@ export function usePress(onTap: () => void, onInspect: () => void) {
     stop();
     if (!up.current) pressed.current = false;
   };
-  // A touch long press already fired `onInspect`; the `contextmenu` it also raises must not repeat it.
+  // A touch long press raises `contextmenu` too, before or after the timer (Android's long press is
+  // often 400 ms): whichever comes first inspects and marks the press handled, the other does nothing.
   const touched = useRef(false);
   return {
     onClick: () => {
@@ -139,7 +140,10 @@ export function usePress(onTap: () => void, onInspect: () => void) {
     },
     onContextMenu: (event: MouseEvent) => {
       event.preventDefault();
-      if (!(touched.current && pressed.current)) onInspect();
+      stop();
+      if (touched.current && pressed.current) return;
+      if (touched.current) pressed.current = true;
+      onInspect();
     },
     onPointerDown: (event: { pointerType: string }) => {
       up.current = false;
