@@ -189,6 +189,47 @@ const refusedSend = (error: unknown): boolean =>
     error.code === "refused" &&
     !(error.cause instanceof Error && error.cause.name === "ChainRefused"));
 
+/**
+ * The Starknet JSON-RPC error codes taken as "the chain refused this set_build" (starknet.js
+ * `RpcError.code`): 41 TRANSACTION_EXECUTION_ERROR. In the installed spec
+ * (`@starknet-io/starknet-types-0104`, methods.d.ts) `starknet_estimateFee` reports any failure of
+ * the simulation as 41, a nonce or validation failure included (its errors are only 41, 24 and 20),
+ * so 41 at estimate time covers a revert AND a stale nonce or a failed validation. The fallback
+ * accepts that: inside `enter` each run waits for `succeeded` before the next send, so a nonce
+ * clash needs a concurrent sender on the same burner, and telling the cases apart would need
+ * `data.execution_error`. 40 CONTRACT_ERROR is kept for older nodes (in 0.10.4 it is
+ * `starknet_call`'s). The other codes propagate: 52 INVALID_TRANSACTION_NONCE only reaches us from
+ * `starknet_addInvokeTransaction`, as do 53 INSUFFICIENT_RESOURCES_FOR_VALIDATE (the 0.10.4 name,
+ * as `send.ts` has it), 54 INSUFFICIENT_ACCOUNT_BALANCE, 55 VALIDATION_FAILURE, 59 DUPLICATE_TX and
+ * 63 UNEXPECTED_ERROR, with the rate limits and node errors beyond the spec.
+ */
+const EXECUTION_REFUSED_CODES: ReadonlySet<number> = new Set([40, 41]);
+
+/**
+ * The code of the `RpcError` an `AccountError("refused")` keeps in `cause`: read by shape
+ * (`baseError.code`, which starknet.js's `RpcError.code` returns), because this module imports
+ * nothing of starknet (`network.test.ts`, `vendor.test.ts`).
+ */
+function rpcCode(cause: unknown): number | undefined {
+  if (!(cause instanceof Error) || !("baseError" in cause)) return undefined;
+  const { baseError } = cause;
+  if (typeof baseError !== "object" || baseError === null || !("code" in baseError))
+    return undefined;
+  return typeof baseError.code === "number" ? baseError.code : undefined;
+}
+
+/**
+ * The chain refused the full build: the fee estimate was refused by an execution error (the
+ * `RpcError` that `AccountError("refused")` keeps in `cause`), or the execution ran and failed. Any
+ * other `AccountError` (a nonce error, a rate limit, a node hiccup) or `SetupFailed` (a status that
+ * stayed `unknown`) is not a refusal of the build.
+ */
+const refusedBuild = (error: unknown): boolean =>
+  (error instanceof SetupFailed && error.status === "failed") ||
+  (error instanceof AccountError &&
+    error.code === "refused" &&
+    EXECUTION_REFUSED_CODES.has(rpcCode(error.cause) ?? -1));
+
 /** Until no credit runs: polled at the execution's pace. */
 async function idle(deps: SetupDeps, credit: Credit): Promise<void> {
   for (;;) {
@@ -282,7 +323,7 @@ export async function enter(deps: SetupDeps, adventurerId: number): Promise<void
         call(deps.hub, "set_build", id, bar, beltWord(build.belt), 0n),
       ]);
     } catch (error) {
-      if (!refusedSend(error)) throw error;
+      if (!refusedBuild(error)) throw error;
       await run(deps, "set_build", [call(deps.hub, "set_build", id, bar, 0n, 0n)]);
     }
     await runAround(deps, "enter", [call(deps.hub, "enter", id, BigInt(START_GATE))]);

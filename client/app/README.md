@@ -313,6 +313,8 @@ carries SEED-02's build: the four bar skills and the belt of the healing potion 
   environment, so it runs against the deployment's node. `vite build` carries none of it, and the
   app's client of it is behind `import.meta.env.DEV`: the site's `dist/` holds neither the path nor
   `credit-only`.
+  The loopback check trusts the socket's address, so the dev server must never be put behind a
+  proxy: a local reverse proxy would make every request look like `127.0.0.1`.
 - **The first entry** (`setup.ts`, game's order): `register` and `create_adventurer`, `set_build`
   empty, `enter` by gate 1; the credit (260 gold, the pack of twice the belt); then one execution:
   `Instances.leave` by gate 2 at the instance's sequence, `buy_skill` ×4 and `set_build` with the
