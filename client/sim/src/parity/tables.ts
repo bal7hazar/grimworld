@@ -107,7 +107,7 @@ import { ticksClass } from "../tick";
 import * as executor from "../executor";
 import { load as loadMember } from "../segment/words";
 import { load as loadGoblin } from "../segment/goblin";
-import { readTable } from "./table";
+import { type Vector, contentRow, readTable } from "./table";
 
 /** The felts of a case, exactly `count` of them. */
 function args(felts: readonly bigint[], count: number): readonly bigint[] {
@@ -702,25 +702,38 @@ const bodyFns: Record<string, Mirror> = {
   unpack: (c) => writeEntry(unpack(onEntry(c, (r) => fromFelt(u128, r.felt())))),
 };
 
-/** `trap.jsonl`'s content: its row 0's `ok`, which every `trigger` row's words are loaded through. */
-let trapContent: Content | undefined;
-function contentOfTrap(): Content {
-  if (trapContent === undefined) {
-    const read = new Felts(readTable("trap.jsonl")[0]!.ok!);
-    trapContent = readContent(read);
+/** The tables whose rows read their latest `content` row (`contentRow`), each read once. */
+const rowsOf = new Map<string, Vector[]>();
+/** Each `content` row's content, decoded once, by its table and id. */
+const contents = new Map<string, Content>();
+
+/** The content row `id` of `file` reads: the `ok` of its last `content` row at or before it. */
+function contentAt(file: string, id: number): Content {
+  let rows = rowsOf.get(file);
+  if (rows === undefined) rowsOf.set(file, (rows = readTable(file)));
+  const at = contentRow(rows, id);
+  const key = `${file} ${at}`;
+  let found = contents.get(key);
+  if (found === undefined) {
+    const read = new Felts(rows[at]!.ok!);
+    found = readContent(read);
     read.end();
+    contents.set(key, found);
   }
-  return trapContent;
+  return found;
 }
 
+/** `trap.jsonl`'s content for row `id`: its latest `content` row's, which its words are loaded through. */
+const contentOfTrap = (id: number): Content => contentAt("trap.jsonl", id);
+
 const trap: Record<string, Mirror> = {
-  // The table's content, decoded and encoded again: what every `trigger` row reads
-  content: (c) => {
+  // The row's content, decoded and encoded again: what every later `trigger` row reads
+  content: (c, id) => {
     args(c, 0);
-    return writeContent(contentOfTrap());
+    return writeContent(contentOfTrap(id));
   },
   // `TrapLibrary::trigger` on the case's words, board, ground, entrant, position and level
-  trigger: (c) => {
+  trigger: (c, id) => {
     const read = new Felts(c);
     const words = readWords(read);
     const board = readBoard(read);
@@ -729,7 +742,7 @@ const trap: Record<string, Mirror> = {
     read.end();
     const out = triggerClass({
       words,
-      content: contentOfTrap(),
+      content: contentOfTrap(id),
       board,
       ground,
       entrant,
@@ -748,30 +761,27 @@ const trap: Record<string, Mirror> = {
   },
 };
 
-/** `act.jsonl`'s content: its row 0's `ok`, which every actor of the table is loaded through. */
-let actContent: Content | undefined;
-function contentOfAct(): Content {
-  if (actContent === undefined) {
-    const read = new Felts(readTable("act.jsonl")[0]!.ok!);
-    actContent = readContent(read);
-    read.end();
-  }
-  return actContent;
+/** `act.jsonl`'s content for row `id`: its latest `content` row's, which its actors are loaded through. */
+const contentOfAct = (id: number): Content => contentAt("act.jsonl", id);
+const actSheets = new Map<Content, ReturnType<typeof indexed>>();
+function sheetsOfAct(id: number): ReturnType<typeof indexed> {
+  const content = contentOfAct(id);
+  let found = actSheets.get(content);
+  if (found === undefined) actSheets.set(content, (found = indexed(content)));
+  return found;
 }
-let actSheets: ReturnType<typeof indexed> | undefined;
-const sheetsOfAct = () => (actSheets ??= indexed(contentOfAct()));
 
 /** An actor as an `act.jsonl` row records it: `0` and its `MemberWords`, or `1` and its `GoblinWords`, loaded. */
-function readActor(r: Felts): body.Unit {
+function readActor(r: Felts, sheets: ReturnType<typeof indexed>): body.Unit {
   const tag = r.u8();
   if (tag === 0) {
     const [state, timers, effects, recharges, stats, bar, kit] = r.fixed(7, () => r.felt());
     const words = { state, timers, effects, recharges, stats, bar, kit } as MemberWords;
-    return { kind: "M", member: loadMember(words, sheetsOfAct()) };
+    return { kind: "M", member: loadMember(words, sheets) };
   }
   if (tag === 1) {
     const words = { entity: r.u16(), awake: r.bool(), state: r.felt(), timers: r.felt() };
-    return { kind: "G", goblin: loadGoblin(words, sheetsOfAct()) };
+    return { kind: "G", goblin: loadGoblin(words, sheets) };
   }
   throw new RangeError(`actor tag ${tag}`);
 }
@@ -784,29 +794,30 @@ const signed8 = (v: number): bigint => toFelt(i8, BigInt(v));
 const signed16 = (v: number): bigint => toFelt(i16, BigInt(v));
 
 const act: Record<string, Mirror> = {
-  // The table's content, decoded and encoded again: what every actor is loaded through
-  content: (c) => {
+  // The row's content, decoded and encoded again: what every later actor is loaded through
+  content: (c, id) => {
     args(c, 0);
-    return writeContent(contentOfAct());
+    return writeContent(contentOfAct(id));
   },
   // `ActionLibrary::act` on the case's words, board, ground and action
-  act: (c) => {
+  act: (c, id) => {
     const read = new Felts(c);
     const words = readWords(read);
     const board = readBoard(read);
     const ground = readGround(read);
     const action = readAction(read);
     read.end();
-    const out = actClass({ words, content: contentOfAct(), board, ground, action });
+    const out = actClass({ words, content: contentOfAct(id), board, ground, action });
     return actFelts(out);
   },
   // `Body::defence` through `UnitBody`, `Levered` with a fresh `Cache`
-  defence: (c) => {
+  defence: (c, id) => {
     const read = new Felts(c);
-    const unit = readActor(read);
+    const sheets = sheetsOfAct(id);
+    const unit = readActor(read, sheets);
     const t = read.u32();
     read.end();
-    const d = executor.defence(executor.cache(), unit, actorOfUnit(unit), t, sheetsOfAct());
+    const d = executor.defence(executor.cache(), unit, actorOfUnit(unit), t, sheets);
     return [
       signed16(d.armor),
       BigInt(d.effects),
@@ -820,9 +831,10 @@ const act: Record<string, Mirror> = {
     ];
   },
   // `Body::offence` through `UnitBody`
-  offence: (c) => {
+  offence: (c, id) => {
     const read = new Felts(c);
-    const unit = readActor(read);
+    const sheets = sheetsOfAct(id);
+    const unit = readActor(read, sheets);
     const cls = read.u8();
     if (cls > 3) throw new RangeError(`hit class ${cls}`);
     const entry = readEntry(read);
@@ -847,7 +859,7 @@ const act: Record<string, Mirror> = {
       bonus,
       penetration,
       context,
-      sheetsOfAct(),
+      sheets,
     );
     return [
       BigInt(o.class),
@@ -933,9 +945,9 @@ const tick: Record<string, Mirror> = {
 export const TABLES: readonly Entry[] = [
   { file: "window.jsonl", floor: 2065, fns: window },
   { file: "hit.jsonl", floor: 200, fns: hit },
-  { file: "body.jsonl", floor: 327, fns: bodyFns },
-  { file: "trap.jsonl", floor: 63, fns: trap },
-  { file: "act.jsonl", floor: 223, fns: act },
+  { file: "body.jsonl", floor: 334, fns: bodyFns },
+  { file: "trap.jsonl", floor: 87, fns: trap },
+  { file: "act.jsonl", floor: 244, fns: act },
   { file: "fate.jsonl", floor: 227, fns: fate },
   { file: "packing.jsonl", floor: 520, fns: packing },
   { file: "movement.jsonl", floor: 81, fns: movement },

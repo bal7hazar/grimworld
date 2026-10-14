@@ -91,6 +91,16 @@ export function parseTable(name: string, text: string): Vector[] {
   });
 }
 
+/**
+ * The id of the last `content` row at or before row `id`: the content that row reads. A table may
+ * append a second `content` row after its first cases (RV-03a2: `trap.jsonl` 63, `act.jsonl` 223),
+ * which every later row reads; the rows before it read the first.
+ */
+export function contentRow(vectors: readonly Vector[], id: number): number {
+  for (let at = id; at >= 0; at--) if (vectors[at]?.fn === "content") return at;
+  throw new Error(`no content row at or before id ${id}`);
+}
+
 /** The folder of the tables: `contracts/logic/vectors/`, found above this file. */
 function folder(): URL {
   for (let dir = new URL(".", import.meta.url); ; dir = new URL("..", dir)) {

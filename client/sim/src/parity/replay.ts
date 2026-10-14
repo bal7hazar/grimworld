@@ -5,8 +5,11 @@
 import { CairoPanic } from "../felt";
 import type { Vector } from "./table";
 
-/** A function of the mirror on the felts of a case, returning the felts of its `ok`. */
-export type Mirror = (args: readonly bigint[]) => readonly bigint[];
+/**
+ * A function of the mirror on the felts of a case, returning the felts of its `ok`; `id` is the
+ * case's, for a mirror that reads an earlier row of its table (its `content` row, `contentRow`).
+ */
+export type Mirror = (args: readonly bigint[], id: number) => readonly bigint[];
 
 /** One table and the mirror that replays it: adding a table is one entry of `TABLES`. */
 export type Entry = {
@@ -35,7 +38,7 @@ export function replay(entry: Entry, vectors: readonly Vector[]): Map<string, nu
     counts.set(name, (counts.get(name) ?? 0) + 1);
     let got: readonly bigint[];
     try {
-      got = mirror(vector.case);
+      got = mirror(vector.case, vector.id);
     } catch (error) {
       if (vector.ok !== undefined) {
         throw new Error(`${where}: threw where Cairo returned ${hex(vector.ok)}: ${error}`, {

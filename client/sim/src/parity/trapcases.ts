@@ -1,8 +1,8 @@
 // TEST SCAFFOLDING (CLI-02g-D): what the trap class (`trap.ts`'s `triggerClass`) must hold that
 // `trap.jsonl` cannot show, as cases the unit tests run (`trap.test.ts`) and the mutation check
-// runs against its mutants (`mutants.test.ts`), one list for both. Both goblins of the
-// table are Hobs of one caste, so a port that reads another goblin's caste than the placer's
-// passes every row (track game's known gap, until RV-03c's row with distinct castes); and no row
+// runs against its mutants (`mutants.test.ts`), one list for both. Until RV-03a2's row 86 (a Runt
+// placer, a Hob entrant) both goblins of every row were Hobs of one caste, so a port that reads
+// another goblin's caste than the placer's passed every row; these cases still pin it. No row
 // shows that the class leaves its inputs as they were. Never exported by `src/index.ts`.
 
 import type { TriggerCall } from "../segment/classes";
@@ -16,12 +16,12 @@ import {
   writeWords,
 } from "../segment/serde";
 import { triggerClass } from "../trap";
-import { readTable } from "./table";
+import { contentRow, readTable } from "./table";
 
-/** The class's call of `trap.jsonl`'s row `id` (a `trigger` row), its content row 0's. */
+/** The class's call of `trap.jsonl`'s row `id` (a `trigger` row), its latest `content` row's. */
 export function call(id: number): TriggerCall {
   const rows = readTable("trap.jsonl");
-  const head = new Felts(rows[0]!.ok!);
+  const head = new Felts(rows[contentRow(rows, id)]!.ok!);
   const content = readContent(head);
   head.end();
   const read = new Felts(rows[id]!.case);
