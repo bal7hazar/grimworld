@@ -518,20 +518,36 @@ describe.skipIf(found === undefined || build?.mode !== "full")(
 
     it("refuses a strike before the batch: no adrenaline at the start, or out of reach", async () => {
       const { stages, controller } = await controllerOn();
-      const view = controller.combat.snapshot().view!;
-      const strike = view.state.adventurer.bar.find((slot) => slot.skill?.id === 1)!;
+      const start = controller.combat.snapshot().view!;
+      const strike = start.state.adventurer.bar.find((slot) => slot.skill?.id === 1)!;
       controller.combat.slot({ kind: "skill", slot: strike.slot });
-      const said = controller.combat.snapshot().view?.said;
-      if (strike.state === "ready") {
-        // Armed: a goblin beyond its reach, read from the state, is refused with the reach's line
-        const far = view.state.goblins.find((g) => g.alive && !view.aim?.marked.includes(g.entity));
-        if (far === undefined) return;
-        controller.combat.actor(far.entity);
-        expect(controller.combat.snapshot().view?.said).toMatch(
-          /^(Out of reach|Not a valid target)\.$/,
+      // Read after arming: the snapshot is replaced at each change
+      const armed = controller.combat.snapshot().view!;
+      if (strike.state !== "ready") {
+        expect(armed.said).toMatch(
+          /^(Not enough adrenaline|Not enough energy|Needs its weapon)\.$/,
+        );
+        expect(armed.armed).toBeNull();
+        console.info(
+          `full build: the strike is not ready at the start (${strike.state}), ` +
+            "so the out-of-reach refusal is not exercised in this world",
         );
       } else {
-        expect(said).toMatch(/^(Not enough adrenaline|Not enough energy|Needs its weapon)\.$/);
+        const far = armed.state.goblins.find(
+          (g) => g.alive && !armed.aim?.marked.includes(g.entity),
+        );
+        if (far === undefined) {
+          console.info(
+            "full build: no living goblin outside the strike's reach in this world, the reach refusal is skipped",
+          );
+        } else {
+          controller.combat.actor(far.entity);
+          expect(controller.combat.snapshot().view?.said).toBe("Out of reach.");
+          expect(controller.combat.snapshot().view?.armed).toEqual({
+            kind: "skill",
+            slot: strike.slot,
+          });
+        }
       }
       expect(stages.get().planned).toEqual([]);
     }, 120_000);
