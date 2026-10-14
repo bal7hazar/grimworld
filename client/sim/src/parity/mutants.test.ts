@@ -3033,14 +3033,13 @@ const MUTANTS: readonly Mutant[] = [
     from: "      else if (e.kind === kind.HIT_PENETRATION) {",
     to: "      else if (false) {",
   },
+  // Killed by act.jsonl 247, 248 and 250 (RV-03a3)
   {
     name: "a bomb or a trap takes held penetration (penetration)",
     file: "executor.ts",
     from: `  if (cls === 3) return 0;
 `,
     to: "",
-    survives:
-      "no row reads a bomb's or a trap's penetration: act.jsonl 232 throws the bomb holding `PENETRATION` 30 of scope `ALL`, but `resolve` reads the penetration of a weapon hit or a spell only (`readsPassives`, Cairo's too), so no `act` row can tell it: an `offence` row of scope 3 holding skill 79",
   },
   {
     name: "an attack skill does not take WEAPON (penetration)",
@@ -3226,8 +3225,8 @@ const MUTANTS: readonly Mutant[] = [
     file: "executor.ts",
     from: "const own_hit = b === HIT_BIT && same(candidate, actor);",
     to: "const own_hit = false;",
-    survives:
-      "act.jsonl 239 puts the source in its own `ALLIES` hit's set, but the source's bits go to `apply` (Cairo's `entries`), which reads `HIT_BIT` (8) only as entry 3's bit, and skill 82 holds one entry: a carrier of an `ALLIES` hit around its source and a held fourth entry whose set leaves the source out",
+    equivalent:
+      "track game's ruling in RV-03a3 (`contracts/logic/vectors/README.md`, `act.jsonl`), checked against the port: the source's bits go to `apply` (`entries`), which walks `ops` and tests bit `2^k` of op `k`, so `HIT_BIT` (8) is entry 3's bit; `read` takes the entries for `k < 3` (a potion's one, a weapon's none) and `ops` makes one `Op` per entry, so `apply`'s loop never reaches bit 8 and the source's `HIT_BIT` is read by nothing (act.jsonl 239 stays its witness)",
   },
   {
     name: "a weapon hit addresses no entity (actors)",

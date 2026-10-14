@@ -158,7 +158,7 @@ describe("parity with the Cairo code", () => {
 
   it("covers every fn of act.jsonl with its count", () => {
     const counts = replay(table("act.jsonl"), readTable("act.jsonl"));
-    expect(Object.fromEntries(counts)).toEqual({ content: 2, act: 195, defence: 19, offence: 28 });
+    expect(Object.fromEntries(counts)).toEqual({ content: 2, act: 195, defence: 19, offence: 35 });
   });
 
   it("computes segment2.jsonl's act calls natively, each equal to its recording", () => {
