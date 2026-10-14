@@ -190,14 +190,18 @@ const refusedSend = (error: unknown): boolean =>
     !(error.cause instanceof Error && error.cause.name === "ChainRefused"));
 
 /**
- * The Starknet JSON-RPC error codes that mean the chain refused this transaction's execution
- * (spec `starknet_api_openrpc.json`, errors of `starknet_estimateFee` and
- * `starknet_addInvokeTransaction`; starknet.js `RpcError.code`): 41 TRANSACTION_EXECUTION_ERROR (a
- * call of the transaction reverted while it was simulated) and 40 CONTRACT_ERROR (the same, as
- * nodes of spec 0.6 and 0.7 report it). The other codes are not a refusal of the build: 52
- * INVALID_TRANSACTION_NONCE (two quick sends), 53 INSUFFICIENT_MAX_FEE, 54
- * INSUFFICIENT_ACCOUNT_BALANCE, 55 VALIDATION_FAILURE, 59 DUPLICATE_TX, 63 UNEXPECTED_ERROR, and
- * the rate limits and node errors beyond the spec.
+ * The Starknet JSON-RPC error codes taken as "the chain refused this set_build" (starknet.js
+ * `RpcError.code`): 41 TRANSACTION_EXECUTION_ERROR. In the installed spec
+ * (`@starknet-io/starknet-types-0104`, methods.d.ts) `starknet_estimateFee` reports any failure of
+ * the simulation as 41, a nonce or validation failure included (its errors are only 41, 24 and 20),
+ * so 41 at estimate time covers a revert AND a stale nonce or a failed validation. The fallback
+ * accepts that: inside `enter` each run waits for `succeeded` before the next send, so a nonce
+ * clash needs a concurrent sender on the same burner, and telling the cases apart would need
+ * `data.execution_error`. 40 CONTRACT_ERROR is kept for older nodes (in 0.10.4 it is
+ * `starknet_call`'s). The other codes propagate: 52 INVALID_TRANSACTION_NONCE only reaches us from
+ * `starknet_addInvokeTransaction`, as do 53 INSUFFICIENT_RESOURCES_FOR_VALIDATE (the 0.10.4 name,
+ * as `send.ts` has it), 54 INSUFFICIENT_ACCOUNT_BALANCE, 55 VALIDATION_FAILURE, 59 DUPLICATE_TX and
+ * 63 UNEXPECTED_ERROR, with the rate limits and node errors beyond the spec.
  */
 const EXECUTION_REFUSED_CODES: ReadonlySet<number> = new Set([40, 41]);
 

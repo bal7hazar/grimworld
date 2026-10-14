@@ -468,7 +468,7 @@ describe("the deployment's build (CLI-11d3)", () => {
     }
   });
 
-  it("re-entry whose refusal carries no RpcError (a plain error, no cause): an error, no fallback", async () => {
+  it("re-entry whose refusal carries no RpcError (a non-Error cause): an error, no fallback", async () => {
     for (const cause of [new Error("boom"), undefined]) {
       const { sent, built, world } = fakeChain();
       await restore(built);
