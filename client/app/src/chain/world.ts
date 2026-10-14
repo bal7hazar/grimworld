@@ -1,4 +1,8 @@
-import { unpackWalls } from "../preview/mirror";
+import { type Ground, NotMirrored, groundObject, segmentBoard } from "@grimworld/sim";
+import { readWorld } from "../combat/fromWords";
+import type { CombatWorld } from "../combat/targeting";
+import { type MirrorState, segmentOf, unpackFeatures, unpackWalls } from "../preview/mirror";
+import type { MirrorWords } from "../preview/reconcile";
 import { ChunkKind, type GoblinView, type InstanceView, type RegionChunk } from "../preview/view";
 import type { Caste, Facing, GroundKind, Mark, TileKind, ViewActor } from "../render/view";
 import { CHUNK, type SandboxWorld } from "../sandbox/world";
@@ -130,4 +134,50 @@ export function chainWorld({ view, region, member }: ChainView): SandboxWorld {
     adventurerId: member,
     path: [],
   };
+}
+
+/**
+ * The combat world of a mirror state (CLI-11d): client/sim's load of the words, the content and the
+ * ground on the window's board, as `combat/fromWords.ts` reads it. `after` is a prediction's words
+ * and ground (the batch planned so far); without it, the state the chain holds. None where the
+ * combat screen has nothing to read: no content given, the controlled member not the adventurer
+ * (member 0), or a state the mirror cannot build (`NotMirrored`) or the loaders refuse (logged).
+ */
+export function combatWorldOf(
+  mirror: MirrorState,
+  after?: { readonly words: MirrorWords; readonly ground: Ground },
+): CombatWorld | undefined {
+  const { content, member } = mirror;
+  if (content === undefined || member !== 0) return undefined;
+  try {
+    const segment = segmentOf(mirror);
+    const words = after?.words ?? segment.words;
+    const first = words.members[0];
+    if (first === undefined) return undefined;
+    const { x, y } = memberPlace(first.state);
+    return readWorld(words, content, after?.ground ?? segment.ground, segmentBoard(segment.area, x, y));
+  } catch (error) {
+    if (error instanceof NotMirrored) return undefined;
+    console.warn("grimworld.combat-world", error instanceof Error ? error.message : String(error));
+    return undefined;
+  }
+}
+
+/**
+ * Whether the revealed chunk of `tile` holds an object there that is no trap: a gate, a chest, a
+ * lever, whatever the chunk's features place (`unpackFeatures`' objects, tile `15 y + x` of the
+ * chunk). Interactions are not available (CLI-05 brief §4.4); a tap on such a tile says so.
+ */
+export function objectAt(region: readonly RegionChunk[], tile: { x: number; y: number }): boolean {
+  const chunk = Math.floor(tile.y / CHUNK) * 15 + Math.floor(tile.x / CHUNK);
+  const read = region.find((c) => c.chunk === chunk && c.kind === ChunkKind.Revealed);
+  if (read === undefined) return false;
+  const local = (tile.y % CHUNK) * CHUNK + (tile.x % CHUNK);
+  return unpackFeatures(read.features).objects.some(
+    (o) =>
+      o.tile === local &&
+      o.kind !== groundObject.NONE &&
+      o.kind !== groundObject.TRAP &&
+      o.kind !== groundObject.PLACED_TRAP,
+  );
 }

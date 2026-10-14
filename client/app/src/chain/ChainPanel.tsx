@@ -204,7 +204,7 @@ const styles: Record<string, CSSProperties> = {
   panel: {
     position: "fixed",
     left: 8,
-    bottom: 8,
+    top: 8,
     maxWidth: "min(46rem, calc(100vw - 16px))",
     padding: "6px 10px",
     borderRadius: 6,

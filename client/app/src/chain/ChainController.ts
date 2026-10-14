@@ -1,12 +1,31 @@
+import { Illegal, NotMirrored, segmentBoard } from "@grimworld/sim";
+import { CombatController, type CombatTarget, type CombatView } from "../combat/controller";
+import { stateOf } from "../combat/fromWords";
+import {
+  type LogLine,
+  CombatLog,
+  MAX_LINES,
+  Prefixes,
+  batchLines,
+  consoleLogReport,
+} from "../combat/log";
+import { NAMES } from "../combat/names";
+import { runRecorded } from "../combat/record";
+import { NOT_AVAILABLE_YET, UNREACHABLE, refusalLine } from "../combat/refusal";
+import type { Armed } from "../combat/state";
+import { type CombatWorld, aiming, tileValue } from "../combat/targeting";
 import type { PlayAction } from "../preview/actions";
 import type { Intent } from "../input/intent";
+import { type MirrorState, mirrorOf, nativeClasses, segmentOf } from "../preview/mirror";
+import type { Predict } from "../preview/reconcile";
 import type { Facing, Tile } from "../render/view";
 import { directionBetween, planPath, tileToward } from "../sandbox/wiring";
 import { tileKey } from "../render/fog";
 import { kindAt } from "../sandbox/world";
+import { actionsOf } from "./batch";
 import type { ChainState } from "./send";
-import type { Stages } from "./stages";
-import { chainWorld, memberPlace } from "./world";
+import type { Stages, StagesState } from "./stages";
+import { chainWorld, combatWorldOf, memberPlace, objectAt } from "./world";
 import type { SandboxWorld } from "../sandbox/world";
 
 /**
@@ -20,10 +39,24 @@ import type { SandboxWorld } from "../sandbox/world";
  * A tap on a goblin selects it (the sandbox's own first tap, which the screen lets through to the
  * map); a second tap on the selected goblin attacks it. A floor tile far away plans a path (its
  * steps are marked, dropped after a send); an adjacent one, and a step key, is one move.
+ *
+ * The combat screen (CLI-11d, CLI-05 brief §4.4, §7.2): the bar, the belt and the targeting read the
+ * mirror's state after the batch planned so far (`combatWorldOf`, `fromWords`), through a
+ * `CombatController` made again at each change of the batch. Playing a slot is one `skill` or `item`
+ * action, put into the batch only when the mirror, run on the planned actions plus the new one,
+ * does not stop at it: a refusal is one line, the slot stays armed and the batch is unchanged. A
+ * tap on a gate, a chest or a lever says it is not available yet and adds nothing. The log's lines
+ * are the client's (§7.2), predicted until the sent batch confirms or strikes them.
  */
 
 export interface ControllerDeps {
   readonly stages: Stages;
+  /** The combat world of a stages state; `combatWorldOf` on the mirror's prediction by default. */
+  readonly combatWorld?: (state: StagesState) => CombatWorld | undefined;
+  /** The mirror's run of a chain state, for §4.4's check; `mirrorOf` by default. */
+  readonly run?: (chain: ChainState) => Predict;
+  /** The log's predicted lines of each action of a batch (§7.2); computed from the mirror by default. */
+  readonly lines?: (base: MirrorState, actions: readonly PlayAction[]) => LogLine[][];
   /**
    * `N` (§3.4): enters again with the same adventurer once the instance closed, and reads the new
    * state. Rejections are shown in the panel's line.
@@ -56,7 +89,44 @@ export const notes = {
   NOT_CLOSED: "the instance is open: nothing to enter",
   NO_PATH: "no path",
   NOT_TAKEN: "no input now",
+  /** A tap on a gate, a chest or a lever (CLI-05 brief §4.4). */
+  NOT_AVAILABLE_YET,
+  /** A refusal no line of §4.4 covers (an `Illegal` a skill or item tap should not reach). */
+  NOT_AVAILABLE: "Not available.",
 } as const;
+
+/** What the combat screen draws: the controller's view (none without a state to read) and the log. */
+export interface CombatSnapshot {
+  readonly view: CombatView | null;
+  readonly log: readonly LogLine[];
+}
+
+/** The combat screen's inputs. Each one that plays a refused action leaves the slot armed. */
+export interface CombatInputs {
+  /** A stable snapshot: it changes only when the view or the log does. */
+  snapshot(): CombatSnapshot;
+  subscribe(listener: () => void): () => void;
+  /** A tap on a bar or belt slot, or its key. */
+  slot(armed: Armed): void;
+  inspect(armed: Armed): void;
+  /** A tap on an actor while a slot is armed. */
+  actor(entity: number): boolean;
+  /** A tap on a tile while a slot is armed. */
+  tile(tile: Tile): boolean;
+  cycle(by: 1 | -1): boolean;
+  go(): boolean;
+  escape(): boolean;
+}
+
+/** The action a played slot is: a `skill` on an entity or a tile, an `item` on an entity. */
+export function slotAction(armed: Armed, target: CombatTarget): PlayAction | undefined {
+  if (armed.kind === "skill") {
+    const value = target.tile ? tileValue(target.at) : target.entity;
+    return { kind: "skill", slot: armed.slot, target: { tile: target.tile, value } };
+  }
+  // A potion's action carries an entity only (`actions::Action::Item`)
+  return target.tile ? undefined : { kind: "item", slot: armed.slot, entity: target.entity };
+}
 
 export interface ChainController {
   get(): ControllerState;
@@ -93,6 +163,8 @@ export interface ChainController {
   reset(): void;
   /** Stage 1 on the map (§5): the batch's moves as markers, the predicted last tile and facing. */
   ghosts(): Ghosts;
+  /** The combat screen's model (CLI-11d). */
+  readonly combat: CombatInputs;
 }
 
 export interface Ghosts {
@@ -116,7 +188,14 @@ export function createChainController(deps: ControllerDeps): ChainController {
   let onMap: number | null = null;
   /** The stages' line as last seen: a new one replaces the controller's own note. */
   let line = stages.get().line;
+  let seen = stages.get();
   stages.subscribe((now) => {
+    const before = seen;
+    seen = now;
+    if (now.sent !== before.sent && now.sent !== undefined) settle(now.sent);
+    if (now.chain !== before.chain || now.planned !== before.planned || now.mirror !== before.mirror) {
+      rebuild();
+    }
     if (now.line === line) return;
     line = now.line;
     if (state.note !== undefined) set({ note: undefined });
@@ -126,6 +205,165 @@ export function createChainController(deps: ControllerDeps): ChainController {
     state = { ...state, ...next };
     for (const listener of listeners) listener(state);
   };
+
+  // ---- The combat screen (CLI-11d).
+
+  /** The lines the sent batches settled (confirmed, or struck), and the refusals before the batch. */
+  const history = new CombatLog();
+  /** The predicted lines of each action of the batch planned (§7.2), recomputed with the batch. */
+  let pending: LogLine[][] = [];
+  const prefixes = new Prefixes<MirrorState>((base, actions) =>
+    runRecorded({ ...segmentOf(base), actions }, nativeClasses),
+  );
+  let lineCache: { base: MirrorState; actions: readonly PlayAction[]; lines: LogLine[][] } | undefined;
+  const combatListeners = new Set<() => void>();
+  let combat:
+    | { readonly world: CombatWorld; readonly view: CombatController; readonly stop: () => void }
+    | undefined;
+  let snapshot: CombatSnapshot = { view: null, log: [] };
+  /** The slot a refused action left armed, for the input that played it to arm again. */
+  let refused: Armed | undefined;
+
+  const sameAction = (a: PlayAction, b: PlayAction) => JSON.stringify(a) === JSON.stringify(b);
+
+  /** `batchLines` on the planned actions, only the new ones when the earlier ones are unchanged. */
+  function computeLines(base: MirrorState, actions: readonly PlayAction[]): LogLine[][] {
+    if (base.content === undefined || actions.length === 0) return [];
+    try {
+      const segment = segmentOf(base);
+      const first = segment.words.members[0];
+      if (first === undefined) return [];
+      const { x, y } = memberPlace(first.state);
+      const batch = {
+        words: segment.words,
+        ground: segment.ground,
+        content: base.content,
+        board: segmentBoard(segment.area, x, y),
+        actions,
+      };
+      const kept =
+        lineCache !== undefined &&
+        lineCache.base === base &&
+        lineCache.actions.length <= actions.length &&
+        lineCache.actions.every((a, k) => sameAction(a, actions[k]!));
+      const before = kept ? lineCache!.lines : [];
+      const fresh = batchLines(batch, prefixes.at(base, actions), {
+        names: NAMES,
+        report: consoleLogReport,
+        from: before.length + 1,
+      });
+      const lines = [...before, ...fresh];
+      lineCache = { base, actions: [...actions], lines };
+      return lines;
+    } catch (error) {
+      // No prediction (`NotMirrored`): no predicted lines; a mirror failure is `stages`' to log
+      if (!(error instanceof NotMirrored)) {
+        console.warn("grimworld.log-failure", error instanceof Error ? error.message : String(error));
+      }
+      return [];
+    }
+  }
+
+  function refresh() {
+    const log = [...history.lines, ...pending.flat()].slice(-MAX_LINES);
+    snapshot = { view: combat?.view.view() ?? null, log };
+    for (const listener of combatListeners) listener();
+  }
+
+  /** §4.4's check: the line of the `Illegal` the mirror stops on at the new action, or none. */
+  function verdict(action: PlayAction, armed: Armed): string | undefined {
+    const { chain, planned } = stages.get();
+    const actions = [...actionsOf(planned), action];
+    let illegal: number | undefined;
+    try {
+      const ran = (deps.run?.(chain) ?? mirrorOf(chain.mirror))(actions);
+      if (ran.done.illegal !== undefined && ran.done.played === planned.length) {
+        illegal = ran.done.illegal;
+      }
+    } catch {
+      // The mirror cannot say (`NotMirrored`, a reveal): the simulation decides
+      return undefined;
+    }
+    if (illegal === undefined) return undefined;
+    if (UNREACHABLE.includes(illegal)) {
+      console.warn("grimworld.parity", { actions, illegal });
+    }
+    const slot = combat?.view.view().state.adventurer.bar[armed.slot];
+    const ticks = armed.kind === "skill" ? (slot?.ticks ?? undefined) : undefined;
+    return refusalLine(illegal, ticks) ?? notes.NOT_AVAILABLE;
+  }
+
+  /** Plays an armed slot on a target: one action put into the batch, or one refusal line. */
+  function play(armed: Armed, target: CombatTarget) {
+    const action = slotAction(armed, target);
+    const line =
+      action === undefined ? refusalLine(Illegal.Target)! : verdict(action, armed);
+    if (line !== undefined) {
+      history.refuse(line);
+      set({ note: line, turning: false });
+      refused = armed;
+      refresh();
+      return;
+    }
+    set({ turning: false });
+    if (!put([action!])) refused = armed;
+  }
+
+  /** A combat input: a play the check refused leaves the slot armed, as it was. */
+  function guarded<T>(call: () => T): T {
+    refused = undefined;
+    const result = call();
+    if (refused !== undefined && combat !== undefined) {
+      const armed = refused;
+      refused = undefined;
+      combat.view.slot(armed);
+    }
+    return result;
+  }
+
+  /** The combat view made again on the state after the batch planned so far. */
+  function rebuild() {
+    const now = stages.get();
+    const predicted = now.mirror?.kind === "predicted" ? now.mirror : undefined;
+    const after =
+      predicted?.ground === undefined
+        ? undefined
+        : { words: predicted.words, ground: predicted.ground };
+    const world = deps.combatWorld
+      ? deps.combatWorld(now)
+      : combatWorldOf(now.chain.mirror, after);
+    combat?.stop();
+    combat = undefined;
+    if (world !== undefined) {
+      const view = new CombatController(stateOf(world, NAMES));
+      view.setRules({
+        aim: (_, armed) => aiming(world, armed),
+        play: (at, armed, target) => {
+          play(armed, target);
+          return at;
+        },
+      });
+      combat = { world, view, stop: view.subscribe(refresh) };
+    }
+    pending = (deps.lines ?? computeLines)(
+      now.chain.mirror,
+      now.planned.map((p) => p.action),
+    );
+    refresh();
+  }
+
+  /** The sent batch settled (§7.2 item 4): its predicted lines confirmed, or struck if it differs. */
+  function settle(sent: NonNullable<StagesState["sent"]>) {
+    const { result } = sent;
+    if (result.kind !== "sent" || result.chain.kind !== "played") return;
+    if (result.mirror.kind !== "predicted") return;
+    history.add(pending.flat());
+    if (result.mismatches.length === 0 && result.differs.length === 0) history.confirm();
+    else history.correct();
+    // What is pending is the sent batch's: it is settled, and the batch is dropped or read again
+    pending = [];
+    refresh();
+  }
 
   function world(): SandboxWorld {
     const { chain } = stages.get();
@@ -231,6 +469,11 @@ export function createChainController(deps: ControllerDeps): ChainController {
         set({ selected: goblin.id, turning: false, note: undefined });
         return { kind: "select", entity: goblin.id };
       }
+      // Interactions are not available (CLI-05 brief §4.4): a gate, a chest or a lever adds nothing
+      if (objectAt(stages.get().chain.mirror.region, tile)) {
+        set({ note: notes.NOT_AVAILABLE_YET, turning: false });
+        return { kind: "none" };
+      }
       if (kindAt(map.terrain, tile) !== "floor") return { kind: "none" };
       const { planned } = tiles();
       if (tileKey(planned) === tileKey(tile)) return { kind: "none" };
@@ -294,6 +537,8 @@ export function createChainController(deps: ControllerDeps): ChainController {
       try {
         const chain = await deps.enter();
         stages.install(chain);
+        history.clear();
+        rebuild();
         set({ entering: false, selected: null });
         return true;
       } catch (error) {
@@ -336,6 +581,22 @@ export function createChainController(deps: ControllerDeps): ChainController {
       const place = memberPlace(word);
       return { steps, end: { tile: { x: place.x, y: place.y }, facing: place.facing } };
     },
+
+    combat: {
+      snapshot: () => snapshot,
+      subscribe(listener) {
+        combatListeners.add(listener);
+        return () => combatListeners.delete(listener);
+      },
+      slot: (armed) => guarded(() => combat?.view.slot(armed)),
+      inspect: (armed) => void combat?.view.inspect(armed),
+      actor: (entity) => guarded(() => combat?.view.actor(entity) ?? false),
+      tile: (tile) => guarded(() => combat?.view.tile(tile) ?? false),
+      cycle: (by) => combat?.view.cycle(by) ?? false,
+      go: () => guarded(() => combat?.view.go() ?? false),
+      escape: () => combat?.view.escape() ?? false,
+    },
   };
+  rebuild();
   return controller;
 }
