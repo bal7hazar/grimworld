@@ -1,13 +1,38 @@
-import { Illegal, actionAct, memberPlace, neighbor, reach, shapes } from "@grimworld/sim";
+import {
+  type Content,
+  Felts,
+  Illegal,
+  actionAct,
+  memberPlace,
+  neighbor,
+  reach,
+  readContent,
+  shapes,
+} from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import type { Tile } from "../render/view";
 import { readWorld } from "./fromWords";
 import type { Armed } from "./state";
 import { type CombatWorld, adventurerAt, aiming, areaOf, positionOf, tileOf } from "./targeting";
-import { type ActRow, actIds, actRow, contentOf } from "./vectors.testkit";
+import { type ActRow, actIds, actRow, contentOf, rows } from "./vectors.testkit";
 
+/** Row 0's content, which the rows before RV-03a2's second `content` row (223) read. */
 const ACT = contentOf("act.jsonl");
-const worldOf = (row: ActRow): CombatWorld => readWorld(row.words, ACT, row.ground, row.board);
+const contents = new Map<number, Content>();
+/** The content a row reads: the last `content` row at or before it (row 0, or 223 from RV-03a2). */
+function contentAt(id: number): Content {
+  let at = id;
+  while (rows("act.jsonl")[at]!.fn !== "content") at -= 1;
+  let content = contents.get(at);
+  if (content === undefined) {
+    const read = new Felts(rows("act.jsonl")[at]!.ok!.map(BigInt));
+    contents.set(at, (content = readContent(read)));
+    read.end();
+  }
+  return content;
+}
+const worldOf = (row: ActRow): CombatWorld =>
+  readWorld(row.words, contentAt(row.id), row.ground, row.board);
 const has = (tiles: readonly Tile[], t: Tile) => tiles.some((u) => u.x === t.x && u.y === t.y);
 const tileFrom = (value: number): Tile => ({ x: value % 256, y: Math.floor(value / 256) });
 const armedOf = (row: ActRow): Armed => {
@@ -15,7 +40,7 @@ const armedOf = (row: ActRow): Armed => {
   if (row.action.kind === "item") return { kind: "item", slot: row.action.slot };
   throw new Error(`row ${row.id} plays a ${row.action.kind}`);
 };
-const outcome = (row: ActRow) => actionAct({ ...row, content: ACT }).outcome;
+const outcome = (row: ActRow) => actionAct({ ...row, content: contentAt(row.id) }).outcome;
 
 describe("targeting reads client/sim's aim (§4.1, §4.3)", () => {
   it("on every act.jsonl skill and item row: a target is marked or tinted exactly when aim accepts it", () => {
