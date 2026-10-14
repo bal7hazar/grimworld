@@ -190,14 +190,40 @@ const refusedSend = (error: unknown): boolean =>
     !(error.cause instanceof Error && error.cause.name === "ChainRefused"));
 
 /**
- * The chain refused the full build: the fee estimate was refused, or the execution ran and
- * failed. Any other `SetupFailed` (a status that stayed `unknown`) is not a refusal of the build.
+ * The Starknet JSON-RPC error codes that mean the chain refused this transaction's execution
+ * (spec `starknet_api_openrpc.json`, errors of `starknet_estimateFee` and
+ * `starknet_addInvokeTransaction`; starknet.js `RpcError.code`): 41 TRANSACTION_EXECUTION_ERROR (a
+ * call of the transaction reverted while it was simulated) and 40 CONTRACT_ERROR (the same, as
+ * nodes of spec 0.6 and 0.7 report it). The other codes are not a refusal of the build: 52
+ * INVALID_TRANSACTION_NONCE (two quick sends), 53 INSUFFICIENT_MAX_FEE, 54
+ * INSUFFICIENT_ACCOUNT_BALANCE, 55 VALIDATION_FAILURE, 59 DUPLICATE_TX, 63 UNEXPECTED_ERROR, and
+ * the rate limits and node errors beyond the spec.
+ */
+const EXECUTION_REFUSED_CODES: ReadonlySet<number> = new Set([40, 41]);
+
+/**
+ * The code of the `RpcError` an `AccountError("refused")` keeps in `cause`: read by shape
+ * (`baseError.code`, which starknet.js's `RpcError.code` returns), because this module imports
+ * nothing of starknet (`network.test.ts`, `vendor.test.ts`).
+ */
+function rpcCode(cause: unknown): number | undefined {
+  if (!(cause instanceof Error) || !("baseError" in cause)) return undefined;
+  const { baseError } = cause;
+  if (typeof baseError !== "object" || baseError === null || !("code" in baseError)) return undefined;
+  return typeof baseError.code === "number" ? baseError.code : undefined;
+}
+
+/**
+ * The chain refused the full build: the fee estimate was refused by an execution error (the
+ * `RpcError` that `AccountError("refused")` keeps in `cause`), or the execution ran and failed. Any
+ * other `AccountError` (a nonce error, a rate limit, a node hiccup) or `SetupFailed` (a status that
+ * stayed `unknown`) is not a refusal of the build.
  */
 const refusedBuild = (error: unknown): boolean =>
   (error instanceof SetupFailed && error.status === "failed") ||
   (error instanceof AccountError &&
     error.code === "refused" &&
-    !(error.cause instanceof Error && error.cause.name === "ChainRefused"));
+    EXECUTION_REFUSED_CODES.has(rpcCode(error.cause) ?? -1));
 
 /** Until no credit runs: polled at the execution's pace. */
 async function idle(deps: SetupDeps, credit: Credit): Promise<void> {
