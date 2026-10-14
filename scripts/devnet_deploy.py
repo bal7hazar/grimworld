@@ -48,6 +48,53 @@ carries the fix (cairo#10359) reverses it (D-183). The entry's transaction hash 
 devnet's default gas prices, as `with-node.sh` starts it, and `sncast`'s tip of 0. Without it nothing changes (a random salt per deploy, `salt` is null in the JSON). The fixed salt
 is for the devnet only; the node itself is fixed (`with-node.sh` uses devnet's seed 0 accounts).
 
+DEPLOY-BUILD-FOR: two more modes, run on a node this script has already deployed to. They read the
+deployment JSON (`--deployment <path>`, the file `--out` wrote) and are a D-280 devnet harness like the gold step:
+never for Sepolia or later, removed when expedition rewards land. They refuse a node that is not a local devnet
+(same guards as the gold step: `assert_local_devnet`), a deployment file that is missing or whose Hub has no code on
+the node, and they keep D-280's restore (`Hub.instances` back to the real `Instances` in a `finally`, read back).
+The admin's key (account 0) is read from the node's `devnet_getPredeployedAccounts` (it must be the deployment's
+`account`), so the dev server needs no environment but the deployment file; `NODE_URL`, when set, overrides the
+file's `node_url` (and is checked the same way). No key is ever on a command line of this script, printed, or in
+the output: each one goes through a file (mode 0600, deleted at once) into `sncast`'s throwaway accounts file
+under $WITH_NODE_LOG_DIR. Output (stdout, or `--out`): JSON.
+
+    --give-build --deployment <json> --account <1-9 | address> [--key-env NAME] [--adventurer <id>]
+
+  Gives SEED-02's build (the four bar skills, the belt of the healing potion x2 and item 23 x1, a pack of twice
+  the belt) to an adventurer of another account, in `--build full`'s order and with its functions
+  (`build_plan`, `fund_pack`, `buy_skill`, `set_build`). `--account` is a predeployed account's index, 1 to 9 (0
+  stays the admin; any other index is refused), whose key is read from the node; or an account address, whose
+  private key is in the environment variable named by `--key-env` (never its value). Without `--adventurer` the
+  account is registered when it has none and a new adventurer is created (the id is read from `Hub.account`'s
+  list, before and after); with one, the chain refuses it when the account does not own it (the error is passed
+  on). The owner's calls (`register`, `create_adventurer`, `set_build`, `enter`, `leave`, `buy_skill`) are sent
+  from that account (`Hub` checks `caller == owner`, `owned_in_hub`; `Instances.leave` the member's controller,
+  the one `enter` named); only `set_contracts` and the forged `report` are sent from account 0. The adventurer
+  ends in the hub, built and not inside; it enters itself. A second build of an adventurer that knows the skills
+  is refused by the chain at `buy_skill` (`SkillTrainerAssert::assert_unknown`), after the empty `set_build`
+  reset its bar and the gold was credited again: a build per adventurer. Output: `account` (no key),
+  `adventurer_id`, `build` (the deployment JSON's `build` shape, mode `full`).
+
+    --credit-only --deployment <json> --adventurer <id>
+
+  For an adventurer whose owner's key never leaves the browser (track CV's burners): account 0's harness calls
+  only, no owner call. The caller's order:
+    1. the owner registers, creates the adventurer (`set_build` empty, so the snapshot is fresh) and enters
+       through gate 1 (`Hub.enter`): the adventurer is now inside an open instance;
+    2. this mode: `set_contracts` to account 0, one forged Open `report` (SEED-02's 260 gold and the pack of
+       twice the belt, as `--build full` credits), `set_contracts` back, read back;
+    3. the owner leaves by gate 2 (`Instances.leave(instance_id, adventurer, 0, 2)`; the member must still stand
+       on the gate's anchor, as it does right after the entry; a refused leave emits `Refused` and returns 0
+       without a revert), then `buy_skill` x4, then `set_build`.
+  What the state must be: `Hub.report` asserts the adventurer's place is inside the reported instance
+  (`assert_in_instance`); the mode reads `Instances.placement(adventurer)` -> (instance id, member index,
+  inside) and refuses, before any write, an adventurer that never entered or is not inside now ("not inside an
+  instance"). What the report leaves: Open changes nothing of the place, so the instance stays open and the
+  adventurer inside, and the owner calls (`buy_skill`, `set_build`) refuse (`NOT_IN_HUB`) until it has left. The
+  instance id is read from `Instances.placement`, not from an event or an argument. Credited twice, gold and pack
+  add up. Output: `adventurer_id`, `instance_id`, `gold`, `pack` ([{item, count}]), `instance_read_from`.
+
 Local node only: it refuses any NODE_URL that is not 127.0.0.1 and never reads a Sepolia variable.
 It runs once per node: a node whose first account has already sent a transaction is refused (exit 1)
 with a message, and nothing is deployed. The node must be a devnet whose `devnet_getPredeployedAccounts`
@@ -189,11 +236,13 @@ def assert_local_devnet(node):
 class Node:
     """The local node and the first pre-funded account, through the JSON-RPC and `sncast`."""
 
-    def __init__(self, url, address, key, logs, salt=None):
+    def __init__(self, url, address, key, logs, salt=None, name="deployer"):
         check_url(url)
-        self.url, self.address, self.salt = url, address, salt
+        self.url, self.address, self.salt, self.name, self.logs = url, address, salt, name, logs
         os.makedirs(logs, exist_ok=True)
-        self.accounts = os.path.join(logs, "accounts-devnet-deploy.json")
+        # DEPLOY-BUILD-FOR: another account of the same node gets a file of its own, by process
+        self.accounts = os.path.join(logs, "accounts-devnet-deploy.json" if name == "deployer"
+                                     else f"accounts-devnet-{name}-{os.getpid()}.json")
         if os.path.exists(self.accounts):
             os.remove(self.accounts)
         self.key = key
@@ -219,12 +268,25 @@ class Node:
 
     def import_account(self):
         # as in the probe: sncast stores it in its throwaway accounts file (local node, test account)
-        self.sncast("persistent", "account", "import", "--url", self.url, "--name", "deployer",
-                    "--type", "oz", "--address", self.address, "--private-key", self.key)
+        # the key goes through a file of mode 0600, deleted at once, never an argument of ours
+        path = os.path.join(self.logs, f"key-{self.name}-{os.getpid()}")
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(descriptor, "w") as handle:
+                handle.write(self.key)
+            self.sncast("persistent", "account", "import", "--url", self.url, "--name", self.name,
+                        "--type", "oz", "--address", self.address, "--private-key-file", path)
+        finally:
+            os.remove(path)
         self.key = None
 
+    def close(self):
+        """Removes the throwaway accounts file of an account that is not the deployer's."""
+        if self.name != "deployer" and os.path.exists(self.accounts):
+            os.remove(self.accounts)
+
     def declare(self, package, name):
-        out = self.sncast(package, "--account", "deployer", "--wait", "declare", "--url", self.url,
+        out = self.sncast(package, "--account", self.name, "--wait", "declare", "--url", self.url,
                           "--contract-name", name, "--package", f"grimworld_{package}")
         return field("Class Hash", out)
 
@@ -232,14 +294,14 @@ class Node:
         args = ["--constructor-calldata", *[hex(c) if isinstance(c, int) else c for c in calldata]] \
             if calldata else []
         fixed = ["--salt", hex(deploy_salt(self.salt, class_hash))] if self.salt is not None else []
-        out = self.sncast(package, "--account", "deployer", "--wait", "deploy", "--url", self.url,
+        out = self.sncast(package, "--account", self.name, "--wait", "deploy", "--url", self.url,
                           "--class-hash", class_hash, *fixed, *args)
         return field("Contract Address", out)
 
     def invoke(self, contract, function, *calldata):
         args = ["--calldata", *[hex(c) if isinstance(c, int) else c for c in calldata]] \
             if calldata else []
-        out = self.sncast("persistent", "--account", "deployer", "--wait", "invoke", "--url",
+        out = self.sncast("persistent", "--account", self.name, "--wait", "invoke", "--url",
                           self.url, "--contract-address", contract, "--function", function, *args)
         tx = field("Transaction Hash", out)
         receipt = self.rpc("starknet_getTransactionReceipt", {"transaction_hash": tx})
@@ -382,31 +444,236 @@ def parse(argv):
     parser.add_argument("--salt", type=felt, default=None,
                         help="a fixed salt for every deploy (DEPLOY-SALT), so that two runs on fresh "
                              "nodes give the same addresses and the same world; default: random")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--give-build", action="store_true",
+                       help="DEPLOY-BUILD-FOR: give SEED-02's build to an adventurer of another account "
+                            "(needs --deployment and --account)")
+    modes.add_argument("--credit-only", action="store_true",
+                       help="DEPLOY-BUILD-FOR: only credit SEED-02's gold and pack to an adventurer "
+                            "inside an instance (needs --deployment and --adventurer)")
+    parser.add_argument("--deployment", help="the deployment JSON that --out wrote (the two modes above)")
+    parser.add_argument("--account", help="--give-build: a predeployed account's index (1-9), or an "
+                                          "account address (with --key-env)")
+    parser.add_argument("--key-env", help="--give-build: the NAME of the environment variable that holds "
+                                          "the private key of the address given as --account")
+    parser.add_argument("--adventurer", type=int,
+                        help="--give-build: the adventurer's id (default: a new one); "
+                             "--credit-only: the adventurer inside an instance")
     return parser.parse_args(argv)
 
 
-def fund_pack(node, hub, instances, registry, fate, flatten, adventurer, credits, gold):
+def credit_harness(admin, hub, instances, registry, fate, flatten, inside, adventurer, credits, gold):
+    """The admin's half of the harness (D-280), shared by `fund_pack` and the credit-only mode: the hub's
+    `instances` is account 0 for one forged Open `report` of the instance `inside` (the pack and the
+    gold), then the real `Instances` again, in a `finally`, and read back from the chain: the run fails
+    unless it is the `Instances` address. No owner call: only `set_contracts` and `report`."""
+    assert_local_devnet(admin)
+    admin.invoke(hub, "set_contracts", registry, admin.address, 4, fate, flatten)
+    try:
+        admin.invoke(hub, "report", inside, 1, adventurer, 0, gold, len(credits),
+                     *[f for item, count in credits for f in (item, count)],
+                     0, 0, 0, 0, OPEN, 0, 0, 0, 0, 0, 0)
+    finally:  # the real `Instances` is restored even when the report fails, and checked
+        admin.invoke(hub, "set_contracts", registry, instances, 4, fate, flatten)
+        if hub_instances(admin, hub) != int(instances, 16):
+            raise RuntimeError("Hub.instances was not restored to the Instances address")
+
+
+def fund_pack(node, hub, instances, registry, fate, flatten, adventurer, credits, gold, admin=None):
     """The pack and the gold, as the lifecycle probe does it: `report` is the only call that credits
-    either. The adventurer enters, the hub's `instances` is the account for one Open report, then it
-    is the real `Instances` again and the adventurer leaves by the gate back to the start hub. The
-    devnet harness of D-280: it refuses any node but a local devnet before it writes anything, and
-    it fails unless `Hub.instances`, read back from the chain, is the `Instances` address again."""
+    either. The adventurer enters, the harness credits it (`credit_harness`), and it leaves by the gate
+    back to the start hub. The devnet harness of D-280: it refuses any node but a local devnet before it
+    writes anything. `node` makes the owner's calls (`enter`, `leave`); `admin` (default: `node`, the
+    deployer, who owns the adventurer in `--build full`) the two that only account 0 can make."""
+    admin = admin or node
     assert_local_devnet(node)
     inside = entered(node.invoke(hub, "enter", adventurer, 1), instances)
-    node.invoke(hub, "set_contracts", registry, node.address, 4, fate, flatten)
-    try:
-        node.invoke(hub, "report", inside, 1, adventurer, 0, gold, len(credits),
-                    *[f for item, count in credits for f in (item, count)],
-                    0, 0, 0, 0, OPEN, 0, 0, 0, 0, 0, 0)
-    finally:  # the real `Instances` is restored even when the report fails, and checked
-        node.invoke(hub, "set_contracts", registry, instances, 4, fate, flatten)
-        if hub_instances(node, hub) != int(instances, 16):
-            raise RuntimeError("Hub.instances was not restored to the Instances address")
+    credit_harness(admin, hub, instances, registry, fate, flatten, inside, adventurer, credits, gold)
     node.invoke(instances, "leave", inside, adventurer, 0, HUB_GATE_BACK)
+
+
+def pack_for(plan):
+    """What the harness credits besides the gold: the pack of twice the belt."""
+    return [(item, 2 * count) for item, count in plan["belt"]]
+
+
+def build_json(mode, plan, bar, belt, pack, left, gold):
+    """The `build` key of the deployment JSON, which both modes write in the same shape."""
+    full = mode == "full"
+    return {"mode": mode, "bar": bar,
+            "belt": [{"item": i, "count": c} for i, c in belt],
+            "pack": [{"item": i, "count": c} for i, c in pack],
+            "pack_after_entry": [{"item": i, "count": c} for i, c in left],
+            "derived": ["pack_after_entry"],  # computed here (no pack view yet), not read
+            "gold": gold,  # credited by the devnet harness (D-280), all spent on the skills
+            "dropped": plan["dropped"] if full else {},
+            **({"skills": plan["skills"]} if full else {})}
+
+
+def load_deployment(path):
+    """The deployment JSON of an earlier run: refused when it is missing or lacks what the modes read."""
+    try:
+        with open(path) as handle:
+            dep = json.load(handle)
+        dep["node_url"], dep["account"], dep["classes"]["flatten_library"]
+        for name in ("registry", "tx_hash_fate", "hub", "instances"):
+            dep["contracts"][name]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        sys.exit(f"devnet_deploy: no deployment in {path} ({error!r}): run the script first, --out <path>")
+    return dep
+
+
+def mode_nodes(args, dep):
+    """The admin's `Node` (account 0, key from the devnet) after every refusal that needs no write, and
+    the predeployed accounts. `NODE_URL`, when set, overrides the file's `node_url`."""
+    url = os.environ.get("NODE_URL") or dep["node_url"]
+    check_url(url)
+    logs = os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node"))
+    probe = Node(url, dep["account"], "unused", logs, name="probe")
+    try:
+        assert_local_devnet(probe)
+        hub = dep["contracts"]["hub"]
+        try:
+            probe.rpc("starknet_getClassHashAt", {"block_id": "latest", "contract_address": hub})
+        except RuntimeError as error:
+            sys.exit(f"devnet_deploy: this node has no deployment (the Hub {hub} has no class: {error})")
+        predeployed = probe.rpc("devnet_getPredeployedAccounts", {})
+    finally:
+        probe.close()
+    if not predeployed or int(predeployed[0]["address"], 16) != int(dep["account"], 16):
+        sys.exit("devnet_deploy: the first predeployed account of the node is not the deployment's account")
+    admin = Node(url, dep["account"], predeployed[0]["private_key"], logs, name="admin")
+    admin.import_account()
+    return admin, predeployed, logs
+
+
+def owner_of(args, admin, predeployed, logs):
+    """`--account` as a `Node` of its own: a predeployed index 1-9, or an address with its key in the
+    environment variable `--key-env` names."""
+    text = args.account
+    if text.isdigit():
+        index = int(text)
+        if not 1 <= index <= 9 or index >= len(predeployed):
+            sys.exit(f"devnet_deploy: --account {index}: the index is 1 to 9 (0 stays the admin)")
+        if args.key_env:
+            sys.exit("devnet_deploy: --key-env goes with an address, not with a predeployed index")
+        address, key = predeployed[index]["address"], predeployed[index]["private_key"]
+    else:
+        try:
+            address = hex(int(text, 16))
+        except ValueError:
+            sys.exit(f"devnet_deploy: --account {text!r} is neither an index nor an address")
+        if not args.key_env or not os.environ.get(args.key_env):
+            sys.exit("devnet_deploy: an address needs --key-env NAME, the environment variable "
+                     "that holds its private key (not set or empty)")
+        key = os.environ[args.key_env]
+    owner = Node(admin.url, address, key, logs, name="owner")
+    owner.import_account()
+    return owner
+
+
+def give_build(admin, owner, dep, adventurer):
+    """DEPLOY-BUILD-FOR, `--give-build`: `--build full`'s order for an adventurer of `owner`. Returns
+    `(adventurer id, build)`."""
+    hub, instances = dep["contracts"]["hub"], dep["contracts"]["instances"]
+    registry, fate, flatten = dep["contracts"]["registry"], dep["contracts"]["tx_hash_fate"], \
+        dep["classes"]["flatten_library"]
+    if adventurer is None:
+        if not owner.view("persistent", hub, "account_of", int(owner.address, 16))[0]:
+            owner.invoke(hub, "register")
+        account_id = owner.view("persistent", hub, "account_of", int(owner.address, 16))[0]
+
+        def ids():  # `Hub.account`: owner, record, then the span of the adventurers' ids
+            words = owner.view("persistent", hub, "account", account_id)
+            return words[3:3 + words[2]]
+        before = ids()
+        owner.invoke(hub, "create_adventurer", short("Burner"), 1)
+        created = [i for i in ids() if i not in before]
+        if len(created) != 1:
+            raise RuntimeError(f"the new adventurer's id is not in Hub.account: {before} -> {ids()}")
+        adventurer = created[0]
+    # an empty build first: the snapshot `enter` needs, and the first owner call, so that an adventurer
+    # the account does not own is refused by the chain before the admin writes anything
+    owner.invoke(hub, "set_build", adventurer, EMPTY_BUILD, 0, 0)
+    plan = build_plan()
+    belt, pack, gold = plan["belt"], pack_for(plan), GOLD
+    fund_pack(owner, hub, instances, registry, fate, flatten, adventurer, pack, gold, admin=admin)
+    for skill in plan["skills"].values():
+        owner.invoke(hub, "buy_skill", adventurer, skill)
+    bar = [0] * BAR_SLOTS
+    bar[:len(plan["skills"])] = plan["skills"].values()
+    owner.invoke(hub, "set_build", adventurer, build_word(bar), belt_word(belt), 0)
+    return adventurer, build_json("full", plan, bar, belt, pack, list(belt), gold)
+
+
+def credit_only(admin, dep, adventurer):
+    """DEPLOY-BUILD-FOR, `--credit-only`: the harness's admin calls for an adventurer that is inside an
+    instance, no owner call. The instance id is read from `Instances.placement`. Refused, before any
+    write, when the adventurer is not inside one."""
+    hub, instances = dep["contracts"]["hub"], dep["contracts"]["instances"]
+    assert_local_devnet(admin)
+    placement = admin.view("ephemeral", instances, "placement", adventurer)
+    inside_id, _, inside = placement
+    if not inside_id or not inside:
+        sys.exit(f"devnet_deploy: adventurer {adventurer} is not inside an instance (placement "
+                 f"{placement}): it must enter first (Hub.enter) before it is credited, and leave by "
+                 f"gate {HUB_GATE_BACK} afterwards")
+    plan = build_plan()
+    pack = pack_for(plan)
+    credit_harness(admin, hub, instances, dep["contracts"]["registry"], dep["contracts"]["tx_hash_fate"],
+                   dep["classes"]["flatten_library"], inside_id, adventurer, pack, GOLD)
+    return {"adventurer_id": adventurer, "instance_id": inside_id, "gold": GOLD,
+            "pack": [{"item": i, "count": c} for i, c in pack],
+            "instance_read_from": "Instances.placement"}
+
+
+def write_output(args, result):
+    text = json.dumps(result, indent=2) + "\n"
+    if args.out:
+        with open(args.out, "w") as out:
+            out.write(text)
+        print(f"devnet_deploy: wrote {args.out}", file=sys.stderr)
+    else:
+        sys.stdout.write(text)
+
+
+def run_mode(args):
+    """`--give-build` and `--credit-only`: every refusal comes before a write that needs a refusal."""
+    if not args.deployment:
+        sys.exit("devnet_deploy: --deployment <json> is needed")
+    if args.credit_only:
+        if args.adventurer is None or args.account or args.key_env:
+            sys.exit("devnet_deploy: --credit-only takes --adventurer <id> and no account (it makes "
+                     "no owner call)")
+    elif not args.account:
+        sys.exit("devnet_deploy: --give-build needs --account <1-9 | address>")
+    if args.give_build and args.account.isdigit() and not 1 <= int(args.account) <= 9:
+        sys.exit(f"devnet_deploy: --account {args.account}: the index is 1 to 9 (0 stays the admin)")
+    dep = load_deployment(args.deployment)
+    admin, owner = None, None
+    try:
+        admin, predeployed, logs = mode_nodes(args, dep)
+        if args.credit_only:
+            result = credit_only(admin, dep, args.adventurer)
+        else:
+            owner = owner_of(args, admin, predeployed, logs)
+            adventurer, build = give_build(admin, owner, dep, args.adventurer)
+            result = {"account": owner.address, "adventurer_id": adventurer, "build": build}
+    except RuntimeError as error:  # a refusal of the chain (not the owner, a known skill): passed on
+        print(f"devnet_deploy: the chain refused: {error}", file=sys.stderr)
+        return 1
+    finally:
+        for node in (admin, owner):
+            if node:
+                node.close()
+    write_output(args, result)
+    return 0
 
 
 def main(argv):
     args = parse(argv)
+    if args.give_build or args.credit_only:
+        return run_mode(args)
     out_path = args.out
     try:
         url = os.environ["NODE_URL"]
@@ -468,7 +735,7 @@ def main(argv):
     belt, pack, left, gold = [], [], [], 0
     if args.build == "full":
         belt = plan["belt"]
-        pack = [(item, 2 * count) for item, count in belt]
+        pack = pack_for(plan)
         left = [(item, count) for item, count in belt]
         gold = GOLD
         fund_pack(node, hub, instances, registry, fate, classes["flatten_library"], adventurer, pack,
@@ -488,14 +755,7 @@ def main(argv):
         "contracts": {"registry": registry, "tx_hash_fate": fate, "hub": hub,
                       "instances": instances},
         "adventurer_id": adventurer, "instance_id": instance, "slot": instance >> 32,
-        "build": {"mode": args.build, "bar": bar,
-                  "belt": [{"item": i, "count": c} for i, c in belt],
-                  "pack": [{"item": i, "count": c} for i, c in pack],
-                  "pack_after_entry": [{"item": i, "count": c} for i, c in left],
-                  "derived": ["pack_after_entry"],  # computed here (no pack view yet), not read
-                  "gold": gold,  # credited by the devnet harness (D-280), all spent on the skills
-                  "dropped": plan["dropped"] if args.build == "full" else {},
-                  **({"skills": plan["skills"]} if args.build == "full" else {})},
+        "build": build_json(args.build, plan, bar, belt, pack, left, gold),
     }
     text = json.dumps(result, indent=2) + "\n"
     if out_path:
