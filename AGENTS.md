@@ -8,8 +8,9 @@
   through `scripts/lock.sh --heavy scarb build` (the `scarb` shim serialises builds: concurrent ones were
   OOM-killed), run from each package's own folder. It builds only the packages you touched and skips the
   compile when no Cairo source, Scarb manifest or lock, or `.tool-versions` changed. Never work around the lock.
-- On the VPS it waits at most 90 s for that lock (`PREPUSH_LOCK_WAIT`, through `scripts/lock.sh --wait`, never around
-  it); if the lock stays busy it skips the Cairo compile and the checks that build, prints one line, and CI compiles.
+- On the VPS it waits at most 15 s per lock, once per run (`PREPUSH_LOCK_WAIT`, through `scripts/lock.sh --wait`, never
+  around it). Once a lock is found busy, every later locked step is skipped at once with one line, and CI runs them;
+  the Cairo compile and the checks that build are skipped and CI compiles.
   fmt, the scripts' tests and any other failure still fail the push. Where there is no `flock` (the Mac has no build
   lock) the full check runs, builds included.
 - The hook checks HEAD and the working tree, not the refs being pushed.
@@ -25,7 +26,7 @@ A thread runs locally only the tests of the parts it touched, never the whole su
 suite is CI's, on the PR, gated by changed paths (`.github/ci/changes.py`, FND-18): a documents-only change runs
 no test. `scripts/prepush.sh` is already scoped to the branch's own changes against origin/main (FND-21);
 `--all` runs everything. The pre-push hook stays minimal (2026-10-02 rule) and is not a substitute for the scoped
-tests. On the VPS, Cairo and pnpm runs go through `scripts/lock.sh` (one heavy run at a time, 90 s wait).
+tests. On the VPS, Cairo and pnpm runs go through `scripts/lock.sh` (one heavy run at a time, 15 s wait in the pre-push).
 
 Exceptions, both on purpose: the gas check (`scripts/gas_budgets.py --check`, and the regeneration of `GAS.md`
 and `docs/BUDGETS.md`) runs a whole package's suite with `--max-threads 2` (FND-20), so a Cairo change that moves

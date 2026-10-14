@@ -98,6 +98,8 @@ output, with that root path recorded beside it. A class declared on a network us
 by CI at that root (a CI artefact), never a local worktree build. Local builds may check felts, CASM and
 gas, not class hashes.
 
+**One Cairo build or test run at a time on the VPS** (organisation rule, 2026-10-14): every `scarb` and `snforge` call goes through the shims `~/.local/bin/scarb` and `~/.local/bin/snforge`, which take `~/orchestrator/heavy-build.lock`. No PATH prepend to `~/.asdf/installs/...` and no direct binary path, in a command, a brief, a script or a check-run runner form. More capacity means the Mac, when it is offered, never a second build on the VPS. A Sepolia deployment declares CI's artefact and builds nothing.
+
 A running agent is never stopped for load. The budget was measured by FND-03 (memory does not bind;
 CPU and the shared heavy lock do) and is measured again when the contracts' test build passes 6 GB
 or when a phase runs client and contract agents together. Nexus and the project's launcher do not
@@ -169,6 +171,8 @@ scope with its **allowlist**, interfaces, acceptance criteria, verification, rep
 - **Residuals accepted by the owner**: the agents run as the same Unix user, so its credential files
   (`gh`, `codex`, `claude`, the Scarb registry token in `~/.claude/settings.json`, mode 600) are
   readable by code an agent runs; test networks only and nothing of value in the MVP keep it small.
+
+**Claude Code skills** (organisation rule, 2026-10-14) are installed in the repository only, at `.claude/skills/<name>/SKILL.md`, by a reviewed pull request that names the source and the exact version. The review reads the whole skill text as a rule: nothing that grants a permission, retries a refused command, speaks to another session, or fetches and runs code. Nothing at user or machine level, which is the owner's own setting.
 
 ## 5. Sources of truth
 
@@ -266,13 +270,14 @@ verdict, findings table, coverage).
   variables `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS`, `STARKNET_PRIVATE_KEY`
   of the machine's user-level settings, used by name. The launcher empties them unless the task is
   launched with `--with-sepolia`, which it refuses unless the brief, as committed on `origin/main`,
-  holds `> Sepolia account: granted (launch with `--with-sepolia`).` and names the profile. A task that
+  holds `> Sepolia account: granted (launch with `--with-sepolia`).` and names the profile. A herdr thread has no `--with-sepolia`, so on Grim World the Sepolia deployment itself is run by the game orchestrator's session from a clean checkout of main, and a thread writes the script and the record (D-300). A task that
   sends transactions measures instead of looping, reports how many it sent and their cost, and every
   script that sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**.
   Every release goes to Sepolia first; every deployment records the class hash it declared and the
   commit (D-154), the CI checkout root it was built at and the CI artefact (run URL and name,
   `contract-classes-<sha>`, with its `build-root.json`) the declared class files came from (FND-12), the artefact of a push to
   `main` (the commit on `main`), never of a pull request's run. Mainnet is the owner's (D-116).
+- **A long push** (a pre-push that builds, on a slow lock) keeps its SSH connection alive with `git -c core.sshCommand="ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=100" push -u origin HEAD`, on that one push only. It is a one-command option, not a change of the clone's configuration.
 - **`scripts/devnet_deploy.py`'s gold step is a devnet harness (D-280)**, never used on Sepolia or later: it points `Hub.instances` at the account for one `report`, only on a local devnet (the RPC's chain id and `devnet_getPredeployedAccounts` are checked), restores and reads it back in a `finally`, and is removed when expedition rewards land.
 - **Publications on scarbs.xyz are delegated to the project manager, in the owner's name** (D-132).
   No sub-agent publishes, ever. The orchestrator asks with a committed
