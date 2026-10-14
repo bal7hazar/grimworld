@@ -83,8 +83,8 @@ jobs:
     if: needs.discover.outputs.cairo != '[]'
     name: cairo (${{ matrix.dir }})
     runs-on: ubuntu-latest
-    # 45: the contracts leg measured about 28 minutes on 2026-10-14; the limit only stops a hung job.
-    timeout-minutes: 45
+    # 25: the contracts leg measured 11m25s on this PR's run (PR #507), 1.6x slower runner seen: about 18 minutes.
+    timeout-minutes: 25
     # D-176 (FND-10's scope, folded into FND-11): the compiler's withdraw_gas placement follows rayon's
     # thread order, so every measured or declared build is single-threaded (docs/CAIRO.md §2).
     env:
@@ -146,7 +146,7 @@ jobs:
 
       # docs/CAIRO.md §2 enforced by a tool (FND-06): every test has a budget of ceil(1.05 x
       # measured) or lower, and docs/BUDGETS.md and the GAS.md files match the run. The tests
-      # run a second time (compiled already, seconds), for the figures.
+      # run a second time, for the figures: 3m52s measured on PR #507 (not seconds: it re-runs snforge).
       - name: gas budgets
         if: matrix.dir == 'contracts'
         working-directory: .
@@ -183,8 +183,8 @@ jobs:
     if: contains(fromJSON(needs.discover.outputs.cairo).*.dir, 'contracts')
     name: contracts (vectors)
     runs-on: ubuntu-latest
-    # TBD: measured on this PR's run
-    timeout-minutes: 45
+    # 30: measured 13m57s on PR #507's run; 1.6x slower runner: about 22 minutes.
+    timeout-minutes: 30
     # D-176: single-threaded builds, as in the `cairo` job (docs/CAIRO.md §2).
     env:
       RAYON_NUM_THREADS: "1"
@@ -246,8 +246,8 @@ jobs:
     if: contains(fromJSON(needs.discover.outputs.cairo).*.dir, 'contracts')
     name: contracts (clean builds agree)
     runs-on: ubuntu-latest
-    # TBD: measured on this PR's run
-    timeout-minutes: 45
+    # 15: measured 4m02s on PR #507's run; 1.6x slower runner: about 7 minutes.
+    timeout-minutes: 15
     # D-176: single-threaded builds, as in the `cairo` job (docs/CAIRO.md §2).
     env:
       RAYON_NUM_THREADS: "1"
