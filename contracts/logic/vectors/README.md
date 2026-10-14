@@ -668,13 +668,18 @@ None mixes `TILE` with `FOE` or `ALLY` (D-271).
 **Track CV's surviving mutants of the act port (#450), RV-03a2's rows.** By the mutant's name in
 `client/sim/src/parity/mutants.test.ts`: the weapon-required bit of slot 0 read for every slot: 224, 225; a negative
 `NEXT_SPELL_COST` added (`glyphs`): 226; a slot's pairs one bit a slot (`quick_cast_matches`): 227; an attack skill's
-scope a spell's (`read`): 228, 229; `ATTACK_BONUS` ignored (`modifiers`): 230; `HIT_PENETRATION` ignored: 231; a bomb
-or a trap takes held penetration (`penetration`): 232; an effect of `ALL` not taken: 233, 234; an
+scope a spell's (`read`): 228, 229; `ATTACK_BONUS` ignored (`modifiers`): 230; `HIT_PENETRATION` ignored: 231; an
+effect of `ALL` not taken: 233, 234; an
 `ON_ATTACK_CONDITION` not gathered (`attack`): 235, 236 (and the charge spent on a landed hit); `LIFE_STEAL_ON_HIT`
-ignored (`on`): 237; `ENERGY_ON_HIT` not gained (`run`): 238; the source in its own hit's set (`actors`): 239; a dead
+ignored (`on`): 237; `ENERGY_ON_HIT` not gained (`run`): 238; a dead
 member a candidate of a wide carrier: 240 (a hit of filter `ALLIES` on it would set its `HIT` flag: `struck` has no
 alive check); a `SINGLE` `TILE` entry read narrow: 241; the actors not in ascending position: 242; the hit given to
 every set's actor (`run`): 243.
+
+Two still survive (rows 232 and 239 do not kill them). A bomb or a trap takes held penetration (`penetration`):
+`resolve` reads penetration only for a weapon hit or a spell (`types/hit.cairo` 252, 325–327). The source in its own
+hit's set (`actors`): the source's bits reach only `entries` (`types/executor.cairo` 1935–1938, 2741), where `HIT_BIT`
+8 is entry 3's bit (2324–2326, 2858–2859), and skill 82 holds a single entry.
 
 **The inventory** (what the earlier tables already pin of `act`). `segment2.jsonl` reaches `ActionLibrary::act` in its
 combat rows, but through `ActionRecorder`: each row records the class's result for the segment to replay, so a mirror
