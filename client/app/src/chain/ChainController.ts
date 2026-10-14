@@ -8,6 +8,7 @@ import {
   Prefixes,
   batchLines,
   consoleLogReport,
+  refusal,
 } from "../combat/log";
 import { NAMES } from "../combat/names";
 import { runRecorded } from "../combat/record";
@@ -216,6 +217,11 @@ export function createChainController(deps: ControllerDeps): ChainController {
   const history = new CombatLog();
   /** The predicted lines of each action of the batch planned (§7.2), recomputed with the batch. */
   let pending: LogLine[][] = [];
+  /**
+   * The refusals since the last settled batch, each after the lines of the `at` actions planned
+   * when it came: the log stays in input order, and they go to `history` with the batch's lines.
+   */
+  let refusals: { readonly at: number; readonly line: LogLine }[] = [];
   const prefixes = new Prefixes<MirrorState>((base, actions) =>
     runRecorded({ ...segmentOf(base), actions }, nativeClasses),
   );
@@ -272,8 +278,17 @@ export function createChainController(deps: ControllerDeps): ChainController {
     }
   }
 
+  /** The batch's predicted lines with the refusals between them, in input order. */
+  function unsettled(): LogLine[] {
+    const after = (k: number) => refusals.filter((r) => r.at === k).map((r) => r.line);
+    return [
+      ...pending.flatMap((lines, k) => [...after(k), ...lines]),
+      ...refusals.filter((r) => r.at >= pending.length).map((r) => r.line),
+    ];
+  }
+
   function refresh() {
-    const log = [...history.lines, ...pending.flat()].slice(-MAX_LINES);
+    const log = [...history.lines, ...unsettled()].slice(-MAX_LINES);
     snapshot = { view: combat?.view.view() ?? null, log };
     for (const listener of combatListeners) listener();
   }
@@ -306,7 +321,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
     const action = slotAction(armed, target);
     const line = action === undefined ? refusalLine(Illegal.Target)! : verdict(action, armed);
     if (line !== undefined) {
-      history.refuse(line);
+      refusals = [...refusals, { at: stages.get().planned.length, line: refusal(line) }];
       set({ note: line, turning: false });
       refused = armed;
       refresh();
@@ -364,6 +379,9 @@ export function createChainController(deps: ControllerDeps): ChainController {
       now.chain.mirror,
       now.planned.map((p) => p.action),
     );
+    // A batch dropped or cut: its refusals stay, after what is left of it
+    const at = now.planned.length;
+    refusals = refusals.map((r) => (r.at > at ? { ...r, at } : r));
     refresh();
   }
 
@@ -372,11 +390,12 @@ export function createChainController(deps: ControllerDeps): ChainController {
     const { result } = sent;
     if (result.kind !== "sent" || result.chain.kind !== "played") return;
     if (result.mirror.kind !== "predicted") return;
-    history.add(pending.flat());
+    history.add(unsettled());
     if (result.mismatches.length === 0 && result.differs.length === 0) history.confirm();
     else history.correct();
     // What is pending is the sent batch's: it is settled, and the batch is dropped or read again
     pending = [];
+    refusals = [];
     refresh();
   }
 

@@ -72,8 +72,11 @@ export interface LogLine {
   readonly text: string;
   /** A refusal before the batch is drawn muted. */
   readonly tone: "event" | "refusal";
-  /** Predicted until the chain confirms it; struck when the chain differed. */
-  readonly status: "predicted" | "confirmed" | "struck";
+  /**
+   * Predicted until the chain confirms it; struck when the chain differed. A refusal before the
+   * batch is `refused`: nothing was sent for it, so no send confirms or strikes it.
+   */
+  readonly status: "predicted" | "confirmed" | "struck" | "refused";
 }
 
 /** What the log reports to track game: an unattributed change, a replay that differs. */
@@ -762,6 +765,11 @@ function rechargeLeft(
 
 // ---- The log (§7.3).
 
+/** A refusal before the batch (§4.4): muted, and left alone by `confirm` and `correct`. */
+export function refusal(text: string): LogLine {
+  return { text, tone: "refusal", status: "refused" };
+}
+
 /** The instance's log: its last 100 lines, lost on a reload, cleared on a new instance. */
 export class CombatLog {
   private kept: LogLine[] = [];
@@ -777,7 +785,7 @@ export class CombatLog {
 
   /** A refusal before the batch (§4.4), muted. */
   refuse(text: string): void {
-    this.add([{ text, tone: "refusal", status: "predicted" }]);
+    this.add([refusal(text)]);
   }
 
   /** The chain played the predicted lines: confirmed. */
