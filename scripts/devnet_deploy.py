@@ -268,9 +268,16 @@ class Node:
             raise RuntimeError(self.redact(f"{method}: {answer['error']}"))
         return answer["result"]
 
+    def sncast_cwd(self, package):
+        """Where `sncast` runs (OPS-02a: the Sepolia node runs it in a folder of its own)."""
+        return os.path.join(CONTRACTS, package)
+
+    def sncast_args(self, args):
+        return args
+
     def sncast(self, package, *args, account=True):
         accounts = ["--accounts-file", self.accounts] if account else []
-        out = subprocess.run(["sncast", *accounts, *args], cwd=os.path.join(CONTRACTS, package),
+        out = subprocess.run(["sncast", *accounts, *self.sncast_args(args)], cwd=self.sncast_cwd(package),
                              capture_output=True, text=True)
         if out.returncode != 0:
             # sncast echoes the command's arguments only on a usage error, never the key we import

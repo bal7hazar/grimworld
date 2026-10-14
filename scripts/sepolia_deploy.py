@@ -11,6 +11,8 @@ message names the variable only, and what `sncast` or the RPC echo back (an erro
 address) goes through `Redactor` before it is printed or logged. The record holds no RPC URL and no
 account. The key goes to `sncast` through a 0600 file (`O_EXCL`, deleted in a `finally`) and the accounts
 file it writes lives in a private temporary folder that is removed in a `finally`: never a command line.
+The URL (it may carry an API key, and `ps` shows command lines) reaches `sncast` the same way: an
+`snfoundry.toml` (0600) in that folder, where `sncast` runs; no `--url` is ever passed.
 
 What it does, in order, and nothing is sent before step 3:
   1. refuses `--give-build`, `--credit-only` and the other options of the devnet script (D-280's gold
@@ -126,6 +128,26 @@ class SepoliaNode(dd.Node):
         super().__init__(url, address, key, logs)
         self.files = files
         self.redact = redact
+        # The URL may carry an API key and `ps` shows a command line: `sncast` reads it from the
+        # `snfoundry.toml` of its working folder (a private folder, 0600 file, removed with `logs`).
+        self.home = os.path.join(logs, "sncast")
+        os.makedirs(self.home, mode=0o700, exist_ok=True)
+        descriptor = os.open(os.path.join(self.home, "snfoundry.toml"), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(f"[sncast.default]\nurl = {json.dumps(url)}\n")
+        # asdf's shim picks `sncast` by the .tool-versions of the working folder
+        shutil.copy(os.path.join(ROOT, ".tool-versions"), self.home)
+
+    def sncast_cwd(self, package):
+        return self.home
+
+    def sncast_args(self, args):
+        """Drops `--url <url>`: the profile above holds it."""
+        args = list(args)
+        while "--url" in args:
+            at = args.index("--url")
+            del args[at:at + 2]
+        return args
 
     def declare(self, package, name):
         out = self.sncast(package, "--account", self.name, "--wait", "declare-from", "--url", self.url,

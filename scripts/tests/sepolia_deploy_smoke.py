@@ -159,6 +159,21 @@ def check_redactor():
     assert "<STARKNET_RPC_URL>" in clean and "<STARKNET_ACCOUNT_ADDRESS>" in clean, clean
 
 
+def check_command_line():
+    """The URL never reaches a command line: `--url` is dropped and the profile holds it (0600)."""
+    logs = tempfile.mkdtemp(prefix="smoke-node-")
+    try:
+        url = FAKE["STARKNET_RPC_URL"]
+        node = sepolia_deploy.SepoliaNode(url, FAKE["STARKNET_ACCOUNT_ADDRESS"], "unused", logs, {}, str)
+        args = node.sncast_args(["--account", "deployer", "--wait", "invoke", "--url", url, "--function", "f"])
+        assert args == ["--account", "deployer", "--wait", "invoke", "--function", "f"], args
+        assert url not in " ".join(args)
+        profile = os.path.join(node.sncast_cwd("persistent"), "snfoundry.toml")
+        assert oct(os.stat(profile).st_mode & 0o777) == "0o600" and url in open(profile).read()
+    finally:
+        sepolia_deploy.shutil.rmtree(logs)
+
+
 def check_chain_unit():
     """`check_chain` and `check_endpoint` on a stub, before any process: the chain id decides first."""
     class Log:
@@ -325,6 +340,7 @@ def check_rehearsal(real, node, run_id, logs):
 
 def main():
     check_redactor()
+    check_command_line()
     check_chain_unit()
     url, address, key = (os.environ["NODE_URL"], os.environ["NODE_ACCOUNT_ADDRESS"],
                          os.environ["NODE_ACCOUNT_PRIVATE_KEY"])

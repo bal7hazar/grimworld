@@ -101,9 +101,10 @@ CLIENT_NODE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/setup-to
 # The devnet-smoke job (SMOKE-CI, D-290): scripts/tests/devnet_deploy_smoke.py, which deploys the game on a devnet
 # (scripts/devnet_deploy.py builds on the classes of contracts/: logic, persistent, ephemeral and the seed in
 # contracts/seed/ with contracts/tools/seed_records.py) and checks the seed's potion words against action.cairo.
-DEVNET_SMOKE_PREFIXES = ("contracts/",)
+DEVNET_SMOKE_PREFIXES = ("contracts/", "deployments/")
 DEVNET_SMOKE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/setup-toolchain.sh", "scripts/devnet_*",
-                      "scripts/tests/devnet_deploy_smoke.py")
+                      "scripts/tests/devnet_deploy_smoke.py", "scripts/sepolia_deploy.py",
+                      "scripts/tests/sepolia_deploy_smoke.py")
 # prettier checks client/ and indexer/ whatever the file type, markdown included (decided by the
 # orchestrator, 2026-10-03; reversed by a later lot that adds a .prettierignore for *.md).
 PRETTIER_PREFIXES = ("client/", "indexer/")

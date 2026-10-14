@@ -623,6 +623,10 @@ jobs:
     if: needs.discover.outputs.devnet_smoke == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # `actions: read` lets OPS-02a's smoke list and download a push run's artefact (`gh run download`).
+    permissions:
+      contents: read
+      actions: read
     env:
       RAYON_NUM_THREADS: "1"
       DEVNET_VERSION: 0.10.0
@@ -705,6 +709,15 @@ jobs:
       # after devnet_deploy.py. It needs the classes built above. No key is printed.
       - name: devnet_deploy_smoke
         run: scripts/with-node.sh python3 scripts/tests/devnet_deploy_smoke.py
+
+      # OPS-02a: a `--devnet-rehearsal` of scripts/sepolia_deploy.py from the artefact of the newest push run
+      # of main that holds one. Nothing is sent anywhere but this runner's devnet; `gh` reads the repository's
+      # Actions with the job's token (`actions: read`).
+      - name: sepolia_deploy_smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: scripts/with-node.sh python3 scripts/tests/sepolia_deploy_smoke.py
 
   # The art pipeline's tests (`python -m unittest discover -s tools/art/tests`), only when a path under
   # tools/art/ changed (`art` of .github/ci/changes.py). The `assets` submodule is private and never
