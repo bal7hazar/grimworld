@@ -460,7 +460,10 @@ describe("the deployment's build (CLI-11d3)", () => {
       await restore(built);
       Object.assign(world, { inside: false, hub: START_HUB, rejectWith: rpcError(code) });
       sent.length = 0;
-      await expect(enter(built, 2)).rejects.toMatchObject({ name: "AccountError", code: "refused" });
+      await expect(enter(built, 2)).rejects.toMatchObject({
+        name: "AccountError",
+        code: "refused",
+      });
       expect(sent).toEqual([["set_build"]]);
     }
   });
@@ -471,7 +474,10 @@ describe("the deployment's build (CLI-11d3)", () => {
       await restore(built);
       Object.assign(world, { inside: false, hub: START_HUB, rejectWith: cause ?? "none" });
       sent.length = 0;
-      await expect(enter(built, 2)).rejects.toMatchObject({ name: "AccountError", code: "refused" });
+      await expect(enter(built, 2)).rejects.toMatchObject({
+        name: "AccountError",
+        code: "refused",
+      });
       expect(sent).toEqual([["set_build"]]);
     }
   });

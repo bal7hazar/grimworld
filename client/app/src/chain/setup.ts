@@ -209,7 +209,8 @@ const EXECUTION_REFUSED_CODES: ReadonlySet<number> = new Set([40, 41]);
 function rpcCode(cause: unknown): number | undefined {
   if (!(cause instanceof Error) || !("baseError" in cause)) return undefined;
   const { baseError } = cause;
-  if (typeof baseError !== "object" || baseError === null || !("code" in baseError)) return undefined;
+  if (typeof baseError !== "object" || baseError === null || !("code" in baseError))
+    return undefined;
   return typeof baseError.code === "number" ? baseError.code : undefined;
 }
 
