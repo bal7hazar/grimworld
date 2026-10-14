@@ -152,7 +152,9 @@ class Run:
 
     def no_leak(self, *texts):
         for name, value in self.values.items():
-            for form in forms(name, value) if name != "STARKNET_NETWORK" else {value}:
+            if name == "STARKNET_NETWORK":  # a public name: the stub's echo of it is not redacted
+                continue
+            for form in forms(name, value):
                 for text in texts:
                     assert form not in text, f"{name} leaked as {form!r} in:\n{text[:800]}"
 
@@ -169,9 +171,11 @@ def check_redactor():
             "network sentinel-network-a1b2c3 sentinelapikey7788 and another 0xabcd")
     clean = redact(text)
     for name, value in values.items():
-        assert value.lstrip("0x") not in clean.replace("0xabcd", ""), (name, clean)
+        if name != "STARKNET_NETWORK":  # a public name, not redacted
+            assert value.lstrip("0x") not in clean.replace("0xabcd", ""), (name, clean)
     assert "sentinelapikey7788" not in clean and "sentinel-host-9c1d" not in clean, clean
     assert "0xabcd" in clean, "another number is left alone"
+    assert redact(clean) == clean, ("not idempotent", clean)
     assert "<STARKNET_RPC_URL>" in clean and "<STARKNET_ACCOUNT_ADDRESS>" in clean, clean
     # a value without 0x, with a leading zero, in any padding
     bare = sepolia_deploy.Redactor({**FAKE, "STARKNET_ACCOUNT_ADDRESS": NOPREFIX["STARKNET_ACCOUNT_ADDRESS"],
@@ -180,6 +184,7 @@ def check_redactor():
                  "5E47C0DE5EC12E7ABCD", "0x05e47c0de5ec12e7abcd"):
         out = bare(f"account {echo} failed")
         assert "5e47" not in out.lower(), (echo, out)
+        assert bare(out) == out, ("not idempotent", echo, out)
 
 
 def check_overlap():
@@ -201,15 +206,32 @@ def check_overlap():
         assert "<STARKNET_RPC_URL>" in out, (what, out)
         assert "<STARKNET_<" not in out and out.count("<") == out.count(">"), (what, out)
         assert redact(out) == out, ("not idempotent", what, out)
-    assert redact("network sepolia") == "network <STARKNET_NETWORK>"
+    assert redact("network sepolia") == "network sepolia", "STARKNET_NETWORK is a public name: not redacted"
     # the placeholders survive a second pass whatever the URL's pieces are ("starknet" is one: a path segment)
     assert redact("<STARKNET_RPC_URL> <STARKNET_NETWORK>") == "<STARKNET_RPC_URL> <STARKNET_NETWORK>"
-    # the record's check: unchanged by the redactor, STARKNET_NETWORK left out ("Starknet Sepolia" is in it)
+    # the record's check: unchanged by the redactor ("Starknet Sepolia" is in it)
     record = json.dumps({"network": "Starknet Sepolia", "chain_id": "SN_SEPOLIA", "commit": "ab" * 20})
-    assert redact.without("STARKNET_NETWORK")(record) == record
-    assert redact(record) != record, "with the network value the record would change: that is why it is left out"
+    assert redact(record) == record
     leaked = json.dumps({"rpc": url})
-    assert redact.without("STARKNET_NETWORK")(leaked) != leaked
+    assert redact(leaked) != leaked
+    # a short network value does not garble the log: class hashes and addresses stay readable
+    short = sepolia_deploy.Redactor({**values, "STARKNET_NETWORK": "a"})
+    line = "class 0x1234abcd declared at 0x0def56789 (a retry needs it)"
+    assert short(line) == line, short(line)
+    # a number glued to another redacted value: the passes repeat until the text is stable
+    glued = sepolia_deploy.Redactor({**values, "STARKNET_NETWORK": "sepolia"})
+    host = "starknet-sepolia.g.alchemy.com"
+    for what, number in (("address", "5e47a1d0c0ffee1234"), ("key", "5e47c0de5ec12e7abcd0")):
+        for text in (f"{number}{host}", f"addr {number}{key}", f"0x{number}{host}x", f"{host}{number}"):
+            out = glued(text)
+            assert "5e47" not in out.lower(), (what, text, out)
+            assert glued(out) == out, ("not idempotent", what, text, out)
+    # a `;params` segment is a piece like the path and the query, and the 12-character floor stays
+    semi = sepolia_deploy.Redactor({"STARKNET_RPC_URL": "https://rpc.example.org/v3;apikey=SECRETparam123?x=1"})
+    out = semi("echo SECRETparam123 and apikey and starknet")
+    assert "SECRETparam123" not in out and "starknet" in out and "apikey" in out, out
+    short_key = sepolia_deploy.Redactor({"STARKNET_RPC_URL": "https://rpc.example.org/v3/short"})
+    assert "short" in short_key("echo short"), "documented limit: a secret under 12 characters is not hidden"
 
 
 def check_command_line():
