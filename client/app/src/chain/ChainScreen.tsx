@@ -373,11 +373,11 @@ function Play({ session }: { session: Session }) {
             />
           </div>
           {phone ? (
-            <div style={styles.logLine} data-combat-log="line">
+            <div style={styles.logLine} data-chain-log="line">
               <CombatLogLine lines={combat.log} />
             </div>
           ) : (
-            <div style={styles.logPanel} data-combat-log="panel">
+            <div style={styles.logPanel} data-chain-log="panel">
               <CombatLogPanel lines={combat.log} />
             </div>
           )}
