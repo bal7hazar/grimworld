@@ -877,16 +877,8 @@ const act: Record<string, Mirror> = {
   },
 };
 
-/** `tick.jsonl`'s content: its row 0's `ok`, which every row's words are loaded through. */
-let tickContent: Content | undefined;
-function contentOfTick(): Content {
-  if (tickContent === undefined) {
-    const read = new Felts(readTable("tick.jsonl")[0]!.ok!);
-    tickContent = readContent(read);
-    read.end();
-  }
-  return tickContent;
-}
+/** `tick.jsonl`'s content for row `id`: its latest `content` row's, which its words are loaded through. */
+const contentOfTick = (id: number): Content => contentAt("tick.jsonl", id);
 
 /** `tick.jsonl`'s level, the location band's lower one (`vectors::LEVEL`). */
 const TICK_LEVEL = 20;
@@ -904,13 +896,13 @@ const emptyGround = (): Ground => [
 ];
 
 const tick: Record<string, Mirror> = {
-  // The table's content, decoded and encoded again: what every row reads
-  content: (c) => {
+  // The row's content, decoded and encoded again: what every later row reads
+  content: (c, id) => {
     args(c, 0);
-    return writeContent(contentOfTick());
+    return writeContent(contentOfTick(id));
   },
   // `TickLibrary::ticks` on the case's words, board, level, ground and `n`
-  ticks: (c) => {
+  ticks: (c, id) => {
     const read = new Felts(c);
     const words = readWords(read);
     const board = readBoard(read);
@@ -918,16 +910,16 @@ const tick: Record<string, Mirror> = {
     const ground = readGround(read);
     const n = read.u8();
     read.end();
-    return ticksFelts(ticksClass({ words, content: contentOfTick(), board, level, ground, n }));
+    return ticksFelts(ticksClass({ words, content: contentOfTick(id), board, level, ground, n }));
   },
   // `SegmentTrait::ticks`' path for `n` ticks, then the words after it (the empty ground)
-  skip: (c) => {
+  skip: (c, id) => {
     const read = new Felts(c);
     const words = readWords(read);
     const board = readBoard(read);
     const n = read.u8();
     read.end();
-    const content = contentOfTick();
+    const content = contentOfTick(id);
     const world = loadWorld(words, indexed(content));
     const way = path(world, board, n);
     let after = words;
@@ -955,5 +947,5 @@ export const TABLES: readonly Entry[] = [
   { file: "batch.jsonl", floor: 28, fns: batch },
   { file: "segment.jsonl", floor: 47, fns: segment },
   { file: "segment2.jsonl", floor: 44, fns: segment2 },
-  { file: "tick.jsonl", floor: 131, fns: tick },
+  { file: "tick.jsonl", floor: 171, fns: tick },
 ];

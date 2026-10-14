@@ -28,7 +28,7 @@ import {
 } from "./log";
 import { runRecorded } from "./record";
 import { DEFAULT_NAMES } from "./state";
-import { contentOf, segment2Row, tickIds, tickRow } from "./vectors.testkit";
+import { contentAt, contentOf, segment2Row, tickIds, tickRow } from "./vectors.testkit";
 
 const TICK = contentOf("tick.jsonl");
 const SHEETS = indexSheets(TICK);
@@ -179,13 +179,13 @@ describe("the one-tick replay (§7.2 item 2)", () => {
     let rows = 0;
     for (const id of tickIds()) {
       const row = tickRow(id);
-      const call = { ...row, content: TICK };
+      const call = { ...row, content: contentAt("tick.jsonl", id) };
       const states = replayTicks(call);
       expect(states).toHaveLength(row.n + 1);
       expect(replayAgrees(states[row.n]!, tickTicks(call)), `tick.jsonl row ${id}`).toBe(true);
       rows += 1;
     }
-    expect(rows).toBe(120);
+    expect(rows).toBe(159);
   });
 
   it("a goblin's hit, attributed with its arc", () => {
@@ -413,7 +413,7 @@ describe("the cost of an input (§7.2), measured", () => {
     };
     // The heaviest row: the most goblins, then the most ticks (a choice by timing is noisy)
     const heaviest = tickIds()
-      .map((id) => ({ id, call: { ...tickRow(id), content: TICK } }))
+      .map((id) => ({ id, call: { ...tickRow(id), content: contentAt("tick.jsonl", id) } }))
       .sort(
         (a, b) => b.call.words.goblins.length - a.call.words.goblins.length || b.call.n - a.call.n,
       )[0]!;
