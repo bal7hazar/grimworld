@@ -1,4 +1,4 @@
-import { Illegal } from "@grimworld/sim";
+import { Illegal, ORIGIN, memberPlace } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import { readWorld } from "../combat/fromWords";
 import type { LogLine } from "../combat/log";
@@ -627,6 +627,34 @@ describe("a slot as an action (CLI-05 brief §4.1, §4.4)", () => {
     expect(combat.snapshot().view?.armed).toBeNull();
     expect(combat.escape()).toBe(false);
     expect(combat.snapshot().view?.state.adventurer.bar).toHaveLength(8);
+  });
+});
+
+describe("aiming at the location's edge (CLI-05g)", () => {
+  it("a TILE skill armed at the spawn tile (0, 7) aims, and throws nothing", () => {
+    // Row 88's world with the adventurer put at (0, 7), seven columns and nine rows into the
+    // window: the off-board tiles are skipped by `aiming`, so the controller needs no guard
+    const row = actRow(88);
+    const board = { ...row.board, x: ORIGIN - 7, y: ORIGIN - 2 };
+    const world = readWorld(row.words, ACT, row.ground, board);
+    const member = world.world.members[0]!;
+    const was = memberPlace(member);
+    member.words = {
+      ...member.words,
+      state: member.words.state + BigInt(-was.x + 256 * (7 - was.y)) * 2n ** 32n,
+    };
+    const warned: unknown[][] = [];
+    const warn = console.warn;
+    console.warn = (...args: unknown[]) => void warned.push(args);
+    try {
+      const { combat } = combatSetup(88, { combatWorld: () => world });
+      expect(() => combat.slot({ kind: "skill", slot: 0 })).not.toThrow();
+      expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 0 });
+      expect(combat.snapshot().view?.aim).toMatchObject({ addressing: "tile" });
+      expect(warned).toEqual([]);
+    } finally {
+      console.warn = warn;
+    }
   });
 });
 

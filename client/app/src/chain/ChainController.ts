@@ -357,17 +357,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
     if (world !== undefined) {
       const view = new CombatController(stateOf(world, NAMES));
       view.setRules({
-        aim: (_, armed) => {
-          // `aiming` asks client/sim's `aim` of every tile of the window, those beyond the
-          // location's edge included, and the loader panics on a negative tile (`u8_add`): a TILE
-          // slot near the edge has no aim, never a thrown input (a defect of `targeting.ts`)
-          try {
-            return aiming(world, armed);
-          } catch (error) {
-            console.warn("grimworld.aim-failure", error instanceof Error ? error.message : error);
-            return null;
-          }
-        },
+        aim: (_, armed) => aiming(world, armed),
         play: (at, armed, target) => {
           play(armed, target);
           return at;
