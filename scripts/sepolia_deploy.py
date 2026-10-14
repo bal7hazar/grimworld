@@ -8,7 +8,8 @@ From the repository root, with the account in the environment (OPERATIONS §7, u
 The variables `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS`, `STARKNET_PRIVATE_KEY`
 are read by name. **No value of any of them is printed, logged or written**, nor any part of one: every
 message names the variable only, and what `sncast` or the RPC echo back (an error carries the URL or the
-address) goes through `Redactor` before it is printed or logged. The record holds no RPC URL and no
+address) goes through `Redactor` before it is printed or logged. (`STARKNET_NETWORK` is a public name: it is not redacted.
+An RPC URL whose secret part is shorter than 12 characters is not supported.) The record holds no RPC URL and no
 account. The key goes to `sncast` through a 0600 file (`O_EXCL`, deleted in a `finally`) and the accounts
 file it writes lives in a private temporary folder that is removed in a `finally`: never a command line.
 The account's address is public: it may appear on a `sncast` command line (in `ps`), and it is never
@@ -56,7 +57,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import devnet_deploy as dd  # noqa: E402  the deployment order, the seed and the node, shared
 
 REPO = "bal7hazar/grimworld"  # every `gh` call names it: the artefact is this repository's, whatever the checkout's remote
-NAME = "ops02a"  # no "sepolia" in a message: a STARKNET_NETWORK of that value would be redacted in it
+NAME = "ops02a"
 CHAIN = "SN_SEPOLIA"
 VARIABLES = ("STARKNET_NETWORK", "STARKNET_RPC_URL", "STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY")
 REFUSED = ("--give-build", "--credit-only", "--build", "--deployment", "--account", "--key-env",
@@ -70,26 +71,34 @@ class Redactor:
     """Hides the value of each STARKNET_* variable (and the forms an echo may take) in a text. The URL
     is hidden whole and by its parts (host, path, query, a long path segment: an API key sits in one),
     the address and the key by their number whatever the padding, with or without 0x, in hex or decimal.
-    One pass over the text, one case-insensitive alternation, the longest value first, so a replacement is
-    never scanned again (STARKNET_NETWORK=sepolia cannot cut a host `starknet-sepolia.…` in two) and a
-    placeholder already written is left alone (a text redacted twice is the same)."""
+    One pass is one case-insensitive alternation, the longest value first, so a replacement is never cut by
+    another value; a placeholder already written is left alone. A number glued to another value
+    (`5e47a1d0c0ffee1234<value>`) is not delimited in the first pass, so the passes repeat until the text
+    stops changing (at most MAX_PASSES): a text redacted twice is the same.
+    STARKNET_NETWORK is not redacted: it is a public name ("sepolia"), not a secret, and a short value
+    would garble every line of the log.
+    Limit: an RPC URL whose secret part (a path, query or `;params` segment) is shorter than 12 characters
+    is not supported: a shorter piece is not hidden when it is echoed alone (a lower floor would hide
+    words of the record such as "starknet")."""
 
+    MAX_PASSES = 4
     PLACEHOLDER = r"<STARKNET_[A-Z_]+>"
     TOKEN = r"(?<![0-9a-zA-Z])(?P<prefix>0[xX])?0*(?P<digits>[0-9a-fA-F]+)(?![0-9a-zA-Z])"  # a hex number, 0x or not
 
     def __init__(self, environ):
-        self._environ = dict(environ)
         self.names, self.numbers = {}, []  # the lower-case value -> the variable; (number, variable)
         for name in VARIABLES:
             value = environ.get(name, "")
-            if not value:
+            if not value or name == "STARKNET_NETWORK":
                 continue
             self.names.setdefault(value.lower(), name)
             if name == "STARKNET_RPC_URL":
                 parts = urllib.parse.urlparse(value)
                 pieces = [parts.netloc, parts.hostname or "", parts.path.strip("/"), parts.query,
                           parts.username or "", parts.password or ""]
-                pieces += [p for p in re.split(r"[/?&=]", parts.path + "?" + parts.query) if len(p) >= 12]
+                pieces.append(parts.params)
+                pieces += [p for p in re.split(r"[/?&=;]", parts.path + ";" + parts.params + "?" + parts.query)
+                           if len(p) >= 12]
                 for piece in pieces:
                     if len(piece) >= 4:
                         self.names.setdefault(piece.lower(), name)
@@ -119,11 +128,13 @@ class Redactor:
         return match.group(0)
 
     def __call__(self, text):
-        return self.pattern.sub(self.replace, str(text))
-
-    def without(self, *names):
-        """The same redactor for the variables but `names`."""
-        return Redactor({n: v for n, v in self._environ.items() if n not in names})
+        text = str(text)
+        for _ in range(self.MAX_PASSES):
+            again = self.pattern.sub(self.replace, text)
+            if again == text:
+                break
+            text = again
+        return text
 
 
 class Log:
@@ -483,9 +494,9 @@ def run(args, log, redact, environ):
             "transactions": count, "total_fee": {"amount": str(fee), "unit": unit},
         }
         text = json.dumps(record)
-        # The redactor itself is the check: the record must come out of it unchanged. STARKNET_NETWORK is
-        # left out, as it is a name ("sepolia") that the record holds legitimately (chain id, network).
-        if redact.without("STARKNET_NETWORK")(text) != text:
+        # The redactor itself is the check: the record must come out of it unchanged (STARKNET_NETWORK is
+        # not redacted: the record holds the name legitimately, chain id and network).
+        if redact(text) != text:
             raise RuntimeError("the record would hold the value of a STARKNET_* variable: not written")
         path = args.out or os.path.join(
             RECORDS, f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%d}-{info['headSha'][:7]}.json")
