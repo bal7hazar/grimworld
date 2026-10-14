@@ -871,6 +871,401 @@ fn test_tick_vectors_8() {
     finish(digest, TICK_DIGEST_8);
 }
 
+// ---- RV-03d (D-257): rows for track CV's surviving mutants of the tick port (#459), after every
+// earlier id. Row 131 is a second content row: every row from 131 on reads it (the last `content`
+// row before it), rows 1–130 read row 0's.
+
+/// RV-03d's skills, after row 0's (ids 90 on), none mixing `TILE` with `FOE` or `ALLY` (D-271):
+/// Shaman's slot 0, an instant spell of fire 20 to 80 with the rank on a foe, range 2; slot 1, the
+/// same at activation 1; slot 2, an instant spell of fire 40 on a `SINGLE` `TILE`, range 2; slot 3,
+/// a shout on itself at activation 1. An enchantment holding `MOVEMENT`. The member's: a spell of
+/// fire 40 on `RING_1` around its source, filter `ALLIES`, activation 1; a spell of fire 40 on a
+/// foe then a heal of 30 on itself, range 6, activation 1.
+const BOLT: u16 = 90;
+const SLOW_BOLT: u16 = 91;
+const SCORCH: u16 = 92;
+const HOWL: u16 = 93;
+const HASTE: u16 = 94;
+const BLAST: u16 = 95;
+const SIPHON: u16 = 96;
+/// RV-03d's castes, the Hob's but: Shaman (3), `k` 3, health regeneration 3 pips (13), skills
+/// 90–93; Gap (4), its slot 2 empty (skills 24, 25, none, 27).
+const SHAMAN: u16 = 3;
+const GAP: u16 = 4;
+
+/// Row 131's content: row 0's with RV-03d's skills and castes appended.
+fn rv03d_content() -> Content {
+    let base = tick_content();
+    let none: Entry = Default::default();
+    let mut skills = array![];
+    skills.append_span(base.skills);
+    let bolt = entry(kind::DAMAGE, damage::FIRE, 20, 80, target::FOE, shape::SINGLE, filter::FOES);
+    let mut sheet = skill(BOLT, skill_kind::SPELL, 2, [bolt, none, none]);
+    sheet.activation = 0;
+    sheet.recharge = 6;
+    skills.append(sheet);
+    let mut sheet = skill(SLOW_BOLT, skill_kind::SPELL, 2, [bolt, none, none]);
+    sheet.recharge = 6;
+    skills.append(sheet);
+    let scorch = entry(
+        kind::DAMAGE, damage::FIRE, 40, 40, target::TILE, shape::SINGLE, filter::FOES,
+    );
+    let mut sheet = skill(SCORCH, skill_kind::SPELL, 2, [scorch, none, none]);
+    sheet.activation = 0;
+    skills.append(sheet);
+    skills.append(skill(HOWL, skill_kind::SHOUT, 0, [none, none, none]));
+    let haste = EntryTrait::new(
+        kind::MOVEMENT, 0, 0, 0, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+    );
+    skills.append(skill(HASTE, skill_kind::ENCHANTMENT, 0, [haste, none, none]));
+    let blast = entry(
+        kind::DAMAGE, damage::FIRE, 40, 40, target::SELF, shape::RING_1, filter::ALLIES,
+    );
+    skills.append(skill(BLAST, skill_kind::SPELL, 0, [blast, none, none]));
+    let fire = entry(kind::DAMAGE, damage::FIRE, 40, 40, target::FOE, shape::SINGLE, filter::FOES);
+    let heal = entry(kind::HEAL, 0, 30, 30, target::SELF, shape::SINGLE, filter::ALLIES);
+    skills.append(skill(SIPHON, skill_kind::SPELL, 6, [fire, heal, none]));
+    let mut castes = array![];
+    castes.append_span(base.castes);
+    let hob = *base.castes[0];
+    castes
+        .append(
+            CasteSheet {
+                id: SHAMAN,
+                health_regen: 13,
+                weapon_ticks: 3,
+                skills: [BOLT, SLOW_BOLT, SCORCH, HOWL],
+                ..hob,
+            },
+        );
+    castes.append(CasteSheet { id: GAP, skills: [24, 25, 0, 27], ..hob });
+    Content { skills: skills.span(), potions: base.potions, castes: castes.span() }
+}
+
+/// The table's classes with row 131's content.
+fn rv03d_table() -> Table {
+    Table { content: rv03d_content(), ..table() }
+}
+
+/// The member on the location's tile `(x, y)` instead (outside the window too).
+fn placed(member: Member, x: u8, y: u8) -> Member {
+    let mut member = member;
+    let (ox, oy) = (AT % 15, AT / 15);
+    member.words.state += (x.into() - ox.into()) * two(32) + (y.into() - oy.into()) * two(40);
+    member
+}
+
+/// A member at `health` on `position`: the adventurer's companion.
+fn companion(position: u8, health: u16) -> Member {
+    let mut spec = Fixture::spec();
+    spec.health = health;
+    moved(hero_of(spec), position)
+}
+
+/// The adventurer at 1 health.
+fn frail() -> Member {
+    let mut spec = Fixture::spec();
+    spec.health = 1;
+    hero_of(spec)
+}
+
+/// A goblin of `caste` facing the adventurer, Engaged, on `position`.
+fn engaged(entity: u16, caste: u16, position: u8) -> Goblin {
+    gob(entity, caste, position, toward(position, AT), ai::ENGAGED)
+}
+
+/// A Hob activating its slot 0 (the attack skill) on the adventurer, concluding at `T`.
+fn concluding(entity: u16, position: u8) -> Goblin {
+    let mut g = hob(entity, position, ai::ENGAGED);
+    g.start(0, 0, 1, T - 1);
+    g
+}
+
+/// The roster's frozen goblins (as rows 129 and 130): `count` goblins away from their spawn chunk
+/// (asleep on (100, 100), chunk 96: entities 24–33, 40–49, … of spawn chunks 1–6), after
+/// `first`
+/// and before `last` (ascending entity id).
+fn roster(count: u32, first: Array<Goblin>, last: Array<Goblin>) -> Array<Goblin> {
+    let mut goblins = first;
+    let mut k: u32 = 0;
+    for chunk in 1..7_u16 {
+        for slot in 0..10_u16 {
+            if k < count {
+                goblins.append(gob_at(8 + 16 * chunk + slot, 100, 100, ai::ASLEEP));
+            }
+            k += 1;
+        }
+    }
+    for goblin in last {
+        goblins.append(goblin);
+    }
+    goblins
+}
+
+// Row 131, the content; the stops with a companion (member 1) alive; the order of step 1;
+// a resolved goblin and a dead one against step 2; a concluding activation's target no longer
+// legal; the goblins' target; perception with two members, two chunks' packs, an Alerted goblin
+// of a noticing pack; combat; an unwalkable adventurer.
+#[test]
+#[available_gas(l2_gas: 2000000000)]
+fn test_tick_vectors_9() {
+    let t = rv03d_table();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TICK_PART_9;
+    let mut ok = array![];
+    Serde::serialize(@t.content, ref ok);
+    emit(ref digest, ref id, "content", array![].span(), ok.span());
+    // Goblin 8's weapon downs the adventurer (at 1) in step 2: goblin 9, beside member 1 (on
+    // `AT − 2`), does not act after it (132). Goblin 8's attack skill downs it in step 1: no step
+    // 2, goblin 9 does not act (133).
+    let goblins = array![armed(8, AT + 1), armed(9, AT - 3)];
+    plain(ref digest, ref id, @t, words(array![frail(), companion(AT - 2, 400)], goblins), 1);
+    let goblins = array![concluding(8, AT + 1), armed(9, AT - 3)];
+    plain(ref digest, ref id, @t, words(array![frail(), companion(AT - 2, 400)], goblins), 1);
+    // The member's spell (fire 40 on `RING_1`, `ALLIES`) concluding at `T` downs member 1 (on
+    // `AT − 1`, at 1): step 1 stops before goblin 8's activation concluding at `T` (134).
+    let mut m = hero();
+    equip(ref m, 0, BLAST, 12);
+    activating(ref m, 0, 0, T);
+    let goblins = array![concluding(8, AT + 1)];
+    plain(ref digest, ref id, @t, words(array![m, companion(AT - 1, 1)], goblins), 1);
+    // Goblins 8 and 9 concluding at `T` on the adventurer at 1: goblin 8's hit downs it, goblin
+    // 9's activation is not concluded (135).
+    let goblins = array![concluding(8, AT + 1), concluding(9, AT - 1)];
+    plain(ref digest, ref id, @t, words(array![frail()], goblins), 1);
+    // Goblin 8 concludes at `T` (resolved: no act in step 2); goblin 9 is free and acts (136).
+    let goblins = array![concluding(8, AT + 1), armed(9, AT - 1)];
+    plain(ref digest, ref id, @t, words(array![hero()], goblins), 1);
+    // Cinder Ring concluding at `T` kills goblin 8 (90 health), activating to `T`: its activation
+    // neither concludes nor lapses (137); kills goblin 9 (90, on `AT + 1`): goblin 8, Alerted on
+    // `AT + 2`, steps onto its tile (138).
+    let mut m = hero();
+    equip(ref m, 0, RING, 12);
+    activating(ref m, 0, 0, T);
+    let mut g = concluding(8, AT + 1);
+    g.health = 90;
+    plain(ref digest, ref id, @t, words(array![m], array![g]), 1);
+    let mut m = hero();
+    equip(ref m, 0, RING, 12);
+    activating(ref m, 0, 0, T);
+    let mut dying = armed(9, AT + 1);
+    dying.health = 90;
+    let goblins = array![hob(8, AT + 2, ai::ALERTED), dying];
+    plain(ref digest, ref id, @t, words(array![m], goblins), 1);
+    // A concluding activation whose target is no longer legal: nothing runs. The member's spell
+    // (fire on a foe, then a heal of 30 on itself) on goblin 8, dead (139); goblin 8's attack
+    // skill on the adventurer, 2 tiles away (out of its weapon's reach) (140).
+    let mut m = hero();
+    equip(ref m, 0, SIPHON, 12);
+    activating(ref m, 0, 8, T);
+    let mut dead = hob(8, AT + 3, ai::DEAD);
+    dead.health = 0;
+    plain(ref digest, ref id, @t, words(array![m], array![dead]), 1);
+    plain(ref digest, ref id, @t, words(array![hero()], array![concluding(8, AT + 2)]), 1);
+    // The goblins' target, the first member alive in the window: member 0 outside it (on
+    // (7, 20); `play` never passes one) (141), member 0 down (status 1) (142); goblin 8 armed
+    // beside member 1 attacks member 1.
+    let m = placed(hero(), 7, 20);
+    let goblins = array![armed(8, AT + 1)];
+    plain(ref digest, ref id, @t, words(array![m, moved(hero(), AT)], goblins), 1);
+    let mut spec = Fixture::spec();
+    spec.status = status::DOWN;
+    let goblins = array![armed(8, AT - 3)];
+    plain(ref digest, ref id, @t, words(array![hero_of(spec), companion(AT - 2, 400)], goblins), 1);
+    // Perception: goblin 8 asleep 2 tiles from member 0 and 7 from member 1 (on `AT − 5`):
+    // it notices (143). Goblin 8 on watch at 2 notices: goblin 24 (chunk 1's pack 0) asleep at 4
+    // is not engaged (144); goblin 9 (pack 0) Alerted at 5 is (145).
+    let goblins = array![hob(8, AT + 2, ai::ASLEEP)];
+    plain(ref digest, ref id, @t, words(array![hero(), companion(AT - 5, 400)], goblins), 1);
+    let goblins = array![hob(8, AT + 2, ai::WATCH), hob(24, AT + 4, ai::ASLEEP)];
+    plain(ref digest, ref id, @t, words(array![hero()], goblins), 1);
+    let goblins = array![hob(8, AT + 2, ai::WATCH), hob(9, AT + 5, ai::ALERTED)];
+    plain(ref digest, ref id, @t, words(array![hero()], goblins), 1);
+    // The adventurer's adrenaline 2 beside an Engaged goblin outside the window (out of the set):
+    // out of combat, it decays (146).
+    let mut spec = Fixture::spec();
+    spec.adrenaline = 2;
+    let goblins = array![gob_at(8, 7, 20, ai::ENGAGED)];
+    plain(ref digest, ref id, @t, words(array![hero_of(spec)], goblins), 1);
+    // The adventurer on a tile the window does not hold walkable (`play` never passes one): no
+    // flood, goblin 8 Alerted at 3 holds (147).
+    row(
+        ref digest,
+        ref id,
+        @t,
+        words(array![hero()], array![hob(8, AT + 3, ai::ALERTED)]),
+        walled(AT),
+        empty(),
+        1,
+    );
+    finish(digest, TICK_DIGEST_9);
+}
+
+// The goblins' skills (row 131's content): the facing of a weapon and of a skill; a lapse below a
+// stored recharge; a Runt's activation of 1 and its instant shout; an empty caste slot; the
+// caste's rank now and at a conclusion; FX-15's recovery of a spell; a `TILE` skill; a slot 3
+// activation; the caste's regeneration; a `MOVEMENT` effect on both sides of its deadline.
+#[test]
+#[available_gas(l2_gas: 2000000000)]
+fn test_tick_vectors_10() {
+    let t = rv03d_table();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TICK_PART_10;
+    // Facing away from the adventurer: the weapon (148), the fire spell (slot 1, 15 thirds) (149).
+    let mut g = armed(8, AT + 1);
+    g.set_place(8, 7, back(toward(AT + 1, AT)));
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    let mut g = armed(8, AT + 1);
+    g.set_place(8, 7, back(toward(AT + 1, AT)));
+    g.set_recharge(1, 0);
+    g.energy = 15;
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    // Slot 0 lapsed from `T − 1` (`A + r − 1 = T + 8`), its recharge stored to `T + 50`: kept
+    // (150).
+    let mut g = hob(8, AT + 1, ai::ENGAGED);
+    g.start(0, 0, 1, T - 2);
+    g.set_recharge(0, T + 50);
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    // A Runt, slot 0 recharging: slot 1 (activation 1) starts, `A = T + 1` (151); slots 0–2
+    // recharging: slot 3, the instant shout (no recovery: not an attack) (152).
+    let mut g = engaged(8, RUNT, AT + 1);
+    g.set_recharge(0, T);
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    let mut g = engaged(8, RUNT, AT + 1);
+    for slot in 0..3_u8 {
+        g.set_recharge(slot, T);
+    }
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    // Gap: slots 0 and 1 short, slot 2 empty (skipped), the shout (153).
+    plain(ref digest, ref id, @t, words(array![hero()], array![engaged(8, GAP, AT + 1)]), 1);
+    // Shaman: slot 0 lands now at the caste's rank 12 (fire 80) (154); slot 1 (activation 1)
+    // concluding at `T` (rank 12; a spell: no recovery, `k` 3 ≥ 1 + 2) (155); slots 0 and 1
+    // recharging: slot 2 on the adventurer's tile `x + 256 y` (156); slot 3's activation (the
+    // shout) concluding at `T` (157); Alerted at 6, its regeneration (3 pips) (158).
+    plain(ref digest, ref id, @t, words(array![hero()], array![engaged(8, SHAMAN, AT + 1)]), 1);
+    let mut g = engaged(8, SHAMAN, AT + 1);
+    g.start(1, 0, 1, T - 1);
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    let mut g = engaged(8, SHAMAN, AT + 1);
+    g.set_recharge(0, T);
+    g.set_recharge(1, T);
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    let mut g = engaged(8, SHAMAN, AT + 1);
+    g.start(3, 8, 1, T - 1);
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    let g = gob(8, SHAMAN, AT + 6, toward(AT + 6, AT), ai::ALERTED);
+    plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    // Crippled to `T`, holding the `MOVEMENT` enchantment to `T` (its step costs 1) and to `T −
+    // 1`
+    // (2: recovering to `T + 1`) (159, 160).
+    for deadline in array![T, T - 1] {
+        let mut g = hob(8, AT + 3, ai::ALERTED);
+        g.set_crippled(T);
+        g.set_effect(Held { carrier: HASTE, potion: false, charges: 0, deadline, rank: 12 }, 0);
+        plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
+    }
+    finish(digest, TICK_DIGEST_10);
+}
+
+// The flood: a dead goblin's tile, a frozen goblin on the walker's path, its cap of 15 layers
+// toward and away; a goblin killed by the trap it enters.
+#[test]
+#[available_gas(l2_gas: 2000000000)]
+fn test_tick_vectors_11() {
+    let t = rv03d_table();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TICK_PART_11;
+    // Goblin 8 Alerted on `AT + 2`, its one neighbour in layer 1 `AT + 1`, where dead goblin 9
+    // lies (not frozen: its tile is free): it steps there (161).
+    let mut dead = hob(9, AT + 1, ai::DEAD);
+    dead.health = 0;
+    plain(
+        ref digest, ref id, @t, words(array![hero()], array![hob(8, AT + 2, ai::ALERTED), dead]), 1,
+    );
+    // Goblin 8 asleep on (8, 4), 3 tiles away (frozen: the flood's obstacle), goblin 9 Fleeing on
+    // (7, 4): its step away is (7, 3), (6, 3) on a flood through goblin 8's tile (162).
+    let goblins = array![gob_at(8, 8, 4, ai::ASLEEP), gob_at(9, 7, 4, ai::FLEEING)];
+    plain(ref digest, ref id, @t, words(array![hero()], goblins), 1);
+    // The adventurer on (1, 1): the flood stops at its cap, 15 layers. Goblin 8 Alerted on
+    // (13, 8), in layer 15, steps (163); Fleeing on (13, 9), beyond it (16), its free neighbours
+    // in layer 15: not reached, no step, cornered (164).
+    let m = placed(hero(), 1, 1);
+    plain(ref digest, ref id, @t, words(array![m], array![gob_at(8, 13, 8, ai::ALERTED)]), 1);
+    let m = placed(hero(), 1, 1);
+    plain(ref digest, ref id, @t, words(array![m], array![gob_at(8, 13, 9, ai::FLEEING)]), 1);
+    // Goblin 8 Alerted at 3 (50 health) steps onto the member's Snare (as row 113): killed by it
+    // (165).
+    let mut m = hero();
+    equip(ref m, 0, SNARE, 12);
+    let placer: u16 = Placer::Member((0, 0)).param();
+    let trap = Object {
+        tile: AT + 2, kind: crate::models::chunk::object::PLACED_TRAP, state: 0, param: placer,
+    };
+    let ground = array![
+        (
+            0,
+            Features {
+                objects: [trap, Default::default(), Default::default()], ..FeaturesTrait::empty(),
+            },
+        ),
+    ];
+    let mut g = hob(8, AT + 3, ai::ALERTED);
+    g.health = 50;
+    row(ref digest, ref id, @t, words(array![m], array![g]), board(), ground, 1);
+    finish(digest, TICK_DIGEST_11);
+}
+
+// The roster (D-238), as rows 129 and 130: the adventurer on (7, 12), the window's last row
+// (y 15) chunk 15, the rows above chunk 0. An awake goblin away from home counted (166); two
+// walkers stepping out, the second at a full roster (167).
+#[test]
+#[available_gas(l2_gas: 2000000000)]
+fn test_tick_vectors_12() {
+    let t = rv03d_table();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TICK_PART_12;
+    let m = moved(hero(), 187);
+    // 59 away frozen, goblin 120 (spawn chunk 7) Alerted on (2, 3), away: the roster is full,
+    // goblin 248 holds (166).
+    let goblins = roster(
+        59, array![], array![gob_at(120, 2, 3, ai::ALERTED), gob_at(248, 7, 15, ai::ALERTED)],
+    );
+    plain(ref digest, ref id, @t, words(array![m], goblins), 1);
+    // 59 away frozen; goblins 248 on (5, 15) and 249 on (9, 15), both of chunk 15: 248 steps out
+    // (60), 249 holds (167).
+    let goblins = roster(
+        59, array![], array![gob_at(248, 5, 15, ai::ALERTED), gob_at(249, 9, 15, ai::ALERTED)],
+    );
+    plain(ref digest, ref id, @t, words(array![m], goblins), 1);
+    finish(digest, TICK_DIGEST_12);
+}
+
+// The roster: a step between two chunks away from home at a full roster (168); a step back home
+// before another goblin's step out (169); a Fleeing goblin held by a full roster (170).
+#[test]
+#[available_gas(l2_gas: 2000000000)]
+fn test_tick_vectors_13() {
+    let t = rv03d_table();
+    let mut digest: Array<felt252> = array![];
+    let mut id: u32 = TICK_PART_13;
+    let m = moved(hero(), 187);
+    // 59 away frozen; goblin 120 (spawn chunk 7) on (7, 15) (chunk 15): 60 listed, it steps
+    // into chunk 0, neither home (168).
+    let goblins = roster(59, array![], array![gob_at(120, 7, 15, ai::ALERTED)]);
+    plain(ref digest, ref id, @t, words(array![m], goblins), 1);
+    // 59 away frozen; goblin 8 (chunk 0) on (5, 15), away (60 listed), steps home (59); goblin
+    // 248 on (9, 15) steps out (60) (169).
+    let goblins = roster(
+        59, array![gob_at(8, 5, 15, ai::ALERTED)], array![gob_at(248, 9, 15, ai::ALERTED)],
+    );
+    plain(ref digest, ref id, @t, words(array![m], goblins), 1);
+    // 60 away frozen; goblin 248 Fleeing on (7, 15): its step away leaves chunk 15, the roster is
+    // full: it holds, still Fleeing (170).
+    let goblins = roster(60, array![], array![gob_at(248, 7, 15, ai::FLEEING)]);
+    plain(ref digest, ref id, @t, words(array![m], goblins), 1);
+    finish(digest, TICK_DIGEST_13);
+}
+
 /// The first id of each part, and each part's digest.
 const TICK_PART_1: u32 = 25;
 const TICK_PART_2: u32 = 41;
@@ -880,6 +1275,11 @@ const TICK_PART_5: u32 = 86;
 const TICK_PART_6: u32 = 110;
 const TICK_PART_7: u32 = 119;
 const TICK_PART_8: u32 = 129;
+const TICK_PART_9: u32 = 131;
+const TICK_PART_10: u32 = 148;
+const TICK_PART_11: u32 = 161;
+const TICK_PART_12: u32 = 166;
+const TICK_PART_13: u32 = 168;
 const TICK_DIGEST_0: felt252 =
     2137715165244208689709745686860470517894582999737742435757522380538417750806;
 const TICK_DIGEST_1: felt252 =
@@ -898,3 +1298,8 @@ const TICK_DIGEST_7: felt252 =
     2098845368569173313750160501583154709918690736208069666979095817737906594175;
 const TICK_DIGEST_8: felt252 =
     420744539860533300147543818911014254588995874583632251919375290186537202397;
+const TICK_DIGEST_9: felt252 = 0;
+const TICK_DIGEST_10: felt252 = 0;
+const TICK_DIGEST_11: felt252 = 0;
+const TICK_DIGEST_12: felt252 = 0;
+const TICK_DIGEST_13: felt252 = 0;
