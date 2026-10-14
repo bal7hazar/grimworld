@@ -57,7 +57,9 @@ The admin's key (account 0) is read from the node's `devnet_getPredeployedAccoun
 `account`), so the dev server needs no environment but the deployment file; `NODE_URL`, when set, overrides the
 file's `node_url` (and is checked the same way). No key is ever on a command line of this script, printed, or in
 the output: each one goes through a file (mode 0600, deleted at once) into `sncast`'s throwaway accounts file
-under $WITH_NODE_LOG_DIR. Output (stdout, or `--out`): JSON.
+under $WITH_NODE_LOG_DIR. The harness (`credit_harness`, both modes) is serialised by an exclusive `flock`
+on `devnet-harness.lock` in that directory, so overlapping runs (one credit per burner) cannot clash on account 0's
+nonce; if the restore itself fails the error says "Hub.instances NOT restored". Output (stdout, or `--out`): JSON.
 
     --give-build --deployment <json> --account <1-9 | address> [--key-env NAME] [--adventurer <id>]
 
@@ -127,6 +129,7 @@ read. Its keys, all strings of hex felts unless noted:
                        dropped: {name: reason} for each part the seed or the chain cannot give (empty)}
 """
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -270,7 +273,7 @@ class Node:
         # as in the probe: sncast stores it in its throwaway accounts file (local node, test account)
         # the key goes through a file of mode 0600, deleted at once, never an argument of ours
         path = os.path.join(self.logs, f"key-{self.name}-{os.getpid()}")
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         try:
             with os.fdopen(descriptor, "w") as handle:
                 handle.write(self.key)
@@ -468,15 +471,24 @@ def credit_harness(admin, hub, instances, registry, fate, flatten, inside, adven
     gold), then the real `Instances` again, in a `finally`, and read back from the chain: the run fails
     unless it is the `Instances` address. No owner call: only `set_contracts` and `report`."""
     assert_local_devnet(admin)
-    admin.invoke(hub, "set_contracts", registry, admin.address, 4, fate, flatten)
-    try:
-        admin.invoke(hub, "report", inside, 1, adventurer, 0, gold, len(credits),
-                     *[f for item, count in credits for f in (item, count)],
-                     0, 0, 0, 0, OPEN, 0, 0, 0, 0, 0, 0)
-    finally:  # the real `Instances` is restored even when the report fails, and checked
-        admin.invoke(hub, "set_contracts", registry, instances, 4, fate, flatten)
-        if hub_instances(admin, hub) != int(instances, 16):
-            raise RuntimeError("Hub.instances was not restored to the Instances address")
+    logs = os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node"))
+    os.makedirs(logs, exist_ok=True)
+    with open(os.path.join(logs, "devnet-harness.lock"), "w") as lock:
+        # runs overlap (one credit per burner) and all send from account 0: one at a time, or a nonce
+        # clash could fail the restore and leave `Hub.instances` pointing at account 0
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            admin.invoke(hub, "set_contracts", registry, admin.address, 4, fate, flatten)
+            admin.invoke(hub, "report", inside, 1, adventurer, 0, gold, len(credits),
+                         *[f for item, count in credits for f in (item, count)],
+                         0, 0, 0, 0, OPEN, 0, 0, 0, 0, 0, 0)
+        finally:  # the real `Instances` is restored even when anything above fails, and checked
+            try:
+                admin.invoke(hub, "set_contracts", registry, instances, 4, fate, flatten)
+            except RuntimeError as error:
+                raise RuntimeError(f"Hub.instances NOT restored: {error}") from error
+            if hub_instances(admin, hub) != int(instances, 16):
+                raise RuntimeError("Hub.instances was not restored to the Instances address")
 
 
 def fund_pack(node, hub, instances, registry, fate, flatten, adventurer, credits, gold, admin=None):
@@ -543,7 +555,11 @@ def mode_nodes(args, dep):
     if not predeployed or int(predeployed[0]["address"], 16) != int(dep["account"], 16):
         sys.exit("devnet_deploy: the first predeployed account of the node is not the deployment's account")
     admin = Node(url, dep["account"], predeployed[0]["private_key"], logs, name="admin")
-    admin.import_account()
+    try:
+        admin.import_account()
+    except BaseException:
+        admin.close()
+        raise
     return admin, predeployed, logs
 
 
@@ -568,7 +584,11 @@ def owner_of(args, admin, predeployed, logs):
                      "that holds its private key (not set or empty)")
         key = os.environ[args.key_env]
     owner = Node(admin.url, address, key, logs, name="owner")
-    owner.import_account()
+    try:
+        owner.import_account()
+    except BaseException:
+        owner.close()
+        raise
     return owner
 
 

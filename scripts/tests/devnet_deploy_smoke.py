@@ -280,9 +280,18 @@ def check_salt(node, dep):
         assert salt == devnet_deploy.deploy_salt(1, hex(class_hash)), f"{name}: the salt did not reach sncast"
 
 
+OUTPUTS = []  # the stdout and stderr of every `run_mode`, checked for keys at the end
+
+
 def run_mode(*args, env=None):
-    return subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "devnet_deploy.py"), *args],
+    done = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "devnet_deploy.py"), *args],
                           cwd=ROOT, capture_output=True, text=True, env={**os.environ, **(env or {})})
+    OUTPUTS.append(done.stdout + done.stderr)
+    return done
+
+
+def nonce(node):
+    return int(node.rpc("starknet_getNonce", {"block_id": "latest", "contract_address": node.address}), 16)
 
 
 def predeployed_node(dep, index, name):
@@ -341,6 +350,7 @@ def check_modes(dep):
         assert refusal.returncode != 0 and "not inside an instance" in refusal.stderr, refusal.stderr
         # the mode: credits, makes no owner call, reads the instance from the chain
         out = os.path.join(tmp, "credit.json")
+        nonce_before = nonce(burner)
         done = run_mode("--credit-only", "--deployment", deployment, "--adventurer", str(adventurer),
                         "--out", out)
         assert done.returncode == 0, done.stderr
@@ -350,6 +360,9 @@ def check_modes(dep):
         assert credited["gold"] == devnet_deploy.GOLD == 260, credited
         assert credited["pack"] == [{"item": b["item"], "count": 2 * b["count"]} for b in belt], credited
         assert credited["instance_read_from"] == "Instances.placement", credited
+        assert nonce(burner) == nonce_before, "--credit-only sent a transaction from the burner's account"
+        # the gold itself has no read (`Hub.gold` and `balances` are NOT_IMPLEMENTED): it is proved by the
+        # four `buy_skill` below, which cost exactly 260 and are refused without it
         assert devnet_deploy.hub_instances(burner, hub) == int(instances, 16), "Hub.instances not restored"
         # still inside, so an owner call refuses until the burner leaves; then its own calls build it
         try:
@@ -399,7 +412,7 @@ def check_modes(dep):
         no_key = run_mode("--give-build", "--deployment", deployment, "--account", owner.address,
                           "--key-env", "SMOKE_NO_SUCH_KEY")
         assert no_key.returncode != 0 and "--key-env" in no_key.stderr, no_key.stderr
-        for text in (json.dumps(credited), json.dumps(given), done.stdout, done.stderr):
+        for text in [json.dumps(credited), json.dumps(given), *OUTPUTS]:
             for secret in secrets:
                 assert secret.lower().removeprefix("0x").lstrip("0") not in text.lower(), "a key leaked"
         owner.close()
