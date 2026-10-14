@@ -5,10 +5,14 @@
 # CI stays the gate: this script weakens nothing there.
 #
 # The build lock (VPS): every build goes through scripts/lock.sh --heavy, never around it, and waits at
-# most PREPUSH_LOCK_WAIT seconds (default 90) for it. If the lock stays busy, the Cairo compile and the
-# checks that build are skipped, one line says so, and that part exits 0 (CI compiles); fmt, the scripts'
-# tests and every other failure still make the exit status 1. Where there is no flock (the Mac has no
-# build lock, as scripts/lock.sh itself needs flock) the builds run directly and the full check runs.
+# most PREPUSH_LOCK_WAIT seconds (default 15: the hook runs while git's SSH connection to GitHub is open, and
+# a longer wait drops it) for it. The wait happens once per lock, not once per step: when a step finds the
+# heavy lock busy, every later step that needs it is skipped at once; likewise for the pnpm (project) lock.
+# If the lock stays busy, the Cairo compile and the checks that build are skipped, one line says so, and that
+# part exits 0 (CI compiles); fmt, the scripts' tests and every other failure still make the exit status 1.
+# Where there is no flock (the Mac has no build lock, as scripts/lock.sh itself needs flock) the builds run
+# directly and the full check runs.
+# A push that still drops (exit 141, no remote ref): GIT_SSH_COMMAND="ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=100" git push -u origin HEAD
 #
 #   scripts/prepush.sh [--all | --self-test]
 set -uo pipefail
@@ -18,7 +22,7 @@ set -uo pipefail
 # shellcheck disable=SC2046 # one variable name per word
 unset $(git rev-parse --local-env-vars) $(compgen -v | grep '^GIT_CONFIG')
 
-lock_wait=${PREPUSH_LOCK_WAIT:-90}
+lock_wait=${PREPUSH_LOCK_WAIT:-15}
 have_flock=0
 if command -v flock > /dev/null 2>&1; then have_flock=1; fi
 
@@ -210,7 +214,8 @@ touched() { [ "$all" = 1 ] || grep -Eq "$1" <<< "$changed"; }
 
 failed=()
 skipped=()
-lock_busy=0
+lock_busy=0 # the heavy lock (builds, gas, vectors) was found busy
+pnpm_busy=0 # the project lock (pnpm) was found busy
 # step <name> <command...>: run it, print its time, record a failure. A command that stopped because
 # the build lock stayed busy (scripts/lock.sh's line) is a skip, not a failure.
 step() {
@@ -226,7 +231,7 @@ step() {
     status=ok
   elif grep -q 'build lock busy for' "$out"; then
     status="SKIPPED (build lock busy for $lock_wait s)"
-    lock_busy=1
+    case "$name" in pnpm\ *) pnpm_busy=1 ;; *) lock_busy=1 ;; esac
     skipped+=("$name")
   else
     status="FAILED ($rc)"
@@ -370,15 +375,15 @@ if touched '^(client|indexer|services)/|(^|/)package\.json$|^pnpm-(lock|workspac
   if [ ! -d node_modules ] || touched '(^|/)package\.json$|^pnpm-(lock|workspace)\.yaml$'; then
     step "pnpm install" pnpmrun install --frozen-lockfile
   fi
-  step "pnpm lint" pnpmrun lint
-  step "pnpm typecheck" pnpmrun typecheck
-  step "pnpm test" pnpmrun test
+  for n in lint typecheck test; do
+    if [ "$pnpm_busy" = 1 ]; then skip "pnpm $n"; else step "pnpm $n" pnpmrun "$n"; fi
+  done
   step "prettier" pnpm exec prettier --check client indexer
 fi
 
 printf 'prepush: total %.1fs\n' "$(awk -v a="$total_start" -v b="$(date +%s.%N)" 'BEGIN { print b - a }')"
 if [ "${#skipped[@]}" -gt 0 ]; then
-  echo "prepush: build lock busy for $lock_wait s; Cairo compile skipped, CI will compile (skipped: ${skipped[*]})"
+  echo "prepush: skipped because the build lock was busy ($lock_wait s, once per lock): CI runs them (${skipped[*]})"
 fi
 if [ "${#failed[@]}" -gt 0 ]; then
   echo "prepush: FAILED: ${failed[*]}" >&2
