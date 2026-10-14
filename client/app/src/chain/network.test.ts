@@ -7,11 +7,15 @@ import {
   type Deployment,
   SN_MAIN,
   SN_SEPOLIA,
+  assertRecordedClasses,
   assertTestChain,
   fetchDeployment,
+  fetchSepoliaEndpoint,
   openChain,
+  openSepolia,
   parseDeployment,
 } from "./network";
+import { CONTRACT_NAMES, SEPOLIA } from "./networks";
 import { type Credit, createCredit } from "./credit";
 import { BURNER_FUNDS } from "./setup";
 
@@ -388,5 +392,182 @@ describe("the chain mode's files (§2.3)", () => {
       .filter(([, text]) => /createStarknetChain|createNodeFunder|createServiceFunder/.test(text))
       .map(([path]) => path);
     expect(naming).toEqual(["./network.ts"]);
+  });
+});
+
+/**
+ * A Sepolia node: its chain id and, per address, the class hash it answers; an address it lacks is
+ * CONTRACT_NOT_FOUND (20), as a node answers it. Any other method is an error.
+ */
+function sepoliaNode(chainId: bigint, classes: Record<string, string>) {
+  const calls: string[] = [];
+  const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+    const { method, id, params } = JSON.parse(String(init?.body)) as {
+      method: string;
+      id: number;
+      params: { contract_address?: string };
+    };
+    calls.push(method);
+    const result =
+      method === "starknet_chainId"
+        ? hex(chainId)
+        : method === "starknet_getClassHashAt"
+          ? classes[params.contract_address ?? ""]
+          : undefined;
+    const body =
+      result !== undefined
+        ? { jsonrpc: "2.0", id, result }
+        : method === "starknet_getClassHashAt"
+          ? { jsonrpc: "2.0", id, error: { code: 20, message: "Contract not found" } }
+          : { jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found" } };
+    return new Response(JSON.stringify(body));
+  }) as unknown as typeof globalThis.fetch;
+  return { fetch, calls };
+}
+
+const recorded = () =>
+  Object.fromEntries(
+    CONTRACT_NAMES.map((name) => [
+      SEPOLIA.contracts[name].address,
+      SEPOLIA.contracts[name].classHash,
+    ]),
+  );
+const ENDPOINT = "https://sepolia.example.org/rpc";
+
+describe("assertRecordedClasses (CLI-11e1, D-154)", () => {
+  it("passes when the class at each of the four addresses is the recorded one", async () => {
+    const node = sepoliaNode(SN_SEPOLIA, recorded());
+    await assertRecordedClasses(createRpc(ENDPOINT, node.fetch), SEPOLIA);
+    expect(node.calls).toEqual(CONTRACT_NAMES.map(() => "starknet_getClassHashAt"));
+  });
+
+  it("compares the hashes as numbers: a node's unpadded spelling still matches", async () => {
+    const classes = recorded();
+    const hub = SEPOLIA.contracts.hub.address;
+    classes[hub] = hex(BigInt(classes[hub]!));
+    await assertRecordedClasses(
+      createRpc(ENDPOINT, sepoliaNode(SN_SEPOLIA, classes).fetch),
+      SEPOLIA,
+    );
+  });
+
+  it("refuses a class hash that is not the recorded one, the reason only", async () => {
+    for (const name of CONTRACT_NAMES) {
+      const classes = recorded();
+      classes[SEPOLIA.contracts[name].address] = "0x1234";
+      const rpc = createRpc(ENDPOINT, sepoliaNode(SN_SEPOLIA, classes).fetch);
+      const refused = await assertRecordedClasses(rpc, SEPOLIA).catch((error: unknown) => error);
+      expect(refused, name).toBeInstanceOf(ChainRefused);
+      expect((refused as ChainRefused).reason).toBe("Sepolia contracts differ from the record");
+      expect((refused as Error).message).not.toContain("0x1234");
+    }
+  });
+
+  it("refuses a missing contract (CONTRACT_NOT_FOUND)", async () => {
+    const classes = recorded();
+    delete classes[SEPOLIA.contracts.instances.address];
+    const rpc = createRpc(ENDPOINT, sepoliaNode(SN_SEPOLIA, classes).fetch);
+    await expect(assertRecordedClasses(rpc, SEPOLIA)).rejects.toMatchObject({
+      name: "ChainRefused",
+      reason: "Sepolia contracts differ from the record",
+    });
+  });
+
+  it("throws a node error as it is: not a refusal", async () => {
+    const down = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof globalThis.fetch;
+    await expect(assertRecordedClasses(createRpc(ENDPOINT, down), SEPOLIA)).rejects.toThrow(
+      TypeError,
+    );
+    const failing = vi.fn(
+      async (_url: unknown, init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: (JSON.parse(String(init?.body)) as { id: number }).id,
+            error: { code: -32603, message: "Internal error" },
+          }),
+        ),
+    ) as unknown as typeof globalThis.fetch;
+    const error = await assertRecordedClasses(createRpc(ENDPOINT, failing), SEPOLIA).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).not.toBeInstanceOf(ChainRefused);
+    expect(error).toMatchObject({ name: "SimulationError", code: -32603 });
+  });
+});
+
+describe("openSepolia (CLI-11e1)", () => {
+  it("checks the chain id and the classes, then stops before any funding", async () => {
+    const node = sepoliaNode(SN_SEPOLIA, recorded());
+    await expect(openSepolia(ENDPOINT, { fetch: node.fetch })).rejects.toMatchObject({
+      name: "ChainRefused",
+      reason: "Sepolia: funding service not configured (CLI-11e2)",
+      message: "chain mode refused: Sepolia: funding service not configured (CLI-11e2)",
+    });
+    // Reads only: the chain id, then the four classes; no send, no estimate, no account
+    expect(node.calls).toEqual([
+      "starknet_chainId",
+      ...CONTRACT_NAMES.map(() => "starknet_getClassHashAt"),
+    ]);
+  });
+
+  it("refuses SN_MAIN, and any other chain, before reading a class", async () => {
+    for (const id of [SN_MAIN, 0x1234n]) {
+      const node = sepoliaNode(id, recorded());
+      await expect(openSepolia(ENDPOINT, { fetch: node.fetch })).rejects.toMatchObject({
+        reason: "not a test chain",
+      });
+      expect(node.calls).toEqual(["starknet_chainId"]);
+    }
+  });
+
+  it("refuses a class mismatch or a missing contract before the funding line", async () => {
+    const mismatch = recorded();
+    mismatch[SEPOLIA.contracts.registry.address] = "0x1";
+    const missing = recorded();
+    delete missing[SEPOLIA.contracts.hub.address];
+    for (const classes of [mismatch, missing]) {
+      const node = sepoliaNode(SN_SEPOLIA, classes);
+      await expect(openSepolia(ENDPOINT, { fetch: node.fetch })).rejects.toMatchObject({
+        reason: "Sepolia contracts differ from the record",
+      });
+    }
+  });
+
+  it("does not ask the node for pre-funded accounts: a public node has none", async () => {
+    const node = sepoliaNode(SN_SEPOLIA, recorded());
+    await openSepolia(ENDPOINT, { fetch: node.fetch }).catch(() => undefined);
+    expect(node.calls).not.toContain("devnet_getPredeployedAccounts");
+  });
+});
+
+describe("fetchSepoliaEndpoint (CLI-11e1)", () => {
+  const answering = (status: number, body: string) =>
+    vi.fn(async () => new Response(body, { status })) as unknown as typeof globalThis.fetch;
+
+  it("takes the development server's keyless https endpoint", async () => {
+    const body = JSON.stringify({ node_url: ENDPOINT });
+    await expect(fetchSepoliaEndpoint(answering(200, body))).resolves.toBe(ENDPOINT);
+  });
+
+  it("is no Sepolia endpoint for a 404, the site's index.html, a network error or a keyed URL", async () => {
+    const down = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof globalThis.fetch;
+    for (const fetch of [
+      answering(404, ""),
+      answering(200, "<!doctype html><html></html>"),
+      answering(200, JSON.stringify({ node_url: "http://sepolia.example.org/rpc" })),
+      answering(200, JSON.stringify({ node_url: "https://sepolia.example.org/rpc?apikey=k" })),
+      answering(200, JSON.stringify({ node_url: "https://user:k@sepolia.example.org/rpc" })),
+      answering(200, JSON.stringify({})),
+      down,
+    ]) {
+      await expect(fetchSepoliaEndpoint(fetch)).rejects.toMatchObject({
+        reason: "no Sepolia endpoint",
+      });
+    }
   });
 });

@@ -325,7 +325,9 @@ export async function fetchSepoliaEndpoint(
   try {
     const response = await fetchImpl(url, { headers: { accept: "application/json" } });
     if (response.status === 200) {
-      endpoint = keylessEndpoint((JSON.parse(await response.text()) as { node_url?: unknown }).node_url);
+      endpoint = keylessEndpoint(
+        (JSON.parse(await response.text()) as { node_url?: unknown }).node_url,
+      );
     }
   } catch {
     endpoint = undefined;

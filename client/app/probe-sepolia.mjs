@@ -1,3 +1,4 @@
+/* global console, process, fetch, AbortSignal, URL */
 // The public endpoint probe (CLI-11e1): `pnpm --filter @grimworld/app probe:sepolia <url>…`.
 // For each keyless Sepolia endpoint named, it reports the chain id, the spec version, the class
 // hash at each of the four addresses of `src/chain/networks.ts` against the recorded one, and
@@ -28,7 +29,8 @@ function endpointOf(value) {
   if (url.username !== "" || url.password !== "" || value.includes("@")) {
     return { refused: "user information (a keyed endpoint is out)" };
   }
-  if (url.search !== "" || url.hash !== "") return { refused: "a query string (a keyed endpoint is out)" };
+  if (url.search !== "" || url.hash !== "")
+    return { refused: "a query string (a keyed endpoint is out)" };
   return { url: value, shown: `${url.origin}${url.pathname}`, https: url.protocol === "https:" };
 }
 
@@ -82,7 +84,10 @@ function chainName(hex) {
 async function deployedAt(rpc, address, latest) {
   const at = async (block_number) => {
     try {
-      await rpc("starknet_getClassHashAt", { block_id: { block_number }, contract_address: address });
+      await rpc("starknet_getClassHashAt", {
+        block_id: { block_number },
+        contract_address: address,
+      });
       return true;
     } catch (error) {
       if (error.code === 20) return false; // CONTRACT_NOT_FOUND
@@ -148,7 +153,9 @@ async function probe(value, knownTx) {
   const registry = SEPOLIA.contracts.registry.address;
   const deployed = await attempt(() => deployedAt(rpc, registry, latest.value));
   if (!deployed.ok || deployed.value === undefined) {
-    console.log(`  traceTransaction: not tried (deployment block: ${deployed.error ?? "not found"})`);
+    console.log(
+      `  traceTransaction: not tried (deployment block: ${deployed.error ?? "not found"})`,
+    );
     return;
   }
   // The deployment's own transaction: the one whose receipt emits an event naming the Registry
@@ -170,7 +177,9 @@ async function probe(value, knownTx) {
       )?.receipt?.transaction_hash
     : undefined;
   if (hash === undefined) {
-    console.log(`  traceTransaction: not tried (no deployment transaction: ${block.error ?? "none found"})`);
+    console.log(
+      `  traceTransaction: not tried (no deployment transaction: ${block.error ?? "none found"})`,
+    );
     return;
   }
   await traced(rpc, hash, `Registry deployed at block ${deployed.value}`);
@@ -181,7 +190,9 @@ const tx = args.indexOf("--tx");
 const knownTx = tx === -1 ? undefined : args[tx + 1];
 const urls = tx === -1 ? args : args.filter((_, i) => i !== tx && i !== tx + 1);
 if (urls.length === 0 || (tx !== -1 && !/^0x[0-9a-fA-F]{1,64}$/.test(knownTx ?? ""))) {
-  console.error("usage: pnpm --filter @grimworld/app probe:sepolia [--tx <OPS-02 tx hash>] <endpoint url>…");
+  console.error(
+    "usage: pnpm --filter @grimworld/app probe:sepolia [--tx <OPS-02 tx hash>] <endpoint url>…",
+  );
   process.exit(2);
 }
 console.log(`Sepolia probe: the record ${SEPOLIA.record} (commit ${SEPOLIA.commit.slice(0, 7)})`);

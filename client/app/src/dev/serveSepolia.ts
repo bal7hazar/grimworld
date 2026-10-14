@@ -1,4 +1,4 @@
-import { keylessEndpoint } from "../chain/params";
+import { keylessEndpoint } from "../chain/params.js";
 
 /**
  * The development server's `/sepolia.json` handler (used by `vite.config.ts` only, never by the

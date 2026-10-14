@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { logRefusal, readChainParam, refusalLine } from "./params";
+import { keylessEndpoint, logRefusal, readChainParam, refusalLine } from "./params";
 
 const search = (value: string) => `?${new URLSearchParams({ chain: value })}`;
 
@@ -88,5 +88,64 @@ describe("App.tsx", () => {
     expect(app).toMatch(/import\(\s*["']\.\/chain\/ChainScreen["']\s*\)/);
     // Without `chain`, the sandbox as before
     expect(app).toMatch(/chain\.kind === "none"\) return <Sandbox \/>/);
+  });
+});
+
+describe("?chain=sepolia (CLI-11e1)", () => {
+  it("is Sepolia only when the caller allows it (the development server)", () => {
+    expect(readChainParam("?chain=sepolia", { sepolia: true })).toEqual({ kind: "sepolia" });
+  });
+
+  it("is not a URL otherwise: the site's build passes false, and false is the default", () => {
+    for (const options of [undefined, {}, { sepolia: false }]) {
+      expect(readChainParam("?chain=sepolia", options)).toEqual({
+        kind: "refused",
+        reason: "not a URL",
+      });
+    }
+  });
+
+  it("keeps the loopback rule for every node URL, Sepolia allowed or not", () => {
+    for (const url of [
+      "https://starknet-sepolia-rpc.publicnode.com",
+      "https://sepolia.example.org",
+    ]) {
+      expect(readChainParam(search(url), { sepolia: true })).toEqual({
+        kind: "refused",
+        reason: "not on this machine",
+      });
+    }
+    expect(readChainParam("?chain=Sepolia", { sepolia: true })).toEqual({
+      kind: "refused",
+      reason: "not a URL",
+    });
+  });
+});
+
+describe("keylessEndpoint (CLI-11e1)", () => {
+  it("takes an https URL with no user information and no query", () => {
+    for (const url of [
+      "https://starknet-sepolia-rpc.publicnode.com",
+      "https://a.example/rpc/v0_10",
+    ]) {
+      expect(keylessEndpoint(url)).toBe(url);
+    }
+  });
+
+  it("refuses http, user information, a query or a fragment, and what is not a URL", () => {
+    for (const url of [
+      "http://a.example/rpc",
+      "https://user:key@a.example/rpc",
+      "https://@a.example/rpc",
+      "https://a.example/rpc?apikey=key",
+      "https://a.example/rpc?",
+      "https://a.example/rpc#key",
+      "a.example/rpc",
+      "",
+      42,
+      undefined,
+    ]) {
+      expect(keylessEndpoint(url), String(url)).toBeUndefined();
+    }
   });
 });
