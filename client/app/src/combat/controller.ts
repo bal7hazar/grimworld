@@ -205,7 +205,7 @@ export class CombatController {
   }
 
   /**
-   * A tap on a tile with no actor while a slot is armed: a `TILE` slot previews a tile in reach and
+   * A tap on a tile (any tile, for a `TILE` aim) while a slot is armed: a `TILE` slot previews a tile in reach and
    * plays on a second tap on it; any other slot is disarmed, the tap going nowhere (§4.1).
    */
   tile(tile: Tile): boolean {

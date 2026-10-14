@@ -60,6 +60,23 @@ function actorOn(state: CombatState, tile: Tile): number | null {
   return state.goblins.find((g) => g.alive && on(g.tile))?.entity ?? null;
 }
 
+/**
+ * While a slot is armed, a tap on the map is the controller's: an actor, or a tile (§4.1). Returns
+ * the intent when the map keeps it, null when the controller took it.
+ */
+export function handArmedTap(
+  controller: Pick<CombatController, "view" | "tile" | "actor"> | undefined,
+  intent: Intent,
+): Intent | null {
+  const now = controller?.view();
+  if (!controller || !now?.armed || intent.kind !== "tile") return intent;
+  const entity = actorOn(now.state, intent.tile);
+  // A TILE slot aims at a tile whatever stands on it; CLI-05a's targeting decides if it is taken.
+  if (entity === null || now.aim?.addressing === "tile") controller.tile(intent.tile);
+  else controller.actor(entity);
+  return null;
+}
+
 /** A hub gate's anchor, as its record gives it. */
 const anchorOf = (gate: GateRecord) => globalTile(gate.anchor_chunk, gate.anchor_tile);
 
@@ -158,15 +175,7 @@ export function InstanceScreen({
     map.setCombat({ state: combat.state, armed: combat.armed, preview: combat.preview });
   }, [map, combat]);
   // While a slot is armed, a tap on the map is the controller's: an actor, or a tile (§4.1).
-  const route = (intent: Intent): Intent | null => {
-    const now = fight?.controller.view();
-    if (!fight || !now?.armed || intent.kind !== "tile") return intent;
-    const entity = actorOn(now.state, intent.tile);
-    // A TILE slot aims at a tile whatever stands on it; CLI-05a's targeting decides if it is taken.
-    if (entity === null || now.aim?.addressing === "tile") fight.controller.tile(intent.tile);
-    else fight.controller.actor(entity);
-    return null;
-  };
+  const route = (intent: Intent): Intent | null => handArmedTap(fight?.controller, intent);
 
   const onKey = (command: KeyCommand, map: MapKeys): boolean => {
     switch (command.kind) {
