@@ -7,6 +7,7 @@ import {
   type RegionChunk,
   decodeInstanceView,
 } from "../preview/view";
+import { SIGHT_RADIUS, distance } from "../sandbox/placeholders";
 import { initialState, toView } from "../sandbox/wiring";
 import { stateOf } from "../combat/fromWords";
 import { recordedBefore as noGoblins } from "../preview/recorded";
@@ -58,9 +59,16 @@ describe("the world built from a recorded view and region (§6.2)", () => {
     // And so does the view the renderer gets from it
     const drawn = toView(initialState(world));
     expect(drawn.actors.find((a) => a.id === drawn.adventurerId)?.tile).toEqual({ x: 0, y: 7 });
-    // This recording's first goblin (5, 10) is within the adventurer's sight (radius 6, the sandbox's
-    // own fog), so the map shows it where the world holds it
+    // The first goblin is within the adventurer's sight (radius 6, the sandbox's own fog): the map
+    // shows it where the world holds it
+    expect(distance(adventurer!.tile, tile)).toBeLessThanOrEqual(SIGHT_RADIUS);
     expect(drawn.actors.find((a) => a.id === first!.entity)?.tile).toEqual(tile);
+    // A goblin beyond sight is in the world and not on the map
+    const far = world.actors.find(
+      (a) => a.side === "goblin" && distance(adventurer!.tile, a.tile) > SIGHT_RADIUS,
+    );
+    expect(far).toBeDefined();
+    expect(drawn.actors.find((a) => a.id === far!.id)).toBeUndefined();
   });
 
   it("draws a goblin in sight where the view puts it", () => {
