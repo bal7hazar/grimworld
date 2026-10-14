@@ -231,7 +231,7 @@ Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 9, `defeated` 3, `trap` 5,
 
 **`fits` against the goblins before the segment is equivalent** (track CV's candidate 17, RV-03a2). `fits` compares
 each goblin's words with those after the previous action (`before`, `types/play.cairo` 533–537, its first value the
-world after the owed ticks, 169); the mutant keeps the segment's start instead. The two differ only for a goblin whose
+world before the owed ticks, 168); the mutant keeps the segment's start instead. The two differ only for a goblin whose
 words after an action equal the segment's start while differing from the previous action's: a goblin left unrecorded
 by an Engaged-only change (542–545: E-1's exception) whose AI state goes back to its start value at a later action,
 nothing else changed. No AI state leaves `ENGAGED` but for `DEAD`: perception engages a goblin at or below `ALERTED`
@@ -287,6 +287,9 @@ position 142, chunk 0's tile 142. A trap's hit is never blocked or evaded and ha
 
 Per `fn`: `content` 2, `trigger` 75, `free` 10.
 
+`place` and `spot` (placing, `free` with the window's checks) are not in this table (the trap unit tests `test_place`
+and `test_example_trap` hold them; RV-03b's `act` places).
+
 **Row 63** (RV-03a2): every row from 63 on reads the content of row 63, the last `content` row before it; rows 1–62 read
 row 0's. It is row 0's with: Hob's caste skill 27 (its slot 3) a trap skill of the pit's payload (earth 30 to 60
 guarded `BELOW_HALF`, Knocked down 2); Runt's caste skill 30 (its slot 2) a trap skill of earth 10 to 40 and Poison 4;
@@ -312,8 +315,7 @@ mutant returning `true` from `ExecutorTrait::trap`) is equivalent on the trap pa
 `entries` checks the same `target.alive()` before every entry it applies (2327); no entry before it can kill (a
 `HEAL`, a `CONDITION`, a `CURE`, an `ENERGY` or a holding entry lowers no health), so the two checks read the same
 value and either masks the other. Rows 7 and 30 kill the two dropped together. `entries`' own check is pinned without
-`trap`'s by the `act` rows, whose carriers reach it through `ExecutorTrait::on` (2123), which has no `trap` check. `place` and `spot` (placing, `free` with the window's checks) are not
-in this table (the trap unit tests `test_place` and `test_example_trap` hold them; RV-03b's `act` places).
+`trap`'s by the `act` rows, whose carriers reach it through `ExecutorTrait::on` (2123), which has no `trap` check.
 
 ## `body.jsonl`: the `Body` operations and the effect entry's (RV-03a, D-257)
 

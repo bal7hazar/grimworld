@@ -1155,9 +1155,8 @@ fn test_tick_vectors_10() {
     plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
     let g = gob(8, SHAMAN, AT + 6, toward(AT + 6, AT), ai::ALERTED);
     plain(ref digest, ref id, @t, words(array![hero()], array![g]), 1);
-    // Crippled to `T`, holding the `MOVEMENT` enchantment to `T` (its step costs 1) and to `T −
-    // 1`
-    // (2: recovering to `T + 1`) (159, 160).
+    // Crippled to `T`, holding the `MOVEMENT` enchantment to `T` (its step costs 1) and to
+    // `T − 1` (2: recovering to `T + 1`) (159, 160).
     for deadline in array![T, T - 1] {
         let mut g = hob(8, AT + 3, ai::ALERTED);
         g.set_crippled(T);
