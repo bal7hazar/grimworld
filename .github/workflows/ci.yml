@@ -173,19 +173,131 @@ jobs:
         working-directory: .
         run: python3 contracts/tools/exp2_table.py --check
 
-      # ENG-02 (and CBT-03a's review minor): the committed vector tables of the game's logic
-      # (contracts/logic/vectors/*.jsonl, the client's mirror reads them) checked against what the
-      # code prints; a stale or hand-edited table fails here. CBT-03a's hit.jsonl joins it at its merge.
+  # Split out of the `cairo` job's contracts leg (CI-SPLIT) to run in parallel with it.
+  # ENG-02 (and CBT-03a's review minor): the committed vector tables of the game's logic
+  # (contracts/logic/vectors/*.jsonl, the client's mirror reads them) checked against what the
+  # code prints; a stale or hand-edited table fails here. CBT-03a's hit.jsonl joins it at its merge.
+  contracts-vectors:
+    needs: discover
+    # Gated as the `contracts` leg of `cairo`: only when that package is concerned (FND-18).
+    if: contains(fromJSON(needs.discover.outputs.cairo).*.dir, 'contracts')
+    name: contracts (vectors)
+    runs-on: ubuntu-latest
+    # TBD: measured on this PR's run
+    timeout-minutes: 45
+    # D-176: single-threaded builds, as in the `cairo` job (docs/CAIRO.md §2).
+    env:
+      RAYON_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same pins as the `contracts` leg of `cairo`: discover's list always holds contracts.
+      - id: pins
+        env:
+          PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          p = next(p for p in json.loads(os.environ["PACKAGES"]) if p["dir"] == "contracts")
+          print(f'scarb={p["scarb"]}')
+          print(f'snforge={p["snforge"]}')
+          PY
+
+      # A registry or release download that fails (HTTP 5xx) is tried once more (FND-13).
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        id: scarb_try1
+        continue-on-error: true
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        if: steps.scarb_try1.outcome == 'failure'
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+
+      - name: snforge
+        env:
+          SNFORGE: ${{ steps.pins.outputs.snforge }}
+        run: bash .github/ci/install-snforge.sh
+
+      - name: toolchain is the one of the nearest .tool-versions
+        env:
+          SCARB: ${{ steps.pins.outputs.scarb }}
+          SNFORGE: ${{ steps.pins.outputs.snforge }}
+        run: |
+          set -euo pipefail
+          scarb --version
+          snforge --version
+          scarb --version | grep -q "^scarb $SCARB " || { echo "scarb is not $SCARB" >&2; exit 1; }
+          snforge --version | grep -qx "snforge $SNFORGE" || { echo "snforge is not $SNFORGE" >&2; exit 1; }
+
       - name: vectors are current
-        if: matrix.dir == 'contracts'
-        working-directory: .
         run: python3 contracts/logic/vectors/check.py
 
-      # D-176 / SPK-13: three clean builds give one CASM and one Sierra size per class. Not a class
-      # hash: it depends on the absolute build path (closure type names), SPK-13b, #283. Last, as it
-      # cleans the target folder.
+  # Split out of the `cairo` job's contracts leg (CI-SPLIT) to run in parallel with it.
+  # D-176 / SPK-13: three clean builds give one CASM and one Sierra size per class. Not a class
+  # hash: it depends on the absolute build path (closure type names), SPK-13b, #283. It cleans
+  # the target folder, which is why it has a job of its own.
+  contracts-build-stable:
+    needs: discover
+    # Gated as the `contracts` leg of `cairo`: only when that package is concerned (FND-18).
+    if: contains(fromJSON(needs.discover.outputs.cairo).*.dir, 'contracts')
+    name: contracts (clean builds agree)
+    runs-on: ubuntu-latest
+    # TBD: measured on this PR's run
+    timeout-minutes: 45
+    # D-176: single-threaded builds, as in the `cairo` job (docs/CAIRO.md §2).
+    env:
+      RAYON_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same pins as the `contracts` leg of `cairo`: discover's list always holds contracts.
+      - id: pins
+        env:
+          PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          p = next(p for p in json.loads(os.environ["PACKAGES"]) if p["dir"] == "contracts")
+          print(f'scarb={p["scarb"]}')
+          print(f'snforge={p["snforge"]}')
+          PY
+
+      # A registry or release download that fails (HTTP 5xx) is tried once more (FND-13).
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        id: scarb_try1
+        continue-on-error: true
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        if: steps.scarb_try1.outcome == 'failure'
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: contracts/Scarb.lock
+
+      - name: snforge
+        env:
+          SNFORGE: ${{ steps.pins.outputs.snforge }}
+        run: bash .github/ci/install-snforge.sh
+
+      - name: toolchain is the one of the nearest .tool-versions
+        env:
+          SCARB: ${{ steps.pins.outputs.scarb }}
+          SNFORGE: ${{ steps.pins.outputs.snforge }}
+        run: |
+          set -euo pipefail
+          scarb --version
+          snforge --version
+          scarb --version | grep -q "^scarb $SCARB " || { echo "scarb is not $SCARB" >&2; exit 1; }
+          snforge --version | grep -qx "snforge $SNFORGE" || { echo "snforge is not $SNFORGE" >&2; exit 1; }
+
       - name: three clean builds agree
-        if: matrix.dir == 'contracts'
+        working-directory: contracts
         run: python3 ../.github/ci/build_stable.py
 
   # FND-12 (SPK-13b, #283): the contracts' class files built once, at CI's checkout root, and kept.
@@ -782,7 +894,7 @@ jobs:
   # succeeded or was skipped (a job its paths did not concern).
   result:
     name: ci result
-    needs: [discover, cairo, class-artefacts, client, indexer-node, client-node, devnet-smoke, art, map-format]
+    needs: [discover, cairo, contracts-vectors, contracts-build-stable, class-artefacts, client, indexer-node, client-node, devnet-smoke, art, map-format]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
