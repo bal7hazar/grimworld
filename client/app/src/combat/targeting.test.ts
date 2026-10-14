@@ -105,6 +105,29 @@ describe("targeting reads client/sim's aim (§4.1, §4.3)", () => {
     }
   });
 
+  it("a TILE carrier armed at tile (240, 240) skips the tiles above 255 - ORIGIN (review t-0009)", () => {
+    // Row 88's world with the adventurer put at (240, 240), seven columns and nine rows into the
+    // window: it reaches tiles above 240, where `BoardTrait::tile`'s u8 add of ORIGIN overflows
+    const top = 255 - ORIGIN;
+    const row = actRow(88);
+    const board = { ...row.board, x: top - 7 + ORIGIN, y: top - 2 + ORIGIN };
+    const cw = readWorld(row.words, ACT, row.ground, board);
+    const member = cw.world.members[0]!;
+    const was = memberPlace(member);
+    const moved = BigInt(top - was.x + 256 * (top - was.y)) * 2n ** 32n;
+    member.words = { ...member.words, state: member.words.state + moved };
+    expect(memberPlace(member)).toMatchObject({ x: top, y: top });
+    expect(tileOf(board, 224)).toEqual({ x: top + 7, y: top + 12 });
+    let aim: ReturnType<typeof aiming> = null;
+    expect(() => (aim = aiming(cw, { kind: "skill", slot: 0 }))).not.toThrow();
+    expect(aim!.addressing).toBe("tile");
+    expect(aim!.reach.length + aim!.greyed.length).toBeGreaterThan(0);
+    for (const t of [...aim!.reach, ...aim!.greyed]) {
+      expect(t.x).toBeLessThanOrEqual(top);
+      expect(t.y).toBeLessThanOrEqual(top);
+    }
+  });
+
   it("a tile in range but out of sight is greyed, and aim refuses it with Reach", () => {
     // Row 88's TILE skill; a wall put between the adventurer and a tile two steps away
     const row = actRow(88);

@@ -136,8 +136,10 @@ scripts/with-node.sh bash -c 'python3 scripts/devnet_deploy.py --out "$PWD/.with
 and open the printed link, `/?chain=http://127.0.0.1:<port>`.
 
 The node test `src/chain/chain.node.test.ts` runs after the preview's, on the same node, one file
-after the other (`test:node:preview`, CI's `client-node` job). It makes the burner a player, restores
-it from a second provider on the same storage without sending anything, closes the instance with
+after the other (`test:node:preview`, CI's `client-node` job, on a `--build full` deployment since
+CLI-11d2, so its full-build tests of the deployment's own adventurer run there). It makes the
+burner a player, restores it from a second provider on the same storage without sending anything,
+closes the instance with
 `Instances.travel_back`, and enters the same adventurer again (`set_build`, then `enter`). It prints
 what each execution cost. It reads `GRIMWORLD_DEPLOYMENT`, or `.with-node/deployment.json` at the
 repository's root while that file's node answers. The whole run on a fresh node, after the classes
@@ -241,10 +243,10 @@ a developer's tool and says "batch", "simulated" and "sent".
   fresh read.
 
 To see it work, in a node that lives for one command, after the classes are built:
-`pnpm --filter @grimworld/app verify:chain`. `verify-chain.mjs` deploys, opens `?chain=`, plays a
-Wait with `Space`, sends it with `B`, checks the three stages (the sent outcome equal to the
-simulated one, no field differing) and that no log, page or URL holds the burner's key, and
-captures the panel at each stage into `VERIFY_SHOTS_DIR`.
+`pnpm --filter @grimworld/app verify:chain`. `verify-chain.mjs` deploys (`--build full`), opens
+`?chain=`, plays a Wait with `Space`, sends it with `B`, checks the three stages (the sent outcome
+equal to the simulated one, no field differing) and that no log, page or URL holds the burner's
+key, and captures the panel at each stage into `VERIFY_SHOTS_DIR`.
 
 ### Skills and belt items on chain (CLI-11d)
 
@@ -273,22 +275,19 @@ target zone over them, the log in a panel (desktop) or its last line (phone).
   the runs of each prefix (`Prefixes`, through `record.ts`'s wrapper of the native classes), kept
   per action so an input adds only its own. After a send, the lines of the played actions are
   confirmed when the sent result matches the prediction, and struck with "The world corrected
-  itself" when it does not. A refusal is a muted line. Entering again clears the log.
+  itself" when it does not. A refusal is a muted line of its own status, `refused`, which no send
+  confirms or strikes, kept in input order after the lines of the actions planned before it
+  (CLI-11d2). Entering again clears the log.
 - **Names** (`combat/names.ts`, Q-1): a copy of the table `contracts/seed/README.md` keeps under
   "Names for the client"; `names.test.ts` reads that table, so the copy follows it. An unknown id is
   "Skill 12".
 - **Known gaps.** (1) The burner's adventurer is built empty (`setup.ts` sends `set_build` with
-  `EMPTY_BUILD` before every `enter`, and skills are bought with gold the devnet harness credits,
-  D-280), so in the browser its bar is empty; the full build is the deployment's own adventurer,
-  which `chain.node.test.ts` previews through the same controller (a potion, two skills, refusals).
-  (2) `combat/targeting.ts`'s `aiming` asks `aim` of every tile of the window, those beyond the
-  location's edge included, and client/sim panics on a negative tile (`u8_add`): a `TILE` skill
-  near the edge has no aim (`grimworld.aim-failure` in the console) until it skips them. (3) The
-  map's overlay draws its reach from the sandbox's stand-in (`wiring.ts`'s `combatAim`), not from
-  `targeting.ts`: the controller's aim, which plays, is the exact one. (4) On a case-insensitive
-  file system (the Mac) `./Chips` resolves to `chips.ts` before `Chips.tsx`, so the dev server fails
-  to load any screen that imports `TargetZone` or `Hud`; `verify:chain` ran from a case-sensitive
-  copy.
+  `EMPTY_BUILD` before every `enter`) until track game provides a devnet entry point that builds a
+  fresh adventurer (CLI-11d3), so in the browser its bar is empty and `verify:chain`'s skill step
+  prints a SKIP; the full build is the deployment's own adventurer, which `chain.node.test.ts`
+  previews through the same controller (a potion, two skills, refusals). (2) The map's overlay
+  draws its reach from the sandbox's stand-in (`wiring.ts`'s `combatAim`), not from
+  `targeting.ts`: the controller's aim, which plays, is the exact one.
 
 `verify:chain` also checks the bar (eight slots), the belt (four), a tap on an empty slot, the log's
 line for the Wait predicted and then confirmed, and, when the bar holds a skill, that skill armed,
@@ -339,7 +338,7 @@ with the fight's actors (`sandbox/wiring.ts`'s `fightWorld`). The sandbox stays 
   while armed) or a plain bordered square; a monogram on its kind's ground, a flask drawn by code,
   the keys on desktop, the costs and counts on dark badges (`chrome/contrast.ts`'s `SLOT_TEXT`), one
   state per slot (§2.2) never by colour alone. A long press or a right click inspects a slot.
-- **`Chips.tsx`**: the letter chips with their figures, in the status band (`Hud`) and the target
+- **`ChipRow.tsx`**: the letter chips with their figures, in the status band (`Hud`) and the target
   zone; **`TargetZone.tsx`**: the selected goblin (its caste, a small red bar from the pack's
   `bar_small_fill_health`, its mark, chips and activation in words), at a fixed height;
   **`CombatLog.tsx`**: the desktop's right panel (12 lines, scrolling back) and the phone's last

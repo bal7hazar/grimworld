@@ -1,4 +1,4 @@
-import { Illegal } from "@grimworld/sim";
+import { Illegal, ORIGIN, memberPlace } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
 import { readWorld } from "../combat/fromWords";
 import type { LogLine } from "../combat/log";
@@ -100,6 +100,11 @@ function fakeStages(initial: ChainState = recordedChain()) {
     },
     setMirror: (next: MirrorResult | undefined) => {
       mirror = next;
+    },
+    /** The batch planned replaced, as a dropped or cut batch does. */
+    setPlanned: (next: Batch) => {
+      planned = next;
+      for (const listener of listeners) listener(state());
     },
     /** A send settled: the stages' `sent` changes, as it does before the batch is dropped. */
     setSent: (next: StagesState["sent"]) => {
@@ -625,6 +630,34 @@ describe("a slot as an action (CLI-05 brief §4.1, §4.4)", () => {
   });
 });
 
+describe("aiming at the location's edge (CLI-05g)", () => {
+  it("a TILE skill armed at the spawn tile (0, 7) aims, and throws nothing", () => {
+    // Row 88's world with the adventurer put at (0, 7), seven columns and nine rows into the
+    // window: the off-board tiles are skipped by `aiming`, so the controller needs no guard
+    const row = actRow(88);
+    const board = { ...row.board, x: ORIGIN - 7, y: ORIGIN - 2 };
+    const world = readWorld(row.words, ACT, row.ground, board);
+    const member = world.world.members[0]!;
+    const was = memberPlace(member);
+    member.words = {
+      ...member.words,
+      state: member.words.state + BigInt(-was.x + 256 * (7 - was.y)) * 2n ** 32n,
+    };
+    const warned: unknown[][] = [];
+    const warn = console.warn;
+    console.warn = (...args: unknown[]) => void warned.push(args);
+    try {
+      const { combat } = combatSetup(88, { combatWorld: () => world });
+      expect(() => combat.slot({ kind: "skill", slot: 0 })).not.toThrow();
+      expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 0 });
+      expect(combat.snapshot().view?.aim).toMatchObject({ addressing: "tile" });
+      expect(warned).toEqual([]);
+    } finally {
+      console.warn = warn;
+    }
+  });
+});
+
 describe("what is refused before the batch (§4.4)", () => {
   it("a skill on recharge says its ticks and arms nothing", () => {
     const { fake, combat } = combatSetup(57);
@@ -669,11 +702,11 @@ describe("what is refused before the batch (§4.4)", () => {
       expect(fake.actions()).toEqual([{ kind: "wait" }]);
       expect(controller.get().note).toBe(line);
       expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 0 });
-      // The refusal is in the log, in its own tone
+      // The refusal is in the log, in its own tone and status
       expect(combat.snapshot().log.at(-1)).toEqual({
         text: line,
         tone: "refusal",
-        status: "predicted",
+        status: "refused",
       });
       // Armed again, the tap that plays it is refused again with the batch still unchanged
       combat.actor(8);
@@ -807,6 +840,75 @@ describe("the log from the mirror (§7.2)", () => {
     sent.result.mirror = { kind: "not-mirrored", reason: "a reveal" };
     fake.setSent(sent as unknown as StagesState["sent"]);
     expect(combat.snapshot().log).toEqual([A, B]);
+  });
+
+  it("clears a refusal on entering again, after a send the mirror did not predict (review t-0012)", async () => {
+    const W: LogLine = { text: "You waited", tone: "event", status: "predicted" };
+    const { fake, controller, combat } = combatSetup(57, {
+      lines: (_, actions) => actions.map(() => [W]),
+      run: refusing(Illegal.Recharging),
+    });
+    controller.wait();
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    // Sent, and settled with no prediction (NotMirrored): nothing settles, the refusal stays
+    const sent = played([]) as unknown as { result: { mirror: unknown } };
+    sent.result.mirror = { kind: "not-mirrored", reason: "a reveal" };
+    fake.setSent(sent as unknown as StagesState["sent"]);
+    expect(combat.snapshot().log).toEqual([
+      W,
+      { text: "Recharging.", tone: "refusal", status: "refused" },
+    ]);
+    // The instance closes, and N enters again: the new instance's log is empty
+    fake.setPhase("closed");
+    expect(await controller.enterAgain()).toBe(true);
+    expect(combat.snapshot().log).toEqual([]);
+  });
+
+  it("keeps a refusal in input order, and a send neither confirms nor strikes it (review t-0008)", () => {
+    const W: LogLine = { text: "You waited", tone: "event", status: "predicted" };
+    const R: LogLine = { text: "Recharging.", tone: "refusal", status: "refused" };
+    const { fake, controller, combat } = combatSetup(57, {
+      lines: (_, actions) => actions.map(() => [W]),
+      run: refusing(Illegal.Recharging),
+    });
+    // A Wait planned, a recharging slot tapped (refused), a Wait again
+    controller.wait();
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    expect(controller.get().note).toBe("Recharging.");
+    controller.wait();
+    expect(fake.actions()).toEqual([{ kind: "wait" }, { kind: "wait" }]);
+    expect(combat.snapshot().log).toEqual([W, R, W]);
+    // Sent with a mismatch: the Waits are struck, the refusal is left as it was
+    fake.setSent(played([{ field: "members[0].state", chain: 1n, mirror: 2n }]));
+    expect(combat.snapshot().log).toEqual([
+      { ...W, status: "struck" },
+      R,
+      { ...W, status: "struck" },
+      { text: "The world corrected itself", tone: "event", status: "confirmed" },
+    ]);
+    // And a later confirmed send leaves it too
+    controller.wait();
+    fake.setSent(played([]));
+    expect(combat.snapshot().log.filter((l) => l.tone === "refusal")).toEqual([R]);
+  });
+
+  it("keeps a refusal after the batch it followed is dropped", () => {
+    const W: LogLine = { text: "You waited", tone: "event", status: "predicted" };
+    const { fake, controller, combat } = combatSetup(57, {
+      lines: (_, actions) => actions.map(() => [W]),
+      run: refusing(Illegal.Recharging),
+    });
+    controller.wait();
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    fake.setPlanned([]);
+    expect(combat.snapshot().log).toEqual([
+      { text: "Recharging.", tone: "refusal", status: "refused" },
+    ]);
+    controller.wait();
+    expect(combat.snapshot().log.map((l) => l.tone)).toEqual(["refusal", "event"]);
   });
 
   it("keeps the last 100 lines", () => {

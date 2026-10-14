@@ -21,6 +21,7 @@ import {
   Prefixes,
   batchLines,
   differenceLines,
+  refusal,
   replayAgrees,
   replayTicks,
   tickLines,
@@ -376,6 +377,25 @@ describe("the log keeps 100 lines (§7.3)", () => {
     ]);
     log.clear();
     expect(log.lines).toEqual([]);
+  });
+
+  it("leaves a refusal before the batch alone: no send confirms or strikes it", () => {
+    const log = new CombatLog();
+    log.add([{ text: "You waited", tone: "event", status: "predicted" }]);
+    log.refuse("Recharging.");
+    expect(log.lines[1]).toEqual(refusal("Recharging."));
+    expect(refusal("Recharging.")).toEqual({
+      text: "Recharging.",
+      tone: "refusal",
+      status: "refused",
+    });
+    log.correct();
+    log.confirm();
+    expect(log.lines.map((l) => [l.text, l.status])).toEqual([
+      ["You waited", "struck"],
+      ["Recharging.", "refused"],
+      ["The world corrected itself", "confirmed"],
+    ]);
   });
 });
 

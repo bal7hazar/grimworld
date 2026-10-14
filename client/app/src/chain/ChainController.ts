@@ -8,6 +8,7 @@ import {
   Prefixes,
   batchLines,
   consoleLogReport,
+  refusal,
 } from "../combat/log";
 import { NAMES } from "../combat/names";
 import { runRecorded } from "../combat/record";
@@ -216,6 +217,11 @@ export function createChainController(deps: ControllerDeps): ChainController {
   const history = new CombatLog();
   /** The predicted lines of each action of the batch planned (§7.2), recomputed with the batch. */
   let pending: LogLine[][] = [];
+  /**
+   * The refusals since the last settled batch, each after the lines of the `at` actions planned
+   * when it came: the log stays in input order, and they go to `history` with the batch's lines.
+   */
+  let refusals: { readonly at: number; readonly line: LogLine }[] = [];
   const prefixes = new Prefixes<MirrorState>((base, actions) =>
     runRecorded({ ...segmentOf(base), actions }, nativeClasses),
   );
@@ -272,8 +278,17 @@ export function createChainController(deps: ControllerDeps): ChainController {
     }
   }
 
+  /** The batch's predicted lines with the refusals between them, in input order. */
+  function unsettled(): LogLine[] {
+    const after = (k: number) => refusals.filter((r) => r.at === k).map((r) => r.line);
+    return [
+      ...pending.flatMap((lines, k) => [...after(k), ...lines]),
+      ...refusals.filter((r) => r.at >= pending.length).map((r) => r.line),
+    ];
+  }
+
   function refresh() {
-    const log = [...history.lines, ...pending.flat()].slice(-MAX_LINES);
+    const log = [...history.lines, ...unsettled()].slice(-MAX_LINES);
     snapshot = { view: combat?.view.view() ?? null, log };
     for (const listener of combatListeners) listener();
   }
@@ -306,7 +321,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
     const action = slotAction(armed, target);
     const line = action === undefined ? refusalLine(Illegal.Target)! : verdict(action, armed);
     if (line !== undefined) {
-      history.refuse(line);
+      refusals = [...refusals, { at: stages.get().planned.length, line: refusal(line) }];
       set({ note: line, turning: false });
       refused = armed;
       refresh();
@@ -342,17 +357,7 @@ export function createChainController(deps: ControllerDeps): ChainController {
     if (world !== undefined) {
       const view = new CombatController(stateOf(world, NAMES));
       view.setRules({
-        aim: (_, armed) => {
-          // `aiming` asks client/sim's `aim` of every tile of the window, those beyond the
-          // location's edge included, and the loader panics on a negative tile (`u8_add`): a TILE
-          // slot near the edge has no aim, never a thrown input (a defect of `targeting.ts`)
-          try {
-            return aiming(world, armed);
-          } catch (error) {
-            console.warn("grimworld.aim-failure", error instanceof Error ? error.message : error);
-            return null;
-          }
-        },
+        aim: (_, armed) => aiming(world, armed),
         play: (at, armed, target) => {
           play(armed, target);
           return at;
@@ -364,19 +369,28 @@ export function createChainController(deps: ControllerDeps): ChainController {
       now.chain.mirror,
       now.planned.map((p) => p.action),
     );
+    // A batch dropped or cut: its refusals stay, after what is left of it
+    const at = now.planned.length;
+    refusals = refusals.map((r) => (r.at > at ? { ...r, at } : r));
     refresh();
   }
 
-  /** The sent batch settled (§7.2 item 4): its predicted lines confirmed, or struck if it differs. */
+  /**
+   * The sent batch settled (§7.2 item 4): its predicted lines confirmed, or struck if it differs.
+   * A send the mirror did not predict (a reveal, `NotMirrored`) or that did not play settles
+   * nothing: its predicted lines stay as they were, and so do its refusals, in their place among
+   * them, until a later settle moves them all to `history` or a new instance clears the log.
+   */
   function settle(sent: NonNullable<StagesState["sent"]>) {
     const { result } = sent;
     if (result.kind !== "sent" || result.chain.kind !== "played") return;
     if (result.mirror.kind !== "predicted") return;
-    history.add(pending.flat());
+    history.add(unsettled());
     if (result.mismatches.length === 0 && result.differs.length === 0) history.confirm();
     else history.correct();
     // What is pending is the sent batch's: it is settled, and the batch is dropped or read again
     pending = [];
+    refusals = [];
     refresh();
   }
 
@@ -552,7 +566,9 @@ export function createChainController(deps: ControllerDeps): ChainController {
       try {
         const chain = await deps.enter();
         stages.install(chain);
+        // A new instance: its log starts empty, the refusals of the last one's batch included
         history.clear();
+        refusals = [];
         rebuild();
         set({ entering: false, selected: null });
         return true;
