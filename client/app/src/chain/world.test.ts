@@ -8,7 +8,17 @@ import {
   decodeInstanceView,
 } from "../preview/view";
 import { initialState, toView } from "../sandbox/wiring";
-import { chainWorld, goblinActor, goblinPlace, memberPlace } from "./world";
+import { stateOf } from "../combat/fromWords";
+import { recordedBefore as noGoblins } from "../preview/recorded";
+import type { MirrorState } from "../preview/mirror";
+import {
+  chainWorld,
+  combatWorldOf,
+  goblinActor,
+  goblinPlace,
+  memberPlace,
+  objectAt,
+} from "./world";
 
 /** The state recorded on starknet-devnet before the Wait, with a goblin in view (OPS-01a's seed). */
 const view = (): InstanceView => decodeInstanceView(recordedBefore.view.map(BigInt));
@@ -113,5 +123,68 @@ describe("the world built from a recorded view and region (§6.2)", () => {
     expect(() => chainWorld({ ...recorded(), view: { ...view(), width: 0, height: 0 } })).toThrow(
       RangeError,
     );
+  });
+});
+
+describe("the combat world and the objects of a state (CLI-11d)", () => {
+  /** The recording without goblins (`recorded.ts`): the adventurer on (0, 7). */
+  const recordedState = (): MirrorState => ({
+    view: decodeInstanceView(noGoblins.view.map(BigInt)),
+    member: noGoblins.member,
+    region: noGoblins.region.map((c) => ({
+      chunk: c.chunk,
+      kind: c.kind as RegionChunk["kind"],
+      terrain: BigInt(c.terrain),
+      features: BigInt(c.features),
+      goblins: [],
+    })),
+  });
+  const EMPTY = { skills: [], potions: [], castes: [] };
+
+  it("is none where the state holds no content, or the adventurer is not member 0", () => {
+    expect(combatWorldOf(recordedState())).toBeUndefined();
+    expect(combatWorldOf({ ...recordedState(), content: EMPTY, member: 1 })).toBeUndefined();
+  });
+
+  it("reads the adventurer's tile and an empty bar and belt from the state's words", () => {
+    const world = combatWorldOf({ ...recordedState(), content: EMPTY });
+    expect(world).toBeDefined();
+    const state = stateOf(world!);
+    expect(state.adventurer.tile).toEqual({ x: 0, y: 7 });
+    expect(state.adventurer.bar).toHaveLength(8);
+    expect(state.adventurer.bar.every((slot) => slot.state === "empty")).toBe(true);
+    expect(state.goblins).toEqual([]);
+  });
+
+  it("reads the words after the batch when a prediction is given", () => {
+    const before = recordedState();
+    const chain = combatWorldOf({ ...before, content: EMPTY })!;
+    const member = chain.world.members[0]!;
+    expect(member.health).toBeGreaterThan(0);
+    const words = {
+      clock: before.view.header.clock + 3,
+      members: before.view.members.map((m) => ({ ...m })),
+      goblins: [],
+      killed: [],
+      defeated: false,
+    };
+    const after = combatWorldOf({ ...before, content: EMPTY }, { words, ground: [] });
+    expect(after?.world.clock).toBe(before.view.header.clock + 3);
+  });
+
+  it("finds an object that is no trap on a tile of a revealed chunk", () => {
+    const { region } = recordedState();
+    expect(objectAt(region, { x: 1, y: 7 })).toBe(false);
+    const object = (kind: bigint) => (106n | (kind << 8n)) << 128n;
+    const placed = (kind: bigint) =>
+      region.map((c) => (c.chunk === 0 ? { ...c, features: c.features | object(kind) } : c));
+    // Tile 106 of chunk 0 is (1, 7): a gate, a chest or a lever (any kind that is no trap)
+    expect(objectAt(placed(2n), { x: 1, y: 7 })).toBe(true);
+    expect(objectAt(placed(2n), { x: 2, y: 7 })).toBe(false);
+    // A trap is not an interaction: terrain trap 4, placed trap 9
+    expect(objectAt(placed(4n), { x: 1, y: 7 })).toBe(false);
+    expect(objectAt(placed(9n), { x: 1, y: 7 })).toBe(false);
+    // A chunk the region does not give
+    expect(objectAt([], { x: 1, y: 7 })).toBe(false);
   });
 });

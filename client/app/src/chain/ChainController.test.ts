@@ -1,4 +1,8 @@
+import { Illegal } from "@grimworld/sim";
 import { describe, expect, it } from "vitest";
+import { readWorld } from "../combat/fromWords";
+import type { LogLine } from "../combat/log";
+import { actRow, contentOf } from "../combat/vectors.testkit";
 import type { PlayAction } from "../preview/actions";
 import type { MirrorState } from "../preview/mirror";
 import type { MirrorResult } from "../preview/reconcile";
@@ -8,7 +12,7 @@ import type { Tile } from "../render/view";
 import { planPath, tileToward } from "../sandbox/wiring";
 import { kindAt } from "../sandbox/world";
 import type { Batch } from "./batch";
-import { createChainController, notes } from "./ChainController";
+import { type ControllerDeps, createChainController, notes, slotAction } from "./ChainController";
 import type { ChainState } from "./send";
 import type { Phase, Stages, StagesState } from "./stages";
 
@@ -40,13 +44,14 @@ function fakeStages(initial: ChainState = recordedChain()) {
     planned,
     mirror,
     simulation: undefined,
-    sent: undefined,
+    sent: result,
     line,
   });
   let line: string | undefined;
   const listeners = new Set<(state: StagesState) => void>();
   let phase: Phase = "ready";
   let mirror: MirrorResult | undefined;
+  let result: StagesState["sent"];
   const sent: number[] = [];
   const installed: ChainState[] = [];
   const stages: Stages = {
@@ -64,6 +69,7 @@ function fakeStages(initial: ChainState = recordedChain()) {
           path: options?.path ?? false,
         })),
       ];
+      for (const listener of listeners) listener(state());
       return true;
     },
     send() {
@@ -94,6 +100,11 @@ function fakeStages(initial: ChainState = recordedChain()) {
     },
     setMirror: (next: MirrorResult | undefined) => {
       mirror = next;
+    },
+    /** A send settled: the stages' `sent` changes, as it does before the batch is dropped. */
+    setSent: (next: StagesState["sent"]) => {
+      result = next;
+      for (const listener of listeners) listener(state());
     },
   };
 }
@@ -500,5 +511,313 @@ describe("the panel's line (review t-0239, findings 2 and 4)", () => {
     expect(controller.get().note).toBe(notes.UNBOUND);
     controller.send();
     expect(controller.get().note).toBeUndefined();
+  });
+});
+
+// ---- The combat screen on chain (CLI-11d).
+
+const ACT = contentOf("act.jsonl");
+/** `act.jsonl` rows as the combat world: the adventurer on (7, 7), eight ready skills (slot 0 a FOE attack). */
+const worldOf = (id: number) => {
+  const row = actRow(id);
+  return readWorld(row.words, ACT, row.ground, row.board);
+};
+
+/** A chain controller whose combat world is a vector row's, its mirror's run given. */
+function combatSetup(row: number, deps: Partial<ControllerDeps> = {}) {
+  const fake = fakeStages();
+  const world = worldOf(row);
+  const controller = createChainController({
+    stages: fake.stages,
+    enter: async () => recordedChain(),
+    combatWorld: () => world,
+    ...deps,
+  });
+  return { fake, controller, combat: controller.combat };
+}
+
+/** A mirror run that stops at the last action it is given, refused for `illegal`. */
+const refusing =
+  (illegal: number): ControllerDeps["run"] =>
+  () =>
+  (actions) =>
+    ({
+      words: { clock: 0, members: [], goblins: [], killed: [], defeated: false },
+      done: { played: actions.length - 1, reveal: false, illegal, heavy: false, undo: false },
+    }) as ReturnType<ReturnType<NonNullable<ControllerDeps["run"]>>>;
+
+describe("a slot as an action (CLI-05 brief §4.1, §4.4)", () => {
+  it("a skill is a skill action on an entity or a tile, a potion an item action on an entity", () => {
+    expect(slotAction({ kind: "skill", slot: 2 }, { tile: false, entity: 8 })).toEqual({
+      kind: "skill",
+      slot: 2,
+      target: { tile: false, value: 8 },
+    });
+    expect(slotAction({ kind: "skill", slot: 3 }, { tile: true, at: { x: 9, y: 4 } })).toEqual({
+      kind: "skill",
+      slot: 3,
+      target: { tile: true, value: 9 + 256 * 4 },
+    });
+    expect(slotAction({ kind: "item", slot: 1 }, { tile: false, entity: 0 })).toEqual({
+      kind: "item",
+      slot: 1,
+      entity: 0,
+    });
+    // `Item` carries an entity only
+    expect(
+      slotAction({ kind: "item", slot: 0 }, { tile: true, at: { x: 1, y: 1 } }),
+    ).toBeUndefined();
+  });
+
+  it("has no combat view where the state holds no content", () => {
+    const fake = fakeStages();
+    const controller = createChainController({
+      stages: fake.stages,
+      enter: async () => recordedChain(),
+    });
+    expect(controller.combat.snapshot().view).toBeNull();
+    controller.combat.slot({ kind: "skill", slot: 0 });
+    expect(fake.actions()).toEqual([]);
+  });
+
+  it("a key or tap on a self skill arms it, and again plays it on the adventurer", () => {
+    const { fake, combat } = combatSetup(48);
+    combat.slot({ kind: "skill", slot: 3 });
+    expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 3 });
+    expect(fake.actions()).toEqual([]);
+    combat.slot({ kind: "skill", slot: 3 });
+    expect(fake.actions()).toEqual([{ kind: "skill", slot: 3, target: { tile: false, value: 0 } }]);
+    // The view is made again on the batch: nothing is armed
+    expect(combat.snapshot().view?.armed).toBeNull();
+  });
+
+  it("a FOE skill is armed, then played on the goblin tapped", () => {
+    const { fake, combat } = combatSetup(48);
+    combat.slot({ kind: "skill", slot: 0 });
+    expect(combat.snapshot().view?.aim).toMatchObject({ addressing: "foe", marked: [8] });
+    expect(combat.actor(8)).toBe(true);
+    expect(fake.actions()).toEqual([{ kind: "skill", slot: 0, target: { tile: false, value: 8 } }]);
+  });
+
+  it("F cycles the targets and Enter plays on the one reached", () => {
+    const { fake, combat } = combatSetup(48);
+    combat.slot({ kind: "skill", slot: 0 });
+    expect(combat.cycle(1)).toBe(true);
+    expect(combat.go()).toBe(true);
+    expect(fake.actions()).toEqual([{ kind: "skill", slot: 0, target: { tile: false, value: 8 } }]);
+  });
+
+  it("a belt slot is a potion: armed, then drunk on the adventurer", () => {
+    const { fake, combat } = combatSetup(153);
+    combat.slot({ kind: "item", slot: 1 });
+    expect(combat.snapshot().view?.armed).toEqual({ kind: "item", slot: 1 });
+    combat.slot({ kind: "item", slot: 1 });
+    expect(fake.actions()).toEqual([{ kind: "item", slot: 1, entity: 0 }]);
+  });
+
+  it("Esc disarms, and the bar shows the state after the batch", () => {
+    const { combat } = combatSetup(48);
+    combat.slot({ kind: "skill", slot: 0 });
+    expect(combat.escape()).toBe(true);
+    expect(combat.snapshot().view?.armed).toBeNull();
+    expect(combat.escape()).toBe(false);
+    expect(combat.snapshot().view?.state.adventurer.bar).toHaveLength(8);
+  });
+});
+
+describe("what is refused before the batch (§4.4)", () => {
+  it("a skill on recharge says its ticks and arms nothing", () => {
+    const { fake, combat } = combatSetup(57);
+    combat.slot({ kind: "skill", slot: 0 });
+    expect(combat.snapshot().view?.armed).toBeNull();
+    expect(combat.snapshot().view?.said).toBe("Recharging: 1 tick.");
+    expect(fake.actions()).toEqual([]);
+  });
+
+  it("a potion with none left says so and arms nothing", () => {
+    const { fake, combat } = combatSetup(48);
+    combat.slot({ kind: "item", slot: 0 });
+    expect(combat.snapshot().view?.armed).toBeNull();
+    expect(combat.snapshot().view?.said).toBe("None left.");
+    expect(fake.actions()).toEqual([]);
+  });
+
+  it("a target that is no foe is not a valid target, the batch unchanged and the slot armed", () => {
+    const { fake, combat } = combatSetup(48);
+    combat.slot({ kind: "skill", slot: 0 });
+    expect(combat.actor(77)).toBe(true);
+    expect(combat.snapshot().view?.said).toBe("Not a valid target.");
+    expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 0 });
+    expect(fake.actions()).toEqual([]);
+  });
+
+  const CASES: readonly [string, number, string][] = [
+    ["Reach", Illegal.Reach, "Out of reach."],
+    ["Energy", Illegal.Energy, "Not enough energy."],
+    ["Adrenaline", Illegal.Adrenaline, "Not enough adrenaline."],
+    ["Belt", Illegal.Belt, "None left."],
+    ["Trap", Illegal.Trap, "A trap cannot go there."],
+    ["Instant", Illegal.Instant, "Only one instant skill between two ticks."],
+    ["Knocked", Illegal.Knocked, "You are knocked down."],
+  ];
+  for (const [name, illegal, line] of CASES) {
+    it(`the mirror's ${name} is "${line}": the action is not added, the slot stays armed`, () => {
+      const { fake, controller, combat } = combatSetup(48, { run: refusing(illegal) });
+      controller.wait();
+      combat.slot({ kind: "skill", slot: 0 });
+      combat.actor(8);
+      expect(fake.actions()).toEqual([{ kind: "wait" }]);
+      expect(controller.get().note).toBe(line);
+      expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 0 });
+      // The refusal is in the log, in its own tone
+      expect(combat.snapshot().log.at(-1)).toEqual({
+        text: line,
+        tone: "refusal",
+        status: "predicted",
+      });
+      // Armed again, the tap that plays it is refused again with the batch still unchanged
+      combat.actor(8);
+      expect(fake.actions()).toEqual([{ kind: "wait" }]);
+    });
+  }
+
+  it("a refusal of a recharge says its ticks", () => {
+    const { controller, combat } = combatSetup(57, { run: refusing(Illegal.Recharging) });
+    // Slot 0 recharges (1 tick); slot 1 is ready and the mirror refuses it for a recharge too
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    expect(controller.get().note).toBe("Recharging.");
+  });
+
+  it("an Illegal a tap cannot reach is a parity record and a plain line, nothing added", () => {
+    const warned: unknown[][] = [];
+    const warn = console.warn;
+    console.warn = (...args: unknown[]) => void warned.push(args);
+    try {
+      const { fake, controller, combat } = combatSetup(48, { run: refusing(Illegal.Turned) });
+      combat.slot({ kind: "skill", slot: 1 });
+      combat.slot({ kind: "skill", slot: 1 });
+      expect(fake.actions()).toEqual([]);
+      expect(controller.get().note).toBe(notes.NOT_AVAILABLE);
+      expect(warned[0]?.[0]).toBe("grimworld.parity");
+    } finally {
+      console.warn = warn;
+    }
+  });
+
+  it("where the mirror cannot say, the action is added and the simulation decides", () => {
+    const { fake, combat } = combatSetup(48, {
+      run: () => () => {
+        throw Object.assign(new Error("a Move revealed a chunk"), { name: "NotMirrored" });
+      },
+    });
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    expect(fake.actions()).toEqual([{ kind: "skill", slot: 1, target: { tile: false, value: 0 } }]);
+  });
+
+  it("a full batch refuses the action and leaves the slot armed", () => {
+    const { fake, controller, combat } = combatSetup(48);
+    for (let i = 0; i < 10; i++) controller.wait();
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    expect(fake.actions()).toHaveLength(10);
+    expect(combat.snapshot().view?.armed).toEqual({ kind: "skill", slot: 1 });
+  });
+});
+
+describe("interactions are not available (§4.4)", () => {
+  /** The recorded chunk 0 with a non-trap object (kind 2) on tile (1, 7), local tile 106. */
+  function withObject(): ChainState {
+    const chain = recordedChain();
+    const object = (106n | (2n << 8n)) << 128n;
+    const region = chain.mirror.region.map((c) =>
+      c.chunk === 0 ? { ...c, features: c.features | object } : c,
+    );
+    return { ...chain, mirror: { ...chain.mirror, region } };
+  }
+
+  it("a tap on a gate, a chest or a lever says so and adds no interact", () => {
+    const fake = fakeStages(withObject());
+    const controller = createChainController({
+      stages: fake.stages,
+      enter: async () => recordedChain(),
+    });
+    expect(controller.tap({ x: 1, y: 7 })).toEqual({ kind: "none" });
+    expect(controller.get().note).toBe("Not available yet.");
+    expect(fake.actions()).toEqual([]);
+  });
+});
+
+describe("the log from the mirror (§7.2)", () => {
+  const A: LogLine = { text: "You used Strike on the runt", tone: "event", status: "predicted" };
+  const B: LogLine = { text: "The runt lost 8 health", tone: "event", status: "predicted" };
+  const lines = (_: unknown, actions: readonly unknown[]) => (actions.length === 0 ? [] : [[A, B]]);
+  const played = (mismatches: unknown[]) =>
+    ({
+      simulated: {} as never,
+      result: {
+        kind: "sent",
+        id: "0x1",
+        blockHash: "0x2",
+        differs: [],
+        after: {} as never,
+        chain: { kind: "played", batch: { played: 1, stop: 0 } },
+        mirror: { kind: "predicted", played: 1, stop: 0 },
+        mismatches,
+      },
+    }) as unknown as StagesState["sent"];
+
+  it("shows the planned actions' lines as predicted", () => {
+    const { combat } = combatSetup(48, { lines });
+    expect(combat.snapshot().log).toEqual([]);
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    expect(combat.snapshot().log).toEqual([A, B]);
+  });
+
+  it("confirms them once the sent batch equals the prediction", () => {
+    const { fake, combat } = combatSetup(48, { lines });
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    fake.setSent(played([]));
+    expect(combat.snapshot().log).toEqual([
+      { ...A, status: "confirmed" },
+      { ...B, status: "confirmed" },
+    ]);
+  });
+
+  it("strikes them and says the world corrected itself when the chain differs", () => {
+    const { fake, combat } = combatSetup(48, { lines });
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    fake.setSent(played([{ field: "members[0].state", chain: 1n, mirror: 2n }]));
+    expect(combat.snapshot().log).toEqual([
+      { ...A, status: "struck" },
+      { ...B, status: "struck" },
+      { text: "The world corrected itself", tone: "event", status: "confirmed" },
+    ]);
+  });
+
+  it("says nothing of a sent batch the mirror did not predict", () => {
+    const { fake, combat } = combatSetup(48, { lines });
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    const sent = played([]) as unknown as { result: { mirror: unknown } };
+    sent.result.mirror = { kind: "not-mirrored", reason: "a reveal" };
+    fake.setSent(sent as unknown as StagesState["sent"]);
+    expect(combat.snapshot().log).toEqual([A, B]);
+  });
+
+  it("keeps the last 100 lines", () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({ ...A, text: `line ${i}` }));
+    const { combat } = combatSetup(48, {
+      lines: (_, actions) => (actions.length === 0 ? [] : [many]),
+    });
+    combat.slot({ kind: "skill", slot: 1 });
+    combat.slot({ kind: "skill", slot: 1 });
+    const log = combat.snapshot().log;
+    expect(log).toHaveLength(100);
+    expect(log.at(-1)?.text).toBe("line 119");
   });
 });

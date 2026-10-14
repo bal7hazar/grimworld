@@ -1,8 +1,16 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AccountError } from "../account";
+import { Belt } from "../combat/Belt";
+import { CombatLogLine, CombatLogPanel } from "../combat/CombatLog";
+import { slotOf } from "../combat/controller";
+import { Inspection, SkillBar } from "../combat/SkillBar";
+import type { CombatState } from "../combat/state";
+import { TargetZone } from "../combat/TargetZone";
 import { installKeys } from "../sandbox/keyScope";
 import { type KeyCommand, verticalDirection } from "../input/keys";
 import type { Intent } from "../input/intent";
+import type { Tile } from "../render/view";
+import { DESKTOP_MIN_WIDTH } from "../sandbox/loop/Loop";
 import { type BlockId, createReader } from "../preview/read";
 import { createRpcSimulator } from "../preview/rpc";
 import { RoomSandbox, Sandbox } from "../sandbox/Sandbox";
@@ -184,7 +192,12 @@ function Play({ session }: { session: Session }) {
   const { stages, controller } = session;
   const [chain, setChain] = useState(() => stages.get().chain);
   const map = useRef<SandboxController | null>(null);
+  const [mapView, setMapView] = useState<SandboxController | null>(null);
   const ghosts = useRef<HTMLDivElement>(null);
+  const combat = useSyncExternalStore(controller.combat.subscribe, controller.combat.snapshot);
+  const own = useSyncExternalStore(controller.subscribe, controller.get);
+  const phone = useWindowWidth() < DESKTOP_MIN_WIDTH;
+  const view = combat.view;
 
   useEffect(() => installKeys(), []);
   useEffect(
@@ -193,6 +206,7 @@ function Play({ session }: { session: Session }) {
         if (state.chain !== chain) {
           // The map is mounted again: the one drawn is destroyed, and the new one reports itself
           map.current = null;
+          setMapView(null);
           controller.reset();
           setChain(state.chain);
         }
@@ -202,6 +216,13 @@ function Play({ session }: { session: Session }) {
     [stages, controller, chain],
   );
   useEffect(() => controller.subscribe(() => place()), [controller]);
+
+  // The map draws the combat overlay of the state after the batch, and the armed slot's reach
+  useEffect(() => {
+    mapView?.setCombat(
+      view ? { state: view.state, armed: view.armed, preview: view.preview } : null,
+    );
+  }, [mapView, view]);
 
   /** Places stage 1's markers over the map, with the camera as last drawn. */
   function place() {
@@ -237,6 +258,14 @@ function Play({ session }: { session: Session }) {
     // An inspect is the map's own; a tap is the batch's, and the map hears of it only as the
     // controller says (a goblin's selection, never a turn of the drawn adventurer)
     if (intent.kind !== "tile") return intent;
+    // While a slot is armed, a tap on the map chooses its target (CLI-05 brief §4.1)
+    const now = controller.combat.snapshot().view;
+    if (now?.armed) {
+      const entity = actorOn(now.state, intent.tile);
+      if (entity === null || now.aim?.addressing === "tile") controller.combat.tile(intent.tile);
+      else controller.combat.actor(entity);
+      return null;
+    }
     return controller.mapTap(intent.tile);
   };
 
@@ -256,6 +285,18 @@ function Play({ session }: { session: Session }) {
       case "turn":
         controller.armTurn();
         return true;
+      case "skill":
+      case "belt":
+        if (controller.combat.snapshot().view === null) return false;
+        controller.combat.slot({
+          kind: command.kind === "skill" ? "skill" : "item",
+          slot: command.slot,
+        });
+        return true;
+      case "cycle":
+        return controller.combat.cycle(command.by);
+      case "go":
+        return controller.combat.go();
       case "send":
         controller.send();
         return true;
@@ -266,7 +307,7 @@ function Play({ session }: { session: Session }) {
         controller.unbound();
         return true;
       case "escape":
-        return controller.disarm() || keys.handle(command);
+        return controller.combat.escape() || controller.disarm() || keys.handle(command);
       case "zoom":
       case "recentre":
         return keys.handle(command);
@@ -290,15 +331,77 @@ function Play({ session }: { session: Session }) {
           map.current = keys.controller;
           return onKey(command, keys);
         }}
-        onFrame={(view) => {
-          map.current = view;
+        onFrame={(frame) => {
+          map.current = frame;
+          setMapView((was) => (was === frame ? was : frame));
           place();
         }}
       />
       <div ref={ghosts} style={styles.layer} data-ghosts="0" />
       <ChainPanel stages={stages} controller={controller} />
+      {view && (
+        <>
+          {view.inspected && slotOf(view.state, view.inspected) && (
+            <Inspection
+              slot={slotOf(view.state, view.inspected)!}
+              onClose={() => void controller.combat.escape()}
+            />
+          )}
+          <div style={styles.zone}>
+            <TargetZone state={view.state} selected={view.focus ?? own.selected} />
+          </div>
+          <div style={styles.dock} data-combat-dock="">
+            <div style={styles.said} aria-live="polite" data-said="">
+              {own.note ?? view.said}
+            </div>
+            <SkillBar
+              bar={view.state.adventurer.bar}
+              armed={view.armed}
+              activation={view.state.adventurer.activation}
+              keys={!phone}
+              onSlot={(slot) => controller.combat.slot({ kind: "skill", slot })}
+              onInspect={(slot) => controller.combat.inspect({ kind: "skill", slot })}
+              onWait={() => controller.wait()}
+              onTurn={() => controller.armTurn()}
+            />
+            <Belt
+              belt={view.state.adventurer.belt}
+              armed={view.armed}
+              keys={!phone}
+              onSlot={(slot) => controller.combat.slot({ kind: "item", slot })}
+              onInspect={(slot) => controller.combat.inspect({ kind: "item", slot })}
+            />
+          </div>
+          {phone ? (
+            <div style={styles.logLine} data-chain-log="line">
+              <CombatLogLine lines={combat.log} />
+            </div>
+          ) : (
+            <div style={styles.logPanel} data-chain-log="panel">
+              <CombatLogPanel lines={combat.log} />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
+}
+
+/** The entity of the combat actor on `tile` (the adventurer's, a living goblin's), or null. */
+function actorOn(state: CombatState, tile: Tile): number | null {
+  const on = (t: Tile) => t.x === tile.x && t.y === tile.y;
+  if (on(state.adventurer.tile)) return state.adventurer.entity;
+  return state.goblins.find((g) => g.alive && on(g.tile))?.entity ?? null;
+}
+
+function useWindowWidth(): number {
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const resize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  return width;
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -319,6 +422,38 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
   },
+  /** The bar and the belt under the map, the target zone over them (CLI-05c's order). */
+  dock: {
+    position: "absolute",
+    left: "50%",
+    bottom: 0,
+    transform: "translateX(-50%)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 8px 10px",
+    background: "#0b0b0e",
+    borderTop: "1px solid #2a2a33",
+    maxWidth: "100vw",
+    zIndex: 5,
+  },
+  said: {
+    alignSelf: "stretch",
+    minHeight: "1.125rem",
+    font: "0.8125rem/1.125rem system-ui",
+    color: "#f2c94c",
+    textAlign: "center",
+  },
+  zone: {
+    position: "absolute",
+    left: "50%",
+    bottom: 250,
+    transform: "translateX(-50%)",
+    zIndex: 5,
+  },
+  logPanel: { position: "absolute", right: 8, top: 56, width: 280, zIndex: 5 },
+  logLine: { position: "absolute", left: 8, right: 8, top: 8, zIndex: 5 },
   page: { position: "fixed", inset: 0, background: "#1b1b1f" },
   line: {
     position: "fixed",

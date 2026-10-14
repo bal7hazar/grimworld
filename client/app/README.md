@@ -246,6 +246,54 @@ Wait with `Space`, sends it with `B`, checks the three stages (the sent outcome 
 simulated one, no field differing) and that no log, page or URL holds the burner's key, and
 captures the panel at each stage into `VERIFY_SHOTS_DIR`.
 
+### Skills and belt items on chain (CLI-11d)
+
+`?chain=` also draws the combat screen's elements over the map, fed by the state read back
+(`docs/briefs/CLI-05-combat-ui.md` §4.4, §7.2, §9): the skill bar and the belt under the map, the
+target zone over them, the log in a panel (desktop) or its last line (phone).
+
+- **The state** (`world.ts`, `ChainController.ts`). `combatWorldOf` loads the mirror's words, the
+  batch's content and the ground on the window's board (`combat/fromWords.ts`). It reads the state
+  **after the batch planned so far** (the prediction's words and `Prediction.ground`), so the bar,
+  the belt, the chips and the aim follow the plan: a potion in the batch is already gone from its
+  slot, a skill in it already recharges. The `CombatController` is made again at each change of
+  the batch; with no content, or the controlled member not 0, there is no combat view.
+- **Inputs.** A tap on a slot, `1`–`8`, `Z X C V`, arms it; the second tap on a self-addressed slot,
+  a tap on a marked goblin or tile, or `F` then `Enter`, plays it: one `skill` action (an entity or a
+  tile, `x + 256 y`) or one `item` action on an entity. `Esc` disarms. `Wait` and `Turn` on the bar
+  are `Space` and `R`.
+- **Refused before the batch** (§4.4). The mirror is run on the planned actions plus the new one; an
+  `Illegal` at the new action is one line ("Not enough energy.", "Out of reach.", "None left.", …),
+  the slot stays armed and the batch is unchanged. A slot that is not ready (recharging, empty belt,
+  no adrenaline) says its line on the tap and is not armed. Where the mirror cannot say
+  (`NotMirrored`), the action is added and the simulation decides. A tap on a gate, a chest or a
+  lever says "Not available yet." and adds no `interact` (`objectAt`: the chunk's objects that are
+  no trap).
+- **The log** (§7.2). The predicted lines of the batch come from `combat/log.ts`'s `batchLines` on
+  the runs of each prefix (`Prefixes`, through `record.ts`'s wrapper of the native classes), kept
+  per action so an input adds only its own. After a send, the lines of the played actions are
+  confirmed when the sent result matches the prediction, and struck with "The world corrected
+  itself" when it does not. A refusal is a muted line. Entering again clears the log.
+- **Names** (`combat/names.ts`, Q-1): a copy of the table `contracts/seed/README.md` keeps under
+  "Names for the client"; `names.test.ts` reads that table, so the copy follows it. An unknown id is
+  "Skill 12".
+- **Known gaps.** (1) The burner's adventurer is built empty (`setup.ts` sends `set_build` with
+  `EMPTY_BUILD` before every `enter`, and skills are bought with gold the devnet harness credits,
+  D-280), so in the browser its bar is empty; the full build is the deployment's own adventurer,
+  which `chain.node.test.ts` previews through the same controller (a potion, two skills, refusals).
+  (2) `combat/targeting.ts`'s `aiming` asks `aim` of every tile of the window, those beyond the
+  location's edge included, and client/sim panics on a negative tile (`u8_add`): a `TILE` skill
+  near the edge has no aim (`grimworld.aim-failure` in the console) until it skips them. (3) The
+  map's overlay draws its reach from the sandbox's stand-in (`wiring.ts`'s `combatAim`), not from
+  `targeting.ts`: the controller's aim, which plays, is the exact one. (4) On a case-insensitive
+  file system (the Mac) `./Chips` resolves to `chips.ts` before `Chips.tsx`, so the dev server fails
+  to load any screen that imports `TargetZone` or `Hud`; `verify:chain` ran from a case-sensitive
+  copy.
+
+`verify:chain` also checks the bar (eight slots), the belt (four), a tap on an empty slot, the log's
+line for the Wait predicted and then confirmed, and, when the bar holds a skill, that skill armed,
+played and its lines confirmed.
+
 ## Combat UI (`src/combat/`, CLI-05)
 
 The combat screens' model, written first without a screen (CLI-05a; the brief is

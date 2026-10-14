@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { AccountProvider, Call, ExecutionId, ExecutionStatus, KeyStorage } from "../account";
+import { NAMES } from "../combat/names";
 import type { PlayAction } from "../preview/actions";
 import { previewBatch } from "../preview/preview";
 import { type BlockId, createReader } from "../preview/read";
@@ -9,6 +10,7 @@ import { createRpc, createRpcSimulator } from "../preview/rpc";
 import { Stop } from "../preview/trace";
 import { type Opened, SN_MAIN, assertTestChain, openChain, parseDeployment } from "./network";
 import { type ChainState, type SendDeps, createSentReads, readState, sendBatch } from "./send";
+import { createChainController } from "./ChainController";
 import { type Stages, createStages } from "./stages";
 import { type Player, type SetupDeps, enter, restore } from "./setup";
 
@@ -364,3 +366,190 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
     }, 120_000);
   });
 });
+
+// CLI-11d: skills and belt items on the deployment's own adventurer, built `--build full` (SEED-02:
+// four skills on the bar, a belt of healing ×2 and a REGENERATION potion). The burner's adventurer
+// is built empty (`set_build`, `EMPTY_BUILD`), so the full build is the deployment's, adventurer
+// `adventurer_id`, which account 0 owns. Only simulated, never sent: the world is drawn again on
+// every deployment (entropy), so no entity, tile or goblin count is assumed; the targets come from
+// the state read back.
+type FullBuild = {
+  mode: string;
+  bar: number[];
+  belt: { item: number; count: number }[];
+};
+const build = (found as { build?: FullBuild } | undefined)?.build;
+
+describe.skipIf(found === undefined || build?.mode !== "full")(
+  "the skills and belt items of the full build, previewed on the local node",
+  () => {
+    const deployment = parseDeployment(found)!;
+    const raw = found as {
+      adventurer_id: number;
+      instance_id: number;
+      node_url: string;
+      account: string;
+    };
+    const full = build!;
+    const reader = () => createReader({ nodeUrl: raw.node_url });
+    const ids = () => ({
+      instances: deployment.contracts.instances,
+      registry: deployment.contracts.registry,
+      instanceId: BigInt(raw.instance_id),
+      adventurerId: raw.adventurer_id,
+    });
+    const load = () => readState(reader(), ids());
+    const parity: unknown[] = [];
+
+    /** A controller on the deployment's adventurer; its sends are never made. */
+    async function controllerOn() {
+      const stages = createStages(await load(), {
+        simulator: createRpcSimulator({ nodeUrl: raw.node_url, sender: raw.account }),
+        send: () => Promise.reject(new Error("the full build is only previewed here")),
+        load,
+        log: (record) => parity.push(record),
+        debounce: 20,
+      });
+      return {
+        stages,
+        controller: createChainController({ stages, enter: () => Promise.reject(new Error("no")) }),
+      };
+    }
+    /** The simulation of the batch planned, once it answered. */
+    async function answered(stages: Stages) {
+      for (let i = 0; i < 400; i++) {
+        const { simulation } = stages.get();
+        if (simulation?.status === "answered") return simulation.preview;
+        if (simulation?.status === "error") throw new Error(simulation.error);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error("the simulation did not answer");
+    }
+
+    it("names every skill and item of the build key from the seed's table", () => {
+      for (const skill of full.bar.filter((id) => id !== 0)) {
+        expect(NAMES.skill(skill), `skill ${skill}`).not.toMatch(/^Skill \d+$/);
+      }
+      for (const { item } of full.belt) {
+        expect(NAMES.potion(item), `item ${item}`).not.toMatch(/^Item \d+$/);
+      }
+    });
+
+    it("puts the four skills on the bar and the two potions on the belt, from the mirror", async () => {
+      const { controller } = await controllerOn();
+      const view = controller.combat.snapshot().view;
+      expect(view, "the combat view needs the state's content").not.toBeNull();
+      const { bar, belt } = view!.state.adventurer;
+      const on = bar.filter((slot) => slot.skill !== null);
+      expect(on.map((slot) => slot.skill!.id)).toEqual(full.bar.filter((id) => id !== 0));
+      expect(on.map((slot) => slot.skill!.name)).toEqual(
+        on.map((slot) => NAMES.skill(slot.skill!.id)),
+      );
+      expect(
+        belt.filter((slot) => slot.item !== null).map((slot) => [slot.item, slot.count]),
+      ).toEqual(full.belt.map(({ item, count }) => [item, count]));
+    }, 120_000);
+
+    it("plays a potion: the item action is simulated, played and equal to the mirror", async () => {
+      const { stages, controller } = await controllerOn();
+      const regeneration = controller.combat
+        .snapshot()
+        .view!.state.adventurer.belt.find((slot) => slot.item === 23)!;
+      controller.combat.slot({ kind: "item", slot: regeneration.slot });
+      controller.combat.slot({ kind: "item", slot: regeneration.slot });
+      expect(stages.get().planned.map((p) => p.action)).toEqual([
+        { kind: "item", slot: regeneration.slot, entity: 0 },
+      ]);
+      const preview = await answered(stages);
+      if (preview.kind !== "simulated" || preview.chain.kind !== "played") {
+        throw new Error(`not played: ${JSON.stringify(preview)}`);
+      }
+      expect(preview.chain.batch).toMatchObject({ played: 1, stop: Stop.None });
+      expect(preview.mirror.kind).toBe("predicted");
+      expect(preview.mismatches).toEqual([]);
+      // The belt shows the state after the batch: none left of it
+      const after = controller.combat.snapshot().view!.state.adventurer.belt[regeneration.slot]!;
+      expect(after.state).toBe("none-left");
+      controller.combat.slot({ kind: "item", slot: regeneration.slot });
+      expect(controller.combat.snapshot().view?.said).toBe("None left.");
+    }, 120_000);
+
+    it("plays a skill on the adventurer, then refuses it on recharge, the batch unchanged", async () => {
+      const { stages, controller } = await controllerOn();
+      const wind = controller.combat
+        .snapshot()
+        .view!.state.adventurer.bar.find((slot) => slot.skill?.id === 2)!;
+      controller.combat.slot({ kind: "skill", slot: wind.slot });
+      controller.combat.slot({ kind: "skill", slot: wind.slot });
+      expect(stages.get().planned.map((p) => p.action)).toEqual([
+        { kind: "skill", slot: wind.slot, target: { tile: false, value: 0 } },
+      ]);
+      const preview = await answered(stages);
+      if (preview.kind !== "simulated" || preview.chain.kind !== "played") {
+        throw new Error(`not played: ${JSON.stringify(preview)}`);
+      }
+      expect(preview.chain.batch).toMatchObject({ played: 1, stop: Stop.None });
+      expect(preview.mismatches).toEqual([]);
+      // The same skill again: it recharges in the state after the batch, and the batch is unchanged
+      controller.combat.slot({ kind: "skill", slot: wind.slot });
+      expect(controller.combat.snapshot().view?.said).toMatch(/^Recharging: \d+ ticks?\.$/);
+      expect(controller.combat.snapshot().view?.armed).toBeNull();
+      expect(stages.get().planned).toHaveLength(1);
+      expect(parity).toEqual([]);
+    }, 120_000);
+
+    it("plays the REGENERATION skill, and arms the trap without throwing", async () => {
+      const { stages, controller } = await controllerOn();
+      const bar = controller.combat.snapshot().view!.state.adventurer.bar;
+      const mending = bar.find((slot) => slot.skill?.id === 4)!;
+      const snare = bar.find((slot) => slot.skill?.id === 3)!;
+      // The trap's reach is `aiming`'s: near the location's edge it has none (see ChainController)
+      expect(() => controller.combat.slot({ kind: "skill", slot: snare.slot })).not.toThrow();
+      controller.combat.escape();
+      controller.combat.slot({ kind: "skill", slot: mending.slot });
+      controller.combat.slot({ kind: "skill", slot: mending.slot });
+      const preview = await answered(stages);
+      if (preview.kind !== "simulated" || preview.chain.kind !== "played") {
+        throw new Error(`not played: ${JSON.stringify(preview)}`);
+      }
+      expect(preview.chain.batch).toMatchObject({ played: 1, stop: Stop.None });
+      expect(preview.mismatches).toEqual([]);
+    }, 120_000);
+
+    it("refuses a strike before the batch: no adrenaline at the start, or out of reach", async () => {
+      const { stages, controller } = await controllerOn();
+      const start = controller.combat.snapshot().view!;
+      const strike = start.state.adventurer.bar.find((slot) => slot.skill?.id === 1)!;
+      controller.combat.slot({ kind: "skill", slot: strike.slot });
+      // Read after arming: the snapshot is replaced at each change
+      const armed = controller.combat.snapshot().view!;
+      if (strike.state !== "ready") {
+        expect(armed.said).toMatch(
+          /^(Not enough adrenaline|Not enough energy|Needs its weapon)\.$/,
+        );
+        expect(armed.armed).toBeNull();
+        console.info(
+          `full build: the strike is not ready at the start (${strike.state}), ` +
+            "so the out-of-reach refusal is not exercised in this world",
+        );
+      } else {
+        const far = armed.state.goblins.find(
+          (g) => g.alive && !armed.aim?.marked.includes(g.entity),
+        );
+        if (far === undefined) {
+          console.info(
+            "full build: no living goblin outside the strike's reach in this world, the reach refusal is skipped",
+          );
+        } else {
+          controller.combat.actor(far.entity);
+          expect(controller.combat.snapshot().view?.said).toBe("Out of reach.");
+          expect(controller.combat.snapshot().view?.armed).toEqual({
+            kind: "skill",
+            slot: strike.slot,
+          });
+        }
+      }
+      expect(stages.get().planned).toEqual([]);
+    }, 120_000);
+  },
+);
