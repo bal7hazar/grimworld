@@ -121,7 +121,9 @@ afterEach(() => {
 describe("sendBatch", () => {
   it("sends the preview's two calls, and reconciles the sent outcome with the same prediction", async () => {
     const state = await recordedState();
-    expect(state.mirror.content?.castes).toHaveLength(1);
+    // One sheet per caste among the recording's goblins (state bits 64-79)
+    const castes = new Set(before().goblins.map((g) => (g.state >> 64n) & 0xffffn));
+    expect(state.mirror.content?.castes).toHaveLength(castes.size);
     const { account: provider, sent, events } = account(["pending", "succeeded"]);
     const d = deps({ account: provider });
     const simulated = extractOutcome(goblins.recordedPlayed);

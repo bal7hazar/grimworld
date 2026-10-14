@@ -16,7 +16,7 @@ import { type ControllerDeps, createChainController, notes, slotAction } from ".
 import type { ChainState } from "./send";
 import type { Phase, Stages, StagesState } from "./stages";
 
-/** The state recorded on starknet-devnet: the adventurer on (0, 7) facing East, a goblin on (12, 1). */
+/** The state recorded on starknet-devnet: the adventurer on (0, 7) facing East, goblins in chunk 0. */
 function recordedChain(): ChainState {
   const mirror: MirrorState = {
     view: decodeInstanceView(recordedBefore.view.map(BigInt)),
@@ -34,6 +34,15 @@ function recordedChain(): ChainState {
     mirror,
   };
 }
+
+/** The recording's first goblin: its entity and its tile (state bits 0-7 x, 8-15 y, in chunk 0). */
+const recordedGoblin = (() => {
+  const [first] = decodeInstanceView(recordedBefore.view.map(BigInt)).goblins;
+  return {
+    entity: first!.entity,
+    tile: { x: Number(first!.state & 0xffn), y: Number((first!.state >> 8n) & 0xffn) },
+  };
+})();
 
 /** A fake `Stages`: what the controller puts in is what it records; it holds the room the rule gives. */
 function fakeStages(initial: ChainState = recordedChain()) {
@@ -281,15 +290,15 @@ describe("a tap on a floor tile far away (§4.1)", () => {
 });
 
 describe("a goblin (§4.1)", () => {
-  const goblin = { x: 12, y: 1 };
+  const goblin = recordedGoblin.tile;
 
   it("the first tap selects it and is let through to the map, the second attacks its entity", () => {
     const { fake, controller } = setup();
-    expect(controller.tap(goblin)).toEqual({ kind: "select", entity: 8 });
-    expect(controller.get().selected).toBe(8);
+    expect(controller.tap(goblin)).toEqual({ kind: "select", entity: recordedGoblin.entity });
+    expect(controller.get().selected).toBe(recordedGoblin.entity);
     expect(fake.actions()).toEqual([]);
-    expect(controller.tap(goblin)).toEqual({ kind: "attack", entity: 8 });
-    expect(fake.actions()).toEqual([{ kind: "attack", entity: 8 }]);
+    expect(controller.tap(goblin)).toEqual({ kind: "attack", entity: recordedGoblin.entity });
+    expect(fake.actions()).toEqual([{ kind: "attack", entity: recordedGoblin.entity }]);
     expect(controller.get().selected).toBeNull();
   });
 
@@ -298,7 +307,7 @@ describe("a goblin (§4.1)", () => {
     controller.tap(goblin);
     controller.reset();
     expect(controller.get().selected).toBeNull();
-    expect(controller.tap(goblin)).toEqual({ kind: "select", entity: 8 });
+    expect(controller.tap(goblin)).toEqual({ kind: "select", entity: recordedGoblin.entity });
   });
 });
 
@@ -386,24 +395,24 @@ describe("stage 1 on the map (§5)", () => {
 });
 
 describe("the goblin's selection on the map (review t-0239, finding 1)", () => {
-  const goblin = { x: 12, y: 1 };
+  const goblin = recordedGoblin.tile;
 
   it("four taps in a row: the map's selection and the controller's stay in step", () => {
     const { fake, controller } = setup();
     // 1: select, the map hears it (its arcs)
     expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
-    expect(controller.get().selected).toBe(8);
+    expect(controller.get().selected).toBe(recordedGoblin.entity);
     // 2: attack, the map hears it to deselect
     expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
     expect(controller.get().selected).toBeNull();
-    expect(fake.actions()).toEqual([{ kind: "attack", entity: 8 }]);
+    expect(fake.actions()).toEqual([{ kind: "attack", entity: recordedGoblin.entity }]);
     // 3: select again, the map selects again; 4: attack again
     expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
-    expect(controller.get().selected).toBe(8);
+    expect(controller.get().selected).toBe(recordedGoblin.entity);
     expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
     expect(fake.actions()).toEqual([
-      { kind: "attack", entity: 8 },
-      { kind: "attack", entity: 8 },
+      { kind: "attack", entity: recordedGoblin.entity },
+      { kind: "attack", entity: recordedGoblin.entity },
     ]);
   });
 
@@ -419,14 +428,14 @@ describe("the goblin's selection on the map (review t-0239, finding 1)", () => {
     for (let i = 0; i < 10; i++) controller.wait();
     expect(fake.actions()).toHaveLength(10);
     expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
-    expect(controller.get().selected).toBe(8);
+    expect(controller.get().selected).toBe(recordedGoblin.entity);
     // The second tap is refused: the controller clears, and the map is told to deselect
     expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
     expect(controller.get().selected).toBeNull();
     expect(fake.actions()).toHaveLength(10);
     // The third tap selects on both
     expect(controller.mapTap(goblin)).toEqual({ kind: "tile", tile: goblin });
-    expect(controller.get().selected).toBe(8);
+    expect(controller.get().selected).toBe(recordedGoblin.entity);
   });
 
   it("never lets the map turn the drawn adventurer toward an adjacent goblin", () => {
@@ -465,7 +474,7 @@ describe("the goblin's selection on the map (review t-0239, finding 1)", () => {
   it("ignores a goblin tap while no input is taken", () => {
     const { fake, controller } = setup();
     fake.setPhase("sending");
-    expect(controller.tap({ x: 12, y: 1 })).toEqual({ kind: "none" });
+    expect(controller.tap(recordedGoblin.tile)).toEqual({ kind: "none" });
     expect(controller.get().selected).toBeNull();
   });
 });

@@ -344,11 +344,15 @@ describe("the mirror on the recorded goblin world (CLI-10d)", () => {
 
   it("predicts the real Wait with the assembled content: the goblin sets compared, no mismatch", async () => {
     const state = { ...goblinState(), content: await goblinContent() };
-    expect(state.content.castes).toHaveLength(1);
+    const listed = state.view.goblins;
+    // One sheet per caste among the listed goblins (state bits 64-79)
+    expect(state.content.castes).toHaveLength(
+      new Set(listed.map((g) => (g.state >> 64n) & 0xffffn)).size,
+    );
     const segment = segmentOf(state);
-    expect(segment.words.goblins).toHaveLength(1);
+    expect(segment.words.goblins).toHaveLength(listed.length);
     const result = reconcile(chain, [{ kind: "wait" }], mirrorOf(state), noLog);
-    expect(chain.kind === "played" && chain.view.goblins).toHaveLength(1);
+    expect(chain.kind === "played" && chain.view.goblins).toHaveLength(listed.length);
     expect(result.mirror).toMatchObject({ kind: "predicted", played: 1, stop: Stop.None });
     expect(result.mismatches).toEqual([]);
   });
