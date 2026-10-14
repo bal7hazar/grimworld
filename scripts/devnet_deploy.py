@@ -37,7 +37,10 @@ its calldata and the sender's nonce follow the same history), and `TxHashFate.fa
 another world (the goblins track CV records). With `--salt`, every `sncast deploy` gets the salt
 `sha256("<salt>:<class hash>")` truncated to 250 bits (one salt per class, so two runs of the same
 build give the same addresses), and a re-run on a fresh node (same build, same node seed) draws the same
-world. Without it nothing changes (a random salt per deploy, `salt` is null in the JSON). The fixed salt
+world. "Same build" means the same class hashes, and in this repository those depend on the build's path:
+the same commit built elsewhere (another worktree, the CI, the VPS) gives other addresses and another
+world. The entry's transaction hash also holds the fee bounds, so the draw is the same only under
+devnet's default gas prices, as `with-node.sh` starts it, and `sncast`'s tip of 0. Without it nothing changes (a random salt per deploy, `salt` is null in the JSON). The fixed salt
 is for the devnet only; the node itself is fixed (`with-node.sh` uses devnet's seed 0 accounts).
 
 Local node only: it refuses any NODE_URL that is not 127.0.0.1 and never reads a Sepolia variable.

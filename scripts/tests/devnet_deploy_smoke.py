@@ -254,16 +254,36 @@ def check_full(dep, node):
     print(json.dumps(build, indent=2))
 
 
+def check_salt(node, dep):
+    """DEPLOY-SALT: the JSON names the salt, and the salt reached `sncast deploy`: the UDC's
+    `ContractDeployed` event of each of the four contracts ends with the salt the script derives."""
+    assert dep["salt"] == hex(1), dep["salt"]
+    events = node.rpc("starknet_getEvents", {"filter": {"from_block": {"block_number": 0},
+                                                         "to_block": "latest", "chunk_size": 1000}})
+    deployed = {}  # address -> (class hash, salt): data = address, deployer, unique, class, calldata, salt
+    for event in events["events"]:
+        data = [int(f, 16) for f in event["data"]]
+        if len(data) >= 6 and data[4] == len(data) - 6:
+            deployed[data[0]] = (data[3], data[-1])
+    for name in ("registry", "tx_hash_fate", "hub", "instances"):
+        address = int(dep["contracts"][name], 16)
+        assert address in deployed, f"no deploy event for {name}"
+        class_hash, salt = deployed[address]
+        assert salt == devnet_deploy.deploy_salt(1, hex(class_hash)), f"{name}: the salt did not reach sncast"
+
+
 def full():
     """On a node of its own (started by `main`): the script with `--build full`, and its checks."""
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "deployment.json")
         script = os.path.join(ROOT, "scripts", "devnet_deploy.py")
-        subprocess.run([sys.executable, script, "--build", "full", "--out", out], cwd=ROOT, check=True)
+        subprocess.run([sys.executable, script, "--build", "full", "--salt", "0x1", "--out", out],
+                       cwd=ROOT, check=True)
         with open(out) as f:
             dep = json.load(f)
     node = devnet_deploy.Node(dep["node_url"], dep["account"], os.environ["NODE_ACCOUNT_PRIVATE_KEY"],
                               logs())
+    check_salt(node, dep)
     check_full(dep, node)
 
 
