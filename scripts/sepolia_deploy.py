@@ -11,7 +11,8 @@ message names the variable only, and what `sncast` or the RPC echo back (an erro
 address) goes through `Redactor` before it is printed or logged. The record holds no RPC URL and no
 account. The key goes to `sncast` through a 0600 file (`O_EXCL`, deleted in a `finally`) and the accounts
 file it writes lives in a private temporary folder that is removed in a `finally`: never a command line.
-The URL (it may carry an API key, and `ps` shows command lines) reaches `sncast` the same way: an
+The account's address is public: it may appear on a `sncast` command line (in `ps`), and it is never
+printed, logged or written. The URL (it may carry an API key, and `ps` shows command lines) reaches `sncast` the same way: an
 `snfoundry.toml` (0600) in that folder, where `sncast` runs; no `--url` is ever passed.
 
 What it does, in order, and nothing is sent before step 3:
@@ -67,44 +68,62 @@ KINDS = {dd.REGION: "region", dd.LOCATION: "location", dd.GATE: "gate", dd.ITEM:
 
 class Redactor:
     """Hides the value of each STARKNET_* variable (and the forms an echo may take) in a text. The URL
-    is hidden whole and by its parts (host, path, query: an API key sits in one), the address by its
-    number whatever the padding, the key by its number too."""
+    is hidden whole and by its parts (host, path, query, a long path segment: an API key sits in one),
+    the address and the key by their number whatever the padding, with or without 0x, in hex or decimal.
+    One pass over the text, one case-insensitive alternation, the longest value first, so a replacement is
+    never scanned again (STARKNET_NETWORK=sepolia cannot cut a host `starknet-sepolia.…` in two) and a
+    placeholder already written is left alone (a text redacted twice is the same)."""
+
+    PLACEHOLDER = r"<STARKNET_[A-Z_]+>"
+    TOKEN = r"(?<![0-9a-zA-Z])(?P<prefix>0[xX])?0*(?P<digits>[0-9a-fA-F]+)(?![0-9a-zA-Z])"  # a hex number, 0x or not
 
     def __init__(self, environ):
-        self.exact, self.numbers, self.folded = [], [], []  # folded: compared without regard to case
+        self._environ = dict(environ)
+        self.names, self.numbers = {}, []  # the lower-case value -> the variable; (number, variable)
         for name in VARIABLES:
             value = environ.get(name, "")
             if not value:
                 continue
-            self.exact.append((value, name))
+            self.names.setdefault(value.lower(), name)
             if name == "STARKNET_RPC_URL":
                 parts = urllib.parse.urlparse(value)
                 pieces = [parts.netloc, parts.hostname or "", parts.path.strip("/"), parts.query,
                           parts.username or "", parts.password or ""]
-                pieces += [p for p in re.split(r"[/?&=]", parts.path + "?" + parts.query) if len(p) >= 8]
-                self.folded += [(p, name) for p in pieces if len(p) >= 4]  # a host is not case-sensitive, nor is an echo
+                pieces += [p for p in re.split(r"[/?&=]", parts.path + "?" + parts.query) if len(p) >= 12]
+                for piece in pieces:
+                    if len(piece) >= 4:
+                        self.names.setdefault(piece.lower(), name)
             if name in ("STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY"):
                 try:  # with or without 0x, leading zeros or not; also as a decimal number
                     number = int(value[2:] if value[:2] in ("0x", "0X") else value, 16)
                     self.numbers.append((number, name))
                     if len(str(number)) >= 8:
-                        self.exact.append((str(number), name))
+                        self.names.setdefault(str(number), name)
                 except ValueError:
                     pass
-        self.exact.sort(key=lambda pair: -len(pair[0]))  # the longest first: the URL before its host
+        values = sorted(self.names, key=lambda v: -len(v))  # the longest first at a position
+        self.pattern = re.compile("|".join([f"(?P<placeholder>{self.PLACEHOLDER})"]
+                                           + [f"(?P<value>{'|'.join(map(re.escape, values))})"] * bool(values)
+                                           + [f"(?P<token>{self.TOKEN})"]), re.IGNORECASE)
+
+    def replace(self, match):
+        if match.group("placeholder"):
+            return match.group(0)
+        if match.group("value"):
+            return f"<{self.names[match.group('value').lower()]}>"
+        # a number: 0x0abc, 0xabc, 0x000...abc, or without 0x (8 hex digits or more)
+        prefix, digits = match.group("prefix"), match.group("digits")
+        for number, name in self.numbers:
+            if (prefix or len(digits) >= 8) and int(digits, 16) == number:
+                return f"<{name}>"
+        return match.group(0)
 
     def __call__(self, text):
-        text = str(text)
-        for value, name in self.exact:
-            text = text.replace(value, f"<{name}>")
-        for value, name in self.folded:
-            text = re.sub(re.escape(value), f"<{name}>", text, flags=re.IGNORECASE)
-        for number, name in self.numbers:  # 0x0abc, 0xabc, 0x000...abc: one number
-            # 0x0abc, 0xabc, 0x000...abc, and the same without 0x (a token of 8 hex digits or more)
-            text = re.sub(r"(?<![0-9a-zA-Z])(0[xX])?0*([0-9a-fA-F]+)(?![0-9a-zA-Z])",
-                          lambda m, n=number, v=name: f"<{v}>" if (m.group(1) or len(m.group(2)) >= 8)
-                          and int(m.group(2), 16) == n else m.group(0), text)
-        return text
+        return self.pattern.sub(self.replace, str(text))
+
+    def without(self, *names):
+        """The same redactor for the variables but `names`."""
+        return Redactor({n: v for n, v in self._environ.items() if n not in names})
 
 
 class Log:
@@ -246,6 +265,18 @@ def check_chain(node, rehearsal, log):
                 "--devnet-rehearsal")
     log.say(f"STARKNET_RPC_URL: chain id {chain}")
     return chain
+
+
+def read_sncast_version(log):
+    """`sncast --version`, read before the first transaction; a failed or empty answer stops the run."""
+    try:
+        out = subprocess.run(["sncast", "--version"], capture_output=True, text=True, cwd=ROOT)
+    except OSError as error:
+        log.die(f"sncast --version: {error.strerror}")
+    version = out.stdout.strip()
+    if out.returncode != 0 or not version.startswith("sncast"):
+        log.die(f"sncast --version failed or empty (exit {out.returncode}): nothing sent")
+    return version
 
 
 def gh(command, *args):
@@ -401,6 +432,7 @@ def run(args, log, redact, environ):
     try:
         node = SepoliaNode(url, address, "unused", logs, {}, redact, log.say)
         chain = check_chain(node, args.devnet_rehearsal, log)
+        sncast_version = read_sncast_version(log)
         run_id, info = find_run(args, log)
         name, root, files = download(run_id, info, os.path.join(logs, "artefact"), log)
         node.files = files
@@ -447,14 +479,14 @@ def run(args, log, redact, environ):
             "contracts": {"registry": core["registry"], "tx_hash_fate": core["fate"], "hub": core["hub"],
                           "instances": core["instances"]},
             "seed": {"records": len(dd.seed_records()), "ids": seed_ids()},
-            "tools": {"sncast": subprocess.run(["sncast", "--version"], capture_output=True, text=True,
-                                               cwd=ROOT).stdout.strip()},
+            "tools": {"sncast": sncast_version},
             "transactions": count, "total_fee": {"amount": str(fee), "unit": unit},
         }
         text = json.dumps(record)
-        leaked = [n for v, n in redact.exact if v in text and n != "STARKNET_NETWORK"]  # a name, equal to the chain id's
-        if leaked:
-            raise RuntimeError(f"the record would hold the value of {leaked[0]}: not written")
+        # The redactor itself is the check: the record must come out of it unchanged. STARKNET_NETWORK is
+        # left out, as it is a name ("sepolia") that the record holds legitimately (chain id, network).
+        if redact.without("STARKNET_NETWORK")(text) != text:
+            raise RuntimeError("the record would hold the value of a STARKNET_* variable: not written")
         path = args.out or os.path.join(
             RECORDS, f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%d}-{info['headSha'][:7]}.json")
         write_record(path, record)

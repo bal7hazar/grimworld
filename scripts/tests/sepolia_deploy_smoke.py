@@ -114,14 +114,12 @@ def pull_request_run():
     return runs[0]["databaseId"]
 
 
-def unsuccessful_main_run():
-    """A finished push run of main that did not succeed (failure or cancelled), or None."""
-    for status in ("failure", "cancelled"):
-        runs = json.loads(gh("run", "list", "--workflow", "ci.yml", "--branch", "main", "--event", "push",
-                             "--status", status, "--limit", "1", "--json", "databaseId"))
-        if runs:
-            return runs[0]["databaseId"]
-    return None
+def stub_tool(folder, name, script):
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, name)
+    with open(path, "w") as handle:
+        handle.write("#!/bin/sh\n" + script)
+    os.chmod(path, 0o755)
 
 
 def leftovers():
@@ -131,13 +129,15 @@ def leftovers():
 class Run:
     """One run of the script: its exit code, stdout, stderr, log file and the sentinel check."""
 
-    def __init__(self, env_values, *args):
+    def __init__(self, env_values, *args, path=None):
         before = {n for n in leftovers() if n.startswith("sepolia-deploy-")}
         self.logs = tempfile.mkdtemp(prefix="smoke-logs-")
         env = {k: v for k, v in os.environ.items()
                if not (k.startswith("STARKNET_") or k.startswith("NODE_") or k in ("RPC_URL",
                                                                                    "WITH_NODE_LOG_DIR"))}
         env.update(env_values)
+        if path:  # a folder of stub tools in front of the PATH
+            env["PATH"] = path + os.pathsep + env["PATH"]
         env["WITH_NODE_LOG_DIR"] = self.logs
         out = subprocess.run([sys.executable, SCRIPT, *args], cwd=ROOT, env=env, capture_output=True, text=True)
         self.code, self.stdout, self.stderr = out.returncode, out.stdout, out.stderr
@@ -180,6 +180,36 @@ def check_redactor():
                  "5E47C0DE5EC12E7ABCD", "0x05e47c0de5ec12e7abcd"):
         out = bare(f"account {echo} failed")
         assert "5e47" not in out.lower(), (echo, out)
+
+
+def check_overlap():
+    """Overlapping, realistic values: STARKNET_NETWORK=sepolia and a host that holds it. One pass, so a
+    replacement is never cut by another and a placeholder is never scanned again."""
+    key = "KEYabcdef1234567890ABCDEF"
+    values = {"STARKNET_NETWORK": "sepolia",
+              "STARKNET_RPC_URL": f"https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/{key}",
+              "STARKNET_ACCOUNT_ADDRESS": "0x05e47a1d0c0ffee1234", "STARKNET_PRIVATE_KEY": "5e47c0de5ec12e7abcd0"}
+    redact = sepolia_deploy.Redactor(values)
+    url = values["STARKNET_RPC_URL"]
+    echoes = {"host": "starknet-sepolia.g.alchemy.com", "netloc": "starknet-sepolia.g.alchemy.com:443",
+              "path": f"/starknet/version/rpc/v0_8/{key}", "url": url, "upper host": "STARKNET-SEPOLIA.G.ALCHEMY.COM",
+              "path no slash": f"starknet/version/rpc/v0_8/{key.lower()}"}
+    for what, echo in echoes.items():
+        out = redact(f"error at {echo} (retry)")
+        for fragment in ("alchemy", "sepolia", key[:10].lower(), "g.alch", "v0_8"):
+            assert fragment not in out.lower().replace("<starknet_network>", ""), (what, out)
+        assert "<STARKNET_RPC_URL>" in out, (what, out)
+        assert "<STARKNET_<" not in out and out.count("<") == out.count(">"), (what, out)
+        assert redact(out) == out, ("not idempotent", what, out)
+    assert redact("network sepolia") == "network <STARKNET_NETWORK>"
+    # the placeholders survive a second pass whatever the URL's pieces are ("starknet" is one: a path segment)
+    assert redact("<STARKNET_RPC_URL> <STARKNET_NETWORK>") == "<STARKNET_RPC_URL> <STARKNET_NETWORK>"
+    # the record's check: unchanged by the redactor, STARKNET_NETWORK left out ("Starknet Sepolia" is in it)
+    record = json.dumps({"network": "Starknet Sepolia", "chain_id": "SN_SEPOLIA", "commit": "ab" * 20})
+    assert redact.without("STARKNET_NETWORK")(record) == record
+    assert redact(record) != record, "with the network value the record would change: that is why it is left out"
+    leaked = json.dumps({"rpc": url})
+    assert redact.without("STARKNET_NETWORK")(leaked) != leaked
 
 
 def check_command_line():
@@ -309,12 +339,22 @@ def check_refusals(real, node, good_run):
     before = nonce(node)
     run = Run(real, "--artifact-run", str(pr), "--devnet-rehearsal", "--out", "/dev/null")
     run.refused("not a push to main")
-    failed = unsuccessful_main_run()  # the conclusion guard, apart from the event guard above
-    if failed is None:
-        print("sepolia_deploy_smoke: no unsuccessful push run of main to check the conclusion guard")
-    else:
-        Run(real, "--artifact-run", str(failed), "--devnet-rehearsal", "--out", "/dev/null").refused(
-            "not 'success'")
+    # the conclusion guard, on a stub `gh` (a push run of main that failed), whatever the history holds
+    tools = tempfile.mkdtemp(prefix="smoke-tools-")
+    stub_tool(tools, "gh", """case "$*" in
+  *"run view"*) printf '{"event":"push","headBranch":"main","headSha":"%s","url":"https://github.com/bal7hazar/grimworld/actions/runs/1","workflowName":"ci","conclusion":"failure"}' 0123456789012345678901234567890123456789;;
+  *) exit 1;;
+esac
+""")
+    Run(real, "--artifact-run", "1", "--devnet-rehearsal", "--out", "/dev/null", path=tools).refused("not 'success'")
+    # a `sncast --version` that fails or is empty stops the run before anything is sent
+    stub_tool(tools, "sncast", "exit 0\n")
+    Run(real, "--artifact-run", str(good_run), "--devnet-rehearsal", "--out", "/dev/null", path=tools).refused(
+        "sncast --version failed or empty")
+    stub_tool(tools, "sncast", "echo broken >&2; exit 3\n")
+    Run(real, "--artifact-run", str(good_run), "--devnet-rehearsal", "--out", "/dev/null", path=tools).refused(
+        "sncast --version failed or empty")
+    sepolia_deploy.shutil.rmtree(tools)
     for option in ("--give-build", "--credit-only", "--build=full", "--deployment=x", "--account=1",
                    "--key-env=X", "--adventurer=1", "--salt=1"):
         run = Run(real, "--artifact-run", str(good_run), "--devnet-rehearsal", "--out", "/dev/null", option)
@@ -433,6 +473,7 @@ def check_rehearsal(real, node, run_id, logs):
     for name, class_hash in classes.items():  # every class is declared on the node
         node.rpc("starknet_getClass", {"block_id": "latest", "class_hash": class_hash})
     # the transaction count is the account's nonce, and the fee is positive
+    assert record["tools"]["sncast"].startswith("sncast"), record["tools"]
     assert record["transactions"] == nonce(node) - before and record["transactions"] > 50, record["transactions"]
     assert record["total_fee"]["unit"] in ("FRI", "WEI") and int(record["total_fee"]["amount"]) > 0
     # one view per contract
@@ -462,6 +503,7 @@ def check_rehearsal(real, node, run_id, logs):
 
 def main():
     check_redactor()
+    check_overlap()
     check_command_line()
     check_cut_secret()
     check_chain_unit()
