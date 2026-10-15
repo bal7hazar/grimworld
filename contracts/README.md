@@ -16,8 +16,9 @@ is where the rules of a tick will live, so that tests need no deployment and the
 ```
 Scarb.toml            workspace: members, shared versions and dependencies
 logic/                grimworld_logic: the rules, pure, no storage; and what both domains share
-  src/types.cairo       ids, bounds, enums (Stop, Refusal, Outcome, ChunkKind, Target)
-  src/actions.cairo     a played batch in one felt
+  src/types.cairo       ids and enums (Stop, Refusal, Outcome, ChunkKind, Target)
+  src/constants.cairo   the bounds of the MVP, the layout of entity ids
+  src/types/batch.cairo  a played batch in one felt
   src/snapshot.cairo    the snapshot taken at entry, the task pages
   src/helpers/packing.cairo  two limbs, LIVE at bit 250, lanes, bitmaps
   src/types/content.cairo  kinds of registry records

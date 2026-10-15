@@ -33,7 +33,7 @@ mod tests {
     use super::{EntityTrait, InstanceIdTrait};
 
     #[test]
-    #[available_gas(l2_gas: 1000000)]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_identifiers() {
         let id = InstanceIdTrait::new(7, 3);
         assert(id == 7 * 0x100000000 + 3, 'instance id');

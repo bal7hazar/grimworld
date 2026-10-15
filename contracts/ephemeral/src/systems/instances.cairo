@@ -157,7 +157,7 @@ pub const UNLOADABLE: GoblinView = GoblinView { entity: 0, derived: false, state
 /// (M-6, design/02 item 9).
 #[starknet::interface]
 pub trait IInstances<T> {
-    /// A played batch: `actions` is 1 to 10 actions in one felt (`grimworld_logic::actions`).
+    /// A played batch: `actions` is 1 to 10 actions in one felt (`grimworld_logic::types::batch`).
     /// `version` is the content version the batch was computed under (D-141, E-5): the one
     /// `bundle` returns in the call every invocation makes; a different one refuses the batch
     /// whole, before any action runs (`Stop::Version`), like a sequence mismatch.

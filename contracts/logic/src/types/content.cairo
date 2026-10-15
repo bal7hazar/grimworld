@@ -141,7 +141,8 @@ mod tests {
     use super::{KindTrait, LAST_KIND};
 
     #[test]
-    #[available_gas(l2_gas: 1000000)]
+    // gas: raised, ENG-09: one more kind's parts asserted (25 and the last, 28)
+    #[available_gas(l2_gas: 13220)] // ceil(1.05 × 12590 measured)
     fn test_parts_per_kind() {
         assert(
             KindTrait::parts(2) == 2

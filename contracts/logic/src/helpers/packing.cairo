@@ -349,7 +349,7 @@ mod tests {
 
     /// Cases with a refusal: `[0, result…]` accepted, `[1]` refused (the `Option` convention of
     /// the window's `arc`). A panic cannot be caught in a test, so a refusal is the guard evaluated
-    /// here; the panics themselves are asserted by `tests/test_packing.cairo`.
+    /// here; the panics themselves are asserted by this module's `should_panic` tests.
     fn accepted(result: Span<felt252>) -> Array<felt252> {
         let mut out: Array<felt252> = array![0];
         out.append_span(result);
