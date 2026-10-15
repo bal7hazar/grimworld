@@ -2,7 +2,7 @@
 //! modifier carries two passives, a benefit and a cost (design/15 Q-4, design/19 §4).
 
 use crate::content::{MODIFIER, Record};
-use crate::packing::{P8, join, split};
+use crate::helpers::packing::{P8, PackingTrait};
 use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, Source, id};
 use super::base::slot as base_slot;
 pub use super::index::Modifier;
@@ -156,11 +156,11 @@ pub impl ModifierRecord of Record<Modifier> {
 
     fn pack(self: @Modifier) -> Span<felt252> {
         let low: u128 = (*self.slot).into() + (*self.piece).into() * P8;
-        array![join(low, PassiveTrait::pack_pair(self.benefit, self.cost))].span()
+        array![PackingTrait::join(low, PassiveTrait::pack_pair(self.benefit, self.cost))].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Modifier {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let (benefit, cost) = PassiveTrait::unpack_pair(high);
         let (piece, slot) = DivRem::div_rem(low, P8.try_into().unwrap());
         Modifier { slot: slot.try_into().unwrap(), piece: piece.try_into().unwrap(), benefit, cost }

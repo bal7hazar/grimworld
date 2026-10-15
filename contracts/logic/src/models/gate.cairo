@@ -1,7 +1,7 @@
 //! `GATE`: its constructor, its checks and its record (layout: `models::index::Gate`).
 
 use crate::content::{GATE, Record};
-use crate::packing::{P16, P32, P40, P48, P56, P64, P72, P8, P80, join, split};
+use crate::helpers::packing::{P16, P32, P40, P48, P56, P64, P72, P8, P80, PackingTrait};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::Gate;
 use super::location::{LocationAssert, LocationTrait};
@@ -142,11 +142,11 @@ pub impl GateRecord of Record<Gate> {
             + (*self.kind).into() * P64
             + (*self.rank).into() * P72
             + (*self.quest).into() * P80;
-        array![join(low, 0)].span()
+        array![PackingTrait::join(low, 0)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Gate {
-        let (low, _) = split(*parts[0]);
+        let (low, _) = PackingTrait::split(*parts[0]);
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let s16: NonZero<u128> = P16.try_into().unwrap();
         let (low, source) = DivRem::div_rem(low, s16);

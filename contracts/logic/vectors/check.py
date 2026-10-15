@@ -43,7 +43,7 @@ TABLES = {
         "grimworld_logic::fate::tests::test_vectors",
     ],
     "packing.jsonl": [
-        "grimworld_logic::packing::tests::test_vectors",
+        "grimworld_logic::helpers::packing::tests::test_vectors",
     ],
     "movement.jsonl": [
         "grimworld_logic::types::play::tests::test_vectors",

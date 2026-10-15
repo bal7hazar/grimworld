@@ -9,6 +9,7 @@ use grimworld_logic::content::{
     PACK, QUEST, QUOTAS, REGION, Record, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, ZONE_CHUNK,
     is_sequential, parts,
 };
+use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
     IRegistryReadSafeDispatcherTrait,
@@ -37,7 +38,6 @@ use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{
     Spawn, SpawnTableRecord, SpawnTableTrait, errors as spawn_errors,
 };
-use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::effect::{
     Entry, EntryTrait, errors as entry_errors, filter, guard, kind, shape, target,

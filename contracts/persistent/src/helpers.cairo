@@ -21,9 +21,10 @@ pub impl BitImpl of BitTrait {
         *LOW.span()[r.into()] * *HIGH.span()[k.into()]
     }
 
-    /// The two limbs of a word a caller sends without `LIVE`, bit 250 kept: `packing::split`
-    /// removes it, and so would accept a caller's bit 250 as `LIVE`. `u256` for `split`'s reason:
-    /// the cheapest split of a felt on Cairo 2.19 (grimworld_logic::packing).
+    /// The two limbs of a word a caller sends without `LIVE`, bit 250 kept:
+    /// `PackingTrait::split` removes it, and so would accept a caller's bit 250 as `LIVE`. `u256`
+    /// for `split`'s reason: the cheapest split of a felt on Cairo 2.19
+    /// (grimworld_logic::helpers::packing).
     #[inline(always)]
     fn limbs(word: felt252) -> (u128, u128) {
         let wide: u256 = word.into();
@@ -41,7 +42,7 @@ pub impl BitImpl of BitTrait {
 // CBT-08a: powers of two and bits, against a plain loop (the oracle, docs/CAIRO.md §2).
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::helpers::packing::LIVE;
     use super::BitTrait;
 
     #[test]

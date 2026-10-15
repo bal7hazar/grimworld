@@ -5,13 +5,13 @@
 //! `stored_core`, `stored_place` and `stored_build` (ENG-R1a).
 
 use grimworld_logic::content::{ITEM, SKILL};
+use grimworld_logic::helpers::packing::{
+    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96,
+    PackingAssert, PackingTrait, byte_at, field, low_field, u16_at, u32_at,
+};
 use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
 use grimworld_logic::models::skill::SkillTrait;
-use grimworld_logic::packing::{
-    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at,
-    field, fits, join, low_field, split, u16_at, u32_at,
-};
 use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::Loadout;
 use starknet::ContractAddress;
@@ -103,7 +103,7 @@ pub impl AdventurerImpl of AdventurerTrait {
 pub impl BeltImpl of BeltTrait {
     /// `(items, counts)` of a stored belt, its two limbs decoded in one pass.
     fn read(belt: @StoredLanes) -> ([u32; 4], [u8; 4]) {
-        let (low, high) = split(*belt.word);
+        let (low, high) = PackingTrait::split(*belt.word);
         let s32: NonZero<u128> = P32.try_into().unwrap();
         let (low, a) = DivRem::div_rem(low, s32);
         let (low, b) = DivRem::div_rem(low, s32);
@@ -355,7 +355,7 @@ pub impl KnownSkillsImpl of KnownSkillsTrait {
 
     /// Whether bit `bit` (0 to 249) of a page is set; a page never written knows none.
     fn knows(page: @Bitmap, bit: u8) -> bool {
-        let (low, high) = split(*page.bits);
+        let (low, high) = PackingTrait::split(*page.bits);
         if bit < 128 {
             BitTrait::is_set(low, bit)
         } else {
@@ -378,7 +378,7 @@ pub impl KnownSkillsImpl of KnownSkillsTrait {
     /// The skills a page knows, counted up to `cap`: one step a skill, each clearing the lowest
     /// set bit. Bound: `cap` steps.
     fn count(page: @Bitmap, cap: u8) -> u8 {
-        let (mut low, mut high) = split(*page.bits);
+        let (mut low, mut high) = PackingTrait::split(*page.bits);
         let mut count: u8 = 0;
         while count < cap {
             if low != 0 {
@@ -609,10 +609,10 @@ pub impl AdventurerCoreStorePacking of starknet::storage_access::StorePacking<
             + value.trials_tried.into() * P32
             + value.status.into() * P48
             + value.pack_lanes.into() * P56;
-        join(low, high)
+        PackingTrait::join(low, high)
     }
     fn unpack(value: felt252) -> AdventurerCore {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         AdventurerCore {
             account: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
             experience: u32_at(low, P32),
@@ -649,7 +649,7 @@ pub impl AdventurerPlaceStorePacking of starknet::storage_access::StorePacking<
     AdventurerPlace, felt252,
 > {
     fn pack(value: AdventurerPlace) -> felt252 {
-        join(
+        PackingTrait::join(
             value.instance.into()
                 + value.hub.into() * P64
                 + value.last_hub.into() * P80
@@ -658,7 +658,7 @@ pub impl AdventurerPlaceStorePacking of starknet::storage_access::StorePacking<
         )
     }
     fn unpack(value: felt252) -> AdventurerPlace {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         AdventurerPlace {
             instance: low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
             hub: u16_at(low, P64),
@@ -692,11 +692,13 @@ pub impl BuildStorePacking of starknet::storage_access::StorePacking<Build, felt
             + s5.into() * P80
             + s6.into() * P96
             + s7.into() * P112;
-        fits(value.attributes.into(), 0x1000000000, 'packing: attributes above 36 b');
-        join(low, value.attributes.into() + value.elite_slot.into() * P40)
+        PackingAssert::assert_fits(
+            value.attributes.into(), 0x1000000000, 'packing: attributes above 36 b',
+        );
+        PackingTrait::join(low, value.attributes.into() + value.elite_slot.into() * P40)
     }
     fn unpack(value: felt252) -> Build {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         Build {
             bar: [
                 low_field(low, P16.try_into().unwrap()).try_into().unwrap(), u16_at(low, P16),
@@ -725,7 +727,7 @@ pub struct Adventurer {
 
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::{Bitmap, LIVE, Lanes32};
+    use grimworld_logic::helpers::packing::{Bitmap, LIVE, Lanes32};
     use starknet::storage_access::StorePacking;
     use super::super::account::PACK;
     use super::super::item::{COMMON, EquipmentTrait, Item, ItemBase, ItemMods, Modifier};

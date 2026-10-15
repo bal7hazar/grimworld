@@ -4,7 +4,7 @@
 //! writes it so), and no rule of play reads the record, which the client draws.
 
 use crate::content::{BRIDGE, Record};
-use crate::packing::{join, split};
+use crate::helpers::packing::PackingTrait;
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::Bridge;
 use super::zone_chunk::{ZoneChunk, ZoneChunkTrait};
@@ -90,11 +90,11 @@ pub impl BridgeRecord of Record<Bridge> {
         assert(deck.high < P97, errors::DECK_ABOVE_224);
         let (a, b) = *self.ends;
         let high = deck.high + (a.into() + b.into() * 0x100) * P97;
-        array![join(deck.low, high)].span()
+        array![PackingTrait::join(deck.low, high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Bridge {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let (ends, deck_high) = DivRem::div_rem(high, P97.try_into().unwrap());
         let (b, a) = DivRem::div_rem(ends, 0x100);
         Bridge {
@@ -107,7 +107,7 @@ pub impl BridgeRecord of Record<Bridge> {
 #[cfg(test)]
 mod tests {
     use crate::content::Record;
-    use crate::packing::LIVE;
+    use crate::helpers::packing::LIVE;
     use crate::types::reveal::board::BoardTrait;
     use super::{Bridge, BridgeAssert, BridgeRecord, BridgeTrait};
 

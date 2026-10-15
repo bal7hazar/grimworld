@@ -511,9 +511,10 @@ gas). This is C.
 
 ## 3. Storage layouts and packing
 
-### 3.1 Packing rules (`grimworld_logic::packing`)
+### 3.1 Packing rules (`grimworld_logic::helpers::packing`)
 
-- A record is one felt, read as two `u128` limbs (`split`); **no field straddles bit 128**.
+- A record is one felt, read as two `u128` limbs (`PackingTrait::split`); **no field straddles bit
+  128**.
 - **Bit 250 is `LIVE`**, set in every stored record (§2.2). A felt holds 251 bits; bits 0–249 are
   data.
 - `Lanes32`: seven `u32` (lanes 0–3 at bits 0, 32, 64, 96; lanes 4–6 at 128, 160, 192) for lists of
@@ -537,19 +538,20 @@ gas). This is C.
 
   `LAST_TICK` then keeps every deadline an action sets, `clock + ticks + effective`, at or below
   `MAX_CLOCK`.
-- **Every packer refuses a field wider than its layout** (fix loop 1, F-9): `join` refuses a high
-  limb that would reach `LIVE`; `fits` checks every field narrower than its Cairo type (28-bit
-  deadlines, the pack's count, offsets and alert, an object's kind and state, the walls above bit
-  224, the edges, the attributes, the grimoire's counters and pairs, a bitmap above bit 249). A
-  value out of range reverts the write; it never spills into the next lane. Tested at the boundaries.
+- **Every packer refuses a field wider than its layout** (fix loop 1, F-9): `PackingTrait::join`
+  refuses a high limb that would reach `LIVE`; `PackingAssert::assert_fits` checks every field
+  narrower than its Cairo type (28-bit deadlines, the pack's count, offsets and alert, an object's
+  kind and state, the walls above bit 224, the edges, the attributes, the grimoire's counters and
+  pairs, a bitmap above bit 249). A value out of range reverts the write; it never spills into the
+  next lane. Tested at the boundaries.
 - **Counters are `Counter` records** (`u64` with `LIVE`): `next_slot`, `next_account`,
   `next_adventurer`, `next_item`, `lot_count`, `open_lot_count`, `trade_count`, `last_ids`. A counter
   is never 0 in storage, so a count that falls to 0 (the open lots) and rises again costs O, not N
   (F-4). The market's three counters are written at deployment.
 - Several-slot records are `Store` structs of packed felts: field `i` is at offset `i` from the
   map entry's address (tested: `test_record_sizes`).
-- `u256` appears only in `split` and `decode_batch`, to split a felt into limbs (written reason in
-  `packing.cairo`; ENG-02 may replace it by `u252`).
+- `u256` appears only in `PackingTrait::split` and `decode_batch`, to split a felt into limbs
+  (written reason in `helpers/packing.cairo`; ENG-02 may replace it by `u252`).
 
 ### 3.2 `Instances` storage
 

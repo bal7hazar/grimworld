@@ -3,7 +3,7 @@
 //! an item copies both into `ItemBase` (`ItemBaseTrait::new`, D-158).
 
 use crate::content::{BASE, Record};
-use crate::packing::{LIVE, P8, join, low_field, split};
+use crate::helpers::packing::{LIVE, P8, PackingTrait, low_field};
 pub use super::index::Base;
 
 /// Equipment slots, in the order of `equipped`'s lanes, from 1 (ENG-01 §3.3).
@@ -54,11 +54,11 @@ pub impl BaseRecord of Record<Base> {
 
     fn pack(self: @Base) -> Span<felt252> {
         self.assert_valid();
-        array![join((*self.slot).into() + (*self.hands).into() * P8, 0), LIVE].span()
+        array![PackingTrait::join((*self.slot).into() + (*self.hands).into() * P8, 0), LIVE].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Base {
-        let (low, _) = split(*parts[0]);
+        let (low, _) = PackingTrait::split(*parts[0]);
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let (low, slot) = DivRem::div_rem(low, s8);
         Base { slot: slot.try_into().unwrap(), hands: low_field(low, s8).try_into().unwrap() }

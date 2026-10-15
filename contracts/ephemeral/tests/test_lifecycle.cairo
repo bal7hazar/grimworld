@@ -27,6 +27,7 @@ use grimworld_ephemeral::systems::instances::{
 use grimworld_ephemeral::systems::play::{Book, PlayTrait};
 use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
 use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
+use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
@@ -40,7 +41,6 @@ use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota_kind};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord};
-use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry, TaskPage};
 use grimworld_logic::types::reveal::board::BoardTrait;
 use grimworld_logic::types::reveal::outline::OutlineTrait as FloorTrait;

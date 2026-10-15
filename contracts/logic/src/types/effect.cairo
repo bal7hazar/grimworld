@@ -10,8 +10,8 @@
 //! scope 95–96. 97 bits: an entry fits a high limb (122 bits) as well as a low one (128).
 
 use crate::durations::MAX_BASE_DURATION;
+use crate::helpers::packing::{P16, P32, P48, P64, P8, P80};
 use crate::helpers::signed::SignedTrait;
-use crate::packing::{P16, P32, P48, P64, P8, P80};
 use super::combat::{condition, damage};
 
 /// Effect kinds that act, ids 1–23 (design/19 §3). 0 is the empty entry. 19–23 have no MVP

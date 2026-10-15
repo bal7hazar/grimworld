@@ -185,6 +185,7 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use grimworld_logic::content::{GATE, REGION, SKILL, exists};
+    use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes32};
     use grimworld_logic::interface::{
         IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher, IInstanceEntryDispatcher,
         IInstanceEntryDispatcherTrait, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
@@ -192,7 +193,6 @@ pub mod Hub {
     };
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord};
     use grimworld_logic::models::region::{Region, RegionRecord};
-    use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
     use grimworld_logic::professions::ProfessionAssert;
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::Map;

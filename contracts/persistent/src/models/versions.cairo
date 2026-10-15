@@ -9,7 +9,7 @@
 //! slot never written reads both at 0 (deployment). Each refuses its overflow past `u32`, like the
 //! content version alone did (4,294,967,295 changed records).
 
-use grimworld_logic::packing::P32;
+use grimworld_logic::helpers::packing::P32;
 use starknet::storage_access::StorePacking;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]

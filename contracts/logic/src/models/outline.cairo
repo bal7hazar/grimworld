@@ -2,7 +2,7 @@
 //! `models::index::Outline`).
 
 use crate::content::{OUTLINE, Record};
-use crate::packing::{join, split};
+use crate::helpers::packing::PackingTrait;
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::Outline;
 
@@ -69,11 +69,11 @@ pub impl OutlineRecord of Record<Outline> {
 
     fn pack(self: @Outline) -> Span<felt252> {
         self.assert_valid();
-        array![join(*self.low, *self.high)].span()
+        array![PackingTrait::join(*self.low, *self.high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Outline {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         Outline { low, high }
     }
 }

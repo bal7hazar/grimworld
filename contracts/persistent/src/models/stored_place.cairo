@@ -5,7 +5,7 @@
 //! stay the layout and the oracle: each method is pinned against the packer in the tests. Only the
 //! store reads and writes it (`HubStoreTrait::get_place`).
 
-use grimworld_logic::packing::{P64, P80, P96, byte_at, join, low_field, split, u16_at};
+use grimworld_logic::helpers::packing::{P64, P80, P96, PackingTrait, byte_at, low_field, u16_at};
 
 /// `AdventurerPlace` as stored, one word.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -18,13 +18,13 @@ pub struct StoredPlace {
 pub impl StoredPlaceImpl of StoredPlaceTrait {
     /// `inside`, without decoding the other fields.
     fn is_inside(self: @StoredPlace) -> bool {
-        let (low, _) = split(*self.word);
+        let (low, _) = PackingTrait::split(*self.word);
         byte_at(low, P96) != 0
     }
 
     /// `(instance, hub, last hub, inside)`.
     fn fields(self: @StoredPlace) -> (u64, u16, u16, bool) {
-        let (low, _) = split(*self.word);
+        let (low, _) = PackingTrait::split(*self.word);
         (
             low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
             u16_at(low, P64),
@@ -36,26 +36,30 @@ pub impl StoredPlaceImpl of StoredPlaceTrait {
     /// The place of a new adventurer: in `hub`, its last hub, `hub` unlocked (D-144: region 1's
     /// town, unlocked from creation).
     fn new(hub: u16) -> StoredPlace {
-        StoredPlace { word: join(hub.into() * P64 + hub.into() * P80, Self::bit(hub)) }
+        StoredPlace {
+            word: PackingTrait::join(hub.into() * P64 + hub.into() * P80, Self::bit(hub)),
+        }
     }
 
     /// Inside `instance`, entered from its hub: `hub` 0, `last_hub` the hub it left, `inside` 1.
     fn entered(self: StoredPlace, instance: u64) -> StoredPlace {
-        let (low, high) = split(self.word);
-        StoredPlace { word: join(instance.into() + u16_at(low, P64).into() * P80 + P96, high) }
+        let (low, high) = PackingTrait::split(self.word);
+        StoredPlace {
+            word: PackingTrait::join(instance.into() + u16_at(low, P64).into() * P80 + P96, high),
+        }
     }
 
     /// Still inside, its instance now `instance` (a gate to another location, D-02).
     fn moved(self: StoredPlace, instance: u64) -> StoredPlace {
-        let (low, high) = split(self.word);
+        let (low, high) = PackingTrait::split(self.word);
         let (above, _) = DivRem::div_rem(low, P64.try_into().unwrap());
-        StoredPlace { word: join(above * P64 + instance.into(), high) }
+        StoredPlace { word: PackingTrait::join(above * P64 + instance.into(), high) }
     }
 
     /// In `hub`, which is also its last hub: no instance, not inside.
     fn located(self: StoredPlace, hub: u16) -> StoredPlace {
-        let (_, high) = split(self.word);
-        StoredPlace { word: join(hub.into() * P64 + hub.into() * P80, high) }
+        let (_, high) = PackingTrait::split(self.word);
+        StoredPlace { word: PackingTrait::join(hub.into() * P64 + hub.into() * P80, high) }
     }
 
     /// The hub a report closing the presence sends it to: the one reported, else its last hub
@@ -81,12 +85,12 @@ pub impl StoredPlaceImpl of StoredPlaceTrait {
 
     /// `hub` unlocked for map travel (design/01: reaching a hub gate unlocks the hub).
     fn unlocked(self: StoredPlace, hub: u16) -> StoredPlace {
-        let (low, high) = split(self.word);
-        StoredPlace { word: join(low, high | Self::bit(hub)) }
+        let (low, high) = PackingTrait::split(self.word);
+        StoredPlace { word: PackingTrait::join(low, high | Self::bit(hub)) }
     }
 
     fn is_unlocked(self: @StoredPlace, hub: u16) -> bool {
-        let (_, high) = split(*self.word);
+        let (_, high) = PackingTrait::split(*self.word);
         hub < 64 && high & Self::bit(hub) != 0
     }
 

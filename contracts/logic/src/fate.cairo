@@ -116,7 +116,7 @@ pub impl EntropyImpl of EntropyTrait {
 #[cfg(test)]
 mod tests {
     use core::poseidon::poseidon_hash_span;
-    use crate::packing::LIVE;
+    use crate::helpers::packing::LIVE;
     use super::{PURPOSES, derive, domain};
 
     fn hex(felts: Span<felt252>) -> ByteArray {

@@ -12,14 +12,12 @@ pub mod content;
 pub mod durations;
 /// Values from a Fate word: `derive`, and one domain purpose per use of the provider (ADR-0002).
 pub mod fate;
-/// What belongs to no entity, scoped in traits: the table of `2^(x/40)`.
+/// What belongs to no entity, scoped in traits: the table of `2^(x/40)`, the packing rules.
 pub mod helpers;
 /// The calls between contracts: results, entry, registry reads, randomness.
 pub mod interface;
 /// The world's registry records as models: regions, locations, gates, outlines (D-143).
 pub mod models;
-/// Packing into felts: two limbs, the `LIVE` bit, lanes, bitmaps.
-pub mod packing;
 /// Profession ids, and those a player may choose at creation.
 pub mod professions;
 /// The snapshot of an adventurer taken at entry, and the tasks an instance reports.

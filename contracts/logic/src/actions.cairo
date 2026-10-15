@@ -17,7 +17,7 @@
 //! - Item: the belt slot (0 to 3) in bits 3 to 4, the target entity in bits 5 to 20;
 //! - Interact: the tile in bits 3 to 18 (objects that draw nothing: levers, braziers, nodes).
 
-use crate::packing::{P24, TWO_POW_128};
+use crate::helpers::packing::{P24, TWO_POW_128};
 use crate::types::{MAX_ACTIONS, Target, Tile};
 
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]

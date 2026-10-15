@@ -7,7 +7,7 @@
 //! checks.json`).
 
 use crate::content::{Record, ZONE_CHUNK};
-use crate::packing::{P16, P24, P48, P80, join, peel, split};
+use crate::helpers::packing::{P16, P24, P48, P80, PackingTrait, peel};
 use crate::types::reveal::board::{BOARD, BoardTrait, INTERIOR};
 use super::chunk::{ObjectTrait, object};
 pub use super::index::{Object, SetPack, ZoneChunk};
@@ -241,16 +241,16 @@ pub impl ZoneChunkRecord of Record<ZoneChunk> {
         let [g0, g1] = *self.gates;
         high += g0.into() * shift * 0x10;
         high += g1.into() * shift * 0x100000;
-        array![join(walls.low, walls.high), join(low, high)].span()
+        array![PackingTrait::join(walls.low, walls.high), PackingTrait::join(low, high)].span()
     }
 
     /// Refuses a reserved plane's flag (a reader of format version 1).
     fn unpack(parts: Span<felt252>) -> ZoneChunk {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let (reserved, walls_high) = DivRem::div_rem(high, P97.try_into().unwrap());
         assert(reserved == 0, errors::RESERVED);
         let walls: felt252 = low.into() + walls_high.into() * 0x100000000000000000000000000000000;
-        let (mut low, mut high) = split(*parts[1]);
+        let (mut low, mut high) = PackingTrait::split(*parts[1]);
         let p0 = SetPackBitsTrait::peel(ref low);
         let p1 = SetPackBitsTrait::peel(ref low);
         let s32: NonZero<u128> = 0x100000000;
@@ -284,9 +284,9 @@ pub impl ZoneChunkRecord of Record<ZoneChunk> {
 #[cfg(test)]
 mod tests {
     use crate::content::Record;
+    use crate::helpers::packing::LIVE;
     use crate::models::chunk::object;
     use crate::models::quotas::{Quota, QuotaSet, kind as quota};
-    use crate::packing::LIVE;
     use crate::types::reveal::board::BoardTrait;
     use super::{Object, SetPack, ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait};
 

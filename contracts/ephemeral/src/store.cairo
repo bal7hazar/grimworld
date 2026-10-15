@@ -35,7 +35,7 @@
 //! alone. The test of `Instances`' storage addresses (`layout_tests`) is here because the store is
 //! what reads and writes them.
 
-use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
+use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes16};
 use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage};
 use grimworld_logic::types::reveal::outline::Outline;
 use starknet::storage::{
@@ -551,7 +551,7 @@ mod layout_tests {
 /// models' layout, and the words the view returns as stored.
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::Bitmap;
+    use grimworld_logic::helpers::packing::Bitmap;
     use grimworld_logic::snapshot::SnapshotWords;
     use starknet::storage::{StorageAsPointer, StoragePathEntry};
     use starknet::storage_access::{Store, StorePacking};
@@ -839,11 +839,11 @@ mod note4_tests {
         >::write(0, state.headers.entry(SLOT).as_ptr().__storage_pointer_address__, header)
             .unwrap_syscall();
         Store::<
-            grimworld_logic::packing::Bitmap,
+            grimworld_logic::helpers::packing::Bitmap,
         >::write(
             0,
             state.revealed.entry(SLOT).as_ptr().__storage_pointer_address__,
-            grimworld_logic::packing::Bitmap { bits: 0 },
+            grimworld_logic::helpers::packing::Bitmap { bits: 0 },
         )
             .unwrap_syscall();
         Store::<
@@ -859,7 +859,7 @@ mod note4_tests {
     fn test_begin_words_typed() {
         let mut state = Instances::contract_state_for_testing();
         state.set_header(SLOT, HeaderTrait::new(2, 3, 0, false, 112, 112, 6));
-        state.set_revealed(SLOT, grimworld_logic::packing::Bitmap { bits: 0 });
+        state.set_revealed(SLOT, grimworld_logic::helpers::packing::Bitmap { bits: 0 });
         state.set_quotas(SLOT, QuotasTrait::new(6));
     }
 }

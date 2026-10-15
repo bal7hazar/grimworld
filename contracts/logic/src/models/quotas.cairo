@@ -4,7 +4,7 @@
 //! author's candidates, drawn at entry (D-215 ruling 3, ENG-08). Id = the location's (D-145).
 
 use crate::content::{QUOTAS, Record};
-use crate::packing::{P16, P24, P32, P64, P8, P96, join, peel, split};
+use crate::helpers::packing::{P16, P24, P32, P64, P8, P96, PackingTrait, peel};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::{Quota, QuotaSet};
 use super::pack::{Pack, PackTrait};
@@ -186,11 +186,11 @@ pub impl QuotaSetRecord of Record<QuotaSet> {
             + QuotaBitsTrait::bits(q2) * P64
             + QuotaBitsTrait::bits(q3) * P96;
         let high = QuotaBitsTrait::bits(q4) + QuotaBitsTrait::bits(q5) * P32;
-        array![join(low, high)].span()
+        array![PackingTrait::join(low, high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> QuotaSet {
-        let (mut low, mut high) = split(*parts[0]);
+        let (mut low, mut high) = PackingTrait::split(*parts[0]);
         let q0 = QuotaBitsTrait::peel(ref low);
         let q1 = QuotaBitsTrait::peel(ref low);
         let q2 = QuotaBitsTrait::peel(ref low);
@@ -204,7 +204,7 @@ pub impl QuotaSetRecord of Record<QuotaSet> {
 #[cfg(test)]
 mod tests {
     use crate::content::Record;
-    use crate::packing::LIVE;
+    use crate::helpers::packing::LIVE;
     use super::{Quota, QuotaSet, QuotaSetAssert, QuotaSetRecord, QuotaSetTrait, kind};
 
     #[test]

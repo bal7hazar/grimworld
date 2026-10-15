@@ -2,9 +2,9 @@
 //! change during play; the last four are the snapshot taken at entry (ADR-0001) and the account
 //! that controls the adventurer (M-6). Layouts: docs/architecture/ENG-01-interfaces.md, *Member*.
 
-use grimworld_logic::packing::{
-    N16, N32, N8, P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96, byte_at,
-    field, fits, join, low_field, peel, split, u16_at, u32_at,
+use grimworld_logic::helpers::packing::{
+    N16, N32, N8, P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96,
+    PackingAssert, PackingTrait, byte_at, field, low_field, peel, u16_at, u32_at,
 };
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::MAX_CLOCK;
@@ -66,7 +66,7 @@ pub impl MemberStateImpl of MemberStateTrait {
     /// `(max health, max energy)` of a stored `MemberStats` word (bits 0-15, 16-23), without
     /// unpacking the other eighteen fields.
     fn maxima(stats: felt252) -> (u16, u8) {
-        let (low, _) = split(stats);
+        let (low, _) = PackingTrait::split(stats);
         (low_field(low, P16.try_into().unwrap()).try_into().unwrap(), byte_at(low, P16))
     }
 }
@@ -142,10 +142,10 @@ pub impl MemberStateStorePacking of starknet::storage_access::StorePacking<Membe
             + b3.into() * P24
             + value.flags.into() * P32
             + value.casts_2.into() * P40;
-        join(low, high)
+        PackingTrait::join(low, high)
     }
     fn unpack(value: felt252) -> MemberState {
-        let (mut low, mut high) = split(value);
+        let (mut low, mut high) = PackingTrait::split(value);
         let adventurer = peel(ref low, N32).try_into().unwrap();
         let x = peel(ref low, N8).try_into().unwrap();
         let y = peel(ref low, N8).try_into().unwrap();
@@ -219,10 +219,10 @@ pub impl MemberTimersStorePacking of starknet::storage_access::StorePacking<Memb
         let high: u128 = value.burning.into()
             + value.crippled.into() * P32
             + value.knocked.into() * P64;
-        join(low, high)
+        PackingTrait::join(low, high)
     }
     fn unpack(value: felt252) -> MemberTimers {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         MemberTimers {
             act_slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
             act_target: u16_at(low, P8),
@@ -307,13 +307,13 @@ pub impl MemberEffectsStorePacking of starknet::storage_access::StorePacking<
 > {
     fn pack(value: MemberEffects) -> felt252 {
         let [a, b, c, d] = value.effects;
-        join(
+        PackingTrait::join(
             EffectPackingTrait::pack(a) + EffectPackingTrait::pack(b) * P56,
             EffectPackingTrait::pack(c) + EffectPackingTrait::pack(d) * P56,
         )
     }
     fn unpack(value: felt252) -> MemberEffects {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let s56: NonZero<u128> = P56.try_into().unwrap();
         let (b, a) = DivRem::div_rem(low, s56);
         let (d, c) = DivRem::div_rem(high, s56);
@@ -338,10 +338,10 @@ pub struct Recharges {
 pub impl DeadlinesImpl of DeadlinesTrait {
     /// A value of 2^28 or more is refused (it would corrupt the next lane).
     fn pack(a: u32, b: u32, c: u32, d: u32) -> u128 {
-        fits(a.into(), P28, 'packing: deadline above 2^28');
-        fits(b.into(), P28, 'packing: deadline above 2^28');
-        fits(c.into(), P28, 'packing: deadline above 2^28');
-        fits(d.into(), P28, 'packing: deadline above 2^28');
+        PackingAssert::assert_fits(a.into(), P28, 'packing: deadline above 2^28');
+        PackingAssert::assert_fits(b.into(), P28, 'packing: deadline above 2^28');
+        PackingAssert::assert_fits(c.into(), P28, 'packing: deadline above 2^28');
+        PackingAssert::assert_fits(d.into(), P28, 'packing: deadline above 2^28');
         a.into() + b.into() * P28 + c.into() * P56 + d.into() * P84
     }
 
@@ -358,10 +358,10 @@ pub impl DeadlinesImpl of DeadlinesTrait {
 pub impl RechargesStorePacking of starknet::storage_access::StorePacking<Recharges, felt252> {
     fn pack(value: Recharges) -> felt252 {
         let [a, b, c, d, e, f, g, h] = value.deadlines;
-        join(DeadlinesTrait::pack(a, b, c, d), DeadlinesTrait::pack(e, f, g, h))
+        PackingTrait::join(DeadlinesTrait::pack(a, b, c, d), DeadlinesTrait::pack(e, f, g, h))
     }
     fn unpack(value: felt252) -> Recharges {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let (a, b, c, d) = DeadlinesTrait::unpack(low);
         let (e, f, g, h) = DeadlinesTrait::unpack(high);
         Recharges { deadlines: [a, b, c, d, e, f, g, h] }
@@ -418,7 +418,7 @@ pub impl MemberTimersImpl of MemberTimersTrait {
 /// (D-167); the tests that span several models stay in `tests/test_layout.cairo`.
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::helpers::packing::LIVE;
     use starknet::storage_access::StorePacking;
     use super::{DeadlinesTrait, Effect, MemberEffects, MemberState, MemberTimers, Recharges};
 

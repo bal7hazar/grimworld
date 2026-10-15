@@ -7,8 +7,8 @@
 //! max 37–52 (`min` and `max` signed, two's complement). The cost of a modifier is fixed (`min =
 //! max`); the benefit's rolled value is the item's `ItemMods` byte. Id 0 is no passive.
 
+use crate::helpers::packing::{P16, P8};
 use crate::helpers::signed::SignedTrait;
-use crate::packing::{P16, P8};
 use super::combat::{condition, damage};
 use super::effect::{guard, scope};
 

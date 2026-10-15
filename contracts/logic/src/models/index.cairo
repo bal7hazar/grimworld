@@ -14,7 +14,7 @@
 //! chunk
 //!   index `15 cy + cx` and a tile index in a chunk `15 row + column` are below 225.
 
-use crate::packing::Lanes16;
+use crate::helpers::packing::Lanes16;
 use crate::types::effect::Entry;
 use crate::types::passive::Passive;
 

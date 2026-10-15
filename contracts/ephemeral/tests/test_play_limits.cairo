@@ -15,6 +15,7 @@ use grimworld_ephemeral::systems::instances::{
 };
 use grimworld_logic::actions::Action;
 use grimworld_logic::content::{CASTE, GATE, LOCATION, PACK, REGION};
+use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking};
@@ -23,7 +24,6 @@ use grimworld_logic::models::index::{Features, PackPlacement};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
-use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry};
 use grimworld_logic::types::tick::ai;
 use snforge_std::{

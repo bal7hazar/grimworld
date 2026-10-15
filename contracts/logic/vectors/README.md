@@ -487,7 +487,7 @@ The cases (227):
 
 ## `packing.jsonl`: the packing of records into a felt (VEC-01)
 
-Printed by `packing::tests::test_vectors` (ids 0–519), one part, with its digest.
+Printed by `helpers::packing::tests::test_vectors` (ids 0–519), one part, with its digest.
 
 One line: `{"id", "fn", "case", "ok"}`, every felt in hex. A `u128` limb or a field is its value. A
 struct is its `Serde` (`Lanes32`: seven felts, `Lanes16`: fifteen, `Counter`: one, `Bitmap`: one).

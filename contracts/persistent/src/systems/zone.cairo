@@ -25,6 +25,7 @@ pub mod ZoneChecks {
     use grimworld_logic::content::{
         BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, ZONE_CHUNK, parts,
     };
+    use grimworld_logic::helpers::packing::{LIVE, PackingTrait};
     use grimworld_logic::models::bridge::{
         Bridge, BridgeAssert, BridgeRecord, errors as bridge_errors,
     };
@@ -42,7 +43,6 @@ pub mod ZoneChecks {
     use grimworld_logic::models::zone_chunk::{
         ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait, errors as chunk_errors,
     };
-    use grimworld_logic::packing::{LIVE, split};
     use grimworld_logic::types::reveal::board::BoardTrait;
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
 
@@ -212,7 +212,7 @@ pub mod ZoneChecks {
         /// The frame of location `id` (`Frame`).
         fn frame(self: @ContractState, id: u32) -> Frame {
             let part = self.part0(LOCATION, id);
-            let (low, high) = split(part);
+            let (low, high) = PackingTrait::split(part);
             let s8: NonZero<u128> = 0x100;
             // kind 0–7, width 56–63, height 64–71, `N` 72–79
             let (_, kind) = DivRem::div_rem(low, s8);
@@ -302,7 +302,7 @@ pub mod ZoneChecks {
             if *record[0] == 0 {
                 return None;
             }
-            let (_, high) = split(*record[1]);
+            let (_, high) = PackingTrait::split(*record[1]);
             let rest = high / 0x100000000000000000000;
             let (rest, bridges) = DivRem::div_rem(rest, 0x10);
             let (rest, g0) = DivRem::div_rem(rest, 0x10000);
@@ -332,7 +332,7 @@ pub mod ZoneChecks {
             if part == 0 {
                 return None;
             }
-            let (low, _) = split(part);
+            let (low, _) = PackingTrait::split(part);
             let (rest, source) = DivRem::div_rem(low, 0x10000);
             let (rest, chunk) = DivRem::div_rem(rest / 0x10000, 0x100);
             let (_, tile) = DivRem::div_rem(rest, 0x100);

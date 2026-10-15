@@ -1,7 +1,7 @@
 //! `REGION`: its constructor, its checks and its record (layout: `models::index::Region`).
 
 use crate::content::{REGION, Record};
-use crate::packing::{P120, P16, P32, join, split};
+use crate::helpers::packing::{P120, P16, P32, PackingTrait};
 pub use super::index::Region;
 
 pub mod errors {
@@ -34,11 +34,11 @@ pub impl RegionRecord of Record<Region> {
         let low: u128 = (*self.town).into()
             + (*self.book).into() * P16
             + (*self.first_location).into() * P32;
-        array![join(low, name)].span()
+        array![PackingTrait::join(low, name)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Region {
-        let (low, name) = split(*parts[0]);
+        let (low, name) = PackingTrait::split(*parts[0]);
         let s16: NonZero<u128> = P16.try_into().unwrap();
         let (low, town) = DivRem::div_rem(low, s16);
         let (low, book) = DivRem::div_rem(low, s16);

@@ -22,10 +22,10 @@
 //! sets an effect's pips and deadline when it holds one.
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
+use crate::helpers::packing::{N16, N4, N8, PackingTrait, peel};
 use crate::helpers::signed::SignedTrait;
 use crate::models::caste::Caste;
 use crate::models::index::{Item, Skill};
-use crate::packing::{N16, N4, N8, limbs, peel};
 use crate::types::combat::damage;
 use crate::types::effect::{ENTRY_BOUND, Entry, EntryTrait, kind};
 
@@ -258,8 +258,8 @@ pub impl SkillSheetImpl of SkillSheetTrait {
     /// entries' kinds until the `REGENERATION` one or an empty entry. `new` on the unpacked record
     /// is its oracle.
     fn read(id: u16, parts: Span<felt252>) -> SkillSheet {
-        let (header, first) = limbs(*parts[0]);
-        let (second, third) = limbs(*parts[1]);
+        let (header, first) = PackingTrait::limbs(*parts[0]);
+        let (second, third) = PackingTrait::limbs(*parts[1]);
         let mut regen0 = 0;
         let mut regen12 = 0;
         for entry in array![first, second, third].span() {
@@ -341,7 +341,7 @@ pub impl PotionSheetImpl of PotionSheetTrait {
     /// the high limb's 97 low bits, then the range and the strength); `new` on the unpacked record
     /// is its oracle.
     fn read(id: u32, parts: Span<felt252>) -> PotionSheet {
-        let (_, high) = limbs(*parts[0]);
+        let (_, high) = PackingTrait::limbs(*parts[0]);
         let (above, entry) = DivRem::div_rem(high, ENTRY_BOUND.try_into().unwrap());
         let (strength, range) = DivRem::div_rem(above, N8);
         let mut rest = entry;
@@ -408,8 +408,8 @@ pub impl CasteSheetImpl of CasteSheetTrait {
     /// The sheet of caste `id` read from its record's 2 parts (`models::caste` layout: the
     /// weapon's ticks at bit 72); `new` on the unpacked record is its oracle.
     fn read(id: u16, parts: Span<felt252>) -> CasteSheet {
-        let (low, high) = limbs(*parts[0]);
-        let (skills, _) = limbs(*parts[1]);
+        let (low, high) = PackingTrait::limbs(*parts[0]);
+        let (skills, _) = PackingTrait::limbs(*parts[1]);
         // Tier and AI profile 0–15, the health multiplier, its regeneration, the armor; the
         // weapon's class, damage, type, ticks and range 48–79; energy and its regeneration, the
         // flee threshold, the rank 104–107. The high limb: the armor by type, 54 bits.

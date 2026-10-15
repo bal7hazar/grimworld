@@ -96,6 +96,7 @@ pub mod PlayLibrary {
 }
 use grimworld_logic::actions::decode_batch;
 use grimworld_logic::content::{ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
+use grimworld_logic::helpers::packing::{Bitmap, Lanes16};
 use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
     IRegistryReadDispatcherTrait, ISegmentLibraryDispatcherTrait, ISegmentLibraryLibraryDispatcher,
@@ -106,7 +107,6 @@ use grimworld_logic::models::location::{Location, LocationRecord};
 use grimworld_logic::models::member::{MemberTrait, MemberWordsTrait};
 use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackRecord};
-use grimworld_logic::packing::{Bitmap, Lanes16};
 use grimworld_logic::types::play::{Area, Classes, SegmentTrait};
 use grimworld_logic::types::reveal::SightTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;

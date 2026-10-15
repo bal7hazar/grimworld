@@ -2,8 +2,8 @@
 //! with views (`lot_count`, `trade_count`), so that the indexer detects a missing event.
 //! Layouts: docs/architecture/ENG-01-interfaces.md, *Market storage*.
 
-use grimworld_logic::packing::{
-    Lanes32, P104, P112, P32, P40, P48, P56, P64, P8, P88, P96, byte_at, join, low_field, split,
+use grimworld_logic::helpers::packing::{
+    Lanes32, P104, P112, P32, P40, P48, P56, P64, P8, P88, P96, PackingTrait, byte_at, low_field,
     u16_at, u32_at,
 };
 
@@ -40,7 +40,7 @@ pub struct Lot {
 
 pub impl LotStorePacking of starknet::storage_access::StorePacking<Lot, felt252> {
     fn pack(value: Lot) -> felt252 {
-        join(
+        PackingTrait::join(
             value.price.into() + value.expiry.into() * P64,
             value.seller.into()
                 + value.lot_size.into() * P32
@@ -51,7 +51,7 @@ pub impl LotStorePacking of starknet::storage_access::StorePacking<Lot, felt252>
         )
     }
     fn unpack(value: felt252) -> Lot {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let (expiry, price) = DivRem::div_rem(low, P64.try_into().unwrap());
         Lot {
             price: price.try_into().unwrap(),
@@ -77,10 +77,10 @@ pub struct SellerPage {
 pub impl SellerPageStorePacking of starknet::storage_access::StorePacking<SellerPage, felt252> {
     fn pack(value: SellerPage) -> felt252 {
         let [a, b, c] = value.lots;
-        join(a.into() + b.into() * P64, c.into() + value.count.into() * P64)
+        PackingTrait::join(a.into() + b.into() * P64, c.into() + value.count.into() * P64)
     }
     fn unpack(value: felt252) -> SellerPage {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let (b, a) = DivRem::div_rem(low, P64.try_into().unwrap());
         let (count, c) = DivRem::div_rem(high, P64.try_into().unwrap());
         SellerPage {
@@ -116,7 +116,7 @@ pub struct TradeHead {
 
 pub impl TradeHeadStorePacking of starknet::storage_access::StorePacking<TradeHead, felt252> {
     fn pack(value: TradeHead) -> felt252 {
-        join(
+        PackingTrait::join(
             value.inviter.into()
                 + value.invited_account.into() * P32
                 + value.invited.into() * P64
@@ -127,7 +127,7 @@ pub impl TradeHeadStorePacking of starknet::storage_access::StorePacking<TradeHe
         )
     }
     fn unpack(value: felt252) -> TradeHead {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         TradeHead {
             inviter: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
             invited_account: u32_at(low, P32),
@@ -155,13 +155,13 @@ pub struct TradeMoney {
 
 pub impl TradeMoneyStorePacking of starknet::storage_access::StorePacking<TradeMoney, felt252> {
     fn pack(value: TradeMoney) -> felt252 {
-        join(
+        PackingTrait::join(
             value.gold.into() + value.item0.into() * P64 + value.amount0.into() * P96,
             value.item1.into() + value.amount1.into() * P32,
         )
     }
     fn unpack(value: felt252) -> TradeMoney {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         TradeMoney {
             gold: low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
             item0: u32_at(low, P64),
@@ -220,7 +220,7 @@ pub impl LotImpl of LotTrait {
 /// ENG-R1b (D-167); the variables' names and keys are checked in `store::market_layout_tests`.
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::helpers::packing::LIVE;
     use starknet::storage_access::StorePacking;
     use super::{BALANCE, EQUIPMENT, Lot, LotTrait, SellerPage, Trade, TradeHead, TradeMoney};
 

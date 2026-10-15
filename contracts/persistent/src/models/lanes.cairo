@@ -1,15 +1,15 @@
-//! Pages of seven `u32` lanes (`Lanes32`, `grimworld_logic::packing`): lanes 0-3 in the low limb,
-//! 4-6 in the high limb, 32 bits each, `LIVE` at bit 250. `Hub` keeps several things in such
-//! pages (ENG-01 §3.3): an account's list of adventurers, the balances of an owner, the equipment
-//! of a pack, what an adventurer wears, its belt.
+//! Pages of seven `u32` lanes (`Lanes32`, `grimworld_logic::helpers::packing`): lanes 0-3 in the
+//! low limb, 4-6 in the high limb, 32 bits each, `LIVE` at bit 250. `Hub` keeps several things in
+//! such pages (ENG-01 §3.3): an account's list of adventurers, the balances of an owner, the
+//! equipment of a pack, what an adventurer wears, its belt.
 //!
 //! `StoredLanes` is a page as stored, one word, the paths changing one or two lanes of it by an
 //! addition: `Lanes32`'s packer decodes and encodes seven lanes (16,000 and 22,000 l2 gas, measured
 //! in ENG-R1a) where a lane costs a division or a multiplication. Each method is pinned against the
 //! packer in the tests (the oracle, docs/CAIRO.md §2). Only the store reads and writes it.
 
-use grimworld_logic::packing::{
-    LIVE, Lanes32, P32, P64, P96, low_field, split, u32_at, unpack_lanes32,
+use grimworld_logic::helpers::packing::{
+    LIVE, Lanes32, Lanes32Trait, P32, P64, P96, PackingTrait, low_field, u32_at,
 };
 
 pub mod errors {
@@ -105,7 +105,7 @@ pub impl StoredLanesImpl of StoredLanesTrait {
 
     /// Lane `lane` (0 to 6), the six others not decoded.
     fn get(self: @StoredLanes, lane: u8) -> u32 {
-        let (low, high) = split(*self.word);
+        let (low, high) = PackingTrait::split(*self.word);
         match lane {
             0 => low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
             1 => u32_at(low, P32),
@@ -121,7 +121,7 @@ pub impl StoredLanesImpl of StoredLanesTrait {
     /// Every lane, decoded once: what a scan over the page reads.
     #[inline(always)]
     fn decoded(self: @StoredLanes) -> Lanes32 {
-        unpack_lanes32(*self.word)
+        Lanes32Trait::unpack(*self.word)
     }
 
     /// Whether every lane is 0: a page never written (0), or `LIVE` alone.
@@ -158,7 +158,7 @@ pub impl StoredLanesImpl of StoredLanesTrait {
 
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::{LIVE, Lanes32};
+    use grimworld_logic::helpers::packing::{LIVE, Lanes32};
     use starknet::storage_access::StorePacking;
     use super::{LanesTrait, StoredLanes, StoredLanesTrait};
 

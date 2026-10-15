@@ -3,11 +3,11 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::content::MODIFIER;
-use grimworld_logic::models::base::Base;
-use grimworld_logic::packing::{
-    P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join,
-    low_field, split, u16_at, u32_at,
+use grimworld_logic::helpers::packing::{
+    P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, PackingAssert, PackingTrait,
+    byte_at, field, low_field, u16_at, u32_at,
 };
+use grimworld_logic::models::base::Base;
 use grimworld_logic::snapshot::Worn;
 use super::account::PACK;
 
@@ -116,9 +116,9 @@ pub struct ItemBase {
 
 pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase, felt252> {
     fn pack(value: ItemBase) -> felt252 {
-        fits(value.slot.into(), P4, 'packing: slot above 4 b');
-        fits(value.hands.into(), P4, 'packing: hands above 4 b');
-        join(
+        PackingAssert::assert_fits(value.slot.into(), P4, 'packing: slot above 4 b');
+        PackingAssert::assert_fits(value.hands.into(), P4, 'packing: hands above 4 b');
+        PackingTrait::join(
             value.base.into()
                 + value.requirement.into() * P16
                 + value.rarity.into() * P24
@@ -134,7 +134,7 @@ pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase
         )
     }
     fn unpack(value: felt252) -> ItemBase {
-        let (low, _) = split(value);
+        let (low, _) = PackingTrait::split(value);
         ItemBase {
             base: low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
             requirement: byte_at(low, P16),
@@ -173,10 +173,10 @@ pub impl ItemModsStorePacking of starknet::storage_access::StorePacking<ItemMods
             low += ((*m.id).into() + (*m.value).into() * P16) * factor;
             factor *= P24;
         }
-        join(low, 0)
+        PackingTrait::join(low, 0)
     }
     fn unpack(value: felt252) -> ItemMods {
-        let (low, _) = split(value);
+        let (low, _) = PackingTrait::split(value);
         let mut out: Array<Modifier> = array![];
         let mut rest = low;
         for _ in 0..5_u8 {
@@ -289,11 +289,13 @@ pub impl GrimoireStateStorePacking of starknet::storage_access::StorePacking<
     GrimoireState, felt252,
 > {
     fn pack(value: GrimoireState) -> felt252 {
-        fits(value.remaining.into(), P48, 'packing: remaining above 48 b');
-        join(value.known.into() + value.remaining.into() * P16 + value.hints.into() * P64, 0)
+        PackingAssert::assert_fits(value.remaining.into(), P48, 'packing: remaining above 48 b');
+        PackingTrait::join(
+            value.known.into() + value.remaining.into() * P16 + value.hints.into() * P64, 0,
+        )
     }
     fn unpack(value: felt252) -> GrimoireState {
-        let (low, _) = split(value);
+        let (low, _) = PackingTrait::split(value);
         GrimoireState {
             known: low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
             remaining: field(low, P16, 0x1000000000000).try_into().unwrap(),
@@ -315,12 +317,16 @@ pub struct Pairs {
 
 pub impl PairsStorePacking of starknet::storage_access::StorePacking<Pairs, felt252> {
     fn pack(value: Pairs) -> felt252 {
-        fits(value.low, 0x20000000000000000000000000000000, 'packing: pairs 0-24 overflow');
-        fits(value.high, 0x1000000000000000000000000000000, 'packing: pairs 25-48 overflow');
-        join(value.low, value.high)
+        PackingAssert::assert_fits(
+            value.low, 0x20000000000000000000000000000000, 'packing: pairs 0-24 overflow',
+        );
+        PackingAssert::assert_fits(
+            value.high, 0x1000000000000000000000000000000, 'packing: pairs 25-48 overflow',
+        );
+        PackingTrait::join(value.low, value.high)
     }
     fn unpack(value: felt252) -> Pairs {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         Pairs { low, high }
     }
 }
@@ -356,10 +362,10 @@ pub impl GoldImpl of GoldTrait {
 
 pub impl GoldStorePacking of starknet::storage_access::StorePacking<Gold, felt252> {
     fn pack(value: Gold) -> felt252 {
-        join(value.amount.into(), 0)
+        PackingTrait::join(value.amount.into(), 0)
     }
     fn unpack(value: felt252) -> Gold {
-        let (low, _) = split(value);
+        let (low, _) = PackingTrait::split(value);
         Gold { amount: low_field(low, P64.try_into().unwrap()).try_into().unwrap() }
     }
 }
@@ -379,7 +385,7 @@ pub struct RiftBoard {
 pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoard, felt252> {
     fn pack(value: RiftBoard) -> felt252 {
         let [a, b, c, d, e] = value.rifts;
-        join(
+        PackingTrait::join(
             value.day.into()
                 + value.cleared.into() * P32
                 + a.into() * P40
@@ -391,7 +397,7 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
         )
     }
     fn unpack(value: felt252) -> RiftBoard {
-        let (low, _) = split(value);
+        let (low, _) = PackingTrait::split(value);
         RiftBoard {
             day: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
             cleared: byte_at(low, P32),
@@ -408,8 +414,8 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
 #[cfg(test)]
 mod tests {
     use grimworld_logic::content::MODIFIER;
+    use grimworld_logic::helpers::packing::LIVE;
     use grimworld_logic::models::base::{BaseTrait, slot};
-    use grimworld_logic::packing::LIVE;
     use starknet::storage_access::StorePacking;
     use super::super::account::PACK;
     use super::{

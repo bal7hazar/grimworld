@@ -4,7 +4,7 @@
 //! would cost what the check already did. Only the store writes it
 //! (`HubStoreTrait::set_adventurer_build`).
 
-use grimworld_logic::packing::{LIVE, Lanes32, P12, P32, P36, P4, P96};
+use grimworld_logic::helpers::packing::{LIVE, Lanes32, P12, P32, P36, P4, P96};
 use starknet::storage_access::StorePacking;
 use crate::helpers::BitTrait;
 use super::adventurer::{BeltTrait, Build};
@@ -91,7 +91,7 @@ pub impl StoredBuildAssert of StoredBuildAssertTrait {
 
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::{LIVE, Lanes32};
+    use grimworld_logic::helpers::packing::{LIVE, Lanes32};
     use starknet::storage_access::StorePacking;
     use super::StoredBuildTrait;
     use super::super::adventurer::Build;

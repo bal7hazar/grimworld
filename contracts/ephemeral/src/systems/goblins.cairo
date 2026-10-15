@@ -118,10 +118,10 @@ pub mod GoblinsLibrary {
     }
 }
 use grimworld_logic::content::{CASTE, MAX_READ, PACK, SKILL, exists};
+use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::chunk::{PackPlacementTrait, object};
 use grimworld_logic::models::pack::{PackRecord, PackTrait};
-use grimworld_logic::packing::LIVE;
 use grimworld_logic::types::goblin_entity;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
 use grimworld_logic::types::tick::{CasteSheetTrait, SkillSheetTrait};

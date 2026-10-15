@@ -6,12 +6,12 @@
 //! layouts are the ephemeral package's, which owns the storage; the offsets below are ENG-01's
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
+use crate::helpers::packing::{
+    N16, N2, N28, N32, N56, N7, N8, P112, P120, P16, P20, P24, P28, P32, P40, P48, P52, P56, P64,
+    P72, P8, P80, P84, P96, PackingTrait, field, peel,
+};
 use crate::helpers::signed::SignedTrait;
 use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
-use crate::packing::{
-    N16, N2, N28, N32, N56, N7, N8, P112, P120, P16, P20, P24, P28, P32, P40, P48, P52, P56, P64,
-    P72, P8, P80, P84, P96, field, limbs, peel,
-};
 use crate::types::combat::{condition, damage, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
@@ -134,7 +134,7 @@ pub impl MemberImpl of MemberTrait {
     /// The hot fields of a member's words, in `Member`'s order (status … knocked). Each limb is
     /// read in one pass from its low bits, one division a field (CBT-02b, lever (b)).
     fn hot(words: @MemberWords) -> (u8, u16, u16, u16, u8, u8, u16, u8, u32, u32, u32, u32, u32) {
-        let (low, high) = limbs(*words.state);
+        let (low, high) = PackingTrait::limbs(*words.state);
         // Bits 0–55 (the adventurer, position, facing) are not read.
         let (mut rest, _) = DivRem::div_rem(low, N56);
         let status = peel(ref rest, N8);
@@ -143,7 +143,7 @@ pub impl MemberImpl of MemberTrait {
         let adrenaline = peel(ref rest, N16);
         let (above, _) = DivRem::div_rem(high, N32);
         let (_, flags) = DivRem::div_rem(above, N8);
-        let (tlow, thigh) = limbs(*words.timers);
+        let (tlow, thigh) = PackingTrait::limbs(*words.timers);
         let mut rest = tlow;
         let act_slot = peel(ref rest, N8);
         let act_target = peel(ref rest, N16);
@@ -244,18 +244,18 @@ pub impl MemberImpl of MemberTrait {
             Self::hot(
             @words,
         );
-        let (mut stats, _) = limbs(words.stats);
+        let (mut stats, _) = PackingTrait::limbs(words.stats);
         let max_health = peel(ref stats, N16);
         let max_energy = peel(ref stats, N8);
         let energy_regen = peel(ref stats, N8);
         let health_regen: i32 = peel(ref stats, N8).try_into().unwrap();
-        let (elow, ehigh) = limbs(words.effects);
+        let (elow, ehigh) = PackingTrait::limbs(words.effects);
         // The four effects of 56 bits at 0 and 56 of each limb.
         let (above, first) = DivRem::div_rem(elow, N56);
         let (_, second) = DivRem::div_rem(above, N56);
         let (above, third) = DivRem::div_rem(ehigh, N56);
         let (_, fourth) = DivRem::div_rem(above, N56);
-        let (belt, _) = limbs(words.kit);
+        let (belt, _) = PackingTrait::limbs(words.kit);
         let mut deadlines: Array<u32> = array![];
         let mut regen: Array<i8> = array![];
         let mut effect_at: u128 = 0;
@@ -290,7 +290,7 @@ pub impl MemberImpl of MemberTrait {
             lane += 1;
         }
         // The bar's highest adrenaline cost, in quarters (§5.12).
-        let (bar, _) = limbs(words.bar);
+        let (bar, _) = PackingTrait::limbs(words.bar);
         let mut cap: u16 = 0;
         let mut rest = bar;
         let mut bar_at: u128 = 0;
@@ -340,7 +340,7 @@ pub impl MemberImpl of MemberTrait {
     /// where a field at a time took twenty-six). `MemberTimers`' low limb is hot throughout.
     fn store(self: @Member) -> MemberWords {
         let words = *self.words;
-        let (low, high) = limbs(words.state);
+        let (low, high) = PackingTrait::limbs(words.state);
         let (above, _) = DivRem::div_rem(low, N56);
         let (_, old) = DivRem::div_rem(above, N56);
         let new: felt252 = (*self.status).into()
@@ -352,7 +352,7 @@ pub impl MemberImpl of MemberTrait {
         let state = words.state
             + (new - old.into()) * F56
             + ((*self.flags).into() - old_flags.into()) * F160;
-        let (tlow, thigh) = limbs(words.timers);
+        let (tlow, thigh) = PackingTrait::limbs(words.timers);
         let new_low: felt252 = (*self.act_slot).into()
             + (*self.act_target).into() * F8
             + (*self.act_tile).into() * F24
@@ -371,7 +371,7 @@ pub impl MemberImpl of MemberTrait {
 
     /// The recharge deadline of bar slot 0–7.
     fn recharge(self: @Member, slot: u8) -> u32 {
-        let (low, high) = limbs(*self.words.recharges);
+        let (low, high) = PackingTrait::limbs(*self.words.recharges);
         let (upper, shift, _) = Self::recharge_at(slot);
         let limb = if upper {
             high
@@ -414,7 +414,7 @@ pub impl MemberImpl of MemberTrait {
     /// listed from the words, before any member is loaded).
     #[inline(always)]
     fn bar_skill(bar: felt252, slot: u8) -> u16 {
-        let (low, _) = limbs(bar);
+        let (low, _) = PackingTrait::limbs(bar);
         let shift = *[1, P16, P32, 0x1000000000000, P64, P80, P96, P112].span()[slot.into()];
         field(low, shift, P16).try_into().unwrap()
     }
@@ -445,7 +445,7 @@ pub impl MemberImpl of MemberTrait {
 pub impl MemberWordsImpl of MemberWordsTrait {
     /// Crippled's deadline (`MemberTimers` bits 160–191).
     fn crippled(self: @Member) -> u32 {
-        let (_, high) = limbs(*self.words.timers);
+        let (_, high) = PackingTrait::limbs(*self.words.timers);
         field(high, P32, P32).try_into().unwrap()
     }
 
@@ -456,7 +456,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// The `hits` counter (`MemberState` bits 112–119, design/19 §5.12).
     fn hits(self: @Member) -> u8 {
-        let (low, _) = limbs(*self.words.state);
+        let (low, _) = PackingTrait::limbs(*self.words.state);
         field(low, P112, P8).try_into().unwrap()
     }
 
@@ -467,7 +467,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// `ADRENALINE_EVERY_N`'s lowest N (`MemberKit` bits 160–167); 0 for none.
     fn double_every(self: @Member) -> u8 {
-        let (_, high) = limbs(*self.words.kit);
+        let (_, high) = PackingTrait::limbs(*self.words.kit);
         field(high, P32, P8).try_into().unwrap()
     }
 
@@ -475,7 +475,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
     /// condition at 144–147 and percent at 148–153, `KNOCKDOWN_FLAT` at 200–201; design/19
     /// §5.7).
     fn infliction(self: @Member) -> Infliction {
-        let (_, high) = limbs(*self.words.kit);
+        let (_, high) = PackingTrait::limbs(*self.words.kit);
         Infliction {
             condition: field(high, P16, 0x10).try_into().unwrap(),
             percent: field(high, P20, 0x40).try_into().unwrap(),
@@ -500,7 +500,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// Quick-cast counter `k` (0: `MemberState.casts` 120–127; 1: `casts_2` 168–175; §5.12).
     fn casts(self: @Member, k: u8) -> u8 {
-        let (low, high) = limbs(*self.words.state);
+        let (low, high) = PackingTrait::limbs(*self.words.state);
         let value = if k == 0 {
             field(low, P120, P8)
         } else {
@@ -521,7 +521,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// The count left in belt slot 0–3 (`MemberState` 128 + 8 slot).
     fn belt_count(self: @Member, slot: u8) -> u8 {
-        let (_, high) = limbs(*self.words.state);
+        let (_, high) = PackingTrait::limbs(*self.words.state);
         field(high, *[1, P8, P16, P24].span()[slot.into()], P8).try_into().unwrap()
     }
 
@@ -541,7 +541,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
     /// The potion item of belt slot 0–3 in a `MemberKit` word.
     #[inline(always)]
     fn kit_item(kit: felt252, slot: u16) -> u32 {
-        let (low, _) = limbs(kit);
+        let (low, _) = PackingTrait::limbs(kit);
         field(low, *[1, P32, P64, P96].span()[slot.into()], P32).try_into().unwrap()
     }
 
@@ -552,7 +552,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// The held effect of slot 0–3 in a `MemberEffects` word.
     fn held(effects: felt252, slot: u8) -> Held {
-        let (low, high) = limbs(effects);
+        let (low, high) = PackingTrait::limbs(effects);
         let (upper, shift, _) = MemberTrait::effect_at(slot);
         let limb = if upper {
             high
@@ -602,7 +602,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// Its tile and facing (`MemberState` x 32–39, y 40–47, facing 48–55).
     fn place(self: @Member) -> (u8, u8, u8) {
-        let (low, _) = limbs(*self.words.state);
+        let (low, _) = PackingTrait::limbs(*self.words.state);
         let (mut rest, _) = DivRem::div_rem(low, N32);
         let x = peel(ref rest, N8);
         let y = peel(ref rest, N8);
@@ -612,19 +612,19 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
 
     /// Its level (`MemberStats` 64–71).
     fn level(self: @Member) -> u8 {
-        let (low, _) = limbs(*self.words.stats);
+        let (low, _) = PackingTrait::limbs(*self.words.stats);
         field(low, P64, P8).try_into().unwrap()
     }
 
     /// Its primary profession and its primary attribute's rank (`MemberStats` 72–79, 80–87).
     fn primary(self: @Member) -> (u8, u8) {
-        let (low, _) = limbs(*self.words.stats);
+        let (low, _) = PackingTrait::limbs(*self.words.stats);
         (field(low, P72, P8).try_into().unwrap(), field(low, P80, P8).try_into().unwrap())
     }
 
     /// Its weapon's tick cost `k` (`MemberStats` 104–111), at least 1 (design/04).
     fn weapon_ticks(self: @Member) -> u8 {
-        let (low, _) = limbs(*self.words.stats);
+        let (low, _) = PackingTrait::limbs(*self.words.stats);
         let k: u8 = field(low, P104, P8).try_into().unwrap();
         if k == 0 {
             1
@@ -636,7 +636,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// Its two quick-cast pairs (`MemberBar` 208–219, 220–231: the attribute's build-local
     /// index 4 bits, N 8 bits; design/19 §5.12, D-157 A), `(attribute, N)` each.
     fn quick_casts(self: @Member) -> [(u8, u8); 2] {
-        let (_, high) = limbs(*self.words.bar);
+        let (_, high) = PackingTrait::limbs(*self.words.bar);
         let first = field(high, P80, 0x1000);
         let second = field(high, P92, 0x1000);
         let (n0, a0) = DivRem::div_rem(first, 0x10);
@@ -651,7 +651,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// 0–3, 242 + 2 (slot − 4) for 4–7; CBT-05f, D-157 A): pair `p` at bit `p`, the `matches`
     /// of `QuickCastTrait::count`.
     fn quick_cast_matches(self: @Member, slot: u8) -> u8 {
-        let (_, high) = limbs(*self.words.stats);
+        let (_, high) = PackingTrait::limbs(*self.words.stats);
         field(high, *QUICK_LANES.span()[slot.into()], 4).try_into().unwrap()
     }
 
@@ -659,7 +659,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// (`MemberStats` 40 + slot; CBT-05f, design/19 §3.4's skill kinds): used without its weapon,
     /// it is refused.
     fn weapon_required(self: @Member, slot: u8) -> bool {
-        let (low, _) = limbs(*self.words.stats);
+        let (low, _) = PackingTrait::limbs(*self.words.stats);
         field(low, *WEAPON_LANES.span()[slot.into()], 2) != 0
     }
 
@@ -667,7 +667,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// 120–127 (the snapshot's `5 × rank` capped, `HitTrait::weapon_strength`), damage type
     /// 160–167, requirement met 176–183.
     fn weapon(self: @Member) -> (u8, u8, u8, u8, u8, bool) {
-        let (low, high) = limbs(*self.words.stats);
+        let (low, high) = PackingTrait::limbs(*self.words.stats);
         let (mut rest, _) = DivRem::div_rem(low, N88);
         let class = peel(ref rest, N8);
         let damage = peel(ref rest, N8);
@@ -688,7 +688,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
 
     /// The rank of bar slot 0–7's skill (`MemberStats` 128 + 4 slot, 0–15).
     fn rank(self: @Member, slot: u8) -> u8 {
-        let (_, high) = limbs(*self.words.stats);
+        let (_, high) = PackingTrait::limbs(*self.words.stats);
         field(high, *RANK_LANES.span()[slot.into()], 0x10).try_into().unwrap()
     }
 
@@ -696,7 +696,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// and `ABOVE_HALF`, and its `PENETRATION` sum of the class (`MemberBar` 136 + 8 (3 g + s),
     /// 184 + 8 s; design/19 §7.2).
     fn passives(self: @Member, s: u8) -> (i16, i16, u16) {
-        let (_, high) = limbs(*self.words.bar);
+        let (_, high) = PackingTrait::limbs(*self.words.bar);
         let shift = *PASSIVE_LANES.span()[s.into()];
         let always = SignedTrait::from8(field(high, shift, P8));
         let above = SignedTrait::from8(field(high, shift * P24, P8));
@@ -707,8 +707,8 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// Its unguarded armor (`MemberBar` 232–247, signed) and its guarded sums in a stance and
     /// enchanted (`MemberKit` 184–191, 192–199, signed; F-20).
     fn armor(self: @Member) -> (i16, i8, i8) {
-        let (_, bar) = limbs(*self.words.bar);
-        let (_, kit) = limbs(*self.words.kit);
+        let (_, bar) = PackingTrait::limbs(*self.words.bar);
+        let (_, kit) = PackingTrait::limbs(*self.words.kit);
         (
             SignedTrait::from16(field(bar, P104, P16)),
             SignedTrait::from8(field(kit, P56, P8)),
@@ -723,7 +723,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
         if damage_type == 0 || damage_type > damage::LAST {
             return 0;
         }
-        let (low, high) = limbs(*self.words.stats);
+        let (low, high) = PackingTrait::limbs(*self.words.stats);
         let vs = if damage_type <= 2 {
             field(low, *[P48, P54].span()[(damage_type - 1).into()], 0x40)
         } else {
@@ -734,7 +734,7 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
 
     /// `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT` (`MemberKit` 128–135, 136–143).
     fn on_hit(self: @Member) -> (u8, u8) {
-        let (_, high) = limbs(*self.words.kit);
+        let (_, high) = PackingTrait::limbs(*self.words.kit);
         let mut rest = high;
         let steal = peel(ref rest, N8);
         let energy = peel(ref rest, N8);
@@ -743,13 +743,13 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
 
     /// `ENCHANT_DURATION`'s percent (`MemberKit` 154–159).
     fn enchant_percent(self: @Member) -> u8 {
-        let (_, high) = limbs(*self.words.kit);
+        let (_, high) = PackingTrait::limbs(*self.words.kit);
         field(high, P26, 0x40).try_into().unwrap()
     }
 
     /// It holds `HALVE_FIRST_HEAVY_HIT` (`MemberKit` 202) and has not spent it (`flag::HALVED`).
     fn halves(self: @Member) -> bool {
-        let (_, high) = limbs(*self.words.kit);
+        let (_, high) = PackingTrait::limbs(*self.words.kit);
         field(high, P74, 2) == 1 && *self.flags & flag::HALVED == 0
     }
 }
@@ -1033,7 +1033,7 @@ pub impl MemberConditionImpl of MemberConditionTrait {
         } else {
             assert(condition == condition::CRIPPLED, tick_errors::KNOCK);
             // `MemberWordsTrait::crippled`, read here: bits 160–191 of `MemberTimers`.
-            let (_, high) = limbs(self.words.timers);
+            let (_, high) = PackingTrait::limbs(self.words.timers);
             let old: u32 = field(high, P32, P32).try_into().unwrap();
             let new = TickMathTrait::refreshed(old, t0, d);
             self.words.timers += TickMathTrait::delta(old.into(), new.into(), F160);

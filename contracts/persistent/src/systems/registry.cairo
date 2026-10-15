@@ -89,6 +89,7 @@ pub mod Registry {
         ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE,
         PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK, is_sequential, parts,
     };
+    use grimworld_logic::helpers::packing::{Counter, LIVE_HIGH};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
     use grimworld_logic::models::caste::{
@@ -105,7 +106,6 @@ pub mod Registry {
     use grimworld_logic::models::set_piece::{SetPieceAssert, SetPieceRecord};
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
-    use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address};
@@ -260,7 +260,7 @@ pub mod Registry {
 
         /// A known kind, exactly `parts(kind)` felts, a non-zero id, and part 0 with `LIVE` and
         /// nothing above it. `u256` only to split part 0 into its limbs, the cheapest split on
-        /// Cairo 2.19 (as `packing::split`).
+        /// Cairo 2.19 (as `PackingTrait::split`).
         #[inline(always)]
         fn assert_record(kind: u8, id: u32, record: Span<felt252>) {
             let count = parts(kind);

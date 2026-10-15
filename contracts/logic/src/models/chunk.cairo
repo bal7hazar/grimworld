@@ -11,9 +11,9 @@
 //! on the row's parity; index 9 is the pack's own tile. `PackPlacementTrait::member` turns an index
 //! into a tile of the chunk.
 
-use crate::packing::{
-    LIVE, P16, P24, P32, P36, P64, P8, P96, TWO_POW_128, byte_at, field, fits, join, low_field,
-    split, u16_at,
+use crate::helpers::packing::{
+    LIVE, P16, P24, P32, P36, P64, P8, P96, PackingAssert, PackingTrait, TWO_POW_128, byte_at,
+    field, low_field, u16_at,
 };
 pub use super::index::{Features, Object, PackPlacement, Terrain};
 
@@ -72,11 +72,11 @@ pub impl TerrainStorePacking of starknet::storage_access::StorePacking<Terrain, 
     fn pack(value: Terrain) -> felt252 {
         let walls: u256 = value.walls.into();
         assert(walls.high < P97, errors::WALLS);
-        fits(value.edges.into(), 0x10, errors::EDGES);
+        PackingAssert::assert_fits(value.edges.into(), 0x10, errors::EDGES);
         value.walls + value.edges.into() * P225 + LIVE
     }
     fn unpack(value: felt252) -> Terrain {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let (edges, walls_high) = DivRem::div_rem(high, P97.try_into().unwrap());
         Terrain {
             walls: low.into() + walls_high.into() * TWO_POW_128,
@@ -90,9 +90,9 @@ pub impl TerrainStorePacking of starknet::storage_access::StorePacking<Terrain, 
 pub impl PackPlacementImpl of PackPlacementTrait {
     #[inline(never)]
     fn bits(self: @PackPlacement) -> u128 {
-        fits((*self.count).into(), 0x10, errors::COUNT);
-        fits((*self.offsets).into(), 0x2000000, errors::OFFSETS);
-        fits((*self.alert).into(), 0x8, errors::ALERT);
+        PackingAssert::assert_fits((*self.count).into(), 0x10, errors::COUNT);
+        PackingAssert::assert_fits((*self.offsets).into(), 0x2000000, errors::OFFSETS);
+        PackingAssert::assert_fits((*self.alert).into(), 0x8, errors::ALERT);
         (*self.alert).into() * P61
             + (*self.tile).into()
             + (*self.template).into() * P8
@@ -152,8 +152,8 @@ pub impl PackPlacementImpl of PackPlacementTrait {
 pub impl ObjectImpl of ObjectTrait {
     #[inline(never)]
     fn bits(self: @Object) -> u128 {
-        fits((*self.kind).into(), 0x10, errors::KIND);
-        fits((*self.state).into(), 0x10, errors::STATE);
+        PackingAssert::assert_fits((*self.kind).into(), 0x10, errors::KIND);
+        PackingAssert::assert_fits((*self.state).into(), 0x10, errors::STATE);
         (*self.tile).into()
             + (*self.kind).into() * P8
             + (*self.state).into() * 0x1000
@@ -183,13 +183,13 @@ pub impl FeaturesStorePacking of starknet::storage_access::StorePacking<Features
     fn pack(value: Features) -> felt252 {
         let [p0, p1] = value.packs;
         let [o0, o1, o2] = value.objects;
-        join(
+        PackingTrait::join(
             p0.bits() + p1.bits() * P64,
             o0.bits() + o1.bits() * P32 + o2.bits() * P64 + value.touched.into() * P96,
         )
     }
     fn unpack(value: felt252) -> Features {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let s32: NonZero<u128> = P32.try_into().unwrap();
         let (p1, p0) = DivRem::div_rem(low, P64.try_into().unwrap());
         let (rest, o0) = DivRem::div_rem(high, s32);
@@ -209,7 +209,7 @@ pub impl FeaturesStorePacking of starknet::storage_access::StorePacking<Features
 mod tests {
     use hexx::board::bits::Bits;
     use starknet::storage_access::StorePacking;
-    use crate::packing::LIVE;
+    use crate::helpers::packing::LIVE;
     use crate::types::window::WindowTrait;
     use super::{
         CENTRE, Features, FeaturesStorePacking, FeaturesTrait, NEAR, Object, PackPlacement,
