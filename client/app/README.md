@@ -346,7 +346,7 @@ carries SEED-02's build: the four bar skills and the belt of the healing potion 
 
 ### Sepolia, under the development server only (CLI-11e1, D-301)
 
-OPS-02's deployment (`deployments/sepolia/2026-10-14-e588763.json`, #505) is known to the client,
+OPS-02's deployment (`deployments/sepolia/2026-10-15-c25a426.json`, #519) is known to the client,
 checked on the chain, and selectable **under the development server only**. Nothing is sent: the
 mode reads, then stops before any funding. The public site does not play on Sepolia (a later lot
 decides that).
