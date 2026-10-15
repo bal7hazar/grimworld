@@ -278,6 +278,7 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
         v12: 20,
         target: grimworld_logic::types::effect::target::SELF,
         shape: grimworld_logic::types::effect::shape::SINGLE,
+        filter: grimworld_logic::types::effect::filter::ALLIES,
         ..Default::default(),
     };
     let potion = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, heal, 3, 20).pack();

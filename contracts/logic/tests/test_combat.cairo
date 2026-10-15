@@ -41,8 +41,16 @@ impl FixtureImpl of Fixture {
         Entry { param: condition, v0, v12, ..Self::on_foe(kind::CONDITION) }
     }
 
+    /// Under `ALLIES`: the caster is its own ally, and under `FOES` a `SELF` entry takes nobody
+    /// (R-45).
     fn on_self(kind: u8) -> Entry {
-        Entry { kind, target: target::SELF, shape: shape::SINGLE, ..Default::default() }
+        Entry {
+            kind,
+            target: target::SELF,
+            shape: shape::SINGLE,
+            filter: filter::ALLIES,
+            ..Default::default(),
+        }
     }
 
     fn skill(kind: u8, entries: [Entry; 3]) -> Skill {
@@ -592,8 +600,8 @@ fn test_legal_carriers() {
 
 #[test]
 #[should_panic(expected: 'carrier: gap')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 240408)] // ceil(1.05 × 228960 measured)
+// gas: raised, CARRIER-02: assert_carrier's R-45 check
+#[available_gas(l2_gas: 253596)] // ceil(1.05 × 241520 measured)
 fn test_carrier_gap_refused() {
     let [a, b, _] = Fixture::cinder_ring().entries;
     Fixture::skill(skill_kind::SPELL, [a, Default::default(), b]).assert_legal();
@@ -698,8 +706,8 @@ fn test_carrier_trap_payload_on_self_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: disc 1 not a potion')]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 104276)] // ceil(1.05 × 99310 measured)
+// gas: raised, CARRIER-02: assert_carrier's R-45 check
+#[available_gas(l2_gas: 110681)] // ceil(1.05 × 105410 measured)
 fn test_carrier_disc_1_in_a_skill_refused() {
     let hit = Entry { shape: shape::DISC_1, ..Fixture::damage(damage::FIRE, 1, 2) };
     Fixture::skill(skill_kind::SPELL, [hit, Default::default(), Default::default()]).assert_legal();

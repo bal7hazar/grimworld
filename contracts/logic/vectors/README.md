@@ -231,7 +231,7 @@ Per `fn`: `content` 1, `combat` 12, `ticks` 4, `fits` 9, `defeated` 3, `trap` 5,
 
 **`fits` against the goblins before the segment is equivalent** (track CV's candidate 17, RV-03a2). `fits` compares
 each goblin's words with those after the previous action (`before`, `types/play.cairo` 533–537, its first value the
-world before the owed ticks, 168); the mutant keeps the segment's start instead. The two differ only for a goblin whose
+world before the owed ticks, 169); the mutant keeps the segment's start instead. The two differ only for a goblin whose
 words after an action equal the segment's start while differing from the previous action's: a goblin left unrecorded
 by an Engaged-only change (542–545: E-1's exception) whose AI state goes back to its start value at a later action,
 nothing else changed. No AI state leaves `ENGAGED` but for `DEAD`: perception engages a goblin at or below `ALERTED`

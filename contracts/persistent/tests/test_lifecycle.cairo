@@ -634,6 +634,7 @@ fn test_enter_after_set_build() {
                 v12: 20,
                 target: grimworld_logic::types::effect::target::SELF,
                 shape: grimworld_logic::types::effect::shape::SINGLE,
+                filter: grimworld_logic::types::effect::filter::ALLIES,
                 ..Default::default(),
             }
         } else {
@@ -1115,6 +1116,7 @@ fn test_reenter_after_a_defeat() {
         v12: 20,
         target: grimworld_logic::types::effect::target::SELF,
         shape: grimworld_logic::types::effect::shape::SINGLE,
+        filter: grimworld_logic::types::effect::filter::ALLIES,
         ..Default::default(),
     };
     // The registry takes ids in order: items 1–7 ingredients, 8 the potion.

@@ -104,6 +104,7 @@ fn item(class: u8) -> Span<felt252> {
             v12: 20,
             target: grimworld_logic::types::effect::target::SELF,
             shape: grimworld_logic::types::effect::shape::SINGLE,
+            filter: grimworld_logic::types::effect::filter::ALLIES,
             ..Default::default(),
         }
     } else {

@@ -1148,6 +1148,67 @@ fn test_set_record_mixed_targets() {
     assert_accepted(try_write(r, SKILL, spell_of([trap, hit(target::FOE), inflict(target::FOE)])));
 }
 
+// CARRIER-02 (R-45, D-289): an entry that can take nobody is refused. The set of a `SELF` entry is
+// its shape on the caster, and the caster is never its own foe, so `SELF` with `SINGLE` and `FOES`
+// holds the caster alone and takes none (`ExecutorLibrary::actors`, `takes` is `foe` under `FOES`).
+// Any entry, any carrier, wherever it stands in it.
+#[test]
+#[available_gas(l2_gas: 5125353)] // ceil(1.05 × 4881288 measured)
+fn test_set_record_self_single_foes_refused() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let inflict = |
+        t: u8, s: u8, f: u8,
+    | EntryTrait::new(kind::CONDITION, condition::BURNING, 3, 3, 0, 0, 0, t, s, f, 0, 0);
+    let nobody = inflict(target::SELF, shape::SINGLE, filter::FOES);
+    let heal = EntryTrait::new(
+        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+    );
+    // A skill's first, second and third entry.
+    assert_refused(try_write(r, SKILL, spell_of([nobody, none, none])), entry_errors::TAKES_NOBODY);
+    assert_refused(try_write(r, SKILL, spell_of([heal, nobody, none])), entry_errors::TAKES_NOBODY);
+    assert_refused(try_write(r, SKILL, spell_of([heal, heal, nobody])), entry_errors::TAKES_NOBODY);
+    // A potion's entry (the seed's bug: a healing potion built `SELF`, `FOES`).
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    let drink = EntryTrait::new(
+        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    assert_refused(try_write(r, ITEM, potion(drink)), entry_errors::TAKES_NOBODY);
+}
+
+// CARRIER-02 (D-289): `SELF` with an area shape and `FOES` is a legitimate strike around the caster
+// (the ring takes the foes beside it), and a potion's `DISC_1` too: both stay legal.
+#[test]
+#[available_gas(l2_gas: 5362917)] // ceil(1.05 × 5107540 measured)
+fn test_set_record_self_area_foes_kept() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let around = |
+        s: u8,
+    | EntryTrait::new(
+        kind::DAMAGE, damage::FIRE, 30, 30, 0, 0, 0, target::SELF, s, filter::FOES, 0, 0,
+    );
+    assert_accepted(try_write(r, SKILL, spell_of([around(shape::RING_1), none, none])));
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    assert_accepted(try_write(r, ITEM, potion(around(shape::DISC_1))));
+}
+
+// CARRIER-02 (D-289): `SELF`, `SINGLE` and `ALLIES` takes the caster (its own ally): legal, as is
+// `SELF` with an area and `ALLIES`.
+#[test]
+#[available_gas(l2_gas: 7449068)] // ceil(1.05 × 7094350 measured)
+fn test_set_record_self_single_allies_kept() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let heal = |
+        s: u8,
+    | EntryTrait::new(kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, s, filter::ALLIES, 0, 0);
+    assert_accepted(try_write(r, SKILL, spell_of([heal(shape::SINGLE), none, none])));
+    assert_accepted(try_write(r, SKILL, spell_of([heal(shape::RING_1), none, none])));
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    assert_accepted(try_write(r, ITEM, potion(heal(shape::SINGLE))));
+}
+
 // DS-20 (§6 test 7): a second `ATTACK_BONUS` on one carrier is refused; a potion's entry is a
 // legal, unscaled carrier (design/19 §5.14).
 #[test]
@@ -1166,7 +1227,7 @@ fn test_set_record_carriers() {
         entry_errors::TWO_ATTACK_BONUSES,
     );
     let heal = EntryTrait::new(
-        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, 0, 0, 0,
+        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
     );
     let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
     assert_accepted(try_write(r, ITEM, potion(heal)));

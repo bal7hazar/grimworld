@@ -876,9 +876,27 @@ fn test_refuse_carrier_mixed_targets() {
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_self_before_tile() {
     let r = ZoneFixture::bare();
+    // R-45: a `SELF` entry takes its caster, so under `ALLIES`.
     let on = |
         k: u8, param: u8, t: u8,
-    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    | EntryTrait::new(
+        k,
+        param,
+        3,
+        3,
+        0,
+        0,
+        0,
+        t,
+        shape::SINGLE,
+        if t == target::SELF {
+            filter::ALLIES
+        } else {
+            filter::FOES
+        },
+        0,
+        0,
+    );
     let entries = [
         on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::TILE),
         Default::default(),
@@ -895,9 +913,27 @@ fn test_refuse_carrier_self_before_tile() {
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_self_before_foe() {
     let r = ZoneFixture::bare();
+    // R-45: a `SELF` entry takes its caster, so under `ALLIES`.
     let on = |
         k: u8, param: u8, t: u8,
-    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    | EntryTrait::new(
+        k,
+        param,
+        3,
+        3,
+        0,
+        0,
+        0,
+        t,
+        shape::SINGLE,
+        if t == target::SELF {
+            filter::ALLIES
+        } else {
+            filter::FOES
+        },
+        0,
+        0,
+    );
     let entries = [
         on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::FOE),
         Default::default(),
@@ -914,9 +950,27 @@ fn test_refuse_carrier_self_before_foe() {
 #[should_panic(expected: 'carrier: mixed targets')]
 fn test_refuse_carrier_self_before_ally() {
     let r = ZoneFixture::bare();
+    // R-45: a `SELF` entry takes its caster, so under `ALLIES`.
     let on = |
         k: u8, param: u8, t: u8,
-    | EntryTrait::new(k, param, 3, 3, 0, 0, 0, t, shape::SINGLE, filter::FOES, 0, 0);
+    | EntryTrait::new(
+        k,
+        param,
+        3,
+        3,
+        0,
+        0,
+        0,
+        t,
+        shape::SINGLE,
+        if t == target::SELF {
+            filter::ALLIES
+        } else {
+            filter::FOES
+        },
+        0,
+        0,
+    );
     let entries = [
         on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::ALLY),
         Default::default(),
@@ -925,6 +979,23 @@ fn test_refuse_carrier_self_before_ally() {
         1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
     );
     r.refuse(SKILL, 1, mixed.pack());
+}
+
+// R-45 (D-289): a `SELF`, `SINGLE`, `FOES` entry, new, is refused at registration: its set is the
+// caster alone and the caster is never its own foe, so it takes nobody.
+#[test]
+#[available_gas(l2_gas: 7883228)] // ceil(1.05 × 7507836 measured)
+#[should_panic(expected: 'carrier: takes nobody')]
+fn test_refuse_carrier_self_single_foes() {
+    let r = ZoneFixture::bare();
+    let nobody = EntryTrait::new(
+        kind::HEAL, 0, 3, 3, 0, 0, 0, target::SELF, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    let entries = [nobody, Default::default(), Default::default()];
+    let skill = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
+    );
+    r.refuse(SKILL, 1, skill.pack());
 }
 
 // R-28, a dungeon floor's bound (ENG-R1c's bound 4, built by ENG-09, applied by ENG-R1c-1 in

@@ -178,6 +178,16 @@
    "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
   },
   {
+   "case": "carrier_self_single_foes",
+   "id": "R-45",
+   "code": "carrier: takes nobody",
+   "checked_at": "SKILL",
+   "reads": "—",
+   "rule": "A carrier's non-TRAP entry is not SELF with SINGLE and FOES: its set is the caster alone and the caster is never its own foe, so it takes nobody (D-289, CARRIER-02; the SEED-02 review found the healing potions built so); SELF with SINGLE and ALLIES, and SELF with an area shape and FOES (a strike around the caster), stay legal",
+   "mutation": "a potion whose entry is a HEAL on SELF, SINGLE, filter FOES",
+   "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
+  },
+  {
    "case": "pack_fewest_zero",
    "id": "R-42",
    "code": "pack: fewest is 0",
