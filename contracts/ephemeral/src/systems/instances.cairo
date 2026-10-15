@@ -4,8 +4,8 @@
 //! (ENG-06, ENG-07, CBT-*) writes it. docs/architecture/ENG-01-interfaces.md.
 
 use core::num::traits::Zero;
-use grimworld_logic::content::exists;
 use grimworld_logic::models::location::{Location, LocationTrait};
+use grimworld_logic::types::content::exists;
 use grimworld_logic::types::{ChunkKind, InstanceId, MAX_TASKS};
 use starknet::{ClassHash, ContractAddress};
 use crate::models::instance::errors as instance_errors;
@@ -253,8 +253,7 @@ pub trait IInstancesAdmin<T> {
 
 #[starknet::contract]
 pub mod Instances {
-    use grimworld_logic::content::{GATE, LOCATION, OUTLINE, exists};
-    use grimworld_logic::fate::{ENTRY, derive, domain};
+    use grimworld_logic::helpers::fate::{ENTRY, FateTrait};
     use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::interface::{
         IFateDispatcher, IFateDispatcherTrait, IHostsLibraryDispatcherTrait,
@@ -269,6 +268,7 @@ pub mod Instances {
     use grimworld_logic::models::set_piece::SetPieceRecord;
     use grimworld_logic::models::spawn_table::SpawnTableRecord;
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
+    use grimworld_logic::types::content::{GATE, LOCATION, OUTLINE, exists};
     use grimworld_logic::types::reveal::SightTrait;
     use grimworld_logic::types::reveal::board::BoardTrait;
     use grimworld_logic::types::{
@@ -870,14 +870,14 @@ pub mod Instances {
             let generation = previous + 1;
             let id = instance_id(slot, generation);
             let destination = *record.destination;
-            let draw = domain(id.into(), 0, ENTRY);
+            let draw = FateTrait::domain(id.into(), 0, ENTRY);
             let word = IFateDispatcher { contract_address: self.get_fate() }.fate(draw);
             // [Compute] The entry reveal, behind `HostsLibrary` (CBT-05g, D-240): the site, a
             // zone's quota hosts (D-208) or a dungeon floor's outline and hosts (ENG-10b), each
             // drawn once, then the reveal's call; the floor's outline comes back to be stored once
             let (x, y) = record.entry();
             let chunks = SightTrait::chunks(x, y, *location.width, *location.height);
-            let entropy = derive(word, draw, 0);
+            let entropy = FateTrait::derive(word, draw, 0);
             let (progress, revealed, hosts, drawn) = IHostsLibraryLibraryDispatcher {
                 class_hash: self.get_hosts_library(),
             }

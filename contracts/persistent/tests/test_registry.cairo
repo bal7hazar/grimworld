@@ -4,11 +4,6 @@
 // (sequential: `last_id + 1`; composite: the parent exists); every changed record raises the
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
-use grimworld_logic::content::{
-    ARMOR_SET, BOOK, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE,
-    PACK, QUEST, QUOTAS, REGION, Record, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, ZONE_CHUNK,
-    is_sequential, parts,
-};
 use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
@@ -39,6 +34,11 @@ use grimworld_logic::models::spawn_table::{
     Spawn, SpawnTableRecord, SpawnTableTrait, errors as spawn_errors,
 };
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
+use grimworld_logic::types::content::{
+    ARMOR_SET, BOOK, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KindTrait, LAST_KIND, LOCATION,
+    MODIFIER, OUTLINE, PACK, QUEST, QUOTAS, REGION, Record, SET_PIECE, SHOP, SKILL, SPAWN_TABLE,
+    TASK, ZONE_CHUNK,
+};
 use grimworld_logic::types::effect::{
     Entry, EntryTrait, errors as entry_errors, filter, guard, kind, shape, target,
 };
@@ -735,7 +735,7 @@ fn plain_of(kind: u8, value: felt252) -> Span<felt252> {
         );
     }
     let mut out = array![LIVE + value];
-    for _ in 1..parts(kind) {
+    for _ in 1..KindTrait::parts(kind) {
         out.append(value);
     }
     out.span()
@@ -771,7 +771,7 @@ fn piece_of(template: u16, pack: u8, object: u8) -> Span<felt252> {
 /// one under location 1 (`QUOTAS` its own id, `OUTLINE` its chunk set, `SHOP` its service 1) or
 /// a quiver id (`TASK`, `QUEST`).
 fn next_id(r: Registry, kind: u8) -> u32 {
-    if is_sequential(kind) {
+    if KindTrait::is_sequential(kind) {
         r.admin.last_id(kind) + 1
     } else if kind == QUOTAS {
         1

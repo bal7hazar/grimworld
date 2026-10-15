@@ -2,8 +2,8 @@
 //! equipment base: the slot it is worn in and, for a weapon, its hands (design/15). The creator of
 //! an item copies both into `ItemBase` (`ItemBaseTrait::new`, D-158).
 
-use crate::content::{BASE, Record};
 use crate::helpers::packing::{LIVE, LimbTrait, P8, PackingTrait};
+use crate::types::content::{BASE, Record};
 pub use super::index::Base;
 
 /// Equipment slots, in the order of `equipped`'s lanes, from 1 (ENG-01 §3.3).

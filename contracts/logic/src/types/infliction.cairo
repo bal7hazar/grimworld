@@ -4,7 +4,7 @@
 //! them in its words, `MemberWordsTrait::infliction`). A goblin and a terrain trap hold none
 //! (design/19 §7.3: a caste has no passive), `Default`. Not stored on its own: a value type.
 
-use crate::durations::effective_duration;
+use crate::helpers::duration::DurationTrait;
 use crate::types::combat::condition;
 use crate::types::effect::MAX_VALUE_DURATION;
 
@@ -45,7 +45,7 @@ pub impl InflictionImpl of InflictionTrait {
         } else {
             0
         };
-        effective_duration(base, percent, flat)
+        DurationTrait::effective_duration(base, percent, flat)
     }
 }
 

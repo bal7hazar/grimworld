@@ -3,7 +3,6 @@
 // word packs and unpacks losslessly at its bounds, sits at its documented bits, fits its part
 // count and refuses a value too wide; the content pipeline's checks (reads, bounds, the legal
 // carriers of §5.14) accept the design's own skills and refuse each illegal combination.
-use grimworld_logic::content::{ARMOR_SET, CASTE, ITEM, MODIFIER, Record, SKILL, parts};
 use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::helpers::signed::SignedTrait;
 use grimworld_logic::models::armor_set::{ArmorSet, ArmorSetAssert, ArmorSetRecord, ArmorSetTrait};
@@ -16,6 +15,7 @@ use grimworld_logic::models::skill::{Skill, SkillAssert, SkillRecord, SkillTrait
 use grimworld_logic::types::combat::{
     HitClass, Placer, PlacerTrait, condition, damage, skill_kind, weapon,
 };
+use grimworld_logic::types::content::{ARMOR_SET, CASTE, ITEM, KindTrait, MODIFIER, Record, SKILL};
 use grimworld_logic::types::effect::{
     ENTRY_BOUND, Entry, EntryAssert, EntryTrait, KindClass, filter, guard, kind, scope, shape,
     target,
@@ -529,7 +529,7 @@ fn test_skill_round_trip() {
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 43688, 43688, 0xFF, 3, true, [top, top, top],
     );
     let packed = skill.pack();
-    assert(packed.len() == parts(SKILL).into(), 'parts');
+    assert(packed.len() == KindTrait::parts(SKILL).into(), 'parts');
     assert(Record::<Skill>::unpack(packed) == skill, 'top round trip');
     let zero = SkillTrait::new(0, 0, 0, 0, 0, 0, 0, 0, 0, false, [Default::default(); 3]);
     assert(zero.pack() == array![LIVE, LIVE].span(), 'empty is LIVE');
@@ -738,7 +738,7 @@ fn test_item_round_trip() {
         0xFF, 0xFFFF, 0xFF, 0xFFFFFFFF, 0xFF, Fixture::entry_max(), 0xFF, 0xFF,
     );
     let packed = top.pack();
-    assert(packed.len() == parts(ITEM).into(), 'parts');
+    assert(packed.len() == KindTrait::parts(ITEM).into(), 'parts');
     assert(Record::<Item>::unpack(packed) == top, 'top round trip');
     let e: Entry = Default::default();
     let zero = ItemTrait::new(0, 0, 0, 0, 0, e, 0, 0);
@@ -788,7 +788,7 @@ fn test_item_entry_not_a_potion_refused() {
 fn test_modifier_round_trip() {
     let top = ModifierTrait::new(0xFF, Fixture::passive_max(), Fixture::passive_max());
     let packed = top.pack();
-    assert(packed.len() == parts(MODIFIER).into(), 'parts');
+    assert(packed.len() == KindTrait::parts(MODIFIER).into(), 'parts');
     assert(Record::<Modifier>::unpack(packed) == top, 'top round trip');
     let p: Passive = Default::default();
     let bits = ModifierTrait::new(1, Passive { id: 1, ..p }, Passive { id: 1, ..p }).pack();
@@ -828,7 +828,7 @@ fn test_armor_set_round_trip() {
         [0xFFFF, 2, 3, 4, 0xFFFF], [Fixture::passive_max(), Fixture::passive_max()],
     );
     let packed = top.pack();
-    assert(packed.len() == parts(ARMOR_SET).into(), 'parts');
+    assert(packed.len() == KindTrait::parts(ARMOR_SET).into(), 'parts');
     assert(Record::<ArmorSet>::unpack(packed) == top, 'top round trip');
     let p: Passive = Default::default();
     let bits = ArmorSetTrait::new([0, 0, 0, 0, 1], [p, Passive { id: 1, ..p }]).pack();
@@ -851,7 +851,7 @@ fn test_armor_set_round_trip() {
 fn test_caste_round_trip() {
     let top = Fixture::caste_max();
     let packed = top.pack();
-    assert(packed.len() == parts(CASTE).into(), 'parts');
+    assert(packed.len() == KindTrait::parts(CASTE).into(), 'parts');
     assert(Record::<Caste>::unpack(packed) == top, 'top round trip');
     let zero = CasteTrait::new(
         0, 0, 0, 0, 0, [0; 9], Default::default(), 0, 0, [0; 4], 0, 0, 0, false,

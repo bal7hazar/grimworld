@@ -2,8 +2,8 @@
 //! goods: ingredients, materials, potions, trophies, stones, quest items, failed brews. A potion
 //! carries one effect entry (design/19 §5.14), a bomb its range and strength (FX-18, FX-28).
 
-use crate::content::{ITEM, Record};
 use crate::helpers::packing::{LimbTrait, P16, P24, P32, P64, P8, PackingTrait};
+use crate::types::content::{ITEM, Record};
 use crate::types::effect::{Carrier, ENTRY_BOUND, EntryAssert, EntryTrait};
 pub use super::index::Item;
 

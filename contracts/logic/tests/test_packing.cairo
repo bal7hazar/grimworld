@@ -1,7 +1,7 @@
 // The identifiers of `types` and the parts of each `content` kind. Packing's own tests are in
 // `helpers/packing.cairo` (D-167); this one moves with `types` and `content` (ENG-R1c-2, PRs 3 and
 // 4).
-use grimworld_logic::content::{LAST_KIND, parts};
+use grimworld_logic::types::content::{KindTrait, LAST_KIND};
 use grimworld_logic::types::{goblin_entity, instance_id, instance_parts};
 
 #[test]
@@ -14,7 +14,10 @@ fn test_identifiers() {
     assert(goblin_entity(0, 0) == 8, 'first goblin');
     assert(goblin_entity(224, 9) == 8 + 16 * 224 + 9, 'last goblin');
     assert(
-        parts(2) == 2 && parts(15) == 3 && parts(25) == 1 && parts(LAST_KIND) == 3,
+        KindTrait::parts(2) == 2
+            && KindTrait::parts(15) == 3
+            && KindTrait::parts(25) == 1
+            && KindTrait::parts(LAST_KIND) == 3,
         'parts per kind',
     );
 }

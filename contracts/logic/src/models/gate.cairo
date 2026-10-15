@@ -1,7 +1,7 @@
 //! `GATE`: its constructor, its checks and its record (layout: `models::index::Gate`).
 
-use crate::content::{GATE, Record};
 use crate::helpers::packing::{P16, P32, P40, P48, P56, P64, P72, P8, P80, PackingTrait};
+use crate::types::content::{GATE, Record};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::Gate;
 use super::location::{LocationAssert, LocationTrait};

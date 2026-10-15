@@ -93,3 +93,28 @@ pub impl ProfessionAssert of ProfessionAssertTrait {
         assert(ProfessionTrait::is_playable(id), errors::BAD_PROFESSION);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Profession, ProfessionTrait};
+
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_playable_professions() {
+        assert(!ProfessionTrait::is_playable(0), 'none');
+        assert(
+            ProfessionTrait::is_playable(1)
+                && ProfessionTrait::is_playable(2)
+                && ProfessionTrait::is_playable(3),
+            'the MVP three',
+        );
+        let ids: (u8, u8, u8) = (
+            Profession::Vanguard.into(), Profession::Warden.into(), Profession::Arcanist.into(),
+        );
+        assert(ids == (1, 2, 3), 'design/03 order');
+        assert(
+            !ProfessionTrait::is_playable(4) && !ProfessionTrait::is_playable(255),
+            'not in the MVP',
+        );
+    }
+}

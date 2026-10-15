@@ -6,10 +6,10 @@
 //! each caste first takes its `min`, then the goblins left go to the castes in order, each up to
 //! its `max`.
 
-use crate::content::{PACK, Record};
 use crate::helpers::packing::{LimbTrait, P16, P24, P32, P64, P8, P96, PackingTrait};
 use crate::helpers::signed::SignedTrait;
 use crate::types::MAX_PACK_SIZE;
+use crate::types::content::{PACK, Record};
 pub use super::index::{Pack, PackCaste};
 
 pub mod errors {
@@ -167,8 +167,8 @@ pub impl PackRecord of Record<Pack> {
 
 #[cfg(test)]
 mod tests {
-    use crate::content::Record;
     use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
     use super::{PackAssert, PackCaste, PackRecord, PackTrait};
 
     #[test]

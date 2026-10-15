@@ -3,8 +3,8 @@
 //! without replacement at each reveal (`types::reveal`); an authored zone's (D-214) among the
 //! author's candidates, drawn at entry (D-215 ruling 3, ENG-08). Id = the location's (D-145).
 
-use crate::content::{QUOTAS, Record};
 use crate::helpers::packing::{LimbTrait, P16, P24, P32, P64, P8, P96, PackingTrait};
+use crate::types::content::{QUOTAS, Record};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::{Quota, QuotaSet};
 use super::pack::{Pack, PackTrait};
@@ -203,8 +203,8 @@ pub impl QuotaSetRecord of Record<QuotaSet> {
 
 #[cfg(test)]
 mod tests {
-    use crate::content::Record;
     use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
     use super::{Quota, QuotaSet, QuotaSetAssert, QuotaSetRecord, QuotaSetTrait, kind};
 
     #[test]

@@ -34,10 +34,7 @@
 #[starknet::contract]
 pub mod HostsLibrary {
     use starknet::{ClassHash, ContractAddress};
-    use crate::content::{
-        CANDIDATES, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, ZONE_CHUNK, exists,
-    };
-    use crate::fate::EntropyTrait;
+    use crate::helpers::fate::EntropyTrait;
     use crate::interface::{
         IHostsLibrary, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
         IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher,
@@ -52,6 +49,9 @@ pub mod HostsLibrary {
     use crate::models::spawn_table::{SpawnTable, SpawnTableRecord};
     use crate::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
     use crate::snapshot::TaskEntry;
+    use crate::types::content::{
+        CANDIDATES, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, ZONE_CHUNK, exists,
+    };
     use crate::types::reveal::authored::AuthoredTrait;
     use crate::types::reveal::outline::{Outline, OutlineTrait};
     use crate::types::reveal::placement::PlacementTrait;

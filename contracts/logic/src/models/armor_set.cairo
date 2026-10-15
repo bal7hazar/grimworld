@@ -2,8 +2,8 @@
 //! Five pieces and two bonuses, the first with 3 pieces worn, both with 5 (design/15 D-45); a
 //! bonus is one passive (design/19 §4).
 
-use crate::content::{ARMOR_SET, Record};
 use crate::helpers::packing::{P16, P32, P48, P64, PackingTrait};
+use crate::types::content::{ARMOR_SET, Record};
 use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, Source};
 pub use super::index::ArmorSet;
 

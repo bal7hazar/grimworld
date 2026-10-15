@@ -41,7 +41,7 @@
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use hexx::board::bits::Bits;
 use starknet::ClassHash;
-use crate::durations::effective_duration;
+use crate::helpers::duration::DurationTrait;
 use crate::interface::{
     IAiLibraryDispatcherTrait, IAiLibraryLibraryDispatcher, IExecutorLibraryDispatcherTrait,
     IExecutorLibraryLibraryDispatcher,
@@ -2402,7 +2402,9 @@ pub impl ExecutorImpl of ExecutorTrait {
         let rank = *context.rank;
         let mut d = entry.duration(rank);
         if *context.skill_kind == skill_kind::ENCHANTMENT && d > 0 {
-            let effective = effective_duration(d.try_into().unwrap(), (*context.enchant).into(), 0);
+            let effective = DurationTrait::effective_duration(
+                d.try_into().unwrap(), (*context.enchant).into(), 0,
+            );
             d = effective.try_into().unwrap();
         }
         let block = *entry.kind == kind::BLOCK;

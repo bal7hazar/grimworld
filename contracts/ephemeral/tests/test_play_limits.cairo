@@ -14,7 +14,6 @@ use grimworld_ephemeral::systems::instances::{
     IInstancesDispatcherTrait, play_class,
 };
 use grimworld_logic::actions::Action;
-use grimworld_logic::content::{CASTE, GATE, LOCATION, PACK, REGION};
 use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
@@ -25,6 +24,7 @@ use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as l
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry};
+use grimworld_logic::types::content::{CASTE, GATE, LOCATION, PACK, REGION};
 use grimworld_logic::types::tick::ai;
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, EventSpyTrait, EventsFilterTrait, declare, load,
@@ -149,8 +149,8 @@ fn play_classes(world: World) {
         1, 1, 1, 0, 0, 0, 0, 1, 1, false, [Default::default(); 3],
     );
     let parts = grimworld_logic::models::skill::SkillRecord::pack(@skill);
-    records.set(grimworld_logic::content::SKILL, 11, parts);
-    records.set(grimworld_logic::content::SKILL, 12, parts);
+    records.set(grimworld_logic::types::content::SKILL, 11, parts);
+    records.set(grimworld_logic::types::content::SKILL, 12, parts);
 }
 
 /// `create` as the hub, for adventurer 7 of `alice`, through gate 1: slot 1.

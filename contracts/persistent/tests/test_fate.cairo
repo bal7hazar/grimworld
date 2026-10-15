@@ -3,7 +3,7 @@
 // call it and gets only `poseidon(tx hash, domain)`, whoever calls; the game reads the provider at
 // the address of its configuration.
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::fate::{CHEST, LOOT, PURPOSES, derive, domain};
+use grimworld_logic::helpers::fate::{CHEST, FateTrait, LOOT, PURPOSES};
 use grimworld_logic::interface::{IFateDispatcher, IFateDispatcherTrait};
 use grimworld_persistent::systems::hub::{IHubAdminDispatcher, IHubAdminDispatcherTrait};
 use snforge_std::{
@@ -24,13 +24,13 @@ fn deploy_fate() -> IFateDispatcher {
 #[available_gas(l2_gas: 996144)] // ceil(1.05 × 948708 measured)
 fn test_fate_deterministic_per_transaction_and_domain() {
     let fate = deploy_fate();
-    let loot = domain(0x100000001, 4, LOOT);
+    let loot = FateTrait::domain(0x100000001, 4, LOOT);
     start_cheat_transaction_hash(fate.contract_address, 0x7a);
     let word = fate.fate(loot);
     assert(word == fate.fate(loot), 'same tx, same domain');
     assert(word == poseidon_hash_span(array![0x7a, loot].span()), 'poseidon(hash, domain)');
-    assert(word != fate.fate(domain(0x100000001, 4, CHEST)), 'another purpose');
-    assert(word != fate.fate(domain(0x100000001, 5, LOOT)), 'another sequence');
+    assert(word != fate.fate(FateTrait::domain(0x100000001, 4, CHEST)), 'another purpose');
+    assert(word != fate.fate(FateTrait::domain(0x100000001, 5, LOOT)), 'another sequence');
     start_cheat_transaction_hash(fate.contract_address, 0x7b);
     assert(word != fate.fate(loot), 'another transaction');
 }
@@ -44,10 +44,10 @@ fn test_fate_values_distinct_through_derive() {
     start_cheat_transaction_hash(fate.contract_address, 0x7a);
     let mut values = array![];
     for purpose in PURPOSES.span() {
-        let d = domain(0x100000001, 4, *purpose);
+        let d = FateTrait::domain(0x100000001, 4, *purpose);
         let word = fate.fate(d);
         for index in 0..4_u32 {
-            values.append(derive(word, d, index));
+            values.append(FateTrait::derive(word, d, index));
         }
     }
     let values = values.span();
@@ -69,7 +69,7 @@ fn test_fate_values_distinct_through_derive() {
 fn test_fate_anyone_gets_only_their_domain() {
     let fate = deploy_fate();
     start_cheat_transaction_hash_global(0x7a);
-    let loot = domain(0x100000001, 4, LOOT);
+    let loot = FateTrait::domain(0x100000001, 4, LOOT);
     start_cheat_caller_address(fate.contract_address, 0xbad.try_into().unwrap());
     let theirs = fate.fate(loot);
     stop_cheat_caller_address(fate.contract_address);
@@ -98,7 +98,7 @@ fn test_fate_at_the_configured_address() {
     let configured: ContractAddress = (*load(hub, selector!("fate"), 1).at(0)).try_into().unwrap();
     assert(configured == fate.contract_address, 'configured');
     start_cheat_transaction_hash_global(0x7a);
-    let loot = domain(1, 0, LOOT);
+    let loot = FateTrait::domain(1, 0, LOOT);
     assert(
         IFateDispatcher { contract_address: configured }.fate(loot) == fate.fate(loot),
         'the configured provider',

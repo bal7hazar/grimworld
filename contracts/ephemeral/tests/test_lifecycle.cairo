@@ -25,8 +25,7 @@ use grimworld_ephemeral::systems::instances::{
     IInstancesSafeDispatcherTrait, InstanceView, UNLOADABLE,
 };
 use grimworld_ephemeral::systems::play::{Book, PlayTrait};
-use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
-use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
+use grimworld_logic::helpers::fate::{ENTRY, EntropyTrait, FateTrait};
 use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
@@ -42,6 +41,7 @@ use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as q
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry, TaskPage};
+use grimworld_logic::types::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
 use grimworld_logic::types::reveal::board::BoardTrait;
 use grimworld_logic::types::reveal::outline::OutlineTrait as FloorTrait;
 use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
@@ -65,8 +65,8 @@ pub trait IRecords<T> {
 /// Answers `record` as `Registry` does: `parts(kind)` felts, zeros for a record never written.
 #[starknet::contract]
 mod RegistryDouble {
-    use grimworld_logic::content::parts;
     use grimworld_logic::interface::IRegistryRead;
+    use grimworld_logic::types::content::KindTrait;
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
 
     #[storage]
@@ -89,7 +89,7 @@ mod RegistryDouble {
     impl ReadImpl of IRegistryRead<ContractState> {
         fn record(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
             let mut out = array![];
-            for part in 0..parts(kind) {
+            for part in 0..KindTrait::parts(kind) {
                 out.append(self.records.read((kind, id, part)));
             }
             out.span()
@@ -97,7 +97,7 @@ mod RegistryDouble {
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
             let mut out = array![];
             for id in ids {
-                for part in 0..parts(kind) {
+                for part in 0..KindTrait::parts(kind) {
                     out.append(self.records.read((kind, *id, part)));
                 }
             }
@@ -107,7 +107,7 @@ mod RegistryDouble {
             let mut out = array![];
             for request in requests {
                 let (kind, id) = *request;
-                for part in 0..parts(kind) {
+                for part in 0..KindTrait::parts(kind) {
                     out.append(self.records.read((kind, id, part)));
                 }
             }
@@ -625,10 +625,13 @@ fn test_create_first_entry() {
         gate: INTO_ZONE,
     };
     assert(header == expected, 'header');
-    let draw = domain(id.into(), 0, ENTRY);
+    let draw = FateTrait::domain(id.into(), 0, ENTRY);
     let entropy = read(world.instances, key(selector!("entropy"), array![1]));
     // The entry draw alone: a reveal feeds nothing (audit #348, major 1).
-    assert(entropy == derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0), 'entry draw');
+    assert(
+        entropy == FateTrait::derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0),
+        'entry draw',
+    );
     assert(draws(world) == 1, 'one draw');
     assert(
         read(world.instances, key(selector!("revealed"), array![1])) == LIVE + 1,
@@ -1072,9 +1075,12 @@ fn test_leave_to_a_location() {
         placement_of(world, HERO) == Placement { slot: 1, generation: 2, member: 0, inside: 1 },
         'placement',
     );
-    let draw = domain(next.into(), 0, ENTRY);
+    let draw = FateTrait::domain(next.into(), 0, ENTRY);
     let entropy = read(world.instances, key(selector!("entropy"), array![1]));
-    assert(entropy == derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0), 'entry draw');
+    assert(
+        entropy == FateTrait::derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0),
+        'entry draw',
+    );
     assert(draws(world) == 2, 'one more draw');
     let expected = Reported {
         count: 1,
@@ -1401,8 +1407,8 @@ fn test_entry_reveal_through_the_engine() {
         packs: array![(1, template())].span(),
         pieces: array![].span(),
     };
-    let draw = domain(id.into(), 0, ENTRY);
-    let entropy = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
+    let draw = FateTrait::domain(id.into(), 0, ENTRY);
+    let entropy = FateTrait::derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
     let mut progress = ProgressTrait::new(@site, entropy);
     let (low, high) = QuotaPlacementTrait::plan(@site, progress.left.span());
     let hosts = QuotaPlacementTrait::hosts(
@@ -1555,8 +1561,8 @@ fn test_entry_reveal_of_a_dungeon() {
     records.set(QUOTAS, FLOOR_1.into(), QuotaSetRecord::pack(@floor_quotas()));
     records.set(PACK, 1, PackRecord::pack(@template()));
     let id = create(world, HERO, ALICE, FAR_LINK, 0);
-    let draw = domain(id.into(), 0, ENTRY);
-    let entropy = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
+    let draw = FateTrait::domain(id.into(), 0, ENTRY);
+    let entropy = FateTrait::derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
     // [Check] The stored outline: the pure draw
     let outline = FloorTrait::draw(112, 6, 15, 15, EntropyTrait::outline(entropy, id.into()));
     assert(
@@ -1785,13 +1791,13 @@ fn play_classes(world: World) {
     );
     records
         .set(
-            grimworld_logic::content::SKILL,
+            grimworld_logic::types::content::SKILL,
             11,
             grimworld_logic::models::skill::SkillRecord::pack(@skill),
         );
     records
         .set(
-            grimworld_logic::content::SKILL,
+            grimworld_logic::types::content::SKILL,
             12,
             grimworld_logic::models::skill::SkillRecord::pack(@skill),
         );
@@ -1907,7 +1913,7 @@ fn pack_content(world: World) {
         0,
         false,
     );
-    records.set(grimworld_logic::content::CASTE, 1, CasteRecord::pack(@caste));
+    records.set(grimworld_logic::types::content::CASTE, 1, CasteRecord::pack(@caste));
     let one = PackCaste { caste: 1, min: 1, max: 3 };
     let pack = Pack {
         castes: [
@@ -2839,7 +2845,7 @@ fn snare_content(world: World) {
         );
         records
             .set(
-                grimworld_logic::content::SKILL,
+                grimworld_logic::types::content::SKILL,
                 skill,
                 grimworld_logic::models::skill::SkillRecord::pack(@snare),
             );
@@ -2860,7 +2866,7 @@ fn snare_content(world: World) {
         0,
         false,
     );
-    records.set(grimworld_logic::content::CASTE, 1, CasteRecord::pack(@caste));
+    records.set(grimworld_logic::types::content::CASTE, 1, CasteRecord::pack(@caste));
 }
 
 /// Chunk 16's features: `objects` on its tiles, and `pack` if any.

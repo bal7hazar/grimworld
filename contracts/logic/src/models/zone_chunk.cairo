@@ -6,8 +6,8 @@
 //! (`RegistryAssert::assert_content`), one table with the converter's (`tools/map-format/
 //! checks.json`).
 
-use crate::content::{Record, ZONE_CHUNK};
 use crate::helpers::packing::{LimbTrait, P16, P24, P48, P80, PackingTrait};
+use crate::types::content::{Record, ZONE_CHUNK};
 use crate::types::reveal::board::{BOARD, BoardTrait, INTERIOR};
 use super::chunk::{ObjectTrait, object};
 pub use super::index::{Object, SetPack, ZoneChunk};
@@ -283,10 +283,10 @@ pub impl ZoneChunkRecord of Record<ZoneChunk> {
 
 #[cfg(test)]
 mod tests {
-    use crate::content::Record;
     use crate::helpers::packing::LIVE;
     use crate::models::chunk::object;
     use crate::models::quotas::{Quota, QuotaSet, kind as quota};
+    use crate::types::content::Record;
     use crate::types::reveal::board::BoardTrait;
     use super::{Object, SetPack, ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait};
 

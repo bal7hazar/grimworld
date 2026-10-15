@@ -4,7 +4,6 @@
 //! adventurer's checks. Its hot words as stored, read and changed by arithmetic, are in
 //! `stored_core`, `stored_place` and `stored_build` (ENG-R1a).
 
-use grimworld_logic::content::{ITEM, SKILL};
 use grimworld_logic::helpers::packing::{
     Bitmap, Lanes32, LimbTrait, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96,
     PackingAssert, PackingTrait,
@@ -12,8 +11,9 @@ use grimworld_logic::helpers::packing::{
 use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
 use grimworld_logic::models::skill::SkillTrait;
-use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::Loadout;
+use grimworld_logic::types::content::{ITEM, SKILL};
+use grimworld_logic::types::profession::ProfessionTrait;
 use starknet::ContractAddress;
 use crate::helpers::BitTrait;
 use super::item::{Equipment, Gold, ItemBaseAssert, ItemBaseTrait};

@@ -255,7 +255,7 @@ pub impl OutlineImpl of OutlineTrait {
 mod tests {
     use core::poseidon::poseidon_hash_span;
     use hexx::board::rng::RngTrait;
-    use crate::fate::EntropyTrait;
+    use crate::helpers::fate::EntropyTrait;
     use super::super::board::BoardTrait;
     use super::{Outline, OutlineTrait, TRIES};
 

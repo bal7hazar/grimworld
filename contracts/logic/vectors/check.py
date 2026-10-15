@@ -40,7 +40,7 @@ TABLES = {
         "grimworld_logic::types::hit::tests::test_vectors_4",
     ],
     "fate.jsonl": [
-        "grimworld_logic::fate::tests::test_vectors",
+        "grimworld_logic::helpers::fate::tests::test_vectors",
     ],
     "packing.jsonl": [
         "grimworld_logic::helpers::packing::tests::test_vectors",

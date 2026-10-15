@@ -9,6 +9,8 @@ pub mod action;
 pub mod ai;
 /// The enumerations of combat that are not an entry's own fields (design/19, CBT-01).
 pub mod combat;
+/// The kinds of registry records and their size.
+pub mod content;
 /// The effect entry and its enumerations (design/19 §2, §3, CBT-01).
 pub mod effect;
 /// The executor: one layer owns a carrier's entries (design/19 §5.14, CBT-05a).
@@ -21,6 +23,8 @@ pub mod infliction;
 pub mod passive;
 /// A segment of a played batch: the actions in order, the moves, the window (ENG-07).
 pub mod play;
+/// Profession ids, and those a player may choose at creation.
+pub mod profession;
 /// The chunk reveal engine: generation with margins, edges, the cut, quotas and placement
 /// (ENG-05, ADR-0006).
 pub mod reveal;

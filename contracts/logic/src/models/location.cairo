@@ -1,10 +1,10 @@
 //! `LOCATION`: its constructor, its checks and its record (layout: `models::index::Location`).
 
-use crate::content::{LOCATION, Record};
 use crate::helpers::packing::{
     Lanes16, Lanes16Trait, P104, P120, P16, P24, P32, P40, P48, P56, P64, P72, P8, P80, P88,
     PackingTrait,
 };
+use crate::types::content::{LOCATION, Record};
 pub use super::index::Location;
 
 /// Location types (design/01 *Location types*; design/17 Rifts; design/06 promotion trials).

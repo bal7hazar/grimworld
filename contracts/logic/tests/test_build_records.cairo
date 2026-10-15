@@ -1,12 +1,12 @@
 // CBT-08a: what `set_build` reads of the registry. `BASE`'s fields it lays out (slot, hands, from
 // bit 0 of part 0), the readers of a `SKILL`'s and an `ITEM`'s part 0 against the full unpack (the
 // oracle), and design/03's attribute counts.
-use grimworld_logic::content::Record;
 use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::models::base::{Base, BaseAssert, BaseRecord, BaseTrait, slot};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::skill::{Skill, SkillRecord, SkillTrait};
-use grimworld_logic::professions::ProfessionTrait;
+use grimworld_logic::types::content::Record;
+use grimworld_logic::types::profession::ProfessionTrait;
 
 #[test]
 #[available_gas(l2_gas: 73448)] // ceil(1.05 × 69950 measured)

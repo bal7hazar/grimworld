@@ -8,7 +8,6 @@
 // `FlattenLibrary` and stores the snapshot's words; its worst case holds the 15 modifiers design/20
 // §1.2 counts.
 use core::testing::get_available_gas;
-use grimworld_logic::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::helpers::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::base::{Base, BaseTrait};
@@ -22,6 +21,7 @@ use grimworld_logic::snapshot::errors::{
 };
 use grimworld_logic::snapshot::{SnapshotBuildTrait, Worn, unpack_kit, unpack_stats};
 use grimworld_logic::types::combat::damage;
+use grimworld_logic::types::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};
 use grimworld_persistent::models::account::{OwnerTrait, PACK, VAULT};
 use grimworld_persistent::models::adventurer::errors::{

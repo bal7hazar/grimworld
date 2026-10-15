@@ -1211,8 +1211,8 @@ mod registry_layout_tests {
 /// each have their own matched pair; none of these raises the version.
 #[cfg(test)]
 mod registry_detection_cost_tests {
-    use grimworld_logic::content::BOOK;
     use grimworld_logic::helpers::packing::LIVE;
+    use grimworld_logic::types::content::BOOK;
     use snforge_std::{map_entry_address, store, test_address};
     use crate::systems::registry::Registry;
     use super::{PartsTrait, RegistryStoreTrait};
@@ -1297,8 +1297,8 @@ mod registry_detection_cost_tests {
 /// existence, the counters, the administrator and the versions.
 #[cfg(test)]
 mod registry_tests {
-    use grimworld_logic::content::BOOK;
     use grimworld_logic::helpers::packing::LIVE;
+    use grimworld_logic::types::content::BOOK;
     use starknet::storage::{StorageMapReadAccess, StoragePointerReadAccess};
     use crate::models::versions::VersionsTrait;
     use crate::systems::registry::Registry;

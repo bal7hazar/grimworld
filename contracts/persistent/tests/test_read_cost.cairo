@@ -6,12 +6,12 @@
 // `get_available_gas` around it (printed), and the whole tests differ only by it. ENG-06's report
 // derives the call's share and the read's share from these figures.
 use core::testing::get_available_gas;
-use grimworld_logic::content::{CASTE, GATE, ITEM, SKILL};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::combat::weapon;
+use grimworld_logic::types::content::{CASTE, GATE, ITEM, SKILL};
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
 };
@@ -34,8 +34,8 @@ pub trait IReadProbe<T> {
 
 #[starknet::contract]
 mod ReadProbe {
-    use grimworld_logic::content::GATE;
     use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
+    use grimworld_logic::types::content::GATE;
     use starknet::ContractAddress;
     use starknet::storage::{Map, StorageMapReadAccess};
 
@@ -204,8 +204,8 @@ pub trait IContentProbe<T> {
 
 #[starknet::contract]
 mod ContentProbe {
-    use grimworld_logic::content::{CASTE, ITEM, MAX_READ, SKILL};
     use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
+    use grimworld_logic::types::content::{CASTE, ITEM, MAX_READ, SKILL};
     use starknet::ContractAddress;
 
     #[storage]

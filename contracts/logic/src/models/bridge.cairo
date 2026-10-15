@@ -3,8 +3,8 @@
 //! one level (D-227): its deck is walkable ground over water in the chunk's plane (the converter
 //! writes it so), and no rule of play reads the record, which the client draws.
 
-use crate::content::{BRIDGE, Record};
 use crate::helpers::packing::PackingTrait;
+use crate::types::content::{BRIDGE, Record};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::Bridge;
 use super::zone_chunk::{ZoneChunk, ZoneChunkTrait};
@@ -106,8 +106,8 @@ pub impl BridgeRecord of Record<Bridge> {
 
 #[cfg(test)]
 mod tests {
-    use crate::content::Record;
     use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
     use crate::types::reveal::board::BoardTrait;
     use super::{Bridge, BridgeAssert, BridgeRecord, BridgeTrait};
 

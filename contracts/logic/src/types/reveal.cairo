@@ -59,7 +59,7 @@ pub mod placement;
 use core::poseidon::poseidon_hash_span;
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
-use crate::fate::EntropyTrait;
+use crate::helpers::fate::EntropyTrait;
 use crate::models::chunk::{Features, Object, PackPlacement, Terrain};
 use crate::models::pack::Pack;
 use crate::models::quotas::{QuotaSet, kind as quota};
@@ -779,7 +779,7 @@ pub mod tests {
     use hexx::board::bits::Bits;
     use hexx::board::rng::RngTrait;
     use hexx::board::seams::{SeamTrait, Side};
-    use crate::fate::{ENTRY, EntropyTrait, REVEAL, domain};
+    use crate::helpers::fate::{ENTRY, EntropyTrait, FateTrait, REVEAL};
     use crate::models::chunk::{PackPlacementTrait, Terrain, object};
     use crate::models::location::biome;
     use crate::models::pack::{Pack, PackCaste};
@@ -1533,7 +1533,10 @@ pub mod tests {
             'a fact twice counts twice',
         );
         // The word's domain is the reveal's, per chunk.
-        assert(domain(INSTANCE, 1, REVEAL) != domain(INSTANCE, 1, ENTRY), 'not the entry');
+        assert(
+            FateTrait::domain(INSTANCE, 1, REVEAL) != FateTrait::domain(INSTANCE, 1, ENTRY),
+            'not the entry',
+        );
         assert(
             EntropyTrait::word(5, INSTANCE, 1) != EntropyTrait::word(5, INSTANCE, 2), 'per chunk',
         );

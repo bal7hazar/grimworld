@@ -467,9 +467,9 @@ the seeded ones, so no earlier id moved, the table now 203 cases:
 
 ## `fate.jsonl`: the Fate derivations (VEC-01)
 
-Printed by `fate::tests::test_vectors` (ids 0–226), one part, with its digest. ENG-05 added the
-`REVEAL` purpose (index 8): its `purpose` row and its 8 `domain` rows are new, every other row is
-unchanged and the ids after them moved by up to 9.
+Printed by `helpers::fate::tests::test_vectors` (ids 0–226), one part, with its digest. ENG-05 added
+the `REVEAL` purpose (index 8): its `purpose` row and its 8 `domain` rows are new, every other row
+is unchanged and the ids after them moved by up to 9.
 
 One line: `{"id", "fn", "case", "ok"}`, every felt in hex (a `u32` index is a felt below 2^32).
 Poseidon is `core::poseidon::poseidon_hash_span`, the hash of the Starknet `poseidon` builtin.
@@ -477,8 +477,8 @@ Poseidon is `core::poseidon::poseidon_hash_span`, the hash of the Starknet `pose
 | `fn` | `case` | `ok` |
 |---|---|---|
 | `purpose` | the index in `PURPOSES` (0 `ENTRY` … 7 `RIFT_BOARD`, 8 `REVEAL`) | the purpose's felt (a short string, e.g. `'fate:entry'`) |
-| `domain` | `subject`, `counter`, `purpose` | `fate::domain`: `poseidon(subject, counter, purpose)` |
-| `derive` | `word`, `domain`, `index` | `fate::derive`: `poseidon(word, domain, index)` |
+| `domain` | `subject`, `counter`, `purpose` | `FateTrait::domain`: `poseidon(subject, counter, purpose)` |
+| `derive` | `word`, `domain`, `index` | `FateTrait::derive`: `poseidon(word, domain, index)` |
 
 The cases (227):
 - `purpose`: the 9 purposes.

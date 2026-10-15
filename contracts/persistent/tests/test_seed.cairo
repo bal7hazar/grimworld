@@ -8,9 +8,6 @@
 // nested arrays, drops empty ones and writes a one-element array without its length: the file
 // therefore holds, per kind, one flat array (a record a line, fixed columns, never empty) and the
 // names of its columns, which are read with a cursor (`Stream`) and checked (`SeedAssert`).
-use grimworld_logic::content::{
-    CASTE, GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, Record, SKILL, SPAWN_TABLE, parts,
-};
 use grimworld_logic::helpers::packing::Lanes16;
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::caste::{Caste, CasteRecord, CasteTrait, WeaponTrait};
@@ -25,6 +22,9 @@ use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{Skill, SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
 use grimworld_logic::types::combat::skill_kind;
+use grimworld_logic::types::content::{
+    CASTE, GATE, KindTrait, LOCATION, OUTLINE, PACK, QUOTAS, REGION, Record, SKILL, SPAWN_TABLE,
+};
 use grimworld_logic::types::effect::{Entry, EntryTrait, kind as effect_kind};
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
@@ -600,7 +600,7 @@ pub impl WrittenImpl of WrittenTrait {
         let mut felts = self.felts.span();
         for request in self.requests.span() {
             let (kind, id) = *request;
-            let count: u32 = parts(kind).into();
+            let count: u32 = KindTrait::parts(kind).into();
             admin.set_record(kind, id, felts.take(count));
         }
         stop_cheat_caller_address(registry);
