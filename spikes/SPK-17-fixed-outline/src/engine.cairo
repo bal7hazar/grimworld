@@ -63,7 +63,7 @@
 
 pub mod placement;
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::fate::EntropyTrait;
+use grimworld_logic::helpers::fate::EntropyTrait;
 use grimworld_logic::models::chunk::{Features, Object, PackPlacement, Terrain};
 use grimworld_logic::models::pack::Pack;
 use grimworld_logic::models::quotas::{QuotaSet, kind as quota};

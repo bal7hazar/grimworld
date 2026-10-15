@@ -28,7 +28,7 @@
 //! exit and the Heart are drawn (`engine::placement::PlacementTrait::hosts`).
 
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::fate::EntropyTrait;
+use grimworld_logic::helpers::fate::EntropyTrait;
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
 use hexx::board::rng::RngTrait;
 

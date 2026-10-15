@@ -17,7 +17,7 @@
 //! is fixed at entry, every word is keyed by the chunk, and the hosts are drawn once (D-208).
 
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::fate::{REVEAL, derive, domain};
+use grimworld_logic::helpers::fate::{FateTrait, REVEAL};
 use grimworld_logic::models::chunk::{Features, Object, PackPlacement, Terrain, object};
 use grimworld_logic::models::quotas::{QuotaSet, kind as quota};
 use grimworld_logic::types::reveal::Site;
@@ -36,12 +36,14 @@ pub const SPAWN_BASE: felt252 = 256;
 pub impl AuthoredImpl of AuthoredTrait {
     /// The seed of the hosts' draw.
     fn hosts_seed(entropy: felt252, instance: felt252) -> felt252 {
-        derive(entropy, domain(instance, HOSTS_COUNTER, REVEAL), 0)
+        FateTrait::derive(entropy, FateTrait::domain(instance, HOSTS_COUNTER, REVEAL), 0)
     }
 
     /// The word of a chunk's spawn points.
     fn spawn_word(entropy: felt252, instance: felt252, chunk: u8) -> felt252 {
-        derive(entropy, domain(instance, SPAWN_BASE + chunk.into(), REVEAL), 0)
+        FateTrait::derive(
+            entropy, FateTrait::domain(instance, SPAWN_BASE + chunk.into(), REVEAL), 0,
+        )
     }
 
     /// Each quota's hosts among its candidates (`candidates[i]`, a chunk set), one bitmap a quota

@@ -53,7 +53,7 @@
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::content::CRITERION_REACH_LANDMARK;
+use grimworld_logic::types::content::CRITERION_REACH_LANDMARK;
 use grimworld_logic::models::chunk::{
     CENTRE, NEAR, Object, PackPlacement, PackPlacementTrait, object,
 };

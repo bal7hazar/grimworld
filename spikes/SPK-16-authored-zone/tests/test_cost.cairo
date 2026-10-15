@@ -5,7 +5,7 @@
 //! proxy named: `ZONE_CHUNK` (2 parts) as `SET_PIECE`, `CANDIDATES` (3) as `BOOK`, `BRIDGE` (1) as
 //! `OUTLINE`.
 
-use grimworld_logic::content::{
+use grimworld_logic::types::content::{
     BOOK, CRITERION_REACH_LANDMARK, GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE,
 };
 use grimworld_logic::helpers::packing::LIVE;
