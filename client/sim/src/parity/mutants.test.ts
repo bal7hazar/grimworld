@@ -746,6 +746,12 @@ const MUTANTS: readonly Mutant[] = [
     to: "if (total !== 0 && roll <= site.spawn.density) {",
   },
   {
+    name: "the terrain trap's param 0, not the spawn table's trap (D-304)",
+    file: "reveal/placement.ts",
+    from: "placeObject(placement, rng, object.TRAP, site.spawn.trap);",
+    to: "placeObject(placement, rng, object.TRAP, 0);",
+  },
+  {
     name: "the spawn's template not drawn by weight",
     file: "reveal/placement.ts",
     from: "const picked = total === 0 ? 0 : draw(rng, total);",

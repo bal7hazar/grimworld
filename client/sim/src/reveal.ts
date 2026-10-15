@@ -463,6 +463,7 @@ function readSite(r: Felts): Site {
     spawn: {
       spawns: Array.from({ length: 7 }, () => ({ template: r.int(u16), weight: r.int(u8) })),
       density: r.int(u8),
+      trap: r.int(u16),
     },
     packs: r.span(() => [
       r.int(u16),
