@@ -4,7 +4,8 @@ use grimworld_ephemeral::events::{
     BatchPlayed, ChunkRevealed, Defeated, GoblinKilled, InstanceClosed, InstanceEntered, Refused,
 };
 use grimworld_ephemeral::systems::instances::Instances::Event;
-use grimworld_logic::types::{Outcome, Refusal, Stop, instance_id};
+use grimworld_logic::types::identifier::InstanceIdTrait;
+use grimworld_logic::types::{Outcome, Refusal, Stop};
 
 fn split(event: Event) -> (Array<felt252>, Array<felt252>) {
     let mut keys = array![];
@@ -16,7 +17,7 @@ fn split(event: Event) -> (Array<felt252>, Array<felt252>) {
 #[test]
 #[available_gas(l2_gas: 207071)] // ceil(1.05 × 197210 measured)
 fn test_instances_event_keys_and_data() {
-    let id = instance_id(5, 2);
+    let id = InstanceIdTrait::new(5, 2);
     let (keys, data) = split(
         Event::InstanceEntered(
             InstanceEntered { instance_id: id, adventurer_id: 9, location: 3, gate: 4 },
@@ -115,7 +116,7 @@ fn test_instances_event_keys_and_data() {
 #[test]
 #[available_gas(l2_gas: 53834)] // ceil(1.05 × 51270 measured)
 fn test_per_action_event_keys_and_data() {
-    let id = instance_id(5, 2);
+    let id = InstanceIdTrait::new(5, 2);
     let (keys, data) = split(
         Event::GoblinKilled(
             GoblinKilled { instance_id: id, entity: 42, caste: 3, tile: 0x0707, by: 0 },

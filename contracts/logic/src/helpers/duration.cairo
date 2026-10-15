@@ -9,7 +9,7 @@
 //! - the flat bonuses are summed and capped at `MAX_DURATION_FLAT` (3 ticks);
 //! - then `base × (100 + percent) / 100 + flat ≤ MAX_DURATION`, the maximum being exactly it.
 
-use crate::types::MAX_DURATION;
+use crate::constants::MAX_DURATION;
 
 /// The widest base duration the registry may hold: `⌊(MAX_DURATION − 3) × 100 / 150⌋`.
 pub const MAX_BASE_DURATION: u32 = 43688;
@@ -67,7 +67,7 @@ pub impl DurationAssert of DurationAssertTrait {
 // Fix loop 2, F-9: the effective duration after modifiers never passes MAX_DURATION.
 #[cfg(test)]
 mod tests {
-    use crate::types::{LAST_TICK, MAX_CLOCK, MAX_DURATION, MAX_WEIGHT_TICKS};
+    use crate::constants::{LAST_TICK, MAX_CLOCK, MAX_DURATION, MAX_WEIGHT_TICKS};
     use super::{DurationTrait, MAX_BASE_DURATION, MAX_DURATION_BONUS_PERCENT, MAX_DURATION_FLAT};
 
     // The widest base with every bonus at its cap is exactly MAX_DURATION; bonuses beyond the caps

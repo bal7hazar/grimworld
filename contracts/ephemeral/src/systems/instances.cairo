@@ -4,9 +4,10 @@
 //! (ENG-06, ENG-07, CBT-*) writes it. docs/architecture/ENG-01-interfaces.md.
 
 use core::num::traits::Zero;
+use grimworld_logic::constants::MAX_TASKS;
 use grimworld_logic::models::location::{Location, LocationTrait};
 use grimworld_logic::types::content::exists;
-use grimworld_logic::types::{ChunkKind, InstanceId, MAX_TASKS};
+use grimworld_logic::types::{ChunkKind, InstanceId};
 use starknet::{ClassHash, ContractAddress};
 use crate::models::instance::errors as instance_errors;
 
@@ -156,7 +157,7 @@ pub const UNLOADABLE: GoblinView = GoblinView { entity: 0, derived: false, state
 /// (M-6, design/02 item 9).
 #[starknet::interface]
 pub trait IInstances<T> {
-    /// A played batch: `actions` is 1 to 10 actions in one felt (`grimworld_logic::actions`).
+    /// A played batch: `actions` is 1 to 10 actions in one felt (`grimworld_logic::types::batch`).
     /// `version` is the content version the batch was computed under (D-141, E-5): the one
     /// `bundle` returns in the call every invocation makes; a different one refuses the batch
     /// whole, before any action runs (`Stop::Version`), like a sequence mismatch.
@@ -253,6 +254,7 @@ pub trait IInstancesAdmin<T> {
 
 #[starknet::contract]
 pub mod Instances {
+    use grimworld_logic::constants::REGION_PAGE;
     use grimworld_logic::helpers::fate::{ENTRY, FateTrait};
     use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::interface::{
@@ -269,11 +271,10 @@ pub mod Instances {
     use grimworld_logic::models::spawn_table::SpawnTableRecord;
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
     use grimworld_logic::types::content::{GATE, LOCATION, OUTLINE, exists};
+    use grimworld_logic::types::identifier::InstanceIdTrait;
     use grimworld_logic::types::reveal::SightTrait;
     use grimworld_logic::types::reveal::board::BoardTrait;
-    use grimworld_logic::types::{
-        ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
-    };
+    use grimworld_logic::types::{ChunkKind, InstanceId, Outcome, Refusal};
     use starknet::storage::Map;
     use starknet::storage_access::StorePacking;
     use starknet::{ClassHash, ContractAddress, get_caller_address};
@@ -401,7 +402,7 @@ pub mod Instances {
             // The closing path on a defeat, here where `close` already is (CBT-05g, D-240): the
             // batch has written the member's words and the header
             if defeated {
-                let (slot, _) = instance_parts(instance_id);
+                let (slot, _) = InstanceIdTrait::parts(instance_id);
                 let placement = self.get_placement(adventurer_id);
                 let state = self
                     .get_controlled_state(placement.slot, placement.member, get_caller_address());
@@ -565,7 +566,7 @@ pub mod Instances {
         /// the `UNLOADABLE` marker, none while no `GoblinsLibrary` is set; the location's extent
         /// and `level_min` from its record.
         fn instance_state(self: @ContractState, instance_id: InstanceId) -> InstanceView {
-            let (slot, generation) = instance_parts(instance_id);
+            let (slot, generation) = InstanceIdTrait::parts(instance_id);
             let stored = self.get_stored_header(slot);
             let header = stored.model();
             if generation == 0 || header.generation != generation {
@@ -643,7 +644,7 @@ pub mod Instances {
             self: @ContractState, instance_id: InstanceId, first: u8, count: u8,
         ) -> Span<RegionChunk> {
             assert(count <= REGION_PAGE, errors::PAGE);
-            let (slot, generation) = instance_parts(instance_id);
+            let (slot, generation) = InstanceIdTrait::parts(instance_id);
             let header = self.get_stored_header(slot).model();
             let mut out: Array<RegionChunk> = array![];
             if generation == 0 || header.generation != generation {
@@ -692,7 +693,7 @@ pub mod Instances {
                 return (0, 0, false);
             }
             (
-                instance_id(placement.slot, placement.generation),
+                InstanceIdTrait::new(placement.slot, placement.generation),
                 placement.member,
                 placement.inside != 0,
             )
@@ -815,7 +816,7 @@ pub mod Instances {
         fn admit(
             ref self: ContractState, instance_id: InstanceId, adventurer_id: u32, sequence: u32,
         ) -> Option<(u32, Header, Placement, MemberState)> {
-            let (slot, generation) = instance_parts(instance_id);
+            let (slot, generation) = InstanceIdTrait::parts(instance_id);
             let placement = self.get_placement(adventurer_id);
             let state = self
                 .get_controlled_state(placement.slot, placement.member, get_caller_address());
@@ -868,7 +869,7 @@ pub mod Instances {
             belt: [u8; 4],
         ) -> InstanceId {
             let generation = previous + 1;
-            let id = instance_id(slot, generation);
+            let id = InstanceIdTrait::new(slot, generation);
             let destination = *record.destination;
             let draw = FateTrait::domain(id.into(), 0, ENTRY);
             let word = IFateDispatcher { contract_address: self.get_fate() }.fate(draw);
@@ -1073,7 +1074,8 @@ pub mod Instances {
 /// mocked; its settlement is tested in `grimworld_persistent`.
 #[cfg(test)]
 mod close_tests {
-    use grimworld_logic::types::{Outcome, instance_id};
+    use grimworld_logic::types::Outcome;
+    use grimworld_logic::types::identifier::InstanceIdTrait;
     use snforge_std::{
         ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, spy_events,
         test_address,
@@ -1152,7 +1154,7 @@ mod close_tests {
         // closing path's); the store is checked by `store`'s tests.
         state.hub.write(hub);
         let slot = 3;
-        let id = instance_id(slot, 5);
+        let id = InstanceIdTrait::new(slot, 5);
         let header = HeaderTrait::new(5, 2, 0, false, 0, 105, 1);
         let placement = PlacementTrait::new(slot, 5);
         let member = MemberState {

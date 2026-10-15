@@ -154,12 +154,12 @@ pub mod TickRecorder {
 #[starknet::contract]
 pub mod ActionRecorder {
     use starknet::ClassHash;
-    use crate::actions::Action;
     use crate::interface::{
         IActionLibrary, IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher,
     };
     use crate::models::chunk::Features;
     use crate::types::action::Illegal;
+    use crate::types::batch::Action;
     use crate::types::executor::Board;
     use crate::types::tick::Content;
     use crate::types::world::Words;

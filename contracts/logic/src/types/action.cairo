@@ -37,11 +37,13 @@
 //! `matches` of `QuickCastTrait::count`) and whether its attack skill needs a weapon of another
 //! attribute than the one held (`weapon_required`: refused, `Illegal::Kind`).
 
-use crate::actions::Action;
+use crate::constants::LAST_TICK;
 use crate::models::member::{
     Member, MemberConditionTrait, MemberSnapshotTrait, MemberTickTrait, MemberTrait,
     MemberWordsTrait,
 };
+use crate::types::Target;
+use crate::types::batch::Action;
 use crate::types::combat::skill_kind;
 use crate::types::effect::{EntryTrait, kind, target};
 use crate::types::executor::{Board, BoardTrait, Carrier, Executed, ExecutorTrait, Levered, Levers};
@@ -50,7 +52,6 @@ use crate::types::tick::{ABSENT_LANE, ENERGY_THIRDS, Sheets, flag};
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::WindowTrait;
 use crate::types::world::{Actor, World, WorldTrait};
-use crate::types::{LAST_TICK, Target};
 
 /// *Fieldcraft*'s energy a primary rank takes off a Warden skill's cost (design/20 §1.3, DS-7: at
 /// most 1 a rank): a code constant until BAL-01.
@@ -467,12 +468,14 @@ pub impl QuickCastImpl of QuickCastTrait {
 /// (`executor::tests`), the in-class executor as the rules.
 #[cfg(test)]
 mod tests {
-    use crate::actions::Action;
+    use crate::constants::LAST_TICK;
     use crate::models::chunk::FeaturesTrait;
     use crate::models::member::{
         Member, MemberConditionTrait, MemberSnapshotTrait, MemberTickTrait, MemberTrait,
         MemberWordsTrait,
     };
+    use crate::types::Target;
+    use crate::types::batch::Action;
     use crate::types::combat::{damage, skill_kind, weapon};
     use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
     use crate::types::executor::tests::{AT, SNARE, at, content, entry, goblin, member, skill};
@@ -485,7 +488,6 @@ mod tests {
     use crate::types::window::{FAR, WindowTrait};
     use crate::types::world::fixtures::{Fixture, two};
     use crate::types::world::{Actor, World, WorldTrait};
-    use crate::types::{LAST_TICK, Target};
     use super::{ActionTrait, Carry, FIELDCRAFT_PER_RANK, Illegal, QuickCastTrait};
 
     /// `vectors/act.jsonl` (RV-03b, D-257).

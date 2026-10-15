@@ -24,6 +24,7 @@
 //! of the limit, over D-200's 75 %), so no class calls it yet; the project manager decides its
 //! class. The tests run it in process.
 
+use crate::constants::{CHUNK_SIDE, MAX_CHUNKS};
 use crate::models::chunk::{Features, Object, object};
 use crate::models::goblin::GoblinPlaceTrait;
 use crate::models::member::{MemberSnapshotTrait, MemberTrait, MemberWordsTrait};
@@ -34,7 +35,6 @@ use crate::types::infliction::Infliction;
 use crate::types::tick::{ABSENT_LANE, Sheets};
 use crate::types::window::{FAR, WindowTrait};
 use crate::types::world::{Actor, World, WorldTrait};
-use crate::types::{CHUNK_SIDE, MAX_CHUNKS};
 
 /// The chunk objects a call reads and writes: each chunk's `Features` by its index `15 cy + cx`,
 /// as `Instances` stores them (ENG-01 §3.2). The caller passes the chunks the action or the move
@@ -348,12 +348,12 @@ pub impl TrapImpl of TrapTrait {
 /// a terrain trap.
 #[cfg(test)]
 mod tests {
-    use crate::actions::Action;
     use crate::models::chunk::{Features, FeaturesTrait, Object, object};
     use crate::models::goblin::GoblinWordsTrait;
     use crate::models::member::{Member, MemberTrait};
     use crate::types::Target;
     use crate::types::action::ActionTrait;
+    use crate::types::batch::Action;
     use crate::types::combat::{Placer, PlacerTrait, skill_kind, weapon};
     use crate::types::executor::tests::{AT, SNARE, at, board, content, goblin, member};
     use crate::types::executor::{Cache, ExecutorTrait, Levered};

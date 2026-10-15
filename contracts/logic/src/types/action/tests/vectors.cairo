@@ -7,11 +7,13 @@
 
 use snforge_std::{DeclareResultTrait, declare};
 use starknet::ClassHash;
-use crate::actions::Action;
+use crate::constants::LAST_TICK;
 use crate::interface::{IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher};
 use crate::models::chunk::{Features, FeaturesTrait, Object, object};
 use crate::models::goblin::{Goblin, GoblinTrait, GoblinWordsTrait};
 use crate::models::member::{Member, MemberSnapshotTrait, MemberTrait, MemberWordsTrait};
+use crate::types::Target;
+use crate::types::batch::Action;
 use crate::types::combat::{HitClass, condition, damage, skill_kind, weapon};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
 use crate::types::executor::tests::body::{emit, finish};
@@ -27,7 +29,6 @@ use crate::types::trap::Ground;
 use crate::types::window::WindowTrait;
 use crate::types::world::fixtures::{Fixture, two};
 use crate::types::world::{Actor, Words, WorldStoreTrait};
-use crate::types::{LAST_TICK, Target};
 use super::{FIELD, FIRE, GLYPH, MEND, RAGE, STANCE, adventurer, bench, equip, tile};
 
 const CLOCK: u32 = 200;

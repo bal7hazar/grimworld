@@ -43,7 +43,7 @@ use core::num::traits::Zero;
 use hexx::board::assembly::AssemblyTrait;
 use hexx::board::layout::LayoutTrait;
 use starknet::ClassHash;
-use crate::actions::Action;
+use crate::constants::{FIRST_GOBLIN, GOBLINS_STRIDE, LAST_TICK};
 use crate::interface::{
     IActionLibraryDispatcherTrait, IActionLibraryLibraryDispatcher, ITickLibraryDispatcherTrait,
     ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher,
@@ -56,6 +56,7 @@ use crate::models::member::{
 };
 use crate::types::action::Illegal;
 use crate::types::ai::AiTrait;
+use crate::types::batch::Action;
 use crate::types::combat::Placer;
 use crate::types::effect::kind;
 use crate::types::executor::{Board, BoardTrait, Delegate, Levered, Levers, ORIGIN};
@@ -65,7 +66,6 @@ use crate::types::tick::{ABSENT_LANE, Sheets, ai, flag};
 use crate::types::trap::TrapTrait;
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowAssert, WindowTrait};
 use crate::types::world::{TickTrait, Words, World, WorldStoreTrait, WorldTrait};
-use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE, LAST_TICK};
 
 /// The window's interior, its ring cleared (hexx's `LayoutTrait::interior(15, 16)`), as limbs.
 const INTERIOR: u256 = u256 {
@@ -642,13 +642,15 @@ mod tests {
     use hexx::finders::flood::FloodTrait;
     use snforge_std::{DeclareResultTrait, declare};
     use starknet::ClassHash;
-    use crate::actions::Action;
+    use crate::constants::LAST_TICK;
     use crate::helpers::tick::TickMathTrait;
     use crate::models::chunk::{Features, FeaturesTrait, object};
     use crate::models::goblin::GoblinTrait;
     use crate::models::index::{GoblinWords, Object};
     use crate::models::member::{MemberSnapshotTrait, MemberWords, MemberWordsTrait};
+    use crate::types::Target;
     use crate::types::action::Illegal;
+    use crate::types::batch::Action;
     use crate::types::combat::{Placer, PlacerTrait, damage, skill_kind};
     use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
     use crate::types::executor::{BoardTrait, Delegate};
@@ -656,7 +658,6 @@ mod tests {
     use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
     use crate::types::world::fixtures::{Fixture, HOB, MemberSpec, two};
     use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait, WorldTrait};
-    use crate::types::{LAST_TICK, Target};
     use super::{Area, Classes, Done, SegmentTrait};
 
     mod recorder;

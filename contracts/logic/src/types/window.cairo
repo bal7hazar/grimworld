@@ -6,7 +6,7 @@
 //! **Positions.** A tile of the window is its position `15 y + x` (`hexx`'s layout: pointy-top,
 //! odd-r offset, `+1` is West, `+15` is North; `x` below 15, `y` below 16), the window's own index,
 //! 0 to 239. A facing is a direction `0..=5`: East, North-East, North-West, West, South-West,
-//! South-East (`actions`, the map library's order, `hexx::board::direction::Direction`'s indices).
+//! South-East (`batch`, the map library's order, `hexx::board::direction::Direction`'s indices).
 //!
 //! **The rules** (design/04 *Ranges*, *Line of sight*, *Facing and arcs*; design/19 §2.3, §5.3
 //! step 3, §5.5 step 1, §5.6):

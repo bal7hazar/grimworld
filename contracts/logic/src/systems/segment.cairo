@@ -2,9 +2,9 @@
 #[starknet::contract]
 pub mod SegmentLibrary {
     use core::num::traits::Zero;
-    use crate::actions::Action;
     use crate::interface::ISegmentLibrary;
     use crate::models::chunk::Features;
+    use crate::types::batch::Action;
     use crate::types::executor::{BoardTrait, Delegate};
     use crate::types::play::{Area, Classes, Done, SegmentTrait};
     use crate::types::tick::Content;

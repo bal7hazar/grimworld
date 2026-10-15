@@ -11,7 +11,7 @@
 // claim that no state costs more; "upper bound" is kept for the derived result (REPORT.md, ENG-01
 // §9.2).
 use core::testing::get_available_gas;
-use grimworld_logic::actions::Action;
+use grimworld_logic::constants::MAX_CLOCK;
 use grimworld_logic::helpers::signed::SignedTrait;
 use grimworld_logic::interface::{
     ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait,
@@ -23,8 +23,8 @@ use grimworld_logic::models::member::{
     Member, MemberLifecycleTrait, MemberTickTrait, MemberTrait, MemberWords,
 };
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::types::MAX_CLOCK;
 use grimworld_logic::types::action::{ActionTrait, Carry};
+use grimworld_logic::types::batch::Action;
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
 use grimworld_logic::types::content::Record;
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};

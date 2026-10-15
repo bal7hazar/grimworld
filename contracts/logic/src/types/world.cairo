@@ -45,6 +45,7 @@
 //! derives each caste's `Kit` once, and each actor's load reads its ids through it
 //! (`types::tick::Index`). The ticks then read a record at the position its actor holds.
 
+use crate::constants::{FIRST_GOBLIN, GOBLINS_STRIDE};
 use crate::models::goblin::{GoblinPlaceTrait, GoblinTickTrait, GoblinTrait};
 use crate::models::index::{Goblin, GoblinWords, Member, MemberWords};
 use crate::models::member::{MemberSnapshotTrait, MemberTickTrait, MemberTrait};
@@ -52,7 +53,6 @@ use crate::types::combat::{Arc, activation};
 use crate::types::executor::{Board, BoardTrait};
 use crate::types::tick::{Content, ContentTrait, Index, NO_SLOT, Sheets, ai, flag, status};
 use crate::types::window::{FAR, WindowTrait, range};
-use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE};
 
 /// What crosses the library call: the clock, the members (ascending entity id), the goblins the
 /// ticks may touch (ascending entity id), the goblins killed in resolution order (`GoblinKilled`)
@@ -978,12 +978,12 @@ pub mod fixtures;
 /// `tests/test_tick.cairo`'s, with the benchmarks' states.
 #[cfg(test)]
 mod tests {
+    use crate::constants::MAX_CLOCK;
     use crate::models::goblin::{GoblinTickTrait, GoblinTrait};
     use crate::models::index::{GoblinWords, MemberWords};
     use crate::models::member::{
         MemberConditionTrait, MemberLifecycleTrait, MemberTickTrait, MemberTrait,
     };
-    use crate::types::MAX_CLOCK;
     use crate::types::combat::{activation, condition, skill_kind};
     use crate::types::infliction::Infliction;
     use crate::types::tick::{

@@ -36,8 +36,8 @@ L2 gas of a transaction ≈ F + calldata beyond one call's header + computation 
 | **`TxHashFate`** | `grimworld_persistent` | — (the provider) | nothing | `Instances`, `Hub` (`fate(domain)`) |
 
 `grimworld_logic` is not a contract. It holds what both domains share without either package
-depending on the other (ADR-0007): identifiers and bounds (`types`), the wire format of a batch
-(`actions`), the snapshot and task layouts (`snapshot`), the packing rules (`packing`), the kinds of
+depending on the other (ADR-0007): identifiers (`types`), bounds (`constants`), the wire format of a batch
+(`types::batch`), the snapshot and task layouts (`snapshot`), the packing rules (`packing`), the kinds of
 registry records (`content`), and the calls between contracts (`interface`: `IResults`,
 `IInstanceEntry`, `IRegistryRead`, `IFate`).
 
@@ -550,7 +550,7 @@ gas). This is C.
   (F-4). The market's three counters are written at deployment.
 - Several-slot records are `Store` structs of packed felts: field `i` is at offset `i` from the
   map entry's address (tested: `test_record_sizes`).
-- `u256` appears only in `PackingTrait::split` and `decode_batch`, to split a felt into limbs
+- `u256` appears only in `PackingTrait::split` and `BatchTrait::decode`, to split a felt into limbs
   (written reason in `helpers/packing.cairo`; ENG-02 may replace it by `u252`).
 
 ### 3.2 `Instances` storage
@@ -1182,12 +1182,12 @@ set_controller(adventurer_id, controller)                                       
 version, set_contracts(hub, registry, fate, reveal: ClassHash, hosts_library: ClassHash), set_admin, upgrade(class_hash)     admin
 ```
 
-**The batch in one felt** (`grimworld_logic::actions`): count at bits 0–3 (1–10); actions 0–4 at
+**The batch in one felt** (`grimworld_logic::types::batch`): count at bits 0–3 (1–10); actions 0–4 at
 `4 + 24 i`, 5–9 at `128 + 24 (i − 5)`. An action is 24 bits: kind 0–2 (Move, Turn, Wait, Attack,
 Skill, Item, Interact); Move/Turn: direction 3–5; Attack: entity 3–18; Skill: slot 3–5, tile flag 6,
 target 7–22; Item: belt slot 3–4, entity 5–20; Interact: tile 3–18. A batch has one encoding
-(`decode_batch` refuses a count out of 1–10, a bad argument, a bit beyond the count;
-`encode_action` and `encode_batch` refuse a direction above 5, a bar slot above 7, a belt slot
+(`BatchTrait::decode` refuses a count out of 1–10, a bad argument, a bit beyond the count;
+`ActionCodeTrait::encode` and `BatchTrait::encode` refuse a direction above 5, a bar slot above 7, a belt slot
 above 3, fix loop 1 F-10: tested).
 `play`'s calldata is **5 felts** whatever the batch (instance, adventurer, sequence, content
 version, actions; 4 before ENG-01b's version): 30 felts per batch in cost-budget.md's estimate

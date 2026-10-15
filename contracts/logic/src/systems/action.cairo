@@ -11,10 +11,10 @@
 pub mod ActionLibrary {
     use core::num::traits::Zero;
     use starknet::ClassHash;
-    use crate::actions::Action;
     use crate::interface::IActionLibrary;
     use crate::models::chunk::Features;
     use crate::types::action::{ActionTrait, Illegal};
+    use crate::types::batch::Action;
     use crate::types::executor::{Board, Delegate};
     use crate::types::tick::Content;
     use crate::types::world::{Words, WordsTrait, WorldStoreTrait};

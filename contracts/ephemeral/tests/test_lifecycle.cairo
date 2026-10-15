@@ -42,11 +42,12 @@ use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry, TaskPage};
 use grimworld_logic::types::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
+use grimworld_logic::types::identifier::InstanceIdTrait;
 use grimworld_logic::types::reveal::board::BoardTrait;
 use grimworld_logic::types::reveal::outline::OutlineTrait as FloorTrait;
 use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
 use grimworld_logic::types::reveal::{Progress, ProgressTrait, RevealTrait, Site};
-use grimworld_logic::types::{ChunkKind, Outcome, Refusal, instance_id};
+use grimworld_logic::types::{ChunkKind, Outcome, Refusal};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, EventSpyTrait,
     EventsFilterTrait, declare, load, map_entry_address, spy_events, start_cheat_caller_address,
@@ -604,7 +605,7 @@ fn test_create_first_entry() {
     let gas = get_available_gas();
     let id = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(16));
     println!("gas create, first entry, 16 tasks (doubles): {}", gas - get_available_gas());
-    assert(id == instance_id(1, 1), 'slot 1, generation 1');
+    assert(id == InstanceIdTrait::new(1, 1), 'slot 1, generation 1');
     let after = values(world.instances, keys.span());
     assert(changes(before.span(), after.span()) == (19, 1, 0), 'writes: 19 new, 1 overwritten');
 
@@ -729,13 +730,13 @@ fn test_create_reuses_the_slot() {
     let gas = get_available_gas();
     let second = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(16));
     println!("gas create, later entry, 16 tasks (doubles): {}", gas - get_available_gas());
-    assert(second == instance_id(1, 2), 'slot 1, generation 2');
+    assert(second == InstanceIdTrait::new(1, 2), 'slot 1, generation 2');
     let after = values(world.instances, keys.span());
     let (new, _, zeroed) = changes(before.span(), after.span());
     assert(new == 0 && zeroed == 0, 'nothing new, nothing zeroed');
     assert(read(world.instances, selector!("next_slot")) == 2 + LIVE, 'no new slot');
     // A second adventurer takes the next slot.
-    assert(create(world, OTHER, BOB, INTO_ZONE, 0) == instance_id(2, 1), 'slot 2');
+    assert(create(world, OTHER, BOB, INTO_ZONE, 0) == InstanceIdTrait::new(2, 1), 'slot 2');
 }
 
 #[test]
@@ -1046,7 +1047,7 @@ fn test_leave_to_a_location() {
     let gas = get_available_gas();
     let next = instances.leave(id, HERO, 12, LINK_HERE);
     println!("gas leave to a location (doubles): {}", gas - get_available_gas());
-    assert(next == instance_id(1, 2), 'next: slot 1, generation 2');
+    assert(next == InstanceIdTrait::new(1, 2), 'next: slot 1, generation 2');
     let after = values(world.instances, keys.span());
     assert(changes(before.span(), after.span()) == (2, 9, 0), 'writes: 2 new, 9 changed');
     assert(header_of(world, 1).revealed_count == 1, 'the entry chunk revealed');
@@ -1118,7 +1119,7 @@ fn test_leave_to_a_location() {
         );
     // The next instance goes on: back to the zone through the floor's entrance, then home.
     let back = play(world, ALICE).leave(next, HERO, 0, FLOOR_TO_ZONE);
-    assert(back == instance_id(1, 3), 'generation 3');
+    assert(back == InstanceIdTrait::new(1, 3), 'generation 3');
     let state = state_of(world, 1);
     // Chunk 16 is (1, 1); tile 110 is row 7, column 5.
     assert(state.x == 20 && state.y == 22, 'at the far link');
@@ -1223,7 +1224,7 @@ fn test_refused_absent() {
     assert_refused(world, theirs, 0, 0, Refusal::Absent, ZONE_TO_TOWN);
     let down = MemberState { status: 1, ..state_of(world, 1) };
     write(world.instances, member_word(1, 0), StorePacking::pack(down));
-    assert_refused(world, instance_id(1, 1), 0, 0, Refusal::Absent, 0);
+    assert_refused(world, InstanceIdTrait::new(1, 1), 0, 0, Refusal::Absent, 0);
 }
 
 // Every gate that cannot be taken from where the member stands (design/02: "the gate is
@@ -1803,8 +1804,8 @@ fn play_classes(world: World) {
         );
 }
 
-fn batch(actions: Span<grimworld_logic::actions::Action>) -> felt252 {
-    grimworld_logic::actions::encode_batch(actions).unwrap()
+fn batch(actions: Span<grimworld_logic::types::batch::Action>) -> felt252 {
+    grimworld_logic::types::batch::BatchTrait::encode(actions).unwrap()
 }
 
 /// The `BatchPlayed` of the call: `(played, stop, sequence, clock)`, the stop as its variant index.
@@ -1831,7 +1832,8 @@ fn test_play_moves() {
     let id = create(world, 7, 'alice', 15, 0);
     let mut spy = spy_events();
     let actions = array![
-        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(0),
     ];
     play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
     let (played, stop, sequence, clock) = batch_played(ref spy, world);
@@ -1851,8 +1853,9 @@ fn test_play_move_blocked() {
     let id = create(world, 7, 'alice', 15, 0);
     let mut spy = spy_events();
     let actions = array![
-        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(5),
-        grimworld_logic::actions::Action::Move(5),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(5),
+        grimworld_logic::types::batch::Action::Move(5),
     ];
     play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
     let (played, stop, sequence, _) = batch_played(ref spy, world);
@@ -1869,7 +1872,7 @@ fn test_play_refusals() {
     play_classes(world);
     let id = create(world, 7, 'alice', 15, 0);
     let mut spy = spy_events();
-    let one = batch(array![grimworld_logic::actions::Action::Wait].span());
+    let one = batch(array![grimworld_logic::types::batch::Action::Wait].span());
     play(world, 'alice').play(id, 7, 3, 0, one);
     let (played, stop, _, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 1, 'sequence');
@@ -1877,7 +1880,9 @@ fn test_play_refusals() {
     let (played, stop, _, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 6, 'version');
     play(world, 'alice')
-        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Interact(0)].span()));
+        .play(
+            id, 7, 0, 0, batch(array![grimworld_logic::types::batch::Action::Interact(0)].span()),
+        );
     let (played, stop, _, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 2, 'interact refused');
     assert(header_of(world, 1).sequence == 0, 'nothing ran');
@@ -2040,7 +2045,7 @@ fn kills_and_reveals(ref spy: snforge_std::EventSpy, world: World) -> Array<felt
 /// goblins (`Stop::Weight`); else every move (`Stop::None`). The 2 a chunk a move reveals are
 /// taken after it, from what the next moves have.
 fn twin(
-    which: u8, gate: u16, moves: Span<grimworld_logic::actions::Action>, chunks: Span<u8>,
+    which: u8, gate: u16, moves: Span<grimworld_logic::types::batch::Action>, chunks: Span<u8>,
 ) -> (Array<felt252>, Array<felt252>, Array<felt252>, Array<felt252>) {
     let one = setup();
     play_classes(one);
@@ -2186,9 +2191,12 @@ fn prepare_reveal(world: World) {
 #[available_gas(l2_gas: 293396651)] // ceil(1.05 × 279425381 measured)
 fn test_play_batch_equals_singles_reveal() {
     let moves = array![
-        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
-        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
-        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(0),
     ];
     let (words_one, words_two, events_one, events_two) = twin(
         0, INTO_PACK_ZONE, moves.span(), array![0, 1, 15, 16].span(),
@@ -2234,7 +2242,7 @@ fn test_play_batch_equals_singles_ten_east() {
     let mut moves = array![];
     let mut k: u8 = 0;
     while k < 10 {
-        moves.append(grimworld_logic::actions::Action::Move(0));
+        moves.append(grimworld_logic::types::batch::Action::Move(0));
         k += 1;
     }
     let (words_one, words_two, events_one, events_two) = twin(
@@ -2268,7 +2276,7 @@ fn test_play_unloadable_goblin_refused() {
     prepare_ghost(world);
     let mut spy = spy_events();
     play(world, 'alice')
-        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::types::batch::Action::Wait].span()));
     let (played, stop, sequence, _) = batch_played(ref spy, world);
     assert(played == 0 && stop == 2 && sequence == 0, 'refused, nothing run');
 }
@@ -2382,8 +2390,8 @@ fn test_view_goblins_are_plays() {
     assert(derived == 5 && stored == 0, 'every goblin derived');
 
     let waits = array![
-        grimworld_logic::actions::Action::Wait, grimworld_logic::actions::Action::Wait,
-        grimworld_logic::actions::Action::Wait, grimworld_logic::actions::Action::Wait,
+        grimworld_logic::types::batch::Action::Wait, grimworld_logic::types::batch::Action::Wait,
+        grimworld_logic::types::batch::Action::Wait, grimworld_logic::types::batch::Action::Wait,
     ];
     let mut spy = spy_events();
     play(world, 'alice').play(id, 7, 0, 0, batch(waits.span()));
@@ -2531,10 +2539,10 @@ fn test_view_unloadable_goblin_marker() {
 // gas: raised, FIX-02b: the goblin loader's library call, once a content round (D-269)
 #[available_gas(l2_gas: 348388438)] // ceil(1.05 × 331798512 measured)
 fn test_play_batch_equals_singles_round_trip() {
-    let mut moves = array![grimworld_logic::actions::Action::Move(3)];
+    let mut moves = array![grimworld_logic::types::batch::Action::Move(3)];
     let mut k: u8 = 0;
     while k < 9 {
-        moves.append(grimworld_logic::actions::Action::Move(0));
+        moves.append(grimworld_logic::types::batch::Action::Move(0));
         k += 1;
     }
     let (words_one, words_two, events_one, events_two) = twin(
@@ -2552,9 +2560,12 @@ fn test_play_batch_equals_singles_round_trip() {
 #[available_gas(l2_gas: 316371584)] // ceil(1.05 × 301306270 measured)
 fn test_play_batch_equals_singles_reveal_acts() {
     let moves = array![
-        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(3),
-        grimworld_logic::actions::Action::Move(3), grimworld_logic::actions::Action::Move(0),
-        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(0),
     ];
     let (words_one, words_two, events_one, events_two) = twin(
         3, INTO_PACK_ZONE, moves.span(), array![0, 1].span(),
@@ -2590,7 +2601,8 @@ fn test_play_unloadable_arrival_runs_the_ticks() {
     prepare_ghost_far(world);
     let mut spy = spy_events();
     let moves = array![
-        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(0),
     ];
     play(world, 'alice').play(id, 7, 0, 0, batch(moves.span()));
     let (played, stop, sequence, clock) = batch_played(ref spy, world);
@@ -2677,7 +2689,7 @@ fn move_from(
 ) -> (felt252, felt252) {
     put_member(world, x, y);
     let sequence = header_of(world, 1).sequence;
-    let one = array![grimworld_logic::actions::Action::Move(d)];
+    let one = array![grimworld_logic::types::batch::Action::Move(d)];
     play(world, 'alice').play(id, 7, sequence, 0, batch(one.span()));
     let (played, stop, _, _) = batch_played(ref spy, world);
     (played, stop)
@@ -2931,7 +2943,7 @@ fn test_play_trap_member_once() {
     let mut spy = spy_events();
     let health = state_of(world, 1).health;
     play(world, 'alice')
-        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Move(3)].span()));
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::types::batch::Action::Move(3)].span()));
     let (played, stop, _, _) = batch_played(ref spy, world);
     let hit = state_of(world, 1);
     println!("trap: health {} -> {}", health, hit.health);
@@ -2940,7 +2952,8 @@ fn test_play_trap_member_once() {
     assert(object_of(world, 16, 0).state == 1, 'the trap is used');
     // Off the tile and back on: nothing triggers again (health only regenerates).
     let again = array![
-        grimworld_logic::actions::Action::Move(0), grimworld_logic::actions::Action::Move(3),
+        grimworld_logic::types::batch::Action::Move(0),
+        grimworld_logic::types::batch::Action::Move(3),
     ];
     play(world, 'alice').play(id, 7, 1, 0, batch(again.span()));
     let (played, stop, _, _) = batch_played(ref spy, world);
@@ -2986,7 +2999,7 @@ fn test_play_trap_goblin_placed() {
     let mut spy = spy_events();
     let health = state_of(world, 1).health;
     play(world, 'alice')
-        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Move(3)].span()));
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::types::batch::Action::Move(3)].span()));
     let (played, stop, _, _) = batch_played(ref spy, world);
     let hit = state_of(world, 1);
     println!("goblin trap: health {} -> {}", health, hit.health);
@@ -3028,13 +3041,15 @@ fn test_play_trap_goblin_enters() {
     // fires; its act ends there (one tile, the trap used, its health down). The next tick it acts
     // again and steps on to (23, 22).
     play(world, 'alice')
-        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::types::batch::Action::Wait].span()));
     let sequence = header_of(world, 1).sequence;
     assert(goblin_place(world, entity) == (24, 22), 'one step, onto the trap');
     assert(object_of(world, 16, 0).state == 1, 'the trap fired during that tick');
     assert(goblin_health(world, entity) < 100, 'the trap hit the goblin');
     play(world, 'alice')
-        .play(id, 7, sequence, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+        .play(
+            id, 7, sequence, 0, batch(array![grimworld_logic::types::batch::Action::Wait].span()),
+        );
     assert(goblin_place(world, entity) == (23, 22), 'it acts again the next tick');
 }
 
@@ -3082,7 +3097,7 @@ fn leg(
     id: u64,
     x: u8,
     y: u8,
-    moves: Array<grimworld_logic::actions::Action>,
+    moves: Array<grimworld_logic::types::batch::Action>,
 ) {
     put_member(world, x, y);
     let sequence = header_of(world, 1).sequence;
@@ -3095,8 +3110,8 @@ fn leg(
 /// Moves that bring sight onto each chunk of the zone from the entry on chunk 2, in order 1, 0, 16,
 /// 15; each chunk a Move leaves from is opened first, so that the Move is legal.
 fn sweep_zone(ref spy: snforge_std::EventSpy, world: World, id: u64) {
-    let west = array![grimworld_logic::actions::Action::Move(0)];
-    let down = array![grimworld_logic::actions::Action::Move(2)];
+    let west = array![grimworld_logic::types::batch::Action::Move(0)];
+    let down = array![grimworld_logic::types::batch::Action::Move(2)];
     open_chunk(world, 2);
     leg(ref spy, world, id, 35, 7, west.clone());
     open_chunk(world, 1);
@@ -3182,7 +3197,7 @@ fn test_play_quotas_stale_hosts_unused() {
     let records = IRecordsDispatcher { contract_address: world.registry };
     records.set(QUOTAS, ZONE.into(), QuotaSetRecord::pack(@collector_and_veins(0)));
     let id = create(world, 7, 'alice', QUOTA_GATE, 0);
-    assert(id == instance_id(1, 2), 'the slot reused');
+    assert(id == InstanceIdTrait::new(1, 2), 'the slot reused');
     // The slot keeps the earlier hosts for the collector, whatever `create` wrote
     let stale: felt252 = 0x18007 - 1;
     write(world.instances, key(selector!("hosts"), array![1, 0]), stale);
@@ -3237,23 +3252,23 @@ fn floor_legs(ref spy: snforge_std::EventSpy, world: World, id: u64, order: Span
     for which in order {
         let moves = if *which == 0 {
             array![
-                grimworld_logic::actions::Action::Move(0),
-                grimworld_logic::actions::Action::Move(0),
+                grimworld_logic::types::batch::Action::Move(0),
+                grimworld_logic::types::batch::Action::Move(0),
             ]
         } else if *which == 1 {
             array![
-                grimworld_logic::actions::Action::Move(3),
-                grimworld_logic::actions::Action::Move(3),
+                grimworld_logic::types::batch::Action::Move(3),
+                grimworld_logic::types::batch::Action::Move(3),
             ]
         } else if *which == 2 {
             array![
-                grimworld_logic::actions::Action::Move(4),
-                grimworld_logic::actions::Action::Move(5),
+                grimworld_logic::types::batch::Action::Move(4),
+                grimworld_logic::types::batch::Action::Move(5),
             ]
         } else {
             array![
-                grimworld_logic::actions::Action::Move(2),
-                grimworld_logic::actions::Action::Move(1),
+                grimworld_logic::types::batch::Action::Move(2),
+                grimworld_logic::types::batch::Action::Move(1),
             ]
         };
         leg(ref spy, world, id, 112, 112, moves);
@@ -3339,8 +3354,10 @@ fn test_play_trap_skill_places() {
     let mut spy = spy_events();
     let target: u16 = 24 + 256 * 22;
     let actions = array![
-        grimworld_logic::actions::Action::Skill((0, grimworld_logic::types::Target::Tile(target))),
-        grimworld_logic::actions::Action::Wait, grimworld_logic::actions::Action::Wait,
+        grimworld_logic::types::batch::Action::Skill(
+            (0, grimworld_logic::types::Target::Tile(target)),
+        ),
+        grimworld_logic::types::batch::Action::Wait, grimworld_logic::types::batch::Action::Wait,
     ];
     play(world, 'alice').play(id, 7, 0, 0, batch(actions.span()));
     let (played, stop, _, _) = batch_played(ref spy, world);
@@ -3383,7 +3400,7 @@ fn tie_step(member: (u8, u8), chunk: u8, tile: u8) -> (u8, u8) {
     let (x, y) = member;
     put_member(world, x, y);
     play(world, 'alice')
-        .play(id, 7, 0, 0, batch(array![grimworld_logic::actions::Action::Wait].span()));
+        .play(id, 7, 0, 0, batch(array![grimworld_logic::types::batch::Action::Wait].span()));
     goblin_place(world, 8 + 16 * chunk.into())
 }
 

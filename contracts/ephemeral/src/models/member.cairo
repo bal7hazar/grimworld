@@ -2,12 +2,12 @@
 //! change during play; the last four are the snapshot taken at entry (ADR-0001) and the account
 //! that controls the adventurer (M-6). Layouts: docs/architecture/ENG-01-interfaces.md, *Member*.
 
+use grimworld_logic::constants::MAX_CLOCK;
 use grimworld_logic::helpers::packing::{
     LimbTrait, N16, N32, N8, P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96,
     PackingAssert, PackingTrait,
 };
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
-use grimworld_logic::types::MAX_CLOCK;
 use starknet::ContractAddress;
 use crate::helpers::stored::Stored;
 

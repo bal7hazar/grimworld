@@ -135,3 +135,21 @@ pub const CRITERION_REVEAL_ZONE: u8 = 4;
 pub const CRITERION_LOOT: u8 = 5;
 pub const CRITERION_MINE: u8 = 6;
 pub const CRITERION_ACTIVATE: u8 = 7;
+
+#[cfg(test)]
+mod tests {
+    use super::{KindTrait, LAST_KIND};
+
+    #[test]
+    // gas: raised, ENG-09: one more kind's parts asserted (25 and the last, 28)
+    #[available_gas(l2_gas: 13220)] // ceil(1.05 × 12590 measured)
+    fn test_parts_per_kind() {
+        assert(
+            KindTrait::parts(2) == 2
+                && KindTrait::parts(15) == 3
+                && KindTrait::parts(25) == 1
+                && KindTrait::parts(LAST_KIND) == 3,
+            'parts per kind',
+        );
+    }
+}

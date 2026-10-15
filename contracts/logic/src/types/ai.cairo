@@ -46,6 +46,7 @@
 
 use hexx::finders::bfs::Bfs;
 use hexx::finders::flood::{Flood, FloodTrait};
+use crate::constants::{FIRST_GOBLIN, GOBLINS_STRIDE, MAX_ROSTER};
 use crate::interface::{ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
 use crate::models::chunk::object;
 use crate::models::goblin::{
@@ -62,7 +63,6 @@ use crate::types::tick::{ABSENT, Sheets, ai};
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, WindowTrait};
 use crate::types::world::{Actor, Words, World, WorldTrait};
-use crate::types::{FIRST_GOBLIN, GOBLINS_STRIDE, MAX_ROSTER};
 
 /// The flood's depth (D-127): a goblin farther on foot holds its tile.
 pub const FLOOD_DEPTH: u8 = 15;

@@ -495,7 +495,7 @@ struct is its `Serde` (`Lanes32`: seven felts, `Lanes16`: fifteen, `Counter`: on
 A function that refuses has its outcome as `[0, result…]` for accepted and `[1]` for refused (the
 `Option` form of the window's `arc`). A panic cannot be caught in a test: a refused row is the
 function's guard evaluated by the test (`high < LIVE_HIGH`, `value < size`, `bits` below bit 250),
-and the panics themselves are asserted by `tests/test_packing.cairo`. A mirror must refuse on the
+and the panics themselves are asserted by `helpers::packing::tests`' `should_panic` tests. A mirror must refuse on the
 same rows and never write the word.
 
 | `fn` | `case` | `ok` |
