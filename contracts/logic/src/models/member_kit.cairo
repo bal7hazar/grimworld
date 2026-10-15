@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 389991)] // ceil(1.05 × 371420 measured)
+    #[available_gas(l2_gas: 149919)] // ceil(1.05 × 142780 measured)
     fn test_kit_layout() {
         let kit = MemberKit {
             belt: [1, 2, 3, 0xFFFFFFFF],

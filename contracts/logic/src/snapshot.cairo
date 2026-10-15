@@ -853,10 +853,9 @@ pub impl SnapshotImpl of SnapshotTrait {
 #[cfg(test)]
 mod tests {
     use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
-    use crate::helpers::packing::LIVE;
     use crate::models::base::slot as base_slot;
     use crate::models::index::Modifier;
-    use crate::models::member_bar::{MAX_UNGUARDED_ARMOR, MemberBar, MemberBarTrait, QuickCast};
+    use crate::models::member_bar::{MemberBar, MemberBarTrait, QuickCast};
     use crate::models::member_kit::{MemberKit, MemberKitTrait, saturate};
     use crate::models::member_stats::{MemberStats, MemberStatsTrait};
     use crate::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};

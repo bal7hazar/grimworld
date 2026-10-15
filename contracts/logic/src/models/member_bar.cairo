@@ -184,7 +184,7 @@ mod tests {
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
     #[test]
-    #[available_gas(l2_gas: 389991)] // ceil(1.05 × 371420 measured)
+    #[available_gas(l2_gas: 247223)] // ceil(1.05 × 235450 measured)
     fn test_bar_layout() {
         let bar = MemberBar {
             skills: [1, 2, 3, 4, 5, 6, 7, 0xFFFF], elite_slot: 255, ..Fixture::empty_bar(),
