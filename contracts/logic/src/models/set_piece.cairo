@@ -40,7 +40,7 @@ pub impl SetPackBits of SetPackBitsTrait {
     }
 
     #[inline(never)]
-    fn LimbTrait::peel(ref rest: u128) -> SetPack {
+    fn peel(ref rest: u128) -> SetPack {
         let tile = LimbTrait::peel(ref rest, P8.try_into().unwrap());
         let template = LimbTrait::peel(ref rest, P16.try_into().unwrap());
         SetPack { tile: tile.try_into().unwrap(), template: template.try_into().unwrap() }

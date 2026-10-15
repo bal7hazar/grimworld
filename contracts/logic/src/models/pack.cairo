@@ -126,7 +126,7 @@ pub impl PackCasteBits of PackCasteBitsTrait {
     }
 
     #[inline(never)]
-    fn LimbTrait::peel(ref rest: u128) -> PackCaste {
+    fn peel(ref rest: u128) -> PackCaste {
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let caste = LimbTrait::peel(ref rest, P16.try_into().unwrap());
         let min = LimbTrait::peel(ref rest, s8);

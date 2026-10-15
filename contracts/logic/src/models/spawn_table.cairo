@@ -75,7 +75,7 @@ pub impl SpawnBits of SpawnBitsTrait {
     }
 
     #[inline(never)]
-    fn LimbTrait::peel(ref rest: u128) -> Spawn {
+    fn peel(ref rest: u128) -> Spawn {
         let template = LimbTrait::peel(ref rest, P16.try_into().unwrap());
         let weight = LimbTrait::peel(ref rest, P8.try_into().unwrap());
         Spawn { template: template.try_into().unwrap(), weight: weight.try_into().unwrap() }

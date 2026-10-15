@@ -162,7 +162,7 @@ pub impl QuotaBits of QuotaBitsTrait {
     }
 
     #[inline(never)]
-    fn LimbTrait::peel(ref rest: u128) -> Quota {
+    fn peel(ref rest: u128) -> Quota {
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let kind = LimbTrait::peel(ref rest, s8);
         let param = LimbTrait::peel(ref rest, P16.try_into().unwrap());
