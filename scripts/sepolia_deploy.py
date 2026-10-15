@@ -86,6 +86,7 @@ RATE_LIMITED = re.compile(r"request too fast|cu limit|rate.?limit|too many reque
 # "Invalid transaction nonce"); sncast 0.64 echoes the node's message. Only a resend is read this way.
 NONCE_REFUSED = re.compile(r"invalid transaction nonce|invalid.?nonce|code=52\b", re.IGNORECASE)
 SUBMITTING = ("declare-from", "declare", "deploy", "invoke")
+WINDOW = 40  # blocks searched before the first latest seen: sncast's --wait polls for minutes
 FOUND_TRIES, FOUND_WAIT = 20, 3.0  # looking for the transaction an accepted-but-failed call left
 KINDS = {dd.REGION: "region", dd.LOCATION: "location", dd.GATE: "gate", dd.ITEM: "item",
          9: "skill", 8: "caste", 7: "pack", 6: "spawn_table"}
@@ -288,7 +289,7 @@ class SepoliaNode(dd.Node):
                 kind = self.rate_limit_kind(error)
                 if kind is None and attempt > 1 and NONCE_REFUSED.search(str(error)):
                     kind = "nonce refused"  # the resend met the first copy: the node has it
-                if kind is None or attempt == TRIES:
+                if kind is None or (attempt == TRIES and not submits):
                     raise
                 if not submits:  # nothing to send: a read, a hash, an import
                     self.retry_line(kind, attempt)
@@ -299,6 +300,10 @@ class SepoliaNode(dd.Node):
                     raise RuntimeError(f"sncast {what}: failed ({kind}) and the nonce could not be read "
                                        f"to tell whether it was sent: stopping ({read})") from error
                 if after == reference and kind != "nonce refused":
+                    if attempt == TRIES:  # the last try still gets its nonce check, to name the call
+                        raise RuntimeError(f"sncast {what}: failed ({kind}) {TRIES} times and the nonce "
+                                           f"still reads {after}: the tries are spent and nothing was "
+                                           f"accepted: stopping") from error
                     self.retry_line(kind, attempt)
                     continue
                 if after == reference:  # only a refused resend gets here: a copy is pending, not visible yet
@@ -339,7 +344,7 @@ class SepoliaNode(dd.Node):
 
     def find_transaction(self, nonce):
         """The deployer's transaction with that nonce, in the pre-confirmed block or the blocks from the latest
-        down to ten before the first latest seen. It matches on (sender, nonce): that assumes nothing
+        down to WINDOW before the first latest seen. It matches on (sender, nonce): that assumes nothing
         else sends from the deployer's account during the run."""
         anchor = None
         for attempt in range(FOUND_TRIES):
@@ -347,7 +352,7 @@ class SepoliaNode(dd.Node):
             try:
                 latest = self.rpc("starknet_blockNumber", {})
                 anchor = latest if anchor is None else anchor
-                blocks += [{"block_id": {"block_number": n}} for n in range(latest, max(anchor - 10, -1), -1)]
+                blocks += [{"block_id": {"block_number": n}} for n in range(latest, max(anchor - WINDOW, -1), -1)]
             except dd.RpcError:
                 pass
             for block in blocks:

@@ -647,6 +647,27 @@ def rate_limit_checks():
     assert len(argv) == 2 and all(" --nonce 0x7" in line + " " for line in argv), argv  # the reference, twice
     assert "Transaction Hash: 0xfeed" in out and node.sent == ["0xfeed"], (out, node.sent)
     os.remove(errors + ".2")
+    # the last try fails after acceptance: the nonce is still checked and the transaction recovered
+    reads.clear()
+    os.environ["SMOKE_FAIL"] = "99"
+
+    def last(method, params):
+        if method == "starknet_getNonce":
+            reads.append(1)
+            # reference 7; every "after" read says 7 until the sixth one
+            return ("result", hex(8 if len(reads) > sepolia_deploy.TRIES else 7))
+        return accepted(method, params)
+    node = make(last)
+    out = invoke(node)
+    assert sncast_count() == sepolia_deploy.TRIES and "Transaction Hash: 0xfeed" in out, (sncast_count(), out)
+    # ...and when nothing was accepted by then, the run stops naming the call
+    node = make(chain)
+    try:
+        invoke(node)
+    except RuntimeError as error:
+        assert "invoke" in str(error) and "tries are spent" in str(error), error
+    else:
+        raise AssertionError("the spent tries did not stop the run")
     # a nonce that cannot be read stops the run (rate limited to the end)
     state = []
 
