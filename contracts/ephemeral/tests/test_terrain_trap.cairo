@@ -5,16 +5,19 @@
 use grimworld_ephemeral::models::member::MemberState;
 use grimworld_ephemeral::systems::instances::{IInstancesDispatcher, IInstancesDispatcherTrait};
 use grimworld_logic::actions::Action;
-use grimworld_logic::content::{CASTE, GATE, LOCATION, PACK, REGION, SKILL};
+use grimworld_logic::content::{CASTE, GATE, LOCATION, PACK, REGION, SKILL, SPAWN_TABLE};
 use grimworld_logic::interface::{IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking, object};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::index::{Features, Object, PackPlacement};
-use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
+use grimworld_logic::models::location::{
+    LocationRecord, LocationTrait, biome, kind as location_kind,
+};
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
+use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
 use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry};
 use grimworld_logic::types::combat::{damage, skill_kind};
@@ -51,10 +54,16 @@ fn addr(value: felt252) -> ContractAddress {
     value.try_into().unwrap()
 }
 
-/// A town and a zone of 3 × 3 chunks entered from the town (gate 1, chunk 0's tile 105); caste 1
-/// (no skill, an axe) and pack template 1 (1 to 5 of caste 1); `Instances` with every play class;
-/// adventurer 7 of `alice` entered (slot 1).
+/// A town and a meadow zone of 3 × 3 chunks entered from the town (gate 1, chunk 0's tile 105);
+/// caste 1 (no skill, an axe) and pack template 1 (1 to 5 of caste 1); `Instances` with every play
+/// class; adventurer 7 of `alice` entered (slot 1).
 fn setup() -> World {
+    setup_in(biome::MEADOW, 0)
+}
+
+/// `setup`'s world with the zone of `zone_biome`; with `trap` not 0, its spawn table 1 places no
+/// pack and gives its generated terrain traps the skill `trap` (GEN-TRAP, D-304).
+fn setup_in(zone_biome: u8, trap: u16) -> World {
     let class = declare("RegistryDouble").unwrap().contract_class();
     let (registry, _) = class.deploy(@array![]).unwrap();
     let class = declare("FateDouble").unwrap().contract_class();
@@ -75,8 +84,14 @@ fn setup() -> World {
         .unwrap();
     let records = IRecordsDispatcher { contract_address: registry };
     records.set(REGION, 1, RegionTrait::new(TOWN, 0, ZONE, 'Test Region').pack());
-    records.set(LOCATION, 1, location(location_kind::TOWN, 0));
-    records.set(LOCATION, 2, location(location_kind::ZONE, 3));
+    records.set(LOCATION, 1, location(location_kind::TOWN, 0, biome::MEADOW, 0));
+    let table: u16 = if trap != 0 {
+        records.set(SPAWN_TABLE, 1, spawn_table(trap));
+        1
+    } else {
+        0
+    };
+    records.set(LOCATION, 2, location(location_kind::ZONE, 3, zone_biome, table));
     records.set(GATE, 1, GateTrait::new(TOWN, ZONE, 0, 0, 0, 105, gate_kind::HUB, 0, 0).pack());
     let caste = CasteTrait::new(
         1,
@@ -108,11 +123,33 @@ fn setup() -> World {
     World { id: create(world), ..world }
 }
 
-fn location(kind: u8, width: u8) -> Span<felt252> {
+fn location(kind: u8, width: u8, zone_biome: u8, table: u16) -> Span<felt252> {
     LocationTrait::new(
-        kind, 1, 1, 1, 3, 0, width, width, 0, 0, 0, 0, false, 0, 105, Lanes16 { lanes: [0; 15] },
+        kind,
+        1,
+        zone_biome,
+        1,
+        3,
+        0,
+        width,
+        width,
+        0,
+        0,
+        0,
+        table,
+        false,
+        0,
+        105,
+        Lanes16 { lanes: [0; 15] },
     )
         .pack()
+}
+
+/// A spawn table of no pack whose generated terrain traps take the skill `trap`: its bits 184-199.
+fn spawn_table(trap: u16) -> Span<felt252> {
+    let table = SpawnTable { spawns: [Default::default(); 7], density: 0 };
+    let part = *SpawnTableRecord::pack(@table)[0];
+    array![part + trap.into() * two(184)].span()
 }
 
 fn play_classes(world: World) {
@@ -329,8 +366,8 @@ fn test_terrain_trap_skill_missing_refuses() {
     assert(trap_of(world).state == 0, 'the trap is unused');
 }
 
-// A generated terrain trap has no skill (`param` 0, `reveal::placement`): it asks the registry for
-// nothing and stays inert, the member walking over it.
+// A terrain trap of `param` 0 (an authored one: the map format allows it, D-267) asks the registry
+// for nothing and stays inert, the member walking over it.
 #[test]
 #[available_gas(l2_gas: 51843986)] // ceil(1.05 × 49375224 measured)
 fn test_terrain_trap_without_skill_is_inert() {
@@ -461,4 +498,47 @@ fn test_terrain_trap_skills_chunked() {
     play(world).play(world.id, 7, 0, 0, batch(array![Action::Move(0)].span()));
     assert(trap_of(world).state == 1, 'the trap is used');
     assert(health(world) < before, 'the payload hurt the member');
+}
+
+/// The generated terrain traps of the zone's chunks `create` revealed: kind 4 objects, any state.
+fn generated_traps(world: World) -> Array<Object> {
+    let mut traps = array![];
+    for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
+        let features: Features = StorePacking::unpack(read(world.instances, chunk_key(chunk) + 1));
+        for object in features.objects.span() {
+            if *object.kind == object::TRAP {
+                traps.append(*object);
+            }
+        }
+    }
+    traps
+}
+
+/// GEN-TRAP (D-268, D-304): `create` reveals the zone of `zone_biome` around its entry, whose spawn
+/// table gives terrain traps the skill 5 (Rockfall): every generated trap carries it; then one such
+/// trap under the member's step fires on the member (the registry holds skill 5).
+fn generated_trap_fires(zone_biome: u8) {
+    let world = setup_in(zone_biome, 5);
+    let traps = generated_traps(world);
+    assert(traps.len() > 0, 'a trap generated');
+    for trap in traps.span() {
+        assert(*trap.param == 5, 'the table skill');
+    }
+    register_trap_skill(world, 5);
+    open_zone(world, 22, 22);
+    put_trap(world, 0, *traps[0].param);
+    let before = health(world);
+    play(world).play(world.id, 7, 0, 0, batch(array![Action::Move(0)].span()));
+    assert(trap_of(world).state == 1, 'the trap is used');
+    assert(health(world) < before, 'the payload hurt the member');
+}
+
+#[test]
+fn test_generated_trap_fires_cave() {
+    generated_trap_fires(biome::CAVE);
+}
+
+#[test]
+fn test_generated_trap_fires_ruin() {
+    generated_trap_fires(biome::RUIN);
 }
