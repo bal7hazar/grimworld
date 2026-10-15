@@ -6,10 +6,13 @@ From the repository root, with the account in the environment (OPERATIONS §7, u
     python3 scripts/sepolia_deploy.py --commit <sha> --dry-run      # everything but the transactions
 
 The variables `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS`, `STARKNET_PRIVATE_KEY`
-are read by name. **No value of any of them is printed, logged or written**, nor any part of one: every
+are read by name. **No value of any secret `STARKNET_*` variable (the RPC URL, the account address, the key)
+is printed, logged or written**, nor any part of one: every
 message names the variable only, and what `sncast` or the RPC echo back (an error carries the URL or the
 address) goes through `Redactor` before it is printed or logged. (`STARKNET_NETWORK` is a public name: it is not redacted.
-An RPC URL whose secret part is shorter than 12 characters is not supported.) The record holds no RPC URL and no
+An RPC URL whose secret part is shorter than 12 characters is not supported. Nor is a secret number glued
+to another hex run: `0x<address><key>`, `ab<address>`, a decimal form glued to more digits. The token regex
+takes the whole run, which equals neither number, so it is not hidden.) The record holds no RPC URL and no
 account. The key goes to `sncast` through a 0600 file (`O_EXCL`, deleted in a `finally`) and the accounts
 file it writes lives in a private temporary folder that is removed in a `finally`: never a command line.
 The account's address is public: it may appear on a `sncast` command line (in `ps`), and it is never
@@ -75,11 +78,16 @@ class Redactor:
     another value; a placeholder already written is left alone. A number glued to another value
     (`5e47a1d0c0ffee1234<value>`) is not delimited in the first pass, so the passes repeat until the text
     stops changing (at most MAX_PASSES): a text redacted twice is the same.
+    The bound, reasoned: pass 1 hides every value; pass 2 hides the numbers that pass 1's placeholders newly
+    delimited; so at most 2 passes change the text and the third sees it stable. Each pass only adds
+    placeholders, so a result capped at MAX_PASSES is never less redacted than one pass.
     STARKNET_NETWORK is not redacted: it is a public name ("sepolia"), not a secret, and a short value
     would garble every line of the log.
     Limit: an RPC URL whose secret part (a path, query or `;params` segment) is shorter than 12 characters
     is not supported: a shorter piece is not hidden when it is echoed alone (a lower floor would hide
-    words of the record such as "starknet")."""
+    words of the record such as "starknet").
+    Limit: a secret number glued to another hex run (`0x<address><key>`, `ab<address>`, a decimal form glued
+    to more digits) is not hidden: TOKEN takes the whole run, which equals neither number."""
 
     MAX_PASSES = 4
     PLACEHOLDER = r"<STARKNET_[A-Z_]+>"
