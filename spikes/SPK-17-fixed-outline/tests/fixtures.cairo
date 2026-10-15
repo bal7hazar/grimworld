@@ -69,6 +69,7 @@ pub fn spawn() -> SpawnTable {
             Default::default(), Default::default(), Default::default(), Default::default(),
         ],
         density: 160,
+        trap: 0,
     }
 }
 
