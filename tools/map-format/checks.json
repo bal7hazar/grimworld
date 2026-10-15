@@ -189,7 +189,7 @@
   },
   {
    "case": "carrier_damage_self_single",
-   "id": "D-303",
+   "id": "R-46",
    "code": "carrier: takes nobody",
    "checked_at": "SKILL",
    "reads": "—",
