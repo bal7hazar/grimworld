@@ -1,0 +1,113 @@
+{
+  "network": "Starknet Sepolia",
+  "rehearsal": false,
+  "chain_id": "SN_SEPOLIA",
+  "commit": "c25a426f047ef4347ab8538d7c82672ecc91dcfc",
+  "artefact": {
+    "run": "https://github.com/bal7hazar/grimworld/actions/runs/38682210121",
+    "name": "contract-classes-c25a426f047ef4347ab8538d7c82672ecc91dcfc"
+  },
+  "build_root": {
+    "root": "/home/runner/work/grimworld/grimworld",
+    "commit": "c25a426f047ef4347ab8538d7c82672ecc91dcfc",
+    "scarb": "2.20.1",
+    "os": "Linux ubuntu24 20261004.327.1"
+  },
+  "classes": {
+    "registry": "0x77ca0772f4e4e042b4e9b0a9014fb946fcaed6ff3820c7899f52672d992959c",
+    "zone_checks": "0x3dd623f3b16d6e0b90c1cdab4d4194f82d5abfedf962855b757549319a65328",
+    "tx_hash_fate": "0x31edd698a1f20d5bb78d2c1028154038568fe564d2c823b9440269db45c1135",
+    "reveal_library": "0x36208e6c3314a7d1efda2e54d8ca03d68357fede5420eceab60796d88e78e4a",
+    "hosts_library": "0x50980f899eebc6287b2bc6e2ec1f9c93587d750a7601f90d0200713b58f6808",
+    "trap_library": "0x2bab0bfaf397dba0805f1eec4f2a4bed5c3a98304f1e01cb6fa1c93462ca3e7",
+    "hub": "0x40cfc88c33788fc851f6ae0b750c645c5c6e82bb9d9b19bf88107592a50abad",
+    "flatten_library": "0x61914c7bd89321c18f5b8f99417e4d6d86b68e31c7b0c24aca02df80c05784e",
+    "instances": "0x1b50a902623cf68503ecb4e1b5911096cd490fdc0c8c0dc07eda64c862a27bb",
+    "play_library": "0x4e51f30f7e43693ab4960760c368c1650e4d041546e622174fcd2291c2714f1",
+    "tick_library": "0x5cad523a98874a0f615e3d02e5ded0d605419997250b11d07622e3562d84777",
+    "ai_library": "0x3cedefc31a5b006b5107aae5419f7c33784e4a6023e1a378610eda75dfb07b6",
+    "action_library": "0x2a405832b5edc4e7d22abfdd2ba9f30012e42fe006be35ac85e20ed30bda39e",
+    "executor_library": "0x3f2293d917ed9a019277d0249827198b27839243ffe8721dbd768daa6c6440e",
+    "segment_library": "0x1bada383dfebe56d97da6f05f1a7cd9f800dbd709d59c109947a8df4c8f7c8d",
+    "goblins_library": "0x206eeed93b621d6bcf231fd8eeeb6af332a147c26d4b2db34c1dfc34ffd6541"
+  },
+  "contracts": {
+    "registry": "0x06210c8153a06f22071d1232c8a7f1aee92539087381689ad6ab9ee7b9e6154d",
+    "tx_hash_fate": "0x077c34bdbff7caabb491029ee8539d1fa86c6b1e426366b49e0787a7ecb41912",
+    "hub": "0x0121c0c347e0ebbd7c908892a89d4ccb54ff5e74fbdd2adc63a1bb5e406045ff",
+    "instances": "0x06860ef05644a4c8890f09187f3726653969782f923847c66274db9ceefc0691"
+  },
+  "seed": {
+    "records": 44,
+    "ids": {
+      "region": [
+        1
+      ],
+      "location": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "gate": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "item": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "skill": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "caste": [
+        1,
+        2,
+        3
+      ],
+      "pack": [
+        1,
+        2
+      ],
+      "spawn_table": [
+        1
+      ]
+    }
+  },
+  "tools": {
+    "sncast": "sncast 0.64.0"
+  },
+  "transactions": 58,
+  "total_fee": {
+    "amount": "25554120140847737905",
+    "unit": "FRI"
+  }
+}
