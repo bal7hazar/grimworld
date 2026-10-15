@@ -532,11 +532,13 @@ fn generated_trap_fires(zone_biome: u8) {
 }
 
 #[test]
+#[available_gas(l2_gas: 56921450)] // ceil(1.05 × 54210904 measured)
 fn test_generated_trap_fires_cave() {
     generated_trap_fires(biome::CAVE);
 }
 
 #[test]
+#[available_gas(l2_gas: 56921250)] // ceil(1.05 × 54210714 measured)
 fn test_generated_trap_fires_ruin() {
     generated_trap_fires(biome::RUIN);
 }

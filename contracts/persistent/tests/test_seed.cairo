@@ -751,5 +751,5 @@ fn test_seed_rewritten_unchanged() {
     SeedTrait::write(registry);
     SeedTrait::write(registry);
     let read = IRegistryReadDispatcher { contract_address: registry };
-    assert(read.content_version() == 25, 'version kept');
+    assert(read.content_version() == 26, 'version kept');
 }

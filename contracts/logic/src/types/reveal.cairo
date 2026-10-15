@@ -2915,6 +2915,42 @@ pub mod tests {
         assert(digest == DIGEST_4, 'vectors moved: regenerate');
     }
 
+    #[test]
+    #[available_gas(l2_gas: 122603876)] // ceil(1.05 × 116765596 measured)
+    fn test_vectors_5() {
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = PART_5;
+        // GEN-TRAP (D-268, D-304): a cave's and a ruin's 3 × 3 zone, their spawn table's `trap`
+        // set (Rockfall 5, Spike pit 6), the 9 chunks revealed in one call: every generated
+        // terrain trap takes the table's skill (214, 215, in a part of their own).
+        for (kind, skill) in array![(biome::CAVE, 5_u16), (biome::RUIN, 6)] {
+            let mut site = zone(kind, 3, 3, no_quotas());
+            site.spawn.trap = skill;
+            let mut progress = ProgressTrait::new(@site, 'traps');
+            let out = emit_reveal(
+                ref digest,
+                ref id,
+                @site,
+                ref progress,
+                array![].span(),
+                array![0, 1, 2, 15, 16, 17, 30, 31, 32].span(),
+            );
+            let mut traps: u32 = 0;
+            for revealed in out {
+                for object in revealed.features.objects.span() {
+                    if *object.kind == object::TRAP {
+                        assert(*object.param == skill, 'the table skill');
+                        traps += 1;
+                    }
+                }
+            }
+            assert(traps > 0, 'a trap generated');
+        }
+        let digest = poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
+        assert(digest == DIGEST_5, 'vectors moved: regenerate');
+    }
+
     /// Whether a dungeon's outline holds two neighbouring chunks with their seam closed.
     fn closed_seam(site: @Site) -> bool {
         let set = *site.chunk_set;
@@ -2940,11 +2976,14 @@ pub mod tests {
     const PART_2: u32 = 186;
     const PART_3: u32 = 197;
     const PART_4: u32 = 208;
+    const PART_5: u32 = 214;
+    const DIGEST_5: felt252 =
+        1707225853379590837999156332661633146157591912689682358399105970283653072;
     const FLOOR_SEED: felt252 = 15;
     const DIGEST_3: felt252 =
-        373751706693600581171786682490285631373917093504969551187281382165112423875;
+        3600942264635620171104903522635352610041876651382293000289739196064745173923;
     const DIGEST_4: felt252 =
-        3544417685008436817138242476357257570762962652172485010072620730429193143830;
+        397087948135782133585015775641896020223707931448286182832690832201960101068;
     const DIGEST_0: felt252 =
         1099007504077458561703646988744304604964174275844371738808055141155867483297;
     // ENG-05b: `Progress`' hand-written Serde keeps the derived encoding, `left` one felt a value
@@ -2976,7 +3015,7 @@ pub mod tests {
     }
 
     const DIGEST_1: felt252 =
-        3406219353955151080332403134172067514426351653970253477291706690989101018180;
+        823613962018311822499391177909577128591674767922055235457786979393945349696;
     const DIGEST_2: felt252 =
-        170139148758665691845217810894711728109179173361979681415172906251723928882;
+        749989918061616031745967449497218661864388778638171818687123640288923867133;
 }

@@ -87,6 +87,7 @@ TABLES = {
         "grimworld_logic::types::reveal::tests::test_vectors_2",
         "grimworld_logic::types::reveal::tests::test_vectors_3",
         "grimworld_logic::types::reveal::tests::test_vectors_4",
+        "grimworld_logic::types::reveal::tests::test_vectors_5",
     ],
     "act.jsonl": [
         "grimworld_logic::types::action::tests::vectors::test_act_vectors_0",

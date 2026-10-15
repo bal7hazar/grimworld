@@ -525,8 +525,9 @@ words without `LIVE`); `Counter` from 0 to `u64::MAX`; `Bitmap` around bit 250 a
 ## `reveal.jsonl`: the chunk reveal (ENG-05)
 
 Printed by `types::reveal::tests::test_vectors` (ids 0–170), `test_vectors_1` (171–185),
-`test_vectors_2` (186–196), `test_vectors_3` (197–207) and `test_vectors_4` (208–213), split for
-snforge's step limit, each part with its digest (`PART_1` to `PART_4` are the first ids of the later
+`test_vectors_2` (186–196), `test_vectors_3` (197–207), `test_vectors_4` (208–213) and
+`test_vectors_5` (214–215), split for
+snforge's step limit, each part with its digest (`PART_1` to `PART_5` are the first ids of the later
 parts).
 
 One line: `{"id", "fn", "case", "ok"}`, every felt in hex. A struct, an `Option`, a tuple or a
@@ -540,7 +541,7 @@ value for `Some`, `1` for `None`; an `i8` as a felt, `-1` as `P − 1`).
 | `base` | `word`, `biome` (1 meadow … 4 ruin) | `BoardTrait::base`: the base's floor bitmap (1 = floor, interior only) |
 | `sight` | `x`, `y`, `width`, `height` (a global tile, a location in chunks) | `SightTrait::chunks`: the chunks within 6, the tile's own first, then by index |
 | `member` | `tile`, `k` (0–18), `odd` (the tile's global row parity) | `PackPlacementTrait::member`: `Option<u8>`, the chunk's tile at `OFFSETS[k]` |
-| `reveal` | `Site` (ENG-10b: with `west` and `north` after `chunk_set`, a dungeon's open seams; 0 in a zone), `Progress`, `instance_id`, `known` (`Span<(u8, Terrain)>`; in a dungeon every revealed chunk), `chunks` (`Span<u8>`) | `RevealTrait::reveal`: the `Progress` after, then the chunks revealed, `Span<Revealed>` (chunk, `Terrain` (walls 1 = wall, edges), `Features` (2 `PackPlacement`, 3 `Object`, `touched`)) |
+| `reveal` | `Site` (ENG-10b: with `west` and `north` after `chunk_set`, a dungeon's open seams; 0 in a zone; GEN-TRAP, D-304: its `spawn` with `trap` after `density`, the skill of a ruin's or a cave's generated terrain traps, 0 in every case but those of `trap` set), `Progress`, `instance_id`, `known` (`Span<(u8, Terrain)>`; in a dungeon every revealed chunk), `chunks` (`Span<u8>`) | `RevealTrait::reveal`: the `Progress` after, then the chunks revealed, `Span<Revealed>` (chunk, `Terrain` (walls 1 = wall, edges), `Features` (2 `PackPlacement`, 3 `Object`, `touched`)) |
 
 `reveal` covers every computation the client repeats: the chunk's word, the base, the smoothing with
 the margins (`hexx`'s `CaverTrait::smooth`, B4/S2, one generation), the ring's decisions and
@@ -549,7 +550,7 @@ openings (a dungeon side's from its seam's stream, D-224), the lines to the spin
 from `mix(word, k)`: 2 quotas, 3 placement, 4 the ring), and the progress (revealed set, count, open
 edges, quotas left; the entropy unchanged).
 
-The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `reveal` 40.
+The cases (216): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `reveal` 42.
 - `word` (18): 3 entropies (0, a short string, `P − 1`) × 2 instance ids × 3 chunks (0, 112, 224);
   `feed` (15): the 3 entropies × 5 facts `('fact:test', 17, s)`; `base` (12): 3 words × the 4 biomes;
   `sight` (12 in part 0, 2 in part 3): corners, sides, centres and edges of chunks in a 15 × 15
@@ -576,6 +577,9 @@ The cases (214): `word` 18, `feed` 15, `base` 12, `sight` 14, `member` 115, `rev
   band's top (206), a spawn roll equal to the density (207).
 - Part 4 (6, ENG-05c): a cave dungeon floor of `N` 6 (entropy 15) whose outline holds two
   neighbouring chunks with their seam closed, revealed whole by decreasing index (208–213).
+- Part 5 (2, GEN-TRAP, D-268, D-304): a cave's and a ruin's 3 × 3 zone whose spawn table's `trap` is
+  5 (Rockfall) and 6 (Spike pit), its 9 chunks revealed in one call; every generated terrain trap
+  (kind 4) carries the table's skill as its `param` (214, 215).
 
 
 ## `act.jsonl`: the adventurer's action, `ActionTrait::act` (RV-03b, D-257)
