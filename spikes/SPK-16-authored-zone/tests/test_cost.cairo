@@ -5,9 +5,6 @@
 //! proxy named: `ZONE_CHUNK` (2 parts) as `SET_PIECE`, `CANDIDATES` (3) as `BOOK`, `BRIDGE` (1) as
 //! `OUTLINE`.
 
-use grimworld_logic::types::content::{
-    BOOK, CRITERION_REACH_LANDMARK, GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE,
-};
 use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::chunk::Object;
@@ -19,6 +16,9 @@ use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as q
 use grimworld_logic::models::set_piece::{SetPack, SetPiece, SetPieceRecord};
 use grimworld_logic::models::spawn_table::SpawnTable;
 use grimworld_logic::snapshot::TaskEntry;
+use grimworld_logic::types::content::{
+    BOOK, CRITERION_REACH_LANDMARK, GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE,
+};
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
 use grimworld_logic::types::reveal::placement::PlacementTrait;
 use grimworld_logic::types::reveal::{ProgressTrait, Site};
