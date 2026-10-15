@@ -4,8 +4,8 @@
 
 use grimworld_logic::content::MODIFIER;
 use grimworld_logic::helpers::packing::{
-    P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, PackingAssert, PackingTrait,
-    byte_at, field, low_field, u16_at, u32_at,
+    LimbTrait, P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, PackingAssert,
+    PackingTrait,
 };
 use grimworld_logic::models::base::Base;
 use grimworld_logic::snapshot::Worn;
@@ -136,17 +136,17 @@ pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase
     fn unpack(value: felt252) -> ItemBase {
         let (low, _) = PackingTrait::split(value);
         ItemBase {
-            base: low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
-            requirement: byte_at(low, P16),
-            rarity: byte_at(low, P24),
-            level: byte_at(low, P32),
-            flags: byte_at(low, P40),
-            look: u16_at(low, P48),
-            set: u16_at(low, P64),
-            owner_kind: byte_at(low, P80),
-            owner: u32_at(low, P88),
-            slot: field(low, P120, P4).try_into().unwrap(),
-            hands: field(low, P124, P4).try_into().unwrap(),
+            base: LimbTrait::low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
+            requirement: LimbTrait::byte_at(low, P16),
+            rarity: LimbTrait::byte_at(low, P24),
+            level: LimbTrait::byte_at(low, P32),
+            flags: LimbTrait::byte_at(low, P40),
+            look: LimbTrait::u16_at(low, P48),
+            set: LimbTrait::u16_at(low, P64),
+            owner_kind: LimbTrait::byte_at(low, P80),
+            owner: LimbTrait::u32_at(low, P88),
+            slot: LimbTrait::field(low, P120, P4).try_into().unwrap(),
+            hands: LimbTrait::field(low, P124, P4).try_into().unwrap(),
         }
     }
 }
@@ -184,8 +184,8 @@ pub impl ItemModsStorePacking of starknet::storage_access::StorePacking<ItemMods
             out
                 .append(
                     Modifier {
-                        id: low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
-                        value: byte_at(bits, P16),
+                        id: LimbTrait::low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
+                        value: LimbTrait::byte_at(bits, P16),
                     },
                 );
             rest = next;
@@ -297,9 +297,9 @@ pub impl GrimoireStateStorePacking of starknet::storage_access::StorePacking<
     fn unpack(value: felt252) -> GrimoireState {
         let (low, _) = PackingTrait::split(value);
         GrimoireState {
-            known: low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
-            remaining: field(low, P16, 0x1000000000000).try_into().unwrap(),
-            hints: field(low, P64, P64).try_into().unwrap(),
+            known: LimbTrait::low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
+            remaining: LimbTrait::field(low, P16, 0x1000000000000).try_into().unwrap(),
+            hints: LimbTrait::field(low, P64, P64).try_into().unwrap(),
         }
     }
 }
@@ -366,7 +366,7 @@ pub impl GoldStorePacking of starknet::storage_access::StorePacking<Gold, felt25
     }
     fn unpack(value: felt252) -> Gold {
         let (low, _) = PackingTrait::split(value);
-        Gold { amount: low_field(low, P64.try_into().unwrap()).try_into().unwrap() }
+        Gold { amount: LimbTrait::low_field(low, P64.try_into().unwrap()).try_into().unwrap() }
     }
 }
 
@@ -399,11 +399,12 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
     fn unpack(value: felt252) -> RiftBoard {
         let (low, _) = PackingTrait::split(value);
         RiftBoard {
-            day: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            cleared: byte_at(low, P32),
+            day: LimbTrait::low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
+            cleared: LimbTrait::byte_at(low, P32),
             rifts: [
-                u16_at(low, P40), u16_at(low, P56), u16_at(low, P72), u16_at(low, P88),
-                u16_at(low, P104),
+                LimbTrait::u16_at(low, P40), LimbTrait::u16_at(low, P56),
+                LimbTrait::u16_at(low, P72), LimbTrait::u16_at(low, P88),
+                LimbTrait::u16_at(low, P104),
             ],
         }
     }

@@ -15,7 +15,7 @@
 //! `GoblinSnapshotTrait::place` and `set_facing`'s delta, on the word); `place_level` and
 //! `moved_level` add the level. The spike's costs are the differences (`tests/test_cost.cairo`).
 
-use grimworld_logic::helpers::packing::{N32, N8, P112, P48, PackingTrait, field, peel};
+use grimworld_logic::helpers::packing::{LimbTrait, N32, N8, P112, P48, PackingTrait};
 
 /// The level of every tile but a deck's.
 pub const GROUND: u8 = 0;
@@ -48,9 +48,9 @@ pub impl MemberPlaceImpl of MemberPlaceTrait {
     fn place(state: felt252) -> Place {
         let (low, _) = PackingTrait::limbs(state);
         let (mut rest, _) = DivRem::div_rem(low, N32);
-        let x = peel(ref rest, N8);
-        let y = peel(ref rest, N8);
-        let facing = peel(ref rest, N8);
+        let x = LimbTrait::peel(ref rest, N8);
+        let y = LimbTrait::peel(ref rest, N8);
+        let facing = LimbTrait::peel(ref rest, N8);
         Place {
             x: x.try_into().unwrap(),
             y: y.try_into().unwrap(),
@@ -63,14 +63,14 @@ pub impl MemberPlaceImpl of MemberPlaceTrait {
     fn place_level(state: felt252) -> Place {
         let (low, high) = PackingTrait::limbs(state);
         let (mut rest, _) = DivRem::div_rem(low, N32);
-        let x = peel(ref rest, N8);
-        let y = peel(ref rest, N8);
-        let facing = peel(ref rest, N8);
+        let x = LimbTrait::peel(ref rest, N8);
+        let y = LimbTrait::peel(ref rest, N8);
+        let facing = LimbTrait::peel(ref rest, N8);
         Place {
             x: x.try_into().unwrap(),
             y: y.try_into().unwrap(),
             facing: facing.try_into().unwrap(),
-            level: field(high, P48, 2).try_into().unwrap(),
+            level: LimbTrait::field(high, P48, 2).try_into().unwrap(),
         }
     }
 
@@ -94,9 +94,9 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
     fn place(state: felt252) -> Place {
         let (low, _) = PackingTrait::limbs(state);
         let mut rest = low;
-        let x = peel(ref rest, N8);
-        let y = peel(ref rest, N8);
-        let facing = peel(ref rest, N8);
+        let x = LimbTrait::peel(ref rest, N8);
+        let y = LimbTrait::peel(ref rest, N8);
+        let facing = LimbTrait::peel(ref rest, N8);
         Place {
             x: x.try_into().unwrap(),
             y: y.try_into().unwrap(),
@@ -109,14 +109,14 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
     fn place_level(state: felt252) -> Place {
         let (low, high) = PackingTrait::limbs(state);
         let mut rest = low;
-        let x = peel(ref rest, N8);
-        let y = peel(ref rest, N8);
-        let facing = peel(ref rest, N8);
+        let x = LimbTrait::peel(ref rest, N8);
+        let y = LimbTrait::peel(ref rest, N8);
+        let facing = LimbTrait::peel(ref rest, N8);
         Place {
             x: x.try_into().unwrap(),
             y: y.try_into().unwrap(),
             facing: facing.try_into().unwrap(),
-            level: field(high, P112, 2).try_into().unwrap(),
+            level: LimbTrait::field(high, P112, 2).try_into().unwrap(),
         }
     }
 

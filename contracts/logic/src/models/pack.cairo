@@ -7,7 +7,7 @@
 //! its `max`.
 
 use crate::content::{PACK, Record};
-use crate::helpers::packing::{P16, P24, P32, P64, P8, P96, PackingTrait, peel};
+use crate::helpers::packing::{LimbTrait, P16, P24, P32, P64, P8, P96, PackingTrait};
 use crate::helpers::signed::SignedTrait;
 use crate::types::MAX_PACK_SIZE;
 pub use super::index::{Pack, PackCaste};
@@ -126,11 +126,11 @@ pub impl PackCasteBits of PackCasteBitsTrait {
     }
 
     #[inline(never)]
-    fn peel(ref rest: u128) -> PackCaste {
+    fn LimbTrait::peel(ref rest: u128) -> PackCaste {
         let s8: NonZero<u128> = P8.try_into().unwrap();
-        let caste = peel(ref rest, P16.try_into().unwrap());
-        let min = peel(ref rest, s8);
-        let max = peel(ref rest, s8);
+        let caste = LimbTrait::peel(ref rest, P16.try_into().unwrap());
+        let min = LimbTrait::peel(ref rest, s8);
+        let max = LimbTrait::peel(ref rest, s8);
         PackCaste {
             caste: caste.try_into().unwrap(),
             min: min.try_into().unwrap(),
@@ -160,7 +160,7 @@ pub impl PackRecord of Record<Pack> {
         let c2 = PackCasteBitsTrait::peel(ref low);
         let c3 = PackCasteBitsTrait::peel(ref low);
         let c4 = PackCasteBitsTrait::peel(ref high);
-        let level = peel(ref high, P8.try_into().unwrap());
+        let level = LimbTrait::peel(ref high, P8.try_into().unwrap());
         Pack { castes: [c0, c1, c2, c3, c4], level: SignedTrait::from8(level) }
     }
 }

@@ -7,7 +7,7 @@
 //! checks.json`).
 
 use crate::content::{Record, ZONE_CHUNK};
-use crate::helpers::packing::{P16, P24, P48, P80, PackingTrait, peel};
+use crate::helpers::packing::{LimbTrait, P16, P24, P48, P80, PackingTrait};
 use crate::types::reveal::board::{BOARD, BoardTrait, INTERIOR};
 use super::chunk::{ObjectTrait, object};
 pub use super::index::{Object, SetPack, ZoneChunk};
@@ -255,18 +255,18 @@ pub impl ZoneChunkRecord of Record<ZoneChunk> {
         let p1 = SetPackBitsTrait::peel(ref low);
         let s32: NonZero<u128> = 0x100000000;
         let s8: NonZero<u128> = 0x100;
-        let o0 = ObjectTrait::from_bits(peel(ref low, s32));
-        let o1 = ObjectTrait::from_bits(peel(ref low, s32));
-        let o2 = ObjectTrait::from_bits(peel(ref high, s32));
-        let t0 = peel(ref high, s8);
-        let t1 = peel(ref high, s8);
-        let t2 = peel(ref high, s8);
-        let t3 = peel(ref high, s8);
-        let t4 = peel(ref high, s8);
-        let t5 = peel(ref high, s8);
-        let bridges = peel(ref high, 0x10);
-        let g0 = peel(ref high, P16.try_into().unwrap());
-        let g1 = peel(ref high, P16.try_into().unwrap());
+        let o0 = ObjectTrait::from_bits(LimbTrait::peel(ref low, s32));
+        let o1 = ObjectTrait::from_bits(LimbTrait::peel(ref low, s32));
+        let o2 = ObjectTrait::from_bits(LimbTrait::peel(ref high, s32));
+        let t0 = LimbTrait::peel(ref high, s8);
+        let t1 = LimbTrait::peel(ref high, s8);
+        let t2 = LimbTrait::peel(ref high, s8);
+        let t3 = LimbTrait::peel(ref high, s8);
+        let t4 = LimbTrait::peel(ref high, s8);
+        let t5 = LimbTrait::peel(ref high, s8);
+        let bridges = LimbTrait::peel(ref high, 0x10);
+        let g0 = LimbTrait::peel(ref high, P16.try_into().unwrap());
+        let g1 = LimbTrait::peel(ref high, P16.try_into().unwrap());
         ZoneChunk {
             walls,
             spawns: [p0, p1],

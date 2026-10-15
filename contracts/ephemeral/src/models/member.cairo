@@ -3,8 +3,8 @@
 //! that controls the adventurer (M-6). Layouts: docs/architecture/ENG-01-interfaces.md, *Member*.
 
 use grimworld_logic::helpers::packing::{
-    N16, N32, N8, P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96,
-    PackingAssert, PackingTrait, byte_at, field, low_field, peel, u16_at, u32_at,
+    LimbTrait, N16, N32, N8, P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96,
+    PackingAssert, PackingTrait,
 };
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::MAX_CLOCK;
@@ -67,7 +67,10 @@ pub impl MemberStateImpl of MemberStateTrait {
     /// unpacking the other eighteen fields.
     fn maxima(stats: felt252) -> (u16, u8) {
         let (low, _) = PackingTrait::split(stats);
-        (low_field(low, P16.try_into().unwrap()).try_into().unwrap(), byte_at(low, P16))
+        (
+            LimbTrait::low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
+            LimbTrait::byte_at(low, P16),
+        )
     }
 }
 
@@ -146,22 +149,22 @@ pub impl MemberStateStorePacking of starknet::storage_access::StorePacking<Membe
     }
     fn unpack(value: felt252) -> MemberState {
         let (mut low, mut high) = PackingTrait::split(value);
-        let adventurer = peel(ref low, N32).try_into().unwrap();
-        let x = peel(ref low, N8).try_into().unwrap();
-        let y = peel(ref low, N8).try_into().unwrap();
-        let facing = peel(ref low, N8).try_into().unwrap();
-        let status = peel(ref low, N8).try_into().unwrap();
-        let health = peel(ref low, N16).try_into().unwrap();
-        let energy = peel(ref low, N16).try_into().unwrap();
-        let adrenaline = peel(ref low, N16).try_into().unwrap();
-        let hits = peel(ref low, N8).try_into().unwrap();
-        let casts = peel(ref low, N8).try_into().unwrap();
-        let b0 = peel(ref high, N8).try_into().unwrap();
-        let b1 = peel(ref high, N8).try_into().unwrap();
-        let b2 = peel(ref high, N8).try_into().unwrap();
-        let b3 = peel(ref high, N8).try_into().unwrap();
-        let flags = peel(ref high, N8).try_into().unwrap();
-        let casts_2 = peel(ref high, N8).try_into().unwrap();
+        let adventurer = LimbTrait::peel(ref low, N32).try_into().unwrap();
+        let x = LimbTrait::peel(ref low, N8).try_into().unwrap();
+        let y = LimbTrait::peel(ref low, N8).try_into().unwrap();
+        let facing = LimbTrait::peel(ref low, N8).try_into().unwrap();
+        let status = LimbTrait::peel(ref low, N8).try_into().unwrap();
+        let health = LimbTrait::peel(ref low, N16).try_into().unwrap();
+        let energy = LimbTrait::peel(ref low, N16).try_into().unwrap();
+        let adrenaline = LimbTrait::peel(ref low, N16).try_into().unwrap();
+        let hits = LimbTrait::peel(ref low, N8).try_into().unwrap();
+        let casts = LimbTrait::peel(ref low, N8).try_into().unwrap();
+        let b0 = LimbTrait::peel(ref high, N8).try_into().unwrap();
+        let b1 = LimbTrait::peel(ref high, N8).try_into().unwrap();
+        let b2 = LimbTrait::peel(ref high, N8).try_into().unwrap();
+        let b3 = LimbTrait::peel(ref high, N8).try_into().unwrap();
+        let flags = LimbTrait::peel(ref high, N8).try_into().unwrap();
+        let casts_2 = LimbTrait::peel(ref high, N8).try_into().unwrap();
         MemberState {
             adventurer,
             x,
@@ -224,15 +227,15 @@ pub impl MemberTimersStorePacking of starknet::storage_access::StorePacking<Memb
     fn unpack(value: felt252) -> MemberTimers {
         let (low, high) = PackingTrait::split(value);
         MemberTimers {
-            act_slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
-            act_target: u16_at(low, P8),
-            act_tile: byte_at(low, P24),
-            act_deadline: u32_at(low, P32),
-            bleeding: u32_at(low, P64),
-            poison: u32_at(low, P96),
-            burning: low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
-            crippled: u32_at(high, P32),
-            knocked: u32_at(high, P64),
+            act_slot: LimbTrait::low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
+            act_target: LimbTrait::u16_at(low, P8),
+            act_tile: LimbTrait::byte_at(low, P24),
+            act_deadline: LimbTrait::u32_at(low, P32),
+            bleeding: LimbTrait::u32_at(low, P64),
+            poison: LimbTrait::u32_at(low, P96),
+            burning: LimbTrait::low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
+            crippled: LimbTrait::u32_at(high, P32),
+            knocked: LimbTrait::u32_at(high, P64),
         }
     }
 }
@@ -293,11 +296,11 @@ impl EffectPacking of EffectPackingTrait {
 
     fn unpack(bits: u128) -> Effect {
         Effect {
-            skill: low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
-            charges: field(bits, P16, 0x40).try_into().unwrap(),
-            potion: field(bits, 0x800000, 2) == 1,
-            deadline: field(bits, P24, P28).try_into().unwrap(),
-            rank: field(bits, P52, 0x10).try_into().unwrap(),
+            skill: LimbTrait::low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
+            charges: LimbTrait::field(bits, P16, 0x40).try_into().unwrap(),
+            potion: LimbTrait::field(bits, 0x800000, 2) == 1,
+            deadline: LimbTrait::field(bits, P24, P28).try_into().unwrap(),
+            rank: LimbTrait::field(bits, P52, 0x10).try_into().unwrap(),
         }
     }
 }

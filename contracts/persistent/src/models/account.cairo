@@ -3,7 +3,7 @@
 //! personal by adventurer id (design/03, D-33).
 
 use core::num::traits::Zero;
-use grimworld_logic::helpers::packing::{P16, P24, P32, P8, PackingTrait, byte_at, low_field};
+use grimworld_logic::helpers::packing::{LimbTrait, P16, P24, P32, P8, PackingTrait};
 use starknet::ContractAddress;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
@@ -36,11 +36,11 @@ pub impl AccountRecordStorePacking of starknet::storage_access::StorePacking<
     fn unpack(value: felt252) -> AccountRecord {
         let (low, _) = PackingTrait::split(value);
         AccountRecord {
-            slots: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
-            adventurers: byte_at(low, P8),
-            highest_rank: byte_at(low, P16),
-            vault_panes: byte_at(low, P24),
-            lots: byte_at(low, P32),
+            slots: LimbTrait::low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
+            adventurers: LimbTrait::byte_at(low, P8),
+            highest_rank: LimbTrait::byte_at(low, P16),
+            vault_panes: LimbTrait::byte_at(low, P24),
+            lots: LimbTrait::byte_at(low, P32),
         }
     }
 }

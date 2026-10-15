@@ -3,7 +3,7 @@
 //! carries one effect entry (design/19 §5.14), a bomb its range and strength (FX-18, FX-28).
 
 use crate::content::{ITEM, Record};
-use crate::helpers::packing::{P16, P24, P32, P64, P8, PackingTrait, low_field};
+use crate::helpers::packing::{LimbTrait, P16, P24, P32, P64, P8, PackingTrait};
 use crate::types::effect::{Carrier, ENTRY_BOUND, EntryAssert, EntryTrait};
 pub use super::index::Item;
 
@@ -49,7 +49,7 @@ pub impl ItemImpl of ItemTrait {
     #[inline(always)]
     fn class_of(part: felt252) -> u8 {
         let (low, _) = PackingTrait::split(part);
-        low_field(low, P8.try_into().unwrap()).try_into().unwrap()
+        LimbTrait::low_field(low, P8.try_into().unwrap()).try_into().unwrap()
     }
 
     #[inline(always)]

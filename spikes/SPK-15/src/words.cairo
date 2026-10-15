@@ -13,7 +13,7 @@
 //! What changes: `load`'s contract with perception (it reads words, not `Goblin` values) and the
 //! content's index (`Index`), which `load` must keep for the call to decode a goblin later.
 
-use grimworld_logic::helpers::packing::{P24, PackingTrait, field};
+use grimworld_logic::helpers::packing::{LimbTrait, P24, PackingTrait};
 use grimworld_logic::models::goblin::{Goblin, GoblinTrait, GoblinWords};
 use grimworld_logic::models::member::{Member, MemberTrait, MemberWords};
 use grimworld_logic::types::tick::{Content, ContentTrait, Index, Sheets, ai};
@@ -230,7 +230,7 @@ pub impl LazyImpl of LazyTrait {
     #[inline(always)]
     fn ai_of(words: @GoblinWords) -> u8 {
         let (low, _) = PackingTrait::limbs(*words.state);
-        field(low, P24, 0x100).try_into().unwrap()
+        LimbTrait::field(low, P24, 0x100).try_into().unwrap()
     }
 
     /// A frozen goblin's key from its AI state kept at load.

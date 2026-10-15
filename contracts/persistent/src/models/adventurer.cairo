@@ -6,8 +6,8 @@
 
 use grimworld_logic::content::{ITEM, SKILL};
 use grimworld_logic::helpers::packing::{
-    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96,
-    PackingAssert, PackingTrait, byte_at, field, low_field, u16_at, u32_at,
+    Bitmap, Lanes32, LimbTrait, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96,
+    PackingAssert, PackingTrait,
 };
 use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
@@ -114,8 +114,9 @@ pub impl BeltImpl of BeltTrait {
                 d.try_into().unwrap(),
             ],
             [
-                low_field(high, P8.try_into().unwrap()).try_into().unwrap(), byte_at(high, P8),
-                byte_at(high, P16), byte_at(high, P24),
+                LimbTrait::low_field(high, P8.try_into().unwrap()).try_into().unwrap(),
+                LimbTrait::byte_at(high, P8), LimbTrait::byte_at(high, P16),
+                LimbTrait::byte_at(high, P24),
             ],
         )
     }
@@ -614,18 +615,18 @@ pub impl AdventurerCoreStorePacking of starknet::storage_access::StorePacking<
     fn unpack(value: felt252) -> AdventurerCore {
         let (low, high) = PackingTrait::split(value);
         AdventurerCore {
-            account: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            experience: u32_at(low, P32),
-            merit: u32_at(low, P64),
-            level: byte_at(low, P96),
-            rank: byte_at(low, P104),
-            profession: byte_at(low, P112),
-            secondary: byte_at(low, P120),
-            unspent: low_field(high, P16.try_into().unwrap()).try_into().unwrap(),
-            trials_first: u16_at(high, P16),
-            trials_tried: u16_at(high, P32),
-            status: byte_at(high, P48),
-            pack_lanes: u16_at(high, P56),
+            account: LimbTrait::low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
+            experience: LimbTrait::u32_at(low, P32),
+            merit: LimbTrait::u32_at(low, P64),
+            level: LimbTrait::byte_at(low, P96),
+            rank: LimbTrait::byte_at(low, P104),
+            profession: LimbTrait::byte_at(low, P112),
+            secondary: LimbTrait::byte_at(low, P120),
+            unspent: LimbTrait::low_field(high, P16.try_into().unwrap()).try_into().unwrap(),
+            trials_first: LimbTrait::u16_at(high, P16),
+            trials_tried: LimbTrait::u16_at(high, P32),
+            status: LimbTrait::byte_at(high, P48),
+            pack_lanes: LimbTrait::u16_at(high, P56),
         }
     }
 }
@@ -660,11 +661,11 @@ pub impl AdventurerPlaceStorePacking of starknet::storage_access::StorePacking<
     fn unpack(value: felt252) -> AdventurerPlace {
         let (low, high) = PackingTrait::split(value);
         AdventurerPlace {
-            instance: low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
-            hub: u16_at(low, P64),
-            last_hub: u16_at(low, P80),
-            inside: byte_at(low, P96),
-            unlocked: low_field(high, P64.try_into().unwrap()).try_into().unwrap(),
+            instance: LimbTrait::low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
+            hub: LimbTrait::u16_at(low, P64),
+            last_hub: LimbTrait::u16_at(low, P80),
+            inside: LimbTrait::byte_at(low, P96),
+            unlocked: LimbTrait::low_field(high, P64.try_into().unwrap()).try_into().unwrap(),
         }
     }
 }
@@ -701,12 +702,14 @@ pub impl BuildStorePacking of starknet::storage_access::StorePacking<Build, felt
         let (low, high) = PackingTrait::split(value);
         Build {
             bar: [
-                low_field(low, P16.try_into().unwrap()).try_into().unwrap(), u16_at(low, P16),
-                u16_at(low, P32), u16_at(low, P48), u16_at(low, P64), u16_at(low, P80),
-                u16_at(low, P96), u16_at(low, P112),
+                LimbTrait::low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
+                LimbTrait::u16_at(low, P16), LimbTrait::u16_at(low, P32),
+                LimbTrait::u16_at(low, P48), LimbTrait::u16_at(low, P64),
+                LimbTrait::u16_at(low, P80), LimbTrait::u16_at(low, P96),
+                LimbTrait::u16_at(low, P112),
             ],
-            attributes: field(high, 1, 0x1000000000).try_into().unwrap(),
-            elite_slot: byte_at(high, P40),
+            attributes: LimbTrait::field(high, 1, 0x1000000000).try_into().unwrap(),
+            elite_slot: LimbTrait::byte_at(high, P40),
         }
     }
 }

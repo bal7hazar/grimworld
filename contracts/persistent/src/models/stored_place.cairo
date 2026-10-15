@@ -5,7 +5,7 @@
 //! stay the layout and the oracle: each method is pinned against the packer in the tests. Only the
 //! store reads and writes it (`HubStoreTrait::get_place`).
 
-use grimworld_logic::helpers::packing::{P64, P80, P96, PackingTrait, byte_at, low_field, u16_at};
+use grimworld_logic::helpers::packing::{LimbTrait, P64, P80, P96, PackingTrait};
 
 /// `AdventurerPlace` as stored, one word.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -19,17 +19,17 @@ pub impl StoredPlaceImpl of StoredPlaceTrait {
     /// `inside`, without decoding the other fields.
     fn is_inside(self: @StoredPlace) -> bool {
         let (low, _) = PackingTrait::split(*self.word);
-        byte_at(low, P96) != 0
+        LimbTrait::byte_at(low, P96) != 0
     }
 
     /// `(instance, hub, last hub, inside)`.
     fn fields(self: @StoredPlace) -> (u64, u16, u16, bool) {
         let (low, _) = PackingTrait::split(*self.word);
         (
-            low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
-            u16_at(low, P64),
-            u16_at(low, P80),
-            byte_at(low, P96) != 0,
+            LimbTrait::low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
+            LimbTrait::u16_at(low, P64),
+            LimbTrait::u16_at(low, P80),
+            LimbTrait::byte_at(low, P96) != 0,
         )
     }
 
@@ -45,7 +45,9 @@ pub impl StoredPlaceImpl of StoredPlaceTrait {
     fn entered(self: StoredPlace, instance: u64) -> StoredPlace {
         let (low, high) = PackingTrait::split(self.word);
         StoredPlace {
-            word: PackingTrait::join(instance.into() + u16_at(low, P64).into() * P80 + P96, high),
+            word: PackingTrait::join(
+                instance.into() + LimbTrait::u16_at(low, P64).into() * P80 + P96, high,
+            ),
         }
     }
 

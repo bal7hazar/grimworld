@@ -183,11 +183,11 @@ in), so that the `Site` never crosses back: neither `Instances` nor `PlayLibrary
 location's records or carries a `Site` (returning it instead was measured and refused: its Serde
 costs what its decoding did); **the segment's fast path as a member-only tick** (`TickTrait::idle`, on
 a world `WorldTrait::calm` holds: no goblin awake, no member activating), the generic tick with
-`Idle` out of `SegmentLibrary`; **the header, placement and member state decoded with `peel`** (one
-division a field); **the defeat's closing path in `Instances`**, which holds `close` already
-(`PlayLibrary.play` returns the defeat). D-222's own aims are not reached by these levers:
-`TickLibrary` stays at 76.53 % (75 % aimed), `TrapLibrary` at 76.85 % (50 % aimed; most of its code
-is the executor's strike, entries and conditions).
+`Idle` out of `SegmentLibrary`; **the header, placement and member state decoded with
+`LimbTrait::peel`** (one division a field); **the defeat's closing path in `Instances`**, which holds
+`close` already (`PlayLibrary.play` returns the defeat). D-222's own aims are not reached by these
+levers: `TickLibrary` stays at 76.53 % (75 % aimed), `TrapLibrary` at 76.85 % (50 % aimed; most of
+its code is the executor's strike, entries and conditions).
 
 **FIX-02b: the goblin loader in its own class (D-269, the project manager, 2026-10-11).** `play` now
 reads the skills of the unused terrain traps of the chunks it loads (FIX-02, D-266); inline, and

@@ -3,7 +3,7 @@
 //! carries `LIVE` (bit 250), so that a slot reused by the next instance is never 0.
 
 use grimworld_logic::helpers::packing::{
-    N16, N32, N8, P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, PackingTrait, peel,
+    LimbTrait, N16, N32, N8, P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, PackingTrait,
 };
 use grimworld_logic::types::Refusal;
 use grimworld_logic::types::reveal::Progress;
@@ -175,10 +175,10 @@ pub impl PlacementStorePacking of starknet::storage_access::StorePacking<Placeme
     fn unpack(value: felt252) -> Placement {
         let (mut low, _) = PackingTrait::split(value);
         Placement {
-            slot: peel(ref low, N32).try_into().unwrap(),
-            generation: peel(ref low, N32).try_into().unwrap(),
-            member: peel(ref low, N8).try_into().unwrap(),
-            inside: peel(ref low, N8).try_into().unwrap(),
+            slot: LimbTrait::peel(ref low, N32).try_into().unwrap(),
+            generation: LimbTrait::peel(ref low, N32).try_into().unwrap(),
+            member: LimbTrait::peel(ref low, N8).try_into().unwrap(),
+            inside: LimbTrait::peel(ref low, N8).try_into().unwrap(),
         }
     }
 }
@@ -241,19 +241,19 @@ pub impl HeaderStorePacking of starknet::storage_access::StorePacking<Header, fe
     fn unpack(value: felt252) -> Header {
         let (mut low, mut high) = PackingTrait::split(value);
         Header {
-            generation: peel(ref low, N32).try_into().unwrap(),
-            sequence: peel(ref low, N32).try_into().unwrap(),
-            clock: peel(ref low, N32).try_into().unwrap(),
-            location: peel(ref low, N16).try_into().unwrap(),
-            status: peel(ref low, N8).try_into().unwrap(),
-            members: peel(ref low, N8).try_into().unwrap(),
-            tasks: peel(ref high, N8).try_into().unwrap(),
-            revealed_count: peel(ref high, N8).try_into().unwrap(),
-            roster_count: peel(ref high, N8).try_into().unwrap(),
-            flags: peel(ref high, N8).try_into().unwrap(),
-            entry_chunk: peel(ref high, N8).try_into().unwrap(),
-            entry_tile: peel(ref high, N8).try_into().unwrap(),
-            gate: peel(ref high, N16).try_into().unwrap(),
+            generation: LimbTrait::peel(ref low, N32).try_into().unwrap(),
+            sequence: LimbTrait::peel(ref low, N32).try_into().unwrap(),
+            clock: LimbTrait::peel(ref low, N32).try_into().unwrap(),
+            location: LimbTrait::peel(ref low, N16).try_into().unwrap(),
+            status: LimbTrait::peel(ref low, N8).try_into().unwrap(),
+            members: LimbTrait::peel(ref low, N8).try_into().unwrap(),
+            tasks: LimbTrait::peel(ref high, N8).try_into().unwrap(),
+            revealed_count: LimbTrait::peel(ref high, N8).try_into().unwrap(),
+            roster_count: LimbTrait::peel(ref high, N8).try_into().unwrap(),
+            flags: LimbTrait::peel(ref high, N8).try_into().unwrap(),
+            entry_chunk: LimbTrait::peel(ref high, N8).try_into().unwrap(),
+            entry_tile: LimbTrait::peel(ref high, N8).try_into().unwrap(),
+            gate: LimbTrait::peel(ref high, N16).try_into().unwrap(),
         }
     }
 }
