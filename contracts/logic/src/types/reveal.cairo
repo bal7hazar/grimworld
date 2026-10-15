@@ -2916,7 +2916,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 122603876)] // ceil(1.05 × 116765596 measured)
+    #[available_gas(l2_gas: 122603771)] // ceil(1.05 × 116765496 measured)
     fn test_vectors_5() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_5;
