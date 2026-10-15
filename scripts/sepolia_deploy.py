@@ -276,7 +276,9 @@ class SepoliaNode(dd.Node):
         took the transaction: wait for it and take it as the call's result; anything else, an
         unclassified error, an unreadable nonce, the tries spent: stop as before. The error text is
         never the proof; it only decides whether to try the check."""
-        what = " ".join(a for a in args[:4] if not a.startswith("--") and not a.startswith("0x"))
+        words = [a for i, a in enumerate(args[:5]) if not a.startswith("--") and not a.startswith("0x")
+                 and not (i and args[i - 1] == "--account")]  # the account's name is not part of the call's
+        what = " ".join(words)
         reference = self.account_nonce() if submits else None
         sent = [*args, "--nonce", hex(reference)] if submits else list(args)
         for attempt in range(1, TRIES + 1):
@@ -299,6 +301,10 @@ class SepoliaNode(dd.Node):
                 if after == reference and kind != "nonce refused":
                     self.retry_line(kind, attempt)
                     continue
+                if after == reference:  # only a refused resend gets here: a copy is pending, not visible yet
+                    raise RuntimeError(f"sncast {what}: the resend was refused for its nonce {reference} but "
+                                       f"the nonce still reads {after}: a copy is pending and not yet "
+                                       f"visible: stopping") from error
                 if after != reference + 1:
                     raise RuntimeError(f"sncast {what}: failed ({kind}) and the nonce went from {reference} "
                                        f"to {after}: stopping") from error
@@ -355,7 +361,7 @@ class SepoliaNode(dd.Node):
                             and int(tx["nonce"], 16) == nonce:
                         return tx
             self.sleep(FOUND_WAIT)
-        raise RuntimeError("no transaction of the account with that nonce in the pending or latest blocks")
+        raise RuntimeError("no transaction of the account with that nonce in the pre-confirmed or latest blocks")
 
     def wait_receipt(self, tx):
         for _ in range(FOUND_TRIES * 4):
@@ -638,7 +644,7 @@ def run(args, log, redact, environ):
     logs = tempfile.mkdtemp(prefix="sepolia-deploy-")  # 0700: the accounts file holds the key
     try:
         node = SepoliaNode(url, address, "unused", logs, {}, redact, log.say, pace=pace, backoff=args.backoff,
-                           tag="latest" if args.devnet_rehearsal else "pending")
+                           tag="latest" if args.devnet_rehearsal else "pre_confirmed")
         chain = check_chain(node, args.devnet_rehearsal, log)
         sncast_version = read_sncast_version(log)
         run_id, info = find_run(args, log)

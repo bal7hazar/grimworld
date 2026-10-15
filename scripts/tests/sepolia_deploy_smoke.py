@@ -383,6 +383,51 @@ class Scripted(http.server.BaseHTTPRequestHandler):
         pass
 
 
+def check_run_node():
+    """The node `run()` builds: its tag and pace, with the RPC and the artefact stubbed out, stopped before
+    the first send (find_run raises)."""
+    class Stop(Exception):
+        pass
+
+    class Log:
+        def say(self, text, error=False):
+            pass
+
+        def die(self, text):
+            raise AssertionError(text)
+
+    built = []
+    real = {name: getattr(sepolia_deploy, name) for name in
+            ("check_endpoint", "check_chain", "read_sncast_version", "find_run", "SepoliaNode")}
+
+    class Recording(real["SepoliaNode"]):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            built.append(self)
+
+    def stop(*args):
+        raise Stop
+
+    sepolia_deploy.check_endpoint = lambda *a: None
+    sepolia_deploy.check_chain = lambda *a: "SN_SEPOLIA"
+    sepolia_deploy.read_sncast_version = lambda *a: "sncast 0"
+    sepolia_deploy.find_run = stop
+    sepolia_deploy.SepoliaNode = Recording
+    try:
+        for extra, tag, pace in (([], "pre_confirmed", 1.0), (["--pace", "2.5"], "pre_confirmed", 2.5),
+                                 (["--devnet-rehearsal", "--out", "/tmp/x.json", "--pace", "2.5"], "latest", 0.0)):
+            args = sepolia_deploy.parse(["--commit", "0" * 40, *extra])
+            try:
+                sepolia_deploy.run(args, Log(), sepolia_deploy.Redactor(FAKE), {
+                    **FAKE, "STARKNET_RPC_URL": "https://x.example/rpc"})
+            except Stop:
+                pass
+            assert built[-1].tag == tag and built[-1].pace == pace, (extra, built[-1].tag, built[-1].pace)
+    finally:
+        for name, value in real.items():
+            setattr(sepolia_deploy, name, value)
+
+
 def check_rate_limit():
     """OPS-03 on a scripted node and a stub `sncast`: nothing here goes near Sepolia. The stub is in the
     PATH only while this runs: the later checks need the real `sncast`."""
@@ -807,6 +852,7 @@ def main():
     check_command_line()
     check_cut_secret()
     check_chain_unit()
+    check_run_node()
     check_rate_limit()
     url, address, key = (os.environ["NODE_URL"], os.environ["NODE_ACCOUNT_ADDRESS"],
                          os.environ["NODE_ACCOUNT_PRIVATE_KEY"])
