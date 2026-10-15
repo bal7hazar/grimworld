@@ -82,19 +82,19 @@ pub impl LimbImpl of LimbTrait {
     /// The byte of `limb` at bit `2^offset = shift`.
     #[inline(always)]
     fn byte_at(limb: u128, shift: u128) -> u8 {
-        LimbTrait::field(limb, shift, 0x100).try_into().unwrap()
+        Self::field(limb, shift, 0x100).try_into().unwrap()
     }
 
     /// The `u16` of `limb` at bit `2^offset = shift`.
     #[inline(always)]
     fn u16_at(limb: u128, shift: u128) -> u16 {
-        LimbTrait::field(limb, shift, 0x10000).try_into().unwrap()
+        Self::field(limb, shift, 0x10000).try_into().unwrap()
     }
 
     /// The `u32` of `limb` at bit `2^offset = shift`.
     #[inline(always)]
     fn u32_at(limb: u128, shift: u128) -> u32 {
-        LimbTrait::field(limb, shift, 0x100000000).try_into().unwrap()
+        Self::field(limb, shift, 0x100000000).try_into().unwrap()
     }
 
     /// The low field of `limb`, of width `2^width = size`.
