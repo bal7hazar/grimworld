@@ -3,8 +3,8 @@
 //! placement (ENG-01, *Goblins*). Layouts: docs/architecture/ENG-01-interfaces.md, *Goblin*.
 
 use grimworld_logic::helpers::packing::{
-    P104, P108, P112, P120, P16, P24, P28, P32, P48, P52, P56, P64, P8, P80, P88, PackingAssert,
-    PackingTrait, byte_at, field, low_field, u16_at,
+    LimbTrait, P104, P108, P112, P120, P16, P24, P28, P32, P48, P52, P56, P64, P8, P80, P88,
+    PackingAssert, PackingTrait,
 };
 use grimworld_logic::types::combat::activation;
 use crate::helpers::stored::Stored;
@@ -87,19 +87,19 @@ pub impl GoblinStateStorePacking of starknet::storage_access::StorePacking<Gobli
         let (low, high) = PackingTrait::split(value);
         let (r0, r1, r2, r3) = DeadlinesTrait::unpack(high);
         GoblinState {
-            x: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
-            y: byte_at(low, P8),
-            facing: byte_at(low, P16),
-            ai: byte_at(low, P24),
-            health: u16_at(low, P32),
-            energy: byte_at(low, P48),
-            adrenaline: byte_at(low, P56),
-            caste: u16_at(low, P64),
-            level: byte_at(low, P80),
-            target: u16_at(low, P88),
-            memory_x: byte_at(low, P104),
-            memory_y: byte_at(low, P112),
-            flags: byte_at(low, P120),
+            x: LimbTrait::low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
+            y: LimbTrait::byte_at(low, P8),
+            facing: LimbTrait::byte_at(low, P16),
+            ai: LimbTrait::byte_at(low, P24),
+            health: LimbTrait::u16_at(low, P32),
+            energy: LimbTrait::byte_at(low, P48),
+            adrenaline: LimbTrait::byte_at(low, P56),
+            caste: LimbTrait::u16_at(low, P64),
+            level: LimbTrait::byte_at(low, P80),
+            target: LimbTrait::u16_at(low, P88),
+            memory_x: LimbTrait::byte_at(low, P104),
+            memory_y: LimbTrait::byte_at(low, P112),
+            flags: LimbTrait::byte_at(low, P120),
             recharges: [r0, r1, r2, r3],
         }
     }
@@ -157,12 +157,12 @@ pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<Gobl
         let (burning, crippled, knocked, effect_deadline) = DeadlinesTrait::unpack(timers);
         let (effect_rank, effect_charges) = DivRem::div_rem(effect, 0x40);
         GoblinTimers {
-            act_slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
-            act_target: u16_at(low, P8),
-            act_deadline: field(low, P24, P28).try_into().unwrap(),
-            bleeding: field(low, P52, P28).try_into().unwrap(),
-            poison: field(low, P80, P28).try_into().unwrap(),
-            effect_skill: u16_at(low, P108),
+            act_slot: LimbTrait::low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
+            act_target: LimbTrait::u16_at(low, P8),
+            act_deadline: LimbTrait::field(low, P24, P28).try_into().unwrap(),
+            bleeding: LimbTrait::field(low, P52, P28).try_into().unwrap(),
+            poison: LimbTrait::field(low, P80, P28).try_into().unwrap(),
+            effect_skill: LimbTrait::u16_at(low, P108),
             burning,
             crippled,
             knocked,

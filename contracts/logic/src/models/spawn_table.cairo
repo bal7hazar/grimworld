@@ -3,7 +3,7 @@
 //! probability `density / 256`, its template drawn by weight (`types::reveal`).
 
 use crate::content::{Record, SPAWN_TABLE};
-use crate::helpers::packing::{P16, P24, P48, P56, P72, P8, P96, PackingTrait, peel};
+use crate::helpers::packing::{LimbTrait, P16, P24, P48, P56, P72, P8, P96, PackingTrait};
 pub use super::index::{Spawn, SpawnTable};
 
 /// Entries of a spawn table.
@@ -76,8 +76,8 @@ pub impl SpawnBits of SpawnBitsTrait {
 
     #[inline(never)]
     fn peel(ref rest: u128) -> Spawn {
-        let template = peel(ref rest, P16.try_into().unwrap());
-        let weight = peel(ref rest, P8.try_into().unwrap());
+        let template = LimbTrait::peel(ref rest, P16.try_into().unwrap());
+        let weight = LimbTrait::peel(ref rest, P8.try_into().unwrap());
         Spawn { template: template.try_into().unwrap(), weight: weight.try_into().unwrap() }
     }
 }
@@ -108,8 +108,8 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
         let s4 = SpawnBitsTrait::peel(ref low);
         let s5 = SpawnBitsTrait::peel(ref high);
         let s6 = SpawnBitsTrait::peel(ref high);
-        let density = peel(ref high, P8.try_into().unwrap());
-        let trap = peel(ref high, P16.try_into().unwrap());
+        let density = LimbTrait::peel(ref high, P8.try_into().unwrap());
+        let trap = LimbTrait::peel(ref high, P16.try_into().unwrap());
         SpawnTable {
             spawns: [s0, s1, s2, s3, s4, s5, s6],
             density: density.try_into().unwrap(),

@@ -12,8 +12,7 @@
 //! into a tile of the chunk.
 
 use crate::helpers::packing::{
-    LIVE, P16, P24, P32, P36, P64, P8, P96, PackingAssert, PackingTrait, TWO_POW_128, byte_at,
-    field, low_field, u16_at,
+    LIVE, LimbTrait, P16, P24, P32, P36, P64, P8, P96, PackingAssert, PackingTrait, TWO_POW_128,
 };
 pub use super::index::{Features, Object, PackPlacement, Terrain};
 
@@ -80,7 +79,7 @@ pub impl TerrainStorePacking of starknet::storage_access::StorePacking<Terrain, 
         let (edges, walls_high) = DivRem::div_rem(high, P97.try_into().unwrap());
         Terrain {
             walls: low.into() + walls_high.into() * TWO_POW_128,
-            edges: low_field(edges, P8.try_into().unwrap()).try_into().unwrap(),
+            edges: LimbTrait::low_field(edges, P8.try_into().unwrap()).try_into().unwrap(),
         }
     }
 }
@@ -104,12 +103,12 @@ pub impl PackPlacementImpl of PackPlacementTrait {
     #[inline(never)]
     fn from_bits(bits: u128) -> PackPlacement {
         PackPlacement {
-            tile: low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
-            template: u16_at(bits, P8),
-            level: byte_at(bits, P24),
-            count: field(bits, P32, 0x10).try_into().unwrap(),
-            offsets: field(bits, P36, 0x2000000).try_into().unwrap(),
-            alert: field(bits, P61, 0x8).try_into().unwrap(),
+            tile: LimbTrait::low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
+            template: LimbTrait::u16_at(bits, P8),
+            level: LimbTrait::byte_at(bits, P24),
+            count: LimbTrait::field(bits, P32, 0x10).try_into().unwrap(),
+            offsets: LimbTrait::field(bits, P36, 0x2000000).try_into().unwrap(),
+            alert: LimbTrait::field(bits, P61, 0x8).try_into().unwrap(),
         }
     }
 
@@ -163,10 +162,10 @@ pub impl ObjectImpl of ObjectTrait {
     #[inline(never)]
     fn from_bits(bits: u128) -> Object {
         Object {
-            tile: low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
-            kind: field(bits, P8, 0x10).try_into().unwrap(),
-            state: field(bits, 0x1000, 0x10).try_into().unwrap(),
-            param: u16_at(bits, P16),
+            tile: LimbTrait::low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
+            kind: LimbTrait::field(bits, P8, 0x10).try_into().unwrap(),
+            state: LimbTrait::field(bits, 0x1000, 0x10).try_into().unwrap(),
+            param: LimbTrait::u16_at(bits, P16),
         }
     }
 }

@@ -12,7 +12,7 @@
 //! another flattening epoch (a record the flattening reads changed, or the flattening's class), or
 //! of another level than the adventurer's (D-168 2).
 
-use grimworld_logic::helpers::packing::{P64, PackingTrait, byte_at};
+use grimworld_logic::helpers::packing::{LimbTrait, P64, PackingTrait};
 use grimworld_logic::snapshot::SnapshotWords;
 
 /// `2^208`: the flattening epoch's unit in the kit word (bits 208–249).
@@ -103,7 +103,7 @@ pub impl StoredSnapshotAssert of StoredSnapshotAssertTrait {
     #[inline(always)]
     fn assert_level(stats: felt252, level: u8) {
         let (low, _) = PackingTrait::split(stats);
-        assert(byte_at(low, P64) == level, errors::STALE);
+        assert(LimbTrait::byte_at(low, P64) == level, errors::STALE);
     }
 }
 

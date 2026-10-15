@@ -19,7 +19,7 @@ logic/                grimworld_logic: the rules, pure, no storage; and what bot
   src/types.cairo       ids, bounds, enums (Stop, Refusal, Outcome, ChunkKind, Target)
   src/actions.cairo     a played batch in one felt
   src/snapshot.cairo    the snapshot taken at entry, the task pages
-  src/packing.cairo     two limbs, LIVE at bit 250, lanes, bitmaps
+  src/helpers/packing.cairo  two limbs, LIVE at bit 250, lanes, bitmaps
   src/content.cairo     kinds of registry records
   src/interface.cairo   calls between contracts: results, entry, registry, randomness
 persistent/           grimworld_persistent: Hub, Market, Registry, TxHashFate

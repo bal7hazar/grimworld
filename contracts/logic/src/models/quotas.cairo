@@ -4,7 +4,7 @@
 //! author's candidates, drawn at entry (D-215 ruling 3, ENG-08). Id = the location's (D-145).
 
 use crate::content::{QUOTAS, Record};
-use crate::helpers::packing::{P16, P24, P32, P64, P8, P96, PackingTrait, peel};
+use crate::helpers::packing::{LimbTrait, P16, P24, P32, P64, P8, P96, PackingTrait};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::{Quota, QuotaSet};
 use super::pack::{Pack, PackTrait};
@@ -164,9 +164,9 @@ pub impl QuotaBits of QuotaBitsTrait {
     #[inline(never)]
     fn peel(ref rest: u128) -> Quota {
         let s8: NonZero<u128> = P8.try_into().unwrap();
-        let kind = peel(ref rest, s8);
-        let param = peel(ref rest, P16.try_into().unwrap());
-        let count = peel(ref rest, s8);
+        let kind = LimbTrait::peel(ref rest, s8);
+        let param = LimbTrait::peel(ref rest, P16.try_into().unwrap());
+        let count = LimbTrait::peel(ref rest, s8);
         Quota {
             kind: kind.try_into().unwrap(),
             param: param.try_into().unwrap(),

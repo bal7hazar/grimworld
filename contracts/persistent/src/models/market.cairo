@@ -3,8 +3,7 @@
 //! Layouts: docs/architecture/ENG-01-interfaces.md, *Market storage*.
 
 use grimworld_logic::helpers::packing::{
-    Lanes32, P104, P112, P32, P40, P48, P56, P64, P8, P88, P96, PackingTrait, byte_at, low_field,
-    u16_at, u32_at,
+    Lanes32, LimbTrait, P104, P112, P32, P40, P48, P56, P64, P8, P88, P96, PackingTrait,
 };
 
 /// Lot states (`Lot.state`).
@@ -56,12 +55,12 @@ pub impl LotStorePacking of starknet::storage_access::StorePacking<Lot, felt252>
         Lot {
             price: price.try_into().unwrap(),
             expiry: expiry.try_into().unwrap(),
-            seller: low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
-            lot_size: byte_at(high, P32),
-            state: byte_at(high, P40),
-            kind: byte_at(high, P48),
-            item: u32_at(high, P56),
-            market: u16_at(high, P88),
+            seller: LimbTrait::low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
+            lot_size: LimbTrait::byte_at(high, P32),
+            state: LimbTrait::byte_at(high, P40),
+            kind: LimbTrait::byte_at(high, P48),
+            item: LimbTrait::u32_at(high, P56),
+            market: LimbTrait::u16_at(high, P88),
         }
     }
 }
@@ -85,7 +84,7 @@ pub impl SellerPageStorePacking of starknet::storage_access::StorePacking<Seller
         let (count, c) = DivRem::div_rem(high, P64.try_into().unwrap());
         SellerPage {
             lots: [a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap()],
-            count: low_field(count, P8.try_into().unwrap()).try_into().unwrap(),
+            count: LimbTrait::low_field(count, P8.try_into().unwrap()).try_into().unwrap(),
         }
     }
 }
@@ -129,13 +128,13 @@ pub impl TradeHeadStorePacking of starknet::storage_access::StorePacking<TradeHe
     fn unpack(value: felt252) -> TradeHead {
         let (low, high) = PackingTrait::split(value);
         TradeHead {
-            inviter: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            invited_account: u32_at(low, P32),
-            invited: u32_at(low, P64),
-            state: byte_at(low, P96),
-            confirmations: byte_at(low, P104),
-            revision: byte_at(low, P112),
-            opened_at: low_field(high, P64.try_into().unwrap()).try_into().unwrap(),
+            inviter: LimbTrait::low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
+            invited_account: LimbTrait::u32_at(low, P32),
+            invited: LimbTrait::u32_at(low, P64),
+            state: LimbTrait::byte_at(low, P96),
+            confirmations: LimbTrait::byte_at(low, P104),
+            revision: LimbTrait::byte_at(low, P112),
+            opened_at: LimbTrait::low_field(high, P64.try_into().unwrap()).try_into().unwrap(),
         }
     }
 }
@@ -163,11 +162,11 @@ pub impl TradeMoneyStorePacking of starknet::storage_access::StorePacking<TradeM
     fn unpack(value: felt252) -> TradeMoney {
         let (low, high) = PackingTrait::split(value);
         TradeMoney {
-            gold: low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
-            item0: u32_at(low, P64),
-            amount0: u32_at(low, P96),
-            item1: low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
-            amount1: u32_at(high, P32),
+            gold: LimbTrait::low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
+            item0: LimbTrait::u32_at(low, P64),
+            amount0: LimbTrait::u32_at(low, P96),
+            item1: LimbTrait::low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
+            amount1: LimbTrait::u32_at(high, P32),
         }
     }
 }

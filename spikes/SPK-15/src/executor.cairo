@@ -11,7 +11,7 @@
 //! after each), and one write per actor for the whole carrier (`hits_on_goblins` with `Pending`:
 //! the awake set rebuilt once for all the goblins a bomb reaches).
 
-use grimworld_logic::helpers::packing::{P16, P32, P8, PackingTrait, field};
+use grimworld_logic::helpers::packing::{LimbTrait, P16, P32, P8, PackingTrait};
 use grimworld_logic::models::goblin::{Goblin, GoblinLifecycleTrait, GoblinWordsTrait};
 use grimworld_logic::models::member::{Member, MemberLifecycleTrait, MemberWordsTrait};
 use grimworld_logic::types::combat::{HitClass, weapon};
@@ -196,14 +196,14 @@ pub impl GatherImpl of GatherTrait {
         let hit = Hit {
             class,
             weapon: weapon::AXE,
-            melee: field(low, P8, 0x100) == 1,
+            melee: LimbTrait::field(low, P8, 0x100) == 1,
             arc,
             in_front: true,
-            strength: field(low, P16, 0x100).try_into().unwrap(),
-            base: field(low, P32, 0x10000).try_into().unwrap(),
-            percent: field(high, 1, 0x100).try_into().unwrap(),
-            percent_above_half: field(high, P8, 0x100).try_into().unwrap(),
-            penetration: field(high, P16, 0x100).try_into().unwrap(),
+            strength: LimbTrait::field(low, P16, 0x100).try_into().unwrap(),
+            base: LimbTrait::field(low, P32, 0x10000).try_into().unwrap(),
+            percent: LimbTrait::field(high, 1, 0x100).try_into().unwrap(),
+            percent_above_half: LimbTrait::field(high, P8, 0x100).try_into().unwrap(),
+            penetration: LimbTrait::field(high, P16, 0x100).try_into().unwrap(),
             health: *member.health,
             max_health: *member.max_health,
             weakened: false,
@@ -239,10 +239,10 @@ pub impl GatherImpl of GatherTrait {
     #[inline(always)]
     fn member_armor(member: @Member) -> (i16, i8, i8, u8) {
         let (_, high) = PackingTrait::limbs(*member.words.stats);
-        let armor: u16 = field(high, 1, 0x10000).try_into().unwrap();
-        let stance: u8 = field(high, P16, 0x80).try_into().unwrap();
-        let enchanted: u8 = field(high, P16 * P8, 0x80).try_into().unwrap();
-        let vs: u8 = field(high, P32, 0x40).try_into().unwrap();
+        let armor: u16 = LimbTrait::field(high, 1, 0x10000).try_into().unwrap();
+        let stance: u8 = LimbTrait::field(high, P16, 0x80).try_into().unwrap();
+        let enchanted: u8 = LimbTrait::field(high, P16 * P8, 0x80).try_into().unwrap();
+        let vs: u8 = LimbTrait::field(high, P32, 0x40).try_into().unwrap();
         (
             (armor % 0x8000).try_into().unwrap(),
             stance.try_into().unwrap(),

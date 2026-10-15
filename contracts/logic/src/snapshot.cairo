@@ -12,8 +12,8 @@
 
 use crate::durations::MAX_DURATION_BONUS_PERCENT;
 use crate::helpers::packing::{
-    P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
-    P96, PackingTrait, low_field,
+    LimbTrait, P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80,
+    P84, P88, P96, PackingTrait,
 };
 use crate::helpers::signed::SignedTrait;
 use crate::models::base::slot as base_slot;
@@ -375,7 +375,7 @@ pub fn unpack_bar(word: felt252) -> MemberBar {
     let (high, p2) = DivRem::div_rem(high, b8);
     let (high, q0) = DivRem::div_rem(high, b12);
     let (high, q1) = DivRem::div_rem(high, b12);
-    let armor = low_field(high, b16);
+    let armor = LimbTrait::low_field(high, b16);
     MemberBar {
         skills: [
             s0.try_into().unwrap(), s1.try_into().unwrap(), s2.try_into().unwrap(),

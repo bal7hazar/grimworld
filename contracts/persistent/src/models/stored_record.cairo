@@ -6,7 +6,7 @@
 //! It owns no check: a free slot is the account's (`AccountAssert::assert_free_slot`). Only the
 //! store reads and writes it (`HubStoreTrait::get_account_record`).
 
-use grimworld_logic::helpers::packing::{P8, PackingTrait, byte_at, low_field};
+use grimworld_logic::helpers::packing::{LimbTrait, P8, PackingTrait};
 
 /// `AccountRecord` as stored, one word: the paths read its two counts and change one by an
 /// addition, where the packer decodes and encodes five fields (about 20,000 and 18,000 l2 gas,
@@ -47,7 +47,10 @@ pub impl StoredRecordImpl of StoredRecordTrait {
     /// `(slots, adventurers)`, without decoding the other fields.
     fn counts(self: @StoredRecord) -> (u8, u8) {
         let (low, _) = PackingTrait::split(*self.word);
-        (low_field(low, P8.try_into().unwrap()).try_into().unwrap(), byte_at(low, P8))
+        (
+            LimbTrait::low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
+            LimbTrait::byte_at(low, P8),
+        )
     }
 
     /// One adventurer more (fewer than its slots ≤ 255: `AccountAssert::assert_free_slot`).

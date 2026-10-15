@@ -22,7 +22,7 @@
 //! sets an effect's pips and deadline when it holds one.
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
-use crate::helpers::packing::{N16, N4, N8, PackingTrait, peel};
+use crate::helpers::packing::{LimbTrait, N16, N4, N8, PackingTrait};
 use crate::helpers::signed::SignedTrait;
 use crate::models::caste::Caste;
 use crate::models::index::{Item, Skill};
@@ -264,29 +264,29 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         let mut regen12 = 0;
         for entry in array![first, second, third].span() {
             let mut rest = *entry;
-            let entry_kind = peel(ref rest, N8);
+            let entry_kind = LimbTrait::peel(ref rest, N8);
             if entry_kind == kind::EMPTY.into() {
                 break;
             }
             if entry_kind == kind::REGENERATION.into() {
                 // Bits 8–15, then `v0` and `v12`.
-                let _ = peel(ref rest, N8);
-                regen0 = SignedTrait::from16(peel(ref rest, N16));
-                regen12 = SignedTrait::from16(peel(ref rest, N16));
+                let _ = LimbTrait::peel(ref rest, N8);
+                regen0 = SignedTrait::from16(LimbTrait::peel(ref rest, N16));
+                regen12 = SignedTrait::from16(LimbTrait::peel(ref rest, N16));
                 break;
             }
         }
         // The header: profession 0–7, attribute 8–15, kind, energy, adrenaline, activation,
         // recharge.
         let mut rest = header;
-        let profession = peel(ref rest, N8);
-        let _attribute = peel(ref rest, N8);
-        let kind = peel(ref rest, N8);
-        let energy = peel(ref rest, N8);
-        let adrenaline = peel(ref rest, N8);
-        let activation = peel(ref rest, N16);
-        let recharge = peel(ref rest, N16);
-        let range = peel(ref rest, N8);
+        let profession = LimbTrait::peel(ref rest, N8);
+        let _attribute = LimbTrait::peel(ref rest, N8);
+        let kind = LimbTrait::peel(ref rest, N8);
+        let energy = LimbTrait::peel(ref rest, N8);
+        let adrenaline = LimbTrait::peel(ref rest, N8);
+        let activation = LimbTrait::peel(ref rest, N16);
+        let recharge = LimbTrait::peel(ref rest, N16);
+        let range = LimbTrait::peel(ref rest, N8);
         SkillSheet {
             id,
             kind: kind.try_into().unwrap(),
@@ -345,9 +345,9 @@ pub impl PotionSheetImpl of PotionSheetTrait {
         let (above, entry) = DivRem::div_rem(high, ENTRY_BOUND.try_into().unwrap());
         let (strength, range) = DivRem::div_rem(above, N8);
         let mut rest = entry;
-        let regen = if peel(ref rest, N8) == kind::REGENERATION.into() {
-            let _ = peel(ref rest, N8);
-            SignedTrait::from16(peel(ref rest, N16))
+        let regen = if LimbTrait::peel(ref rest, N8) == kind::REGENERATION.into() {
+            let _ = LimbTrait::peel(ref rest, N8);
+            SignedTrait::from16(LimbTrait::peel(ref rest, N16))
         } else {
             0
         };
@@ -414,24 +414,24 @@ pub impl CasteSheetImpl of CasteSheetTrait {
         // weapon's class, damage, type, ticks and range 48–79; energy and its regeneration, the
         // flee threshold, the rank 104–107. The high limb: the armor by type, 54 bits.
         let (mut rest, _) = DivRem::div_rem(low, N16);
-        let health = peel(ref rest, N16);
-        let health_regen = peel(ref rest, N8);
-        let armor = peel(ref rest, N8);
-        let weapon = peel(ref rest, N4);
-        let weapon_damage = peel(ref rest, N16);
-        let damage_type = peel(ref rest, N4);
-        let weapon_ticks = peel(ref rest, N4);
-        let weapon_range = peel(ref rest, N4);
-        let energy = peel(ref rest, N8);
-        let energy_regen = peel(ref rest, N8);
-        let _flee = peel(ref rest, N8);
-        let rank = peel(ref rest, N4);
+        let health = LimbTrait::peel(ref rest, N16);
+        let health_regen = LimbTrait::peel(ref rest, N8);
+        let armor = LimbTrait::peel(ref rest, N8);
+        let weapon = LimbTrait::peel(ref rest, N4);
+        let weapon_damage = LimbTrait::peel(ref rest, N16);
+        let damage_type = LimbTrait::peel(ref rest, N4);
+        let weapon_ticks = LimbTrait::peel(ref rest, N4);
+        let weapon_range = LimbTrait::peel(ref rest, N4);
+        let energy = LimbTrait::peel(ref rest, N8);
+        let energy_regen = LimbTrait::peel(ref rest, N8);
+        let _flee = LimbTrait::peel(ref rest, N8);
+        let rank = LimbTrait::peel(ref rest, N4);
         let (_, armor_vs) = DivRem::div_rem(high, VS_BOUND.try_into().unwrap());
         let mut rest = skills;
-        let first = peel(ref rest, N16);
-        let second = peel(ref rest, N16);
-        let third = peel(ref rest, N16);
-        let fourth = peel(ref rest, N16);
+        let first = LimbTrait::peel(ref rest, N16);
+        let second = LimbTrait::peel(ref rest, N16);
+        let third = LimbTrait::peel(ref rest, N16);
+        let fourth = LimbTrait::peel(ref rest, N16);
         CasteSheet {
             id,
             health: health.try_into().unwrap(),

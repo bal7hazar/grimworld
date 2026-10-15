@@ -3,7 +3,7 @@
 //! placements and joins its ring like any chunk's (`types::reveal`).
 
 use crate::content::{Record, SET_PIECE};
-use crate::helpers::packing::{P16, P24, P48, P8, P80, PackingTrait, peel};
+use crate::helpers::packing::{LimbTrait, P16, P24, P48, P8, P80, PackingTrait};
 use crate::types::reveal::board::BoardTrait;
 use super::chunk::{ObjectTrait, errors as chunk_errors, object};
 pub use super::index::{Object, SetPack, SetPiece};
@@ -41,8 +41,8 @@ pub impl SetPackBits of SetPackBitsTrait {
 
     #[inline(never)]
     fn peel(ref rest: u128) -> SetPack {
-        let tile = peel(ref rest, P8.try_into().unwrap());
-        let template = peel(ref rest, P16.try_into().unwrap());
+        let tile = LimbTrait::peel(ref rest, P8.try_into().unwrap());
+        let template = LimbTrait::peel(ref rest, P16.try_into().unwrap());
         SetPack { tile: tile.try_into().unwrap(), template: template.try_into().unwrap() }
     }
 }
@@ -111,8 +111,8 @@ pub impl SetPieceRecord of Record<SetPiece> {
         let p0 = SetPackBitsTrait::peel(ref low);
         let p1 = SetPackBitsTrait::peel(ref low);
         let s32: NonZero<u128> = 0x100000000;
-        let o0 = ObjectTrait::from_bits(peel(ref low, s32));
-        let o1 = ObjectTrait::from_bits(peel(ref low, s32));
+        let o0 = ObjectTrait::from_bits(LimbTrait::peel(ref low, s32));
+        let o1 = ObjectTrait::from_bits(LimbTrait::peel(ref low, s32));
         SetPiece { walls, packs: [p0, p1], objects: [o0, o1, ObjectTrait::from_bits(high)] }
     }
 }

@@ -9,7 +9,7 @@
 //! packer in the tests (the oracle, docs/CAIRO.md §2). Only the store reads and writes it.
 
 use grimworld_logic::helpers::packing::{
-    LIVE, Lanes32, Lanes32Trait, P32, P64, P96, PackingTrait, low_field, u32_at,
+    LIVE, Lanes32, Lanes32Trait, LimbTrait, P32, P64, P96, PackingTrait,
 };
 
 pub mod errors {
@@ -107,13 +107,13 @@ pub impl StoredLanesImpl of StoredLanesTrait {
     fn get(self: @StoredLanes, lane: u8) -> u32 {
         let (low, high) = PackingTrait::split(*self.word);
         match lane {
-            0 => low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            1 => u32_at(low, P32),
-            2 => u32_at(low, P64),
-            3 => u32_at(low, P96),
-            4 => low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
-            5 => u32_at(high, P32),
-            6 => u32_at(high, P64),
+            0 => LimbTrait::low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
+            1 => LimbTrait::u32_at(low, P32),
+            2 => LimbTrait::u32_at(low, P64),
+            3 => LimbTrait::u32_at(low, P96),
+            4 => LimbTrait::low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
+            5 => LimbTrait::u32_at(high, P32),
+            6 => LimbTrait::u32_at(high, P64),
             _ => LanesAssert::lane_above_6(),
         }
     }

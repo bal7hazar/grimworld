@@ -60,13 +60,49 @@ pub impl PackingImpl of PackingTrait {
     }
 }
 
-/// The low field of `rest`, of width `2^width = size`, which it removes: a limb read field after
-/// field from its low bits costs one division a field (`field` costs two).
-#[inline(always)]
-pub fn peel(ref rest: u128, size: NonZero<u128>) -> u128 {
-    let (above, value) = DivRem::div_rem(rest, size);
-    rest = above;
-    value
+#[generate_trait]
+pub impl LimbImpl of LimbTrait {
+    /// The low field of `rest`, of width `2^width = size`, which it removes: a limb read field
+    /// after field from its low bits costs one division a field (`field` costs two).
+    #[inline(always)]
+    fn peel(ref rest: u128, size: NonZero<u128>) -> u128 {
+        let (above, value) = DivRem::div_rem(rest, size);
+        rest = above;
+        value
+    }
+
+    /// The field of `limb` at bit `2^offset = shift`, of width `2^width = size`.
+    #[inline(always)]
+    fn field(limb: u128, shift: u128, size: u128) -> u128 {
+        let (above, _) = DivRem::div_rem(limb, shift.try_into().unwrap());
+        let (_, value) = DivRem::div_rem(above, size.try_into().unwrap());
+        value
+    }
+
+    /// The byte of `limb` at bit `2^offset = shift`.
+    #[inline(always)]
+    fn byte_at(limb: u128, shift: u128) -> u8 {
+        Self::field(limb, shift, 0x100).try_into().unwrap()
+    }
+
+    /// The `u16` of `limb` at bit `2^offset = shift`.
+    #[inline(always)]
+    fn u16_at(limb: u128, shift: u128) -> u16 {
+        Self::field(limb, shift, 0x10000).try_into().unwrap()
+    }
+
+    /// The `u32` of `limb` at bit `2^offset = shift`.
+    #[inline(always)]
+    fn u32_at(limb: u128, shift: u128) -> u32 {
+        Self::field(limb, shift, 0x100000000).try_into().unwrap()
+    }
+
+    /// The low field of `limb`, of width `2^width = size`.
+    #[inline(always)]
+    fn low_field(limb: u128, size: NonZero<u128>) -> u128 {
+        let (_, value) = DivRem::div_rem(limb, size);
+        value
+    }
 }
 
 #[generate_trait]
@@ -80,40 +116,7 @@ pub impl PackingAssert of PackingAssertTrait {
     }
 }
 
-/// The field of `limb` at bit `2^offset = shift`, of width `2^width = size`.
-#[inline(always)]
-pub fn field(limb: u128, shift: u128, size: u128) -> u128 {
-    let (above, _) = DivRem::div_rem(limb, shift.try_into().unwrap());
-    let (_, value) = DivRem::div_rem(above, size.try_into().unwrap());
-    value
-}
-
-/// The byte of `limb` at bit `2^offset = shift`.
-#[inline(always)]
-pub fn byte_at(limb: u128, shift: u128) -> u8 {
-    field(limb, shift, 0x100).try_into().unwrap()
-}
-
-/// The `u16` of `limb` at bit `2^offset = shift`.
-#[inline(always)]
-pub fn u16_at(limb: u128, shift: u128) -> u16 {
-    field(limb, shift, 0x10000).try_into().unwrap()
-}
-
-/// The `u32` of `limb` at bit `2^offset = shift`.
-#[inline(always)]
-pub fn u32_at(limb: u128, shift: u128) -> u32 {
-    field(limb, shift, 0x100000000).try_into().unwrap()
-}
-
-/// The low field of `limb`, of width `2^width = size`.
-#[inline(always)]
-pub fn low_field(limb: u128, size: NonZero<u128>) -> u128 {
-    let (_, value) = DivRem::div_rem(limb, size);
-    value
-}
-
-// The same powers as divisors, for `peel` (a table).
+// The same powers as divisors, for `LimbTrait::peel` (a table).
 pub const N2: NonZero<u128> = 0x2;
 pub const N4: NonZero<u128> = 0x10;
 pub const N6: NonZero<u128> = 0x40;
@@ -306,10 +309,9 @@ mod tests {
     use starknet::storage_access::StorePacking;
     use super::{
         Bitmap, BitmapStorePacking, Counter, CounterStorePacking, LIVE, LIVE_HIGH, Lanes16,
-        Lanes16StorePacking, Lanes16Trait, Lanes32, Lanes32StorePacking, Lanes32Trait, N16, N2, N24,
-        N28, N32, N4, N56, N6, N7, N8, P108, P112, P12, P120, P16, P32, P4, P40, P56, P60, P64, P72,
-        P8, P96, PackingAssert, PackingTrait, TWO_POW_128, byte_at, field, low_field, peel, u16_at,
-        u32_at,
+        Lanes16StorePacking, Lanes16Trait, Lanes32, Lanes32StorePacking, Lanes32Trait, LimbTrait,
+        N16, N2, N24, N28, N32, N4, N56, N6, N7, N8, P108, P112, P12, P120, P16, P32, P4, P40, P56,
+        P60, P64, P72, P8, P96, PackingAssert, PackingTrait, TWO_POW_128,
     };
 
     fn hex(felts: Span<felt252>) -> ByteArray {
@@ -473,13 +475,13 @@ mod tests {
                 }
             }
         }
-        // `peel`: the low field of each width, and what remains.
+        // `LimbTrait::peel`: the low field of each width, and what remains.
         let sizes: [NonZero<u128>; 10] = [N2, N4, N6, N7, N8, N16, N24, N28, N32, N56];
         for size in sizes.span() {
             let size_value: u128 = (*size).into();
             for limb in limb_values.span() {
                 let mut rest = *limb;
-                let value = peel(ref rest, *size);
+                let value = LimbTrait::peel(ref rest, *size);
                 emit(
                     ref digest,
                     ref id,
@@ -502,7 +504,7 @@ mod tests {
                 }
             }
         }
-        // `field`, `byte_at`, `u16_at`, `u32_at`, `low_field`.
+        // `LimbTrait::{field, byte_at, u16_at, u32_at, low_field}`.
         let shifts: [(u128, u128); 8] = [
             (1, 2), (1, 0x100), (P8, 0x100), (P16, P16), (P64, P32), (P96, P32), (P120, 0x100),
             (P4, P12),
@@ -510,7 +512,7 @@ mod tests {
         for limb in limb_values.span() {
             for pair in shifts.span() {
                 let (shift, size) = *pair;
-                let ok = field(*limb, shift, size);
+                let ok = LimbTrait::field(*limb, shift, size);
                 emit(
                     ref digest,
                     ref id,
@@ -520,7 +522,7 @@ mod tests {
                 );
             }
             for shift in [1, P8, P56, P120].span() {
-                let ok = byte_at(*limb, *shift);
+                let ok = LimbTrait::byte_at(*limb, *shift);
                 emit(
                     ref digest,
                     ref id,
@@ -530,7 +532,7 @@ mod tests {
                 );
             }
             for shift in [1, P16, P60, P112].span() {
-                let ok = u16_at(*limb, *shift);
+                let ok = LimbTrait::u16_at(*limb, *shift);
                 emit(
                     ref digest,
                     ref id,
@@ -540,7 +542,7 @@ mod tests {
                 );
             }
             for shift in [1, P32, P64, P96].span() {
-                let ok = u32_at(*limb, *shift);
+                let ok = LimbTrait::u32_at(*limb, *shift);
                 emit(
                     ref digest,
                     ref id,
@@ -550,7 +552,7 @@ mod tests {
                 );
             }
             for size in [2, P12, P40, P72, P108].span() {
-                let ok = low_field(*limb, (*size).try_into().unwrap());
+                let ok = LimbTrait::low_field(*limb, (*size).try_into().unwrap());
                 emit(
                     ref digest,
                     ref id,

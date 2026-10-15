@@ -7,7 +7,7 @@
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
 use crate::helpers::packing::{
-    N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P8, P80, P84, PackingTrait, field, peel,
+    LimbTrait, N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P8, P80, P84, PackingTrait,
 };
 use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
 use crate::types::combat::{activation, condition, skill_kind};
@@ -72,26 +72,26 @@ pub impl GoblinImpl of GoblinTrait {
         let (low, _) = PackingTrait::limbs(state);
         // Bits 0–23 (position, facing) are not read.
         let (mut rest, _) = DivRem::div_rem(low, N24);
-        let ai = peel(ref rest, N8);
-        let health = peel(ref rest, N16);
-        let energy = peel(ref rest, N8);
-        let adrenaline = peel(ref rest, N8);
-        let caste = peel(ref rest, N16);
-        let level = peel(ref rest, N8);
+        let ai = LimbTrait::peel(ref rest, N8);
+        let health = LimbTrait::peel(ref rest, N16);
+        let energy = LimbTrait::peel(ref rest, N8);
+        let adrenaline = LimbTrait::peel(ref rest, N8);
+        let caste = LimbTrait::peel(ref rest, N16);
+        let level = LimbTrait::peel(ref rest, N8);
         let (tlow, thigh) = PackingTrait::limbs(timers);
         let mut rest = tlow;
-        let act_slot = peel(ref rest, N8);
-        let act_target = peel(ref rest, N16);
-        let act_deadline = peel(ref rest, N28);
-        let bleeding = peel(ref rest, N28);
-        let poison = peel(ref rest, N28);
-        let effect = peel(ref rest, N16);
+        let act_slot = LimbTrait::peel(ref rest, N8);
+        let act_target = LimbTrait::peel(ref rest, N16);
+        let act_deadline = LimbTrait::peel(ref rest, N28);
+        let bleeding = LimbTrait::peel(ref rest, N28);
+        let poison = LimbTrait::peel(ref rest, N28);
+        let effect = LimbTrait::peel(ref rest, N16);
         let mut rest = thigh;
-        let burning = peel(ref rest, N28);
-        let _crippled = peel(ref rest, N28);
-        let knocked = peel(ref rest, N28);
-        let effect_deadline = peel(ref rest, N28);
-        let _charges = peel(ref rest, N6);
+        let burning = LimbTrait::peel(ref rest, N28);
+        let _crippled = LimbTrait::peel(ref rest, N28);
+        let knocked = LimbTrait::peel(ref rest, N28);
+        let effect_deadline = LimbTrait::peel(ref rest, N28);
+        let _charges = LimbTrait::peel(ref rest, N6);
         // What is left is the rank, bits 246–249: `LIVE` is removed and nothing lies above.
         (
             ai.try_into().unwrap(),
@@ -240,7 +240,7 @@ pub impl GoblinImpl of GoblinTrait {
     /// The recharge deadline of caste skill 0–3.
     fn recharge(self: @Goblin, slot: u8) -> u32 {
         let (_, high) = PackingTrait::limbs(*self.state);
-        field(high, *[1, P28, P56, P84].span()[slot.into()], P28).try_into().unwrap()
+        LimbTrait::field(high, *[1, P28, P56, P84].span()[slot.into()], P28).try_into().unwrap()
     }
 
     fn set_recharge(ref self: Goblin, slot: u8, deadline: u32) {
@@ -256,7 +256,7 @@ pub impl GoblinWordsImpl of GoblinWordsTrait {
     /// Crippled's deadline (`GoblinTimers` bits 156–183).
     fn crippled(self: @Goblin) -> u32 {
         let (_, high) = PackingTrait::limbs(*self.timers);
-        field(high, P28, P28).try_into().unwrap()
+        LimbTrait::field(high, P28, P28).try_into().unwrap()
     }
 
     fn set_crippled(ref self: Goblin, deadline: u32) {
@@ -271,7 +271,7 @@ pub impl GoblinWordsImpl of GoblinWordsTrait {
         // Bits 240–245 the charges, 246–249 the rank: nothing lies above it once `LIVE` is off.
         let (rank, charges) = DivRem::div_rem(tail, N6);
         Held {
-            carrier: field(low, P108, P16).try_into().unwrap(),
+            carrier: LimbTrait::field(low, P108, P16).try_into().unwrap(),
             potion: false,
             charges: charges.try_into().unwrap(),
             deadline: *self.effect_deadline,
@@ -303,9 +303,9 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
     fn at(state: felt252) -> (u8, u8, u8) {
         let (low, _) = PackingTrait::limbs(state);
         let mut rest = low;
-        let x = peel(ref rest, N8);
-        let y = peel(ref rest, N8);
-        let facing = peel(ref rest, N8);
+        let x = LimbTrait::peel(ref rest, N8);
+        let y = LimbTrait::peel(ref rest, N8);
+        let facing = LimbTrait::peel(ref rest, N8);
         (x.try_into().unwrap(), y.try_into().unwrap(), facing.try_into().unwrap())
     }
 
@@ -321,7 +321,7 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
     /// Its level (`GoblinState` 80–87, the pack's).
     fn level(self: @Goblin) -> u8 {
         let (low, _) = PackingTrait::limbs(*self.state);
-        field(low, P80, P8).try_into().unwrap()
+        LimbTrait::field(low, P80, P8).try_into().unwrap()
     }
 }
 
@@ -545,7 +545,7 @@ pub impl GoblinConditionImpl of GoblinConditionTrait {
             assert(condition == condition::CRIPPLED, tick_errors::KNOCK);
             // `GoblinWordsTrait::crippled`, read here: bits 156–183 of `GoblinTimers`.
             let (_, high) = PackingTrait::limbs(self.timers);
-            let old: u32 = field(high, P28, P28).try_into().unwrap();
+            let old: u32 = LimbTrait::field(high, P28, P28).try_into().unwrap();
             let new = TickMathTrait::refreshed(old, t0, d);
             self.timers += TickMathTrait::delta(old.into(), new.into(), F156);
         }
