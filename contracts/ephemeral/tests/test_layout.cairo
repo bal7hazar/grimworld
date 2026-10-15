@@ -13,7 +13,7 @@ use grimworld_ephemeral::models::member::{
     DeadlinesTrait, Effect, Member, MemberEffects, MemberState, MemberTimers, MemberTimersTrait,
     NO_SLOT, Recharges, flag,
 };
-use grimworld_logic::packing::LIVE;
+use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::types::combat::activation;
 use starknet::storage_access::StorePacking;
 

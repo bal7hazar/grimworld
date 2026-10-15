@@ -4,6 +4,7 @@
 // count and refuses a value too wide; the content pipeline's checks (reads, bounds, the legal
 // carriers of §5.14) accept the design's own skills and refuse each illegal combination.
 use grimworld_logic::content::{ARMOR_SET, CASTE, ITEM, MODIFIER, Record, SKILL, parts};
+use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::helpers::signed::SignedTrait;
 use grimworld_logic::models::armor_set::{ArmorSet, ArmorSetAssert, ArmorSetRecord, ArmorSetTrait};
 use grimworld_logic::models::caste::{Caste, CasteAssert, CasteRecord, CasteTrait, WeaponTrait};
@@ -12,7 +13,6 @@ use grimworld_logic::models::modifier::{
     Modifier, ModifierAssert, ModifierRecord, ModifierTrait, slot,
 };
 use grimworld_logic::models::skill::{Skill, SkillAssert, SkillRecord, SkillTrait};
-use grimworld_logic::packing::LIVE;
 use grimworld_logic::types::combat::{
     HitClass, Placer, PlacerTrait, condition, damage, skill_kind, weapon,
 };

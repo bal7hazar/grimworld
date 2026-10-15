@@ -2,10 +2,10 @@
 // bit 0 of part 0), the readers of a `SKILL`'s and an `ITEM`'s part 0 against the full unpack (the
 // oracle), and design/03's attribute counts.
 use grimworld_logic::content::Record;
+use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::models::base::{Base, BaseAssert, BaseRecord, BaseTrait, slot};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::skill::{Skill, SkillRecord, SkillTrait};
-use grimworld_logic::packing::LIVE;
 use grimworld_logic::professions::ProfessionTrait;
 
 #[test]

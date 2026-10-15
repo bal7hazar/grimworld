@@ -3,7 +3,7 @@
 //! placements and joins its ring like any chunk's (`types::reveal`).
 
 use crate::content::{Record, SET_PIECE};
-use crate::packing::{P16, P24, P48, P8, P80, join, peel, split};
+use crate::helpers::packing::{P16, P24, P48, P8, P80, PackingTrait, peel};
 use crate::types::reveal::board::BoardTrait;
 use super::chunk::{ObjectTrait, errors as chunk_errors, object};
 pub use super::index::{Object, SetPack, SetPiece};
@@ -101,13 +101,13 @@ pub impl SetPieceRecord of Record<SetPiece> {
             + SetPackBitsTrait::bits(p1) * P24
             + o0.bits() * P48
             + o1.bits() * P80;
-        array![join(walls.low, walls.high), join(low, o2.bits())].span()
+        array![PackingTrait::join(walls.low, walls.high), PackingTrait::join(low, o2.bits())].span()
     }
 
     fn unpack(parts: Span<felt252>) -> SetPiece {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let walls: felt252 = low.into() + high.into() * 0x100000000000000000000000000000000;
-        let (mut low, high) = split(*parts[1]);
+        let (mut low, high) = PackingTrait::split(*parts[1]);
         let p0 = SetPackBitsTrait::peel(ref low);
         let p1 = SetPackBitsTrait::peel(ref low);
         let s32: NonZero<u128> = 0x100000000;
@@ -120,7 +120,7 @@ pub impl SetPieceRecord of Record<SetPiece> {
 #[cfg(test)]
 mod tests {
     use crate::content::Record;
-    use crate::packing::LIVE;
+    use crate::helpers::packing::LIVE;
     use super::{Object, SetPack, SetPieceAssert, SetPieceRecord, SetPieceTrait};
 
     #[test]

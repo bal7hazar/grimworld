@@ -60,7 +60,7 @@ pub trait IMarketAdmin<T> {
 
 #[starknet::contract]
 pub mod Market {
-    use grimworld_logic::packing::Counter;
+    use grimworld_logic::helpers::packing::Counter;
     use starknet::storage::Map;
     use starknet::{ClassHash, ContractAddress};
     use crate::events::{LotClosed, LotPosted, TradeClosed, TradeOpened};

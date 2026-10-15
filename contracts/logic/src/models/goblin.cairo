@@ -6,10 +6,10 @@
 //! layouts are the ephemeral package's, which owns the storage; the offsets below are ENG-01's
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
-use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
-use crate::packing::{
-    N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P8, P80, P84, field, limbs, peel,
+use crate::helpers::packing::{
+    N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P8, P80, P84, PackingTrait, field, peel,
 };
+use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
@@ -69,7 +69,7 @@ pub impl GoblinImpl of GoblinTrait {
     fn hot(
         state: felt252, timers: felt252,
     ) -> (u8, u16, u8, u8, u16, u8, u16, u32, u32, u32, u32, u32, u32, u8, u16, u8) {
-        let (low, _) = limbs(state);
+        let (low, _) = PackingTrait::limbs(state);
         // Bits 0–23 (position, facing) are not read.
         let (mut rest, _) = DivRem::div_rem(low, N24);
         let ai = peel(ref rest, N8);
@@ -78,7 +78,7 @@ pub impl GoblinImpl of GoblinTrait {
         let adrenaline = peel(ref rest, N8);
         let caste = peel(ref rest, N16);
         let level = peel(ref rest, N8);
-        let (tlow, thigh) = limbs(timers);
+        let (tlow, thigh) = PackingTrait::limbs(timers);
         let mut rest = tlow;
         let act_slot = peel(ref rest, N8);
         let act_target = peel(ref rest, N16);
@@ -180,7 +180,7 @@ pub impl GoblinImpl of GoblinTrait {
     /// rewritten whole, by the difference between its new value and the one the words hold
     /// (CBT-02b, lever (b): six divisions, where a field at a time took twenty-six).
     fn store(self: @Goblin) -> GoblinWords {
-        let (low, _) = limbs(*self.state);
+        let (low, _) = PackingTrait::limbs(*self.state);
         let (above, _) = DivRem::div_rem(low, N24);
         let (_, old) = DivRem::div_rem(above, N40);
         let new: felt252 = (*self.ai).into()
@@ -188,7 +188,7 @@ pub impl GoblinImpl of GoblinTrait {
             + (*self.energy).into() * F24
             + (*self.adrenaline).into() * F32;
         let state = *self.state + (new - old.into()) * F24;
-        let (tlow, thigh) = limbs(*self.timers);
+        let (tlow, thigh) = PackingTrait::limbs(*self.timers);
         let (_, old_low) = DivRem::div_rem(tlow, N108);
         let new_low: felt252 = (*self.act_slot).into()
             + (*self.act_target).into() * F8
@@ -239,7 +239,7 @@ pub impl GoblinImpl of GoblinTrait {
 
     /// The recharge deadline of caste skill 0–3.
     fn recharge(self: @Goblin, slot: u8) -> u32 {
-        let (_, high) = limbs(*self.state);
+        let (_, high) = PackingTrait::limbs(*self.state);
         field(high, *[1, P28, P56, P84].span()[slot.into()], P28).try_into().unwrap()
     }
 
@@ -255,7 +255,7 @@ pub impl GoblinImpl of GoblinTrait {
 pub impl GoblinWordsImpl of GoblinWordsTrait {
     /// Crippled's deadline (`GoblinTimers` bits 156–183).
     fn crippled(self: @Goblin) -> u32 {
-        let (_, high) = limbs(*self.timers);
+        let (_, high) = PackingTrait::limbs(*self.timers);
         field(high, P28, P28).try_into().unwrap()
     }
 
@@ -266,7 +266,7 @@ pub impl GoblinWordsImpl of GoblinWordsTrait {
 
     /// Its one held effect (a skill; a goblin holds no potion); its deadline is the hot field.
     fn effect_of(self: @Goblin) -> Held {
-        let (low, high) = limbs(*self.timers);
+        let (low, high) = PackingTrait::limbs(*self.timers);
         let (tail, _) = DivRem::div_rem(high, N112);
         // Bits 240–245 the charges, 246–249 the rank: nothing lies above it once `LIVE` is off.
         let (rank, charges) = DivRem::div_rem(tail, N6);
@@ -301,7 +301,7 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
 
     /// The tile and facing a `GoblinState` word holds.
     fn at(state: felt252) -> (u8, u8, u8) {
-        let (low, _) = limbs(state);
+        let (low, _) = PackingTrait::limbs(state);
         let mut rest = low;
         let x = peel(ref rest, N8);
         let y = peel(ref rest, N8);
@@ -320,7 +320,7 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
 
     /// Its level (`GoblinState` 80–87, the pack's).
     fn level(self: @Goblin) -> u8 {
-        let (low, _) = limbs(*self.state);
+        let (low, _) = PackingTrait::limbs(*self.state);
         field(low, P80, P8).try_into().unwrap()
     }
 }
@@ -544,7 +544,7 @@ pub impl GoblinConditionImpl of GoblinConditionTrait {
         } else {
             assert(condition == condition::CRIPPLED, tick_errors::KNOCK);
             // `GoblinWordsTrait::crippled`, read here: bits 156–183 of `GoblinTimers`.
-            let (_, high) = limbs(self.timers);
+            let (_, high) = PackingTrait::limbs(self.timers);
             let old: u32 = field(high, P28, P28).try_into().unwrap();
             let new = TickMathTrait::refreshed(old, t0, d);
             self.timers += TickMathTrait::delta(old.into(), new.into(), F156);

@@ -11,14 +11,14 @@
 //! elemental armors and the single penetration were.
 
 use crate::durations::MAX_DURATION_BONUS_PERCENT;
+use crate::helpers::packing::{
+    P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
+    P96, PackingTrait, low_field,
+};
 use crate::helpers::signed::SignedTrait;
 use crate::models::base::slot as base_slot;
 use crate::models::index::Modifier;
 use crate::models::modifier::{ModifierRecord, ModifierTrait};
-use crate::packing::{
-    P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
-    P96, join, low_field, split,
-};
 use crate::professions::ProfessionTrait;
 use crate::types::effect::guard;
 use crate::types::hit::HitTrait;
@@ -196,11 +196,11 @@ pub fn pack_stats(s: MemberStats) -> felt252 {
         + v8.into() * 0x40000000000000000000000000
         + v9.into() * P108
         + slots_high.into() * P114;
-    join(low, high)
+    PackingTrait::join(low, high)
 }
 
 pub fn unpack_stats(word: felt252) -> MemberStats {
-    let (low, high) = split(word);
+    let (low, high) = PackingTrait::split(word);
     let b8: NonZero<u128> = P8.try_into().unwrap();
     let b16: NonZero<u128> = P16.try_into().unwrap();
     let b6: NonZero<u128> = 0x40;
@@ -348,11 +348,11 @@ pub fn pack_bar(b: MemberBar) -> felt252 {
         + q0.pack() * P80
         + q1.pack() * P92
         + SignedTrait::bits16(b.armor) * P104;
-    join(low, high)
+    PackingTrait::join(low, high)
 }
 
 pub fn unpack_bar(word: felt252) -> MemberBar {
-    let (low, high) = split(word);
+    let (low, high) = PackingTrait::split(word);
     let b16: NonZero<u128> = P16.try_into().unwrap();
     let b8: NonZero<u128> = P8.try_into().unwrap();
     let b12: NonZero<u128> = P12.try_into().unwrap();
@@ -453,11 +453,11 @@ pub fn pack_kit(k: MemberKit) -> felt252 {
         } else {
             0
         };
-    join(low, high)
+    PackingTrait::join(low, high)
 }
 
 pub fn unpack_kit(word: felt252) -> MemberKit {
-    let (low, high) = split(word);
+    let (low, high) = PackingTrait::split(word);
     let b8: NonZero<u128> = P8.try_into().unwrap();
     let b32: NonZero<u128> = P32.try_into().unwrap();
     let (low, b0) = DivRem::div_rem(low, b32);
@@ -1362,11 +1362,11 @@ fn unpack_task(bits: u128) -> TaskEntry {
 
 pub fn pack_task_page(p: TaskPage) -> felt252 {
     let [a, b, c, d] = p.entries;
-    join(pack_task(a) + pack_task(b) * P56, pack_task(c) + pack_task(d) * P56)
+    PackingTrait::join(pack_task(a) + pack_task(b) * P56, pack_task(c) + pack_task(d) * P56)
 }
 
 pub fn unpack_task_page(word: felt252) -> TaskPage {
-    let (low, high) = split(word);
+    let (low, high) = PackingTrait::split(word);
     let s56: NonZero<u128> = P56.try_into().unwrap();
     let (b, a) = DivRem::div_rem(low, s56);
     let (d, c) = DivRem::div_rem(high, s56);
@@ -1390,10 +1390,10 @@ pub impl TaskPageStorePacking of starknet::storage_access::StorePacking<TaskPage
 #[cfg(test)]
 mod tests {
     use crate::durations::MAX_DURATION_BONUS_PERCENT;
+    use crate::helpers::packing::LIVE;
     use crate::models::base::slot as base_slot;
     use crate::models::index::Modifier;
     use crate::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
-    use crate::packing::LIVE;
     use crate::professions::ProfessionTrait;
     use crate::types::combat::{condition, damage, weapon};
     use crate::types::effect::{guard, scope};

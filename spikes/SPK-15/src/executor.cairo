@@ -11,9 +11,9 @@
 //! after each), and one write per actor for the whole carrier (`hits_on_goblins` with `Pending`:
 //! the awake set rebuilt once for all the goblins a bomb reaches).
 
+use grimworld_logic::helpers::packing::{P16, P32, P8, PackingTrait, field};
 use grimworld_logic::models::goblin::{Goblin, GoblinLifecycleTrait, GoblinWordsTrait};
 use grimworld_logic::models::member::{Member, MemberLifecycleTrait, MemberWordsTrait};
-use grimworld_logic::packing::{P16, P32, P8, field, limbs};
 use grimworld_logic::types::combat::{HitClass, weapon};
 use grimworld_logic::types::tick::{Sheets, ai, flag};
 use grimworld_logic::types::world::{World, WorldTrait};
@@ -192,7 +192,7 @@ pub impl GatherImpl of GatherTrait {
     fn member_on_goblin(
         member: @Member, goblin: @Goblin, class: HitClass, arc: Arc, t: u32, sheets: @Sheets,
     ) -> (Hit, HitTarget) {
-        let (low, high) = limbs(*member.words.stats);
+        let (low, high) = PackingTrait::limbs(*member.words.stats);
         let hit = Hit {
             class,
             weapon: weapon::AXE,
@@ -238,7 +238,7 @@ pub impl GatherImpl of GatherTrait {
     /// type's `ARMOR_VS`): four fields of one word.
     #[inline(always)]
     fn member_armor(member: @Member) -> (i16, i8, i8, u8) {
-        let (_, high) = limbs(*member.words.stats);
+        let (_, high) = PackingTrait::limbs(*member.words.stats);
         let armor: u16 = field(high, 1, 0x10000).try_into().unwrap();
         let stance: u8 = field(high, P16, 0x80).try_into().unwrap();
         let enchanted: u8 = field(high, P16 * P8, 0x80).try_into().unwrap();

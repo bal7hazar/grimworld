@@ -5,8 +5,8 @@
 //! addition). The model and its packer stay the layout and the oracle: each method is pinned
 //! against the packer in the tests. Only the store reads and writes it (`HubStoreTrait::get_core`).
 
-use grimworld_logic::packing::{
-    LIVE, P104, P112, P120, P32, P48, P56, P96, byte_at, low_field, split, u16_at, u32_at,
+use grimworld_logic::helpers::packing::{
+    LIVE, P104, P112, P120, P32, P48, P56, P96, PackingTrait, byte_at, low_field, u16_at, u32_at,
 };
 
 /// `AdventurerCore` as stored, one word.
@@ -33,7 +33,7 @@ pub impl StoredCoreImpl of StoredCoreTrait {
 
     /// `(account, status, pack_lanes)`, without decoding the others.
     fn fields(self: @StoredCore) -> (u32, u8, u16) {
-        let (low, high) = split(*self.word);
+        let (low, high) = PackingTrait::split(*self.word);
         (
             low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
             byte_at(high, P48),
@@ -43,13 +43,13 @@ pub impl StoredCoreImpl of StoredCoreTrait {
 
     /// `(experience, level, rank, profession)`.
     fn profile(self: @StoredCore) -> (u32, u8, u8, u8) {
-        let (low, _) = split(*self.word);
+        let (low, _) = PackingTrait::split(*self.word);
         (u32_at(low, P32), byte_at(low, P96), byte_at(low, P104), byte_at(low, P112))
     }
 
     /// The secondary profession (0: none yet; design/03, at Copper rank).
     fn secondary(self: @StoredCore) -> u8 {
-        let (low, _) = split(*self.word);
+        let (low, _) = PackingTrait::split(*self.word);
         byte_at(low, P120)
     }
 

@@ -255,6 +255,7 @@ pub trait IInstancesAdmin<T> {
 pub mod Instances {
     use grimworld_logic::content::{GATE, LOCATION, OUTLINE, exists};
     use grimworld_logic::fate::{ENTRY, derive, domain};
+    use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::interface::{
         IFateDispatcher, IFateDispatcherTrait, IHostsLibraryDispatcherTrait,
         IHostsLibraryLibraryDispatcher, IInstanceEntry, IRegistryReadDispatcher,
@@ -267,7 +268,6 @@ pub mod Instances {
     use grimworld_logic::models::quotas::QuotaSetRecord;
     use grimworld_logic::models::set_piece::SetPieceRecord;
     use grimworld_logic::models::spawn_table::SpawnTableRecord;
-    use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
     use grimworld_logic::types::reveal::SightTrait;
     use grimworld_logic::types::reveal::board::BoardTrait;

@@ -2,7 +2,7 @@
 
 use crate::content::{Record, SKILL};
 use crate::durations::MAX_BASE_DURATION;
-use crate::packing::{P16, P24, P32, P40, P56, P72, P8, P80, join, split};
+use crate::helpers::packing::{P16, P24, P32, P40, P56, P72, P8, P80, PackingTrait};
 use crate::types::combat::skill_kind;
 use crate::types::effect::{Carrier, Entry, EntryAssert, EntryTrait};
 pub use super::index::Skill;
@@ -56,7 +56,7 @@ pub impl SkillImpl of SkillTrait {
     /// checks of each skill on the bar. The header is 83 bits: the quotient by 2^82 is the elite
     /// bit.
     fn profile(part: felt252) -> (u8, bool) {
-        let (header, _) = split(part);
+        let (header, _) = PackingTrait::split(part);
         let (elite, rest) = DivRem::div_rem(header, P82.try_into().unwrap());
         let (_, profession) = DivRem::div_rem(rest, P8.try_into().unwrap());
         (profession.try_into().unwrap(), elite != 0)
@@ -125,12 +125,12 @@ pub impl SkillRecord of Record<Skill> {
                 0
             };
         let [a, b, c] = self.entries;
-        array![join(header, a.pack()), join(b.pack(), c.pack())].span()
+        array![PackingTrait::join(header, a.pack()), PackingTrait::join(b.pack(), c.pack())].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Skill {
-        let (header, a) = split(*parts[0]);
-        let (b, c) = split(*parts[1]);
+        let (header, a) = PackingTrait::split(*parts[0]);
+        let (b, c) = PackingTrait::split(*parts[1]);
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let s16: NonZero<u128> = P16.try_into().unwrap();
         let (header, profession) = DivRem::div_rem(header, s8);

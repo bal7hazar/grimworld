@@ -10,6 +10,7 @@
 // a test watches (`load` before and after).
 use core::testing::get_available_gas;
 use grimworld_logic::content::{GATE, ITEM, LOCATION, MODIFIER, QUEST, REGION, SKILL};
+use grimworld_logic::helpers::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IResultsDispatcher,
     IResultsDispatcherTrait, IResultsSafeDispatcher, IResultsSafeDispatcherTrait, Results, facts,
@@ -22,7 +23,6 @@ use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as l
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats};
 use grimworld_logic::types::passive::{PassiveTrait, id as passive_id};
 use grimworld_logic::types::{Outcome, instance_id, instance_parts};

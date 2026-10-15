@@ -65,7 +65,7 @@ pub impl StoredImpl<M, +StorePacking<M, felt252>, +Drop<M>> of StoredTrait<M> {
 
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::{Bitmap, LIVE};
+    use grimworld_logic::helpers::packing::{Bitmap, LIVE};
     use starknet::storage_access::StorePacking;
     use super::{Stored, StoredTrait};
 

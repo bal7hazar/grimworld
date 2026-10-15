@@ -7,8 +7,8 @@
 //! its `max`.
 
 use crate::content::{PACK, Record};
+use crate::helpers::packing::{P16, P24, P32, P64, P8, P96, PackingTrait, peel};
 use crate::helpers::signed::SignedTrait;
-use crate::packing::{P16, P24, P32, P64, P8, P96, join, peel, split};
 use crate::types::MAX_PACK_SIZE;
 pub use super::index::{Pack, PackCaste};
 
@@ -150,11 +150,11 @@ pub impl PackRecord of Record<Pack> {
             + PackCasteBitsTrait::bits(c2) * P64
             + PackCasteBitsTrait::bits(c3) * P96;
         let high = PackCasteBitsTrait::bits(c4) + SignedTrait::bits8(*self.level) * P32;
-        array![join(low, high)].span()
+        array![PackingTrait::join(low, high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Pack {
-        let (mut low, mut high) = split(*parts[0]);
+        let (mut low, mut high) = PackingTrait::split(*parts[0]);
         let c0 = PackCasteBitsTrait::peel(ref low);
         let c1 = PackCasteBitsTrait::peel(ref low);
         let c2 = PackCasteBitsTrait::peel(ref low);
@@ -168,7 +168,7 @@ pub impl PackRecord of Record<Pack> {
 #[cfg(test)]
 mod tests {
     use crate::content::Record;
-    use crate::packing::LIVE;
+    use crate::helpers::packing::LIVE;
     use super::{PackAssert, PackCaste, PackRecord, PackTrait};
 
     #[test]

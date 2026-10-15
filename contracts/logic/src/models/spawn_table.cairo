@@ -3,7 +3,7 @@
 //! probability `density / 256`, its template drawn by weight (`types::reveal`).
 
 use crate::content::{Record, SPAWN_TABLE};
-use crate::packing::{P16, P24, P48, P56, P72, P8, P96, join, peel, split};
+use crate::helpers::packing::{P16, P24, P48, P56, P72, P8, P96, PackingTrait, peel};
 pub use super::index::{Spawn, SpawnTable};
 
 /// Entries of a spawn table.
@@ -96,11 +96,11 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
             + SpawnBitsTrait::bits(s6) * P24
             + (*self.density).into() * P48
             + (*self.trap).into() * P56;
-        array![join(low, high)].span()
+        array![PackingTrait::join(low, high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> SpawnTable {
-        let (mut low, mut high) = split(*parts[0]);
+        let (mut low, mut high) = PackingTrait::split(*parts[0]);
         let s0 = SpawnBitsTrait::peel(ref low);
         let s1 = SpawnBitsTrait::peel(ref low);
         let s2 = SpawnBitsTrait::peel(ref low);
@@ -121,7 +121,7 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
 #[cfg(test)]
 mod tests {
     use crate::content::Record;
-    use crate::packing::LIVE;
+    use crate::helpers::packing::LIVE;
     use super::{Spawn, SpawnTableAssert, SpawnTableRecord, SpawnTableTrait};
 
     #[test]

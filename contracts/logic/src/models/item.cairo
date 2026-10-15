@@ -3,7 +3,7 @@
 //! carries one effect entry (design/19 §5.14), a bomb its range and strength (FX-18, FX-28).
 
 use crate::content::{ITEM, Record};
-use crate::packing::{P16, P24, P32, P64, P8, join, low_field, split};
+use crate::helpers::packing::{P16, P24, P32, P64, P8, PackingTrait, low_field};
 use crate::types::effect::{Carrier, ENTRY_BOUND, EntryAssert, EntryTrait};
 pub use super::index::Item;
 
@@ -48,7 +48,7 @@ pub impl ItemImpl of ItemTrait {
     /// item.
     #[inline(always)]
     fn class_of(part: felt252) -> u8 {
-        let (low, _) = split(part);
+        let (low, _) = PackingTrait::split(part);
         low_field(low, P8.try_into().unwrap()).try_into().unwrap()
     }
 
@@ -87,11 +87,11 @@ pub impl ItemRecord of Record<Item> {
         let high: u128 = self.entry.pack()
             + (*self.range).into() * ENTRY_BOUND
             + (*self.strength).into() * P105;
-        array![join(low, high)].span()
+        array![PackingTrait::join(low, high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Item {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let (low, class) = DivRem::div_rem(low, s8);
         let (low, region) = DivRem::div_rem(low, P16.try_into().unwrap());

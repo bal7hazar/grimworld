@@ -3,7 +3,7 @@
 //! bonus is one passive (design/19 §4).
 
 use crate::content::{ARMOR_SET, Record};
-use crate::packing::{P16, P32, P48, P64, join, split};
+use crate::helpers::packing::{P16, P32, P48, P64, PackingTrait};
 use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, Source};
 pub use super::index::ArmorSet;
 
@@ -45,11 +45,11 @@ pub impl ArmorSetRecord of Record<ArmorSet> {
             + d.into() * P48
             + e.into() * P64;
         let [first, second] = *self.bonuses;
-        array![join(low, PassiveTrait::pack_pair(@first, @second))].span()
+        array![PackingTrait::join(low, PassiveTrait::pack_pair(@first, @second))].span()
     }
 
     fn unpack(parts: Span<felt252>) -> ArmorSet {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let s16: NonZero<u128> = P16.try_into().unwrap();
         let (low, a) = DivRem::div_rem(low, s16);
         let (low, b) = DivRem::div_rem(low, s16);

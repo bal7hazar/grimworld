@@ -9,6 +9,7 @@
 use grimworld_logic::content::{
     BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, Record, SKILL, ZONE_CHUNK,
 };
+use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
     IRegistryReadDispatcherTrait,
@@ -25,7 +26,6 @@ use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota_kind};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
-use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::types::combat::{condition, damage, skill_kind};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::reveal::Progress;

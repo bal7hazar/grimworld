@@ -1,9 +1,9 @@
 //! The format (ENG-08 AC-2, AC-7): the proposed records pack and unpack, bit by bit; the
 //! converter's output decodes to the sample's fields and packs back to the same felts.
 
+use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::set_piece::SetPack;
-use grimworld_logic::packing::LIVE;
 use spk16::records::{AUTHORED, Bridge, BridgeTrait, CandidatesTrait, GENERATED, MarkerTrait};
 use spk16::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
 use crate::fixtures::{ZONE, load};

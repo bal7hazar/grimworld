@@ -2,8 +2,8 @@
 //! adventurer. Layouts: docs/architecture/ENG-01-interfaces.md, *Instances storage*. Every record
 //! carries `LIVE` (bit 250), so that a slot reused by the next instance is never 0.
 
-use grimworld_logic::packing::{
-    N16, N32, N8, P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, join, peel, split,
+use grimworld_logic::helpers::packing::{
+    N16, N32, N8, P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, PackingTrait, peel,
 };
 use grimworld_logic::types::Refusal;
 use grimworld_logic::types::reveal::Progress;
@@ -164,7 +164,7 @@ pub struct Placement {
 
 pub impl PlacementStorePacking of starknet::storage_access::StorePacking<Placement, felt252> {
     fn pack(value: Placement) -> felt252 {
-        join(
+        PackingTrait::join(
             value.slot.into()
                 + value.generation.into() * P32
                 + value.member.into() * P64
@@ -173,7 +173,7 @@ pub impl PlacementStorePacking of starknet::storage_access::StorePacking<Placeme
         )
     }
     fn unpack(value: felt252) -> Placement {
-        let (mut low, _) = split(value);
+        let (mut low, _) = PackingTrait::split(value);
         Placement {
             slot: peel(ref low, N32).try_into().unwrap(),
             generation: peel(ref low, N32).try_into().unwrap(),
@@ -236,10 +236,10 @@ pub impl HeaderStorePacking of starknet::storage_access::StorePacking<Header, fe
             + value.entry_chunk.into() * P32
             + value.entry_tile.into() * P40
             + value.gate.into() * P48;
-        join(low, high)
+        PackingTrait::join(low, high)
     }
     fn unpack(value: felt252) -> Header {
-        let (mut low, mut high) = split(value);
+        let (mut low, mut high) = PackingTrait::split(value);
         Header {
             generation: peel(ref low, N32).try_into().unwrap(),
             sequence: peel(ref low, N32).try_into().unwrap(),
@@ -281,10 +281,10 @@ pub impl QuotasStorePacking of starknet::storage_access::StorePacking<Quotas, fe
                 factor *= P8;
             }
         }
-        join(low, 0)
+        PackingTrait::join(low, 0)
     }
     fn unpack(value: felt252) -> Quotas {
-        let (low, _) = split(value);
+        let (low, _) = PackingTrait::split(value);
         let b8: NonZero<u128> = P8.try_into().unwrap();
         let (rest, target) = DivRem::div_rem(low, b8);
         let (mut rest, open_edges) = DivRem::div_rem(rest, b8);
@@ -316,8 +316,8 @@ pub const ROSTER_LANES: u8 = 15;
 pub impl RosterImpl of RosterTrait {
     /// Page `index` of the roster, its lanes at or beyond `count` zeroed.
     fn mask(
-        page: grimworld_logic::packing::Lanes16, index: u8, count: u8,
-    ) -> grimworld_logic::packing::Lanes16 {
+        page: grimworld_logic::helpers::packing::Lanes16, index: u8, count: u8,
+    ) -> grimworld_logic::helpers::packing::Lanes16 {
         let first: u16 = index.into() * ROSTER_LANES.into();
         let count: u16 = count.into();
         let mut out: Array<u16> = array![];
@@ -330,7 +330,7 @@ pub impl RosterImpl of RosterTrait {
             });
             entry += 1;
         }
-        grimworld_logic::packing::Lanes16 {
+        grimworld_logic::helpers::packing::Lanes16 {
             lanes: [
                 *out[0], *out[1], *out[2], *out[3], *out[4], *out[5], *out[6], *out[7], *out[8],
                 *out[9], *out[10], *out[11], *out[12], *out[13], *out[14],
@@ -344,7 +344,7 @@ pub impl RosterImpl of RosterTrait {
 /// ENG-R1b (D-167).
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::{LIVE, Lanes16};
+    use grimworld_logic::helpers::packing::{LIVE, Lanes16};
     use starknet::storage_access::StorePacking;
     use super::{Header, Placement, Quotas, RosterTrait};
 

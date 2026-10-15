@@ -3,7 +3,9 @@
 //! skills are read from it: no `BASE` read.
 
 use crate::content::{CASTE, Record};
-use crate::packing::{P104, P12, P16, P24, P32, P36, P40, P48, P8, P80, P88, P96, join, split};
+use crate::helpers::packing::{
+    P104, P12, P16, P24, P32, P36, P40, P48, P8, P80, P88, P96, PackingTrait,
+};
 use crate::types::combat::{damage, weapon};
 pub use super::index::{Caste, Weapon};
 
@@ -201,12 +203,12 @@ pub impl CasteRecord of Record<Caste> {
             + (*self.loot_table).into() * P54;
         let [s0, s1, s2, s3] = *self.skills;
         let skills: u128 = s0.into() + s1.into() * P16 + s2.into() * P32 + s3.into() * P48;
-        array![join(low, high), join(skills, 0)].span()
+        array![PackingTrait::join(low, high), PackingTrait::join(skills, 0)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Caste {
-        let (low, high) = split(*parts[0]);
-        let (skills, _) = split(*parts[1]);
+        let (low, high) = PackingTrait::split(*parts[0]);
+        let (skills, _) = PackingTrait::split(*parts[1]);
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let s16: NonZero<u128> = P16.try_into().unwrap();
         let s6: NonZero<u128> = P6.try_into().unwrap();

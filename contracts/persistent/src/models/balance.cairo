@@ -134,7 +134,7 @@ pub impl BalanceAssert of BalanceAssertTrait {
 // docs/CAIRO.md §2).
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::Lanes32;
+    use grimworld_logic::helpers::packing::Lanes32;
     use starknet::storage_access::StorePacking;
     use super::BalanceTrait;
     use super::super::lanes::StoredLanes;

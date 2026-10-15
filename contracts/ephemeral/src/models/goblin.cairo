@@ -2,9 +2,9 @@
 //! still asleep or on watch at its spawn has no record: it is derived from its chunk's pack
 //! placement (ENG-01, *Goblins*). Layouts: docs/architecture/ENG-01-interfaces.md, *Goblin*.
 
-use grimworld_logic::packing::{
-    P104, P108, P112, P120, P16, P24, P28, P32, P48, P52, P56, P64, P8, P80, P88, byte_at, field,
-    fits, join, low_field, split, u16_at,
+use grimworld_logic::helpers::packing::{
+    P104, P108, P112, P120, P16, P24, P28, P32, P48, P52, P56, P64, P8, P80, P88, PackingAssert,
+    PackingTrait, byte_at, field, low_field, u16_at,
 };
 use grimworld_logic::types::combat::activation;
 use crate::helpers::stored::Stored;
@@ -81,10 +81,10 @@ pub impl GoblinStateStorePacking of starknet::storage_access::StorePacking<Gobli
             + value.memory_x.into() * P104
             + value.memory_y.into() * P112
             + value.flags.into() * P120;
-        join(low, DeadlinesTrait::pack(r0, r1, r2, r3))
+        PackingTrait::join(low, DeadlinesTrait::pack(r0, r1, r2, r3))
     }
     fn unpack(value: felt252) -> GoblinState {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let (r0, r1, r2, r3) = DeadlinesTrait::unpack(high);
         GoblinState {
             x: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
@@ -134,9 +134,9 @@ pub struct GoblinTimers {
 
 pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<GoblinTimers, felt252> {
     fn pack(value: GoblinTimers) -> felt252 {
-        fits(value.act_deadline.into(), P28, 'packing: deadline above 2^28');
-        fits(value.bleeding.into(), P28, 'packing: deadline above 2^28');
-        fits(value.poison.into(), P28, 'packing: deadline above 2^28');
+        PackingAssert::assert_fits(value.act_deadline.into(), P28, 'packing: deadline above 2^28');
+        PackingAssert::assert_fits(value.bleeding.into(), P28, 'packing: deadline above 2^28');
+        PackingAssert::assert_fits(value.poison.into(), P28, 'packing: deadline above 2^28');
         let low: u128 = value.act_slot.into()
             + value.act_target.into() * P8
             + value.act_deadline.into() * P24
@@ -149,10 +149,10 @@ pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<Gobl
         )
             + value.effect_charges.into() * P112
             + value.effect_rank.into() * P118;
-        join(low, high)
+        PackingTrait::join(low, high)
     }
     fn unpack(value: felt252) -> GoblinTimers {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         let (effect, timers) = DivRem::div_rem(high, P112.try_into().unwrap());
         let (burning, crippled, knocked, effect_deadline) = DeadlinesTrait::unpack(timers);
         let (effect_rank, effect_charges) = DivRem::div_rem(effect, 0x40);

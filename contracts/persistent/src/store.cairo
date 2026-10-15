@@ -75,7 +75,7 @@
 //! (ENG-R1b, open question 2).
 
 use core::pedersen::pedersen;
-use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
+use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes32};
 use starknet::storage::{
     StorageAsPointer, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     SubPointersForward, SubPointersMutForward,
@@ -923,7 +923,7 @@ mod market_layout_tests {
 /// `Market`'s constructor through the store: the configuration, and the counters at `LIVE`.
 #[cfg(test)]
 mod market_tests {
-    use grimworld_logic::packing::{Counter, LIVE};
+    use grimworld_logic::helpers::packing::{Counter, LIVE};
     use starknet::storage::StoragePointerReadAccess;
     use starknet::storage_access::StorePacking;
     use crate::systems::market::Market;
@@ -949,7 +949,7 @@ mod market_tests {
 /// swap removal, the balance pages, the words the views return as stored.
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::{LIVE, Lanes32};
+    use grimworld_logic::helpers::packing::{LIVE, Lanes32};
     use starknet::storage::{
         StorageAsPointer, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
@@ -1212,7 +1212,7 @@ mod registry_layout_tests {
 #[cfg(test)]
 mod registry_detection_cost_tests {
     use grimworld_logic::content::BOOK;
-    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::helpers::packing::LIVE;
     use snforge_std::{map_entry_address, store, test_address};
     use crate::systems::registry::Registry;
     use super::{PartsTrait, RegistryStoreTrait};
@@ -1298,7 +1298,7 @@ mod registry_detection_cost_tests {
 #[cfg(test)]
 mod registry_tests {
     use grimworld_logic::content::BOOK;
-    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::helpers::packing::LIVE;
     use starknet::storage::{StorageMapReadAccess, StoragePointerReadAccess};
     use crate::models::versions::VersionsTrait;
     use crate::systems::registry::Registry;

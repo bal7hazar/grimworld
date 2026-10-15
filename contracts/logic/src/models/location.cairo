@@ -1,9 +1,9 @@
 //! `LOCATION`: its constructor, its checks and its record (layout: `models::index::Location`).
 
 use crate::content::{LOCATION, Record};
-use crate::packing::{
-    Lanes16, P104, P120, P16, P24, P32, P40, P48, P56, P64, P72, P8, P80, P88, join, pack_lanes16,
-    split, unpack_lanes16,
+use crate::helpers::packing::{
+    Lanes16, Lanes16Trait, P104, P120, P16, P24, P32, P40, P48, P56, P64, P72, P8, P80, P88,
+    PackingTrait,
 };
 pub use super::index::Location;
 
@@ -194,11 +194,11 @@ pub impl LocationRecord of Record<Location> {
         let high: u128 = (*self.entry_chunk).into()
             + (*self.entry_tile).into() * P8
             + (*self.map).into() * P16;
-        array![join(low, high), pack_lanes16(*self.set_pieces)].span()
+        array![PackingTrait::join(low, high), Lanes16Trait::pack(*self.set_pieces)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Location {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let s16: NonZero<u128> = P16.try_into().unwrap();
         let (low, kind) = DivRem::div_rem(low, s8);
@@ -231,7 +231,7 @@ pub impl LocationRecord of Record<Location> {
             sealed: sealed != 0,
             entry_chunk: entry_chunk.try_into().unwrap(),
             entry_tile: entry_tile.try_into().unwrap(),
-            set_pieces: unpack_lanes16(*parts[1]),
+            set_pieces: Lanes16Trait::unpack(*parts[1]),
             map: map.try_into().unwrap(),
         }
     }

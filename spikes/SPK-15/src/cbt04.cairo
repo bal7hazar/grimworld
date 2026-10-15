@@ -17,11 +17,11 @@
 //! main's own traits on `Member` and `Goblin` without a clash.
 
 use grimworld_logic::durations::effective_duration;
+use grimworld_logic::helpers::packing::{P16, P20, P72, PackingTrait, field};
 use grimworld_logic::models::goblin::{Goblin, GoblinLifecycleTrait, GoblinTickTrait, GoblinTrait};
 use grimworld_logic::models::member::{
     Member, MemberLifecycleTrait, MemberTickTrait, MemberWordsTrait,
 };
-use grimworld_logic::packing::{P16, P20, P72, field, limbs};
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::MAX_VALUE_DURATION;
 use grimworld_logic::types::tick::{Sheets, status};
@@ -102,7 +102,7 @@ pub impl Cbt04MemberImpl of Cbt04MemberTrait {
     /// condition at 144–147 and percent at 148–153, `KNOCKDOWN_FLAT` at 200–201; design/19
     /// §5.7).
     fn infliction(self: @Member) -> Infliction {
-        let (_, high) = limbs(*self.words.kit);
+        let (_, high) = PackingTrait::limbs(*self.words.kit);
         Infliction {
             condition: field(high, P16, 0x10).try_into().unwrap(),
             percent: field(high, P20, 0x40).try_into().unwrap(),

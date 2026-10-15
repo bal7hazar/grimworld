@@ -12,7 +12,7 @@
 //! another flattening epoch (a record the flattening reads changed, or the flattening's class), or
 //! of another level than the adventurer's (D-168 2).
 
-use grimworld_logic::packing::{P64, byte_at, split};
+use grimworld_logic::helpers::packing::{P64, PackingTrait, byte_at};
 use grimworld_logic::snapshot::SnapshotWords;
 
 /// `2^208`: the flattening epoch's unit in the kit word (bits 208–249).
@@ -94,7 +94,7 @@ pub impl StoredSnapshotAssert of StoredSnapshotAssertTrait {
     /// one division.
     fn assert_fresh(word: felt252, epoch: u64) {
         assert(word != 0, errors::MISSING);
-        let (_, high) = split(word);
+        let (_, high) = PackingTrait::split(word);
         assert(high / STATE_SHIFT == epoch.into(), errors::STALE);
     }
 
@@ -102,14 +102,14 @@ pub impl StoredSnapshotAssert of StoredSnapshotAssertTrait {
     /// 64–71): a level up (GLD-01) leaves the snapshot stale without marking it.
     #[inline(always)]
     fn assert_level(stats: felt252, level: u8) {
-        let (low, _) = split(stats);
+        let (low, _) = PackingTrait::split(stats);
         assert(byte_at(low, P64) == level, errors::STALE);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::helpers::packing::LIVE;
     use grimworld_logic::snapshot::{MemberKit, MemberStats, pack_kit, pack_stats, unpack_kit};
     use super::{RULES_EPOCHS, STALE_MARK, StoredSnapshotAssert, StoredSnapshotTrait, errors};
 

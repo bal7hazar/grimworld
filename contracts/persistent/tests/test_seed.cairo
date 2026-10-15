@@ -11,6 +11,7 @@
 use grimworld_logic::content::{
     CASTE, GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, Record, SKILL, SPAWN_TABLE, parts,
 };
+use grimworld_logic::helpers::packing::Lanes16;
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::caste::{Caste, CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
@@ -23,7 +24,6 @@ use grimworld_logic::models::quotas::{
 use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{Skill, SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
-use grimworld_logic::packing::Lanes16;
 use grimworld_logic::types::combat::skill_kind;
 use grimworld_logic::types::effect::{Entry, EntryTrait, kind as effect_kind};
 use grimworld_persistent::systems::registry::{

@@ -9,6 +9,7 @@
 // §1.2 counts.
 use core::testing::get_available_gas;
 use grimworld_logic::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
+use grimworld_logic::helpers::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
@@ -16,7 +17,6 @@ use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as l
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::snapshot::errors::{
     INSIGNIA_PIECE, MAX_HEALTH, NO_MODIFIER, SLOT_TYPE, SOURCE_COUNT, VALUE as MODIFIER_VALUE,
 };

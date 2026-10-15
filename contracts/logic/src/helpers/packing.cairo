@@ -25,35 +25,39 @@ pub const LIVE_HIGH: u128 = 0x4000000000000000000000000000000;
 /// 2^128.
 pub const TWO_POW_128: felt252 = 0x100000000000000000000000000000000;
 
-/// The two limbs of a word, `LIVE` removed from the high one if it is set: any word, a slot never
-/// written (0) included. One overflowing subtraction decides and removes `LIVE`.
-#[inline(always)]
-pub fn split(word: felt252) -> (u128, u128) {
-    let wide: u256 = word.into();
-    let (high, borrow) = OverflowingSub::overflowing_sub(wide.high, LIVE_HIGH);
-    if borrow {
-        (wide.low, wide.high)
-    } else {
-        (wide.low, high)
+#[generate_trait]
+pub impl PackingImpl of PackingTrait {
+    /// The two limbs of a word, `LIVE` removed from the high one if it is set: any word, a slot
+    /// never written (0) included. One overflowing subtraction decides and removes `LIVE`.
+    #[inline(always)]
+    fn split(word: felt252) -> (u128, u128) {
+        let wide: u256 = word.into();
+        let (high, borrow) = OverflowingSub::overflowing_sub(wide.high, LIVE_HIGH);
+        if borrow {
+            (wide.low, wide.high)
+        } else {
+            (wide.low, high)
+        }
     }
-}
 
-/// The two limbs of a stored record, which carries `LIVE` (rule 2 above: every record the game
-/// writes, and every registry part), `LIVE` removed as a field subtraction before the conversion.
-/// A word without `LIVE` (a slot never written) must go through `split`: here it would decode as
-/// another value.
-#[inline(always)]
-pub fn limbs(word: felt252) -> (u128, u128) {
-    let wide: u256 = (word - LIVE).into();
-    (wide.low, wide.high)
-}
+    /// The two limbs of a stored record, which carries `LIVE` (rule 2 above: every record the game
+    /// writes, and every registry part), `LIVE` removed as a field subtraction before the
+    /// conversion.
+    /// A word without `LIVE` (a slot never written) must go through `split`: here it would decode
+    /// as another value.
+    #[inline(always)]
+    fn limbs(word: felt252) -> (u128, u128) {
+        let wide: u256 = (word - LIVE).into();
+        (wide.low, wide.high)
+    }
 
-/// A stored record from its two limbs, `LIVE` set. `high` must be below 2^122: a field that
-/// overflows into `LIVE` or beyond is refused, never written.
-#[inline(always)]
-pub fn join(low: u128, high: u128) -> felt252 {
-    assert(high < LIVE_HIGH, 'packing: high limb overflow');
-    low.into() + high.into() * TWO_POW_128 + LIVE
+    /// A stored record from its two limbs, `LIVE` set. `high` must be below 2^122: a field that
+    /// overflows into `LIVE` or beyond is refused, never written.
+    #[inline(always)]
+    fn join(low: u128, high: u128) -> felt252 {
+        assert(high < LIVE_HIGH, 'packing: high limb overflow');
+        low.into() + high.into() * TWO_POW_128 + LIVE
+    }
 }
 
 /// The low field of `rest`, of width `2^width = size`, which it removes: a limb read field after
@@ -65,11 +69,15 @@ pub fn peel(ref rest: u128, size: NonZero<u128>) -> u128 {
     value
 }
 
-/// Refuses a value wider than its field (`size = 2^width`): a packer checks every field narrower
-/// than its Cairo type, so that it can never corrupt its neighbour (ENG-01 fix loop 1, F-9).
-#[inline(always)]
-pub fn fits(value: u128, size: u128, message: felt252) {
-    assert(value < size, message);
+#[generate_trait]
+pub impl PackingAssert of PackingAssertTrait {
+    /// Refuses a value wider than its field (`size = 2^width`): a packer checks every field
+    /// narrower than its Cairo type, so that it can never corrupt its neighbour (ENG-01 fix loop 1,
+    /// F-9).
+    #[inline(always)]
+    fn assert_fits(value: u128, size: u128, message: felt252) {
+        assert(value < size, message);
+    }
 }
 
 /// The field of `limb` at bit `2^offset = shift`, of width `2^width = size`.
@@ -154,36 +162,39 @@ pub struct Lanes32 {
     pub lanes: [u32; 7],
 }
 
-pub fn pack_lanes32(value: Lanes32) -> felt252 {
-    let [a, b, c, d, e, f, g] = value.lanes;
-    let low: u128 = a.into() + b.into() * P32 + c.into() * P64 + d.into() * P96;
-    let high: u128 = e.into() + f.into() * P32 + g.into() * P64;
-    join(low, high)
-}
+#[generate_trait]
+pub impl Lanes32Impl of Lanes32Trait {
+    fn pack(value: Lanes32) -> felt252 {
+        let [a, b, c, d, e, f, g] = value.lanes;
+        let low: u128 = a.into() + b.into() * P32 + c.into() * P64 + d.into() * P96;
+        let high: u128 = e.into() + f.into() * P32 + g.into() * P64;
+        PackingTrait::join(low, high)
+    }
 
-pub fn unpack_lanes32(word: felt252) -> Lanes32 {
-    let (low, high) = split(word);
-    let s32: NonZero<u128> = P32.try_into().unwrap();
-    let (low, a) = DivRem::div_rem(low, s32);
-    let (low, b) = DivRem::div_rem(low, s32);
-    let (d, c) = DivRem::div_rem(low, s32);
-    let (high, e) = DivRem::div_rem(high, s32);
-    let (g, f) = DivRem::div_rem(high, s32);
-    Lanes32 {
-        lanes: [
-            a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(),
-            d.try_into().unwrap(), e.try_into().unwrap(), f.try_into().unwrap(),
-            g.try_into().unwrap(),
-        ],
+    fn unpack(word: felt252) -> Lanes32 {
+        let (low, high) = PackingTrait::split(word);
+        let s32: NonZero<u128> = P32.try_into().unwrap();
+        let (low, a) = DivRem::div_rem(low, s32);
+        let (low, b) = DivRem::div_rem(low, s32);
+        let (d, c) = DivRem::div_rem(low, s32);
+        let (high, e) = DivRem::div_rem(high, s32);
+        let (g, f) = DivRem::div_rem(high, s32);
+        Lanes32 {
+            lanes: [
+                a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(),
+                d.try_into().unwrap(), e.try_into().unwrap(), f.try_into().unwrap(),
+                g.try_into().unwrap(),
+            ],
+        }
     }
 }
 
 pub impl Lanes32StorePacking of starknet::storage_access::StorePacking<Lanes32, felt252> {
     fn pack(value: Lanes32) -> felt252 {
-        pack_lanes32(value)
+        Lanes32Trait::pack(value)
     }
     fn unpack(value: felt252) -> Lanes32 {
-        unpack_lanes32(value)
+        Lanes32Trait::unpack(value)
     }
 }
 
@@ -194,57 +205,60 @@ pub struct Lanes16 {
     pub lanes: [u16; 15],
 }
 
-pub fn pack_lanes16(value: Lanes16) -> felt252 {
-    let mut low: u128 = 0;
-    let mut high: u128 = 0;
-    let mut factor: u128 = 1;
-    let mut i: u32 = 0;
-    for lane in value.lanes.span() {
-        if i == 8 {
-            factor = 1;
+#[generate_trait]
+pub impl Lanes16Impl of Lanes16Trait {
+    fn pack(value: Lanes16) -> felt252 {
+        let mut low: u128 = 0;
+        let mut high: u128 = 0;
+        let mut factor: u128 = 1;
+        let mut i: u32 = 0;
+        for lane in value.lanes.span() {
+            if i == 8 {
+                factor = 1;
+            }
+            if i < 8 {
+                low += (*lane).into() * factor;
+            } else {
+                high += (*lane).into() * factor;
+            }
+            if i != 7 && i != 14 {
+                factor *= P16;
+            }
+            i += 1;
         }
-        if i < 8 {
-            low += (*lane).into() * factor;
-        } else {
-            high += (*lane).into() * factor;
-        }
-        if i != 7 && i != 14 {
-            factor *= P16;
-        }
-        i += 1;
+        PackingTrait::join(low, high)
     }
-    join(low, high)
-}
 
-pub fn unpack_lanes16(word: felt252) -> Lanes16 {
-    let (low, high) = split(word);
-    let s16: NonZero<u128> = P16.try_into().unwrap();
-    let mut out: Array<u16> = array![];
-    let mut rest = low;
-    for _ in 0..8_u8 {
-        let (next, lane) = DivRem::div_rem(rest, s16);
-        out.append(lane.try_into().unwrap());
-        rest = next;
+    fn unpack(word: felt252) -> Lanes16 {
+        let (low, high) = PackingTrait::split(word);
+        let s16: NonZero<u128> = P16.try_into().unwrap();
+        let mut out: Array<u16> = array![];
+        let mut rest = low;
+        for _ in 0..8_u8 {
+            let (next, lane) = DivRem::div_rem(rest, s16);
+            out.append(lane.try_into().unwrap());
+            rest = next;
+        }
+        rest = high;
+        for _ in 0..7_u8 {
+            let (next, lane) = DivRem::div_rem(rest, s16);
+            out.append(lane.try_into().unwrap());
+            rest = next;
+        }
+        let lanes: [u16; 15] = [
+            *out[0], *out[1], *out[2], *out[3], *out[4], *out[5], *out[6], *out[7], *out[8],
+            *out[9], *out[10], *out[11], *out[12], *out[13], *out[14],
+        ];
+        Lanes16 { lanes }
     }
-    rest = high;
-    for _ in 0..7_u8 {
-        let (next, lane) = DivRem::div_rem(rest, s16);
-        out.append(lane.try_into().unwrap());
-        rest = next;
-    }
-    let lanes: [u16; 15] = [
-        *out[0], *out[1], *out[2], *out[3], *out[4], *out[5], *out[6], *out[7], *out[8], *out[9],
-        *out[10], *out[11], *out[12], *out[13], *out[14],
-    ];
-    Lanes16 { lanes }
 }
 
 pub impl Lanes16StorePacking of starknet::storage_access::StorePacking<Lanes16, felt252> {
     fn pack(value: Lanes16) -> felt252 {
-        pack_lanes16(value)
+        Lanes16Trait::pack(value)
     }
     fn unpack(value: felt252) -> Lanes16 {
-        unpack_lanes16(value)
+        Lanes16Trait::unpack(value)
     }
 }
 
@@ -257,10 +271,10 @@ pub struct Counter {
 
 pub impl CounterStorePacking of starknet::storage_access::StorePacking<Counter, felt252> {
     fn pack(value: Counter) -> felt252 {
-        join(value.value.into(), 0)
+        PackingTrait::join(value.value.into(), 0)
     }
     fn unpack(value: felt252) -> Counter {
-        let (low, _) = split(value);
+        let (low, _) = PackingTrait::split(value);
         Counter { value: low.try_into().unwrap() }
     }
 }
@@ -279,7 +293,7 @@ pub impl BitmapStorePacking of starknet::storage_access::StorePacking<Bitmap, fe
         value.bits + LIVE
     }
     fn unpack(value: felt252) -> Bitmap {
-        let (low, high) = split(value);
+        let (low, high) = PackingTrait::split(value);
         Bitmap { bits: low.into() + high.into() * TWO_POW_128 }
     }
 }
@@ -289,12 +303,13 @@ pub impl BitmapStorePacking of starknet::storage_access::StorePacking<Bitmap, fe
 #[cfg(test)]
 mod tests {
     use core::poseidon::poseidon_hash_span;
+    use starknet::storage_access::StorePacking;
     use super::{
         Bitmap, BitmapStorePacking, Counter, CounterStorePacking, LIVE, LIVE_HIGH, Lanes16,
-        Lanes16StorePacking, Lanes32, Lanes32StorePacking, N16, N2, N24, N28, N32, N4, N56, N6, N7,
-        N8, P108, P112, P12, P120, P16, P32, P4, P40, P56, P60, P64, P72, P8, P96, TWO_POW_128,
-        byte_at, field, fits, join, limbs, low_field, pack_lanes16, pack_lanes32, peel, split,
-        u16_at, u32_at, unpack_lanes16, unpack_lanes32,
+        Lanes16StorePacking, Lanes16Trait, Lanes32, Lanes32StorePacking, Lanes32Trait, N16, N2, N24,
+        N28, N32, N4, N56, N6, N7, N8, P108, P112, P12, P120, P16, P32, P4, P40, P56, P60, P64, P72,
+        P8, P96, PackingAssert, PackingTrait, TWO_POW_128, byte_at, field, low_field, peel, u16_at,
+        u32_at,
     };
 
     fn hex(felts: Span<felt252>) -> ByteArray {
@@ -407,7 +422,7 @@ mod tests {
     #[should_panic(expected: 'fits')]
     #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_fits_refuses_size() {
-        fits(2, 2, 'fits');
+        PackingAssert::assert_fits(2, 2, 'fits');
     }
 
     // The vector table, one JSON line per case (`{"id", "fn", "case", "ok"}`), and a digest of
@@ -430,7 +445,7 @@ mod tests {
             MAX, MAX - LIVE,
         ];
         for word in words.span() {
-            let (low, high) = split(*word);
+            let (low, high) = PackingTrait::split(*word);
             emit(ref digest, ref id, "split", [*word].span(), [low.into(), high.into()].span());
         }
         // `limbs`: a word that carries `LIVE` (0 is the wrapped case, outside the contract).
@@ -439,7 +454,7 @@ mod tests {
             LIVE + 0x0123456789abcdef0123456789abcdef, MAX - 1, 0,
         ];
         for word in stored.span() {
-            let (low, high) = limbs(*word);
+            let (low, high) = PackingTrait::limbs(*word);
             emit(ref digest, ref id, "limbs", [*word].span(), [low.into(), high.into()].span());
         }
         // `join`: the boundary of the high limb is 2^122 (`LIVE_HIGH`).
@@ -451,7 +466,7 @@ mod tests {
             for high in highs.span() {
                 let case = [(*low).into(), (*high).into()];
                 if *high < LIVE_HIGH {
-                    let ok = accepted([join(*low, *high)].span());
+                    let ok = accepted([PackingTrait::join(*low, *high)].span());
                     emit(ref digest, ref id, "join", case.span(), ok.span());
                 } else {
                     emit(ref digest, ref id, "join", case.span(), [1].span());
@@ -480,7 +495,7 @@ mod tests {
             for value in [0, 1, *size - 1, *size, *size + 1, U128_MAX].span() {
                 let case = [(*value).into(), (*size).into()];
                 if *value < *size {
-                    fits(*value, *size, 'fits');
+                    PackingAssert::assert_fits(*value, *size, 'fits');
                     emit(ref digest, ref id, "fits", case.span(), accepted([].span()).span());
                 } else {
                     emit(ref digest, ref id, "fits", case.span(), [1].span());
@@ -557,14 +572,14 @@ mod tests {
             }
         }
         for value in lanes.span() {
-            let word = pack_lanes32(*value);
+            let word = Lanes32Trait::pack(*value);
             emit(ref digest, ref id, "pack_lanes32", serialize(*value).span(), [word].span());
             emit(
                 ref digest,
                 ref id,
                 "unpack_lanes32",
                 [word].span(),
-                serialize(unpack_lanes32(word)).span(),
+                serialize(Lanes32Trait::unpack(word)).span(),
             );
         }
         // A word without `LIVE` (a slot never written) decodes as zero lanes.
@@ -574,7 +589,7 @@ mod tests {
                 ref id,
                 "unpack_lanes32",
                 [*word].span(),
-                serialize(unpack_lanes32(*word)).span(),
+                serialize(Lanes32Trait::unpack(*word)).span(),
             );
         }
         // The `StorePacking` impl is the same two functions.
@@ -593,14 +608,14 @@ mod tests {
             }
         }
         for value in lanes.span() {
-            let word = pack_lanes16(*value);
+            let word = Lanes16Trait::pack(*value);
             emit(ref digest, ref id, "pack_lanes16", serialize(*value).span(), [word].span());
             emit(
                 ref digest,
                 ref id,
                 "unpack_lanes16",
                 [word].span(),
-                serialize(unpack_lanes16(word)).span(),
+                serialize(Lanes16Trait::unpack(word)).span(),
             );
         }
         for word in [0, 1, 0x1ffff].span() {
@@ -609,7 +624,7 @@ mod tests {
                 ref id,
                 "unpack_lanes16",
                 [*word].span(),
-                serialize(unpack_lanes16(*word)).span(),
+                serialize(Lanes16Trait::unpack(*word)).span(),
             );
         }
         let stored = Lanes16StorePacking::pack(Lanes16 { lanes: [3; 15] });
@@ -681,4 +696,68 @@ mod tests {
 
     const DIGEST: felt252 =
         2846947247712031828191250240930051473826381931961835652957099604656858941268;
+
+    #[test]
+    #[available_gas(l2_gas: 108045)] // ceil(1.05 × 102900 measured)
+    fn test_lanes32() {
+        let lanes = Lanes32 { lanes: [1, 2, 3, 0xFFFFFFFF, 5, 6, 0xFFFFFFFF] };
+        let word = Lanes32Trait::pack(lanes);
+        assert(Lanes32Trait::unpack(word) == lanes, 'round trip');
+        let one = Lanes32Trait::pack(Lanes32 { lanes: [0, 0, 0, 0, 1, 0, 0] });
+        assert(one == TWO_POW_128 + LIVE, 'lane 4 at bit 128');
+        assert(Lanes32Trait::pack(Lanes32 { lanes: [0; 7] }) == LIVE, 'empty is LIVE, not 0');
+        assert(Lanes32Trait::unpack(0) == Lanes32 { lanes: [0; 7] }, 'unwritten is empty');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 443289)] // ceil(1.05 × 422180 measured)
+    fn test_lanes16() {
+        let lanes = Lanes16 { lanes: [1, 2, 3, 4, 5, 6, 7, 0xFFFF, 9, 10, 11, 12, 13, 14, 0xFFFF] };
+        assert(Lanes16Trait::unpack(Lanes16Trait::pack(lanes)) == lanes, 'round trip');
+        let mut one = [0_u16; 15];
+        let [a, b, c, d, e, f, g, h, _, j, k, l, m, n, o] = one;
+        one = [a, b, c, d, e, f, g, h, 1, j, k, l, m, n, o];
+        assert(
+            Lanes16Trait::pack(Lanes16 { lanes: one }) == TWO_POW_128 + LIVE, 'lane 8 at bit 128',
+        );
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 12999)] // ceil(1.05 × 12380 measured)
+    fn test_bitmap() {
+        let top: felt252 =
+            0x200000000000000000000000000000000000000000000000000000000000000; // 2^249
+        let bitmap = Bitmap { bits: top + 1 };
+        let word = StorePacking::<Bitmap, felt252>::pack(bitmap);
+        assert(word == top + 1 + LIVE, 'LIVE above bit 249');
+        assert(StorePacking::<Bitmap, felt252>::unpack(word) == bitmap, 'round trip');
+    }
+
+    // Fix loop 1: a counter is never 0 in storage (F-4); a high limb that would reach LIVE, or a
+    // bitmap above bit 249, is refused (F-9).
+    #[test]
+    #[available_gas(l2_gas: 10679)] // ceil(1.05 × 10170 measured)
+    fn test_counter_never_zero() {
+        let zero = StorePacking::<Counter, felt252>::pack(Counter { value: 0 });
+        assert(zero == LIVE, 'zero is LIVE');
+        let max = Counter { value: 0xFFFFFFFFFFFFFFFF };
+        let word = StorePacking::<Counter, felt252>::pack(max);
+        assert(StorePacking::<Counter, felt252>::unpack(word) == max, 'round trip');
+        assert(PackingTrait::join(0, 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) != 0, 'widest high limb');
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: high limb overflow')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_join_refuses_live_overflow() {
+        PackingTrait::join(0, 0x4000000000000000000000000000000);
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: bitmap above bit 249')]
+    #[available_gas(l2_gas: 10385)] // ceil(1.05 × 9890 measured)
+    fn test_bitmap_above_249_refused() {
+        let bit250: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
+        StorePacking::<Bitmap, felt252>::pack(Bitmap { bits: bit250 });
+    }
 }

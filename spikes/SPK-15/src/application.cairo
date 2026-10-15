@@ -19,10 +19,10 @@
 //!   first knock-down's `t0`), written once (`flush_member`, `flush_goblin`).
 
 use grimworld_logic::durations::effective_duration;
+use grimworld_logic::helpers::packing::{P32, PackingTrait, field};
 use grimworld_logic::helpers::tick::TickMathTrait;
 use grimworld_logic::models::goblin::{Goblin, GoblinTickTrait, GoblinTrait, GoblinWordsTrait};
 use grimworld_logic::models::member::{Member, MemberTickTrait, MemberWordsTrait};
-use grimworld_logic::packing::{P32, field, limbs};
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::MAX_VALUE_DURATION;
 use grimworld_logic::types::tick::{Sheets, status};
@@ -82,7 +82,7 @@ pub impl MemberApplicationImpl of MemberApplicationTrait {
         } else if condition == condition::BURNING {
             self.burning = refreshed(self.burning, t0, d);
         } else if condition == condition::CRIPPLED {
-            let (_, high) = limbs(self.words.timers);
+            let (_, high) = PackingTrait::limbs(self.words.timers);
             let old: u32 = field(high, P32, P32).try_into().unwrap();
             let new = refreshed(old, t0, d);
             self.words.timers += TickMathTrait::delta(old.into(), new.into(), F160);
@@ -107,7 +107,7 @@ pub impl MemberApplicationImpl of MemberApplicationTrait {
             self.burning = refreshed(self.burning, t0, d);
         } else {
             assert(condition == condition::CRIPPLED, 'tick: condition not stored');
-            let (_, high) = limbs(self.words.timers);
+            let (_, high) = PackingTrait::limbs(self.words.timers);
             let old: u32 = field(high, P32, P32).try_into().unwrap();
             let new = refreshed(old, t0, d);
             self.words.timers += TickMathTrait::delta(old.into(), new.into(), F160);

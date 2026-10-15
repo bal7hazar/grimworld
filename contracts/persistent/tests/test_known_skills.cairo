@@ -1,7 +1,7 @@
 // HUB-ROWS (#472's review, note 1): `KnownSkillsTrait::learned` sets a skill's bit whatever the
 // page holds. `buy_skill` refuses a known skill before it calls `learned`, but the function itself
 // must be right on its own: a bit already set stays set and the page does not change.
-use grimworld_logic::packing::Bitmap;
+use grimworld_logic::helpers::packing::Bitmap;
 use grimworld_persistent::models::adventurer::KnownSkillsTrait;
 
 /// A page that knows bits 3, 127, 128 and 249 (both limbs, and the last bit of a page).

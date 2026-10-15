@@ -6,8 +6,8 @@
 use core::num::traits::Pow;
 use core::testing::get_available_gas;
 use grimworld_logic::content::REGION;
+use grimworld_logic::helpers::packing::Lanes32;
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
-use grimworld_logic::packing::Lanes32;
 use grimworld_logic::professions::errors::BAD_PROFESSION;
 use grimworld_logic::professions::{Profession, ProfessionTrait};
 use grimworld_persistent::models::account::errors::{
