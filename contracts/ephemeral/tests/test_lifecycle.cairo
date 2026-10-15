@@ -1352,6 +1352,7 @@ fn table() -> SpawnTable {
             Default::default(), Default::default(), Default::default(), Default::default(),
         ],
         density: 200,
+        trap: 0,
     }
 }
 
@@ -1586,7 +1587,7 @@ fn test_entry_reveal_of_a_dungeon() {
         anchors: array![(112, 112)].span(),
         quotas: floor_quotas(),
         tasks: tasks(0),
-        spawn: SpawnTable { spawns: [Default::default(); 7], density: 0 },
+        spawn: SpawnTable { spawns: [Default::default(); 7], density: 0, trap: 0 },
         packs: array![(1, template())].span(),
         pieces: array![].span(),
     };
@@ -1930,6 +1931,7 @@ fn pack_content(world: World) {
             Default::default(), Default::default(),
         ],
         density: 255,
+        trap: 0,
     };
     records.set(SPAWN_TABLE, 1, SpawnTableRecord::pack(@table));
     let zone = LocationTrait::new(

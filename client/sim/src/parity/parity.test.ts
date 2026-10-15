@@ -53,7 +53,7 @@ describe("parity with the Cairo code", () => {
       base: 12,
       sight: 14,
       member: 115,
-      reveal: 40,
+      reveal: 42,
     });
   });
 

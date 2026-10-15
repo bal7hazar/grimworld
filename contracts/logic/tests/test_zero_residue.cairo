@@ -142,6 +142,7 @@ fn location(n: u8, piece: bool) -> Site {
                 Default::default(),
             ],
             density: 160,
+            trap: 0,
         },
         packs: packs(),
         pieces: pieces(piece),

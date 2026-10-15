@@ -455,6 +455,7 @@ fn generated(tasks: u32, last: u8) -> Site {
                 Default::default(), Default::default(), Default::default(),
             ],
             density: 0,
+            trap: 0,
         },
         packs: templates(),
         pieces: array![].span(),

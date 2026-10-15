@@ -6,7 +6,7 @@ fields, not the packed felts.
 
 | File | What |
 |---|---|
-| `test-region.json` | The test region: one region, its town, one zone, a dungeon of two floors, their gates; the reveal's content (ENG-05): two pack templates, a spawn table, the zone's and floor 1's quotas; the castes and the skill the packs name (ENG-07t); three more skills for the devnet adventurer's bar (SEED-02) |
+| `test-region.json` | The test region: one region, its town, one zone, a dungeon of two floors, their gates; the reveal's content (ENG-05): two pack templates, a spawn table, the zone's and floor 1's quotas; the castes and the skill the packs name (ENG-07t); three more skills for the devnet adventurer's bar (SEED-02); the caves' terrain trap skill (GEN-TRAP) |
 
 ## The test region
 
@@ -25,7 +25,7 @@ fields, not the packed felts.
 | `GATE` | 5 | Floor 1 → floor 2: a floor gate, no anchor (a dungeon's exit is a quota, ADR-0006) |
 | `PACK` | 1 | 2 to 5 goblins: caste 1 (1–2), caste 2 (1–3); level offset 0 |
 | `PACK` | 2 | 1 to 3 goblins: caste 3 (1), caste 1 (0–2); level offset +1 |
-| `SPAWN_TABLE` | 1 | Template 1 (weight 3), template 2 (weight 1); density 128 (each of a chunk's two pack slots filled with probability 1/2) |
+| `SPAWN_TABLE` | 1 | Template 1 (weight 3), template 2 (weight 1); density 128 (each of a chunk's two pack slots filled with probability 1/2); trap 5 (the dungeon's generated terrain traps take Rockfall; the meadow zone, which shares the table, generates none: GEN-TRAP, D-304) |
 | `QUOTAS` | 2 | The zone's collector camp: collector 1, once (design/18) |
 | `QUOTAS` | 3 | Floor 1's exit: gate 5, once (ADR-0006) |
 
@@ -111,3 +111,10 @@ every record as its model, packs it through `content::Record`, and writes it as 
 administrator, regions first, locations before their outlines and their quotas. `test_seed_written_and_read_back`
 writes it and reads it back in one `bundle`. The deployment scripts that write it to a network are
 OPS-01's.
+
+**The terrain trap skill (GEN-TRAP, D-268, D-304).** Skill 5, Rockfall, is what the cave's generated
+terrain traps fire (spawn table 1's `trap`): kind 9, profession 0 (never on a bar: `set_build`
+refuses it), a `TRAP` entry (`TILE`, `SINGLE`), then an earth `DAMAGE` of 10 at rank 0 to 40 at rank
+12 on a `FOE`, `SINGLE` (Snare's payload without its condition). A terrain trap fires at rank 0 and
+the band's lower level, so it deals 10. Spike pit (skill 6, the ruins' piercing one) waits for a ruin
+location in the seed.

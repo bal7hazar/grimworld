@@ -104,7 +104,8 @@ def pack_record(row):
 
 
 def spawn_table_record(row):
-    """`SpawnTableRecord::pack`: seven `(template, weight)` of 24 bits, the density above."""
+    """`SpawnTableRecord::pack`: seven `(template, weight)` of 24 bits, the density above, then the
+    terrain traps' skill (D-304)."""
     bits = [row[1 + 2 * i] + (row[2 + 2 * i] << 16) for i in range(7)]
     low = sum(b << (24 * i) for i, b in enumerate(bits[:5]))
-    return [low + ((bits[5] + (bits[6] << 24) + (row[15] << 48)) << 128) + LIVE]
+    return [low + ((bits[5] + (bits[6] << 24) + (row[15] << 48) + (row[16] << 56)) << 128) + LIVE]

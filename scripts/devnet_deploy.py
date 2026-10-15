@@ -408,7 +408,7 @@ def seed_records():
     records += [(9, row[0], skill_record(row)) for row in seed_rows("skills", 47)]
     records += [(8, row[0], caste_record(row)) for row in seed_rows("castes", 30)]
     records += [(7, row[0], pack_record(row)) for row in seed_rows("packs", 17)]
-    records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 16)]
+    records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 17)]
     return records
 
 

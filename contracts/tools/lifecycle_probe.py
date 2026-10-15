@@ -487,7 +487,7 @@ if OPTIONS.get("--fight") == "on":
     records += [(9, row[0], skill_record(row)) for row in seed_rows("skills", 47)]
     records += [(8, row[0], caste_record(row)) for row in seed_rows("castes", 30)]
     records += [(7, row[0], pack_record(row)) for row in seed_rows("packs", 17)]
-    records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 16)]
+    records += [(6, row[0], spawn_table_record(row)) for row in seed_rows("spawn_tables", 17)]
 for kind, rid, parts in records:
     invoke(f"set_record {kind} {rid}", registry, "set_record", kind, rid, len(parts), *parts,
            record=False)

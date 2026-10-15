@@ -45,7 +45,7 @@ const OUTLINE_COLUMNS: u32 = 17;
 const GATE_COLUMNS: u32 = 10;
 /// Columns of a pack template's row, a spawn table's and a location's quotas' (ENG-05).
 const PACK_COLUMNS: u32 = 17;
-const SPAWN_TABLE_COLUMNS: u32 = 16;
+const SPAWN_TABLE_COLUMNS: u32 = 17;
 const QUOTA_COLUMNS: u32 = 19;
 /// Columns of a skill's row (three entries of 12) and of a caste's (ENG-07t).
 const SKILL_COLUMNS: u32 = 47;
@@ -205,7 +205,7 @@ impl RowImpl of Row {
         }
     }
 
-    /// A spawn table: seven `(template, weight)`, then its density.
+    /// A spawn table: seven `(template, weight)`, then its density and its terrain traps' skill.
     fn spawn_table(self: Span<felt252>) -> SpawnTable {
         SpawnTableTrait::new(
             [
@@ -213,6 +213,7 @@ impl RowImpl of Row {
                 self.spawn(5), self.spawn(6),
             ],
             self.field(15),
+            self.field(16),
         )
     }
 
@@ -510,6 +511,7 @@ pub impl SeedImpl of SeedTrait {
             columns.append(format!("weight_{}", i));
         }
         columns.append("density");
+        columns.append("trap");
         let rows = SeedAssert::assert_columns(self.spawn_table_fields, columns, *self.spawn_tables);
         for i in 0..rows {
             let row = self.spawn_tables.slice(SPAWN_TABLE_COLUMNS * i, SPAWN_TABLE_COLUMNS);
@@ -622,11 +624,11 @@ impl SeedFixture of Fixture {
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
-    assert(written.requests.len() == 25, '25 records');
-    assert(written.felts.len() == 36, '36 slots');
+    assert(written.requests.len() == 26, '26 records');
+    assert(written.felts.len() == 38, '38 slots');
     let read = IRegistryReadDispatcher { contract_address: registry };
     let (version, inputs, felts) = read.bundle(written.requests.span());
-    assert(version == 25, 'one version a record');
+    assert(version == 26, 'one version a record');
     // Every record is new: no stored snapshot can name it (D-169).
     assert(inputs == 0, 'no input rewritten');
     assert(felts == written.felts.span(), 'read back as written');
@@ -684,13 +686,15 @@ fn test_seed_written_and_read_back() {
     assert(second.level == 1 && second.bounds() == (1, 3), 'pack 2');
     let table = SpawnTableRecord::unpack(felts.slice(19, 1));
     assert(table.density == 128 && table.weight() == 4 && table.pick(3) == 2, 'spawn table');
+    // GEN-TRAP (D-304): the table's generated terrain traps take skill 5, Rockfall.
+    assert(table.trap == 5, 'spawn table: trap skill');
     assert(*written.requests[16] == (QUOTAS, 2), 'the zone quotas');
     let camp = QuotaSetRecord::unpack(felts.slice(20, 1));
     assert(*camp.quotas.span()[0] == Quota { kind: quota::COLLECTOR, param: 1, count: 1 }, 'camp');
     let exit = QuotaSetRecord::unpack(felts.slice(21, 1));
     assert(*exit.quotas.span()[0] == Quota { kind: quota::EXIT, param: 5, count: 1 }, 'exit');
     // ENG-07t: the skill and the three castes the packs name.
-    assert(admin.last_id(SKILL) == 4 && admin.last_id(CASTE) == 3, 'four skills, three castes');
+    assert(admin.last_id(SKILL) == 5 && admin.last_id(CASTE) == 3, 'five skills, three castes');
     let rend = Record::<Skill>::unpack(felts.slice(22, 2));
     assert(rend.is_attack() && rend.count() == 1 && rend.range == 1, 'skill 1: an attack');
     // SEED-02: the skills `buy_skill` sells to the devnet adventurer (a Vanguard, profession 1):
@@ -706,11 +710,17 @@ fn test_seed_written_and_read_back() {
     let mending = Record::<Skill>::unpack(felts.slice(28, 2));
     let [regeneration, _, _] = mending.entries;
     assert(mending.profession == 1 && regeneration.kind == effect_kind::REGENERATION, 'skill 4');
+    // GEN-TRAP (D-304): Rockfall, the cave's terrain trap skill, of no profession (never on a bar):
+    // a `TRAP` entry, then an earth hit on a foe.
+    let rockfall = Record::<Skill>::unpack(felts.slice(30, 2));
+    let [trap, earth, _] = rockfall.entries;
+    assert(rockfall.profession == 0 && rockfall.kind == skill_kind::TRAP, 'skill 5: a trap');
+    assert(trap.kind == effect_kind::TRAP && earth.kind == effect_kind::DAMAGE, 'skill 5: entries');
     for k in 0..3_u32 {
-        let caste = Record::<Caste>::unpack(felts.slice(30 + 2 * k, 2));
+        let caste = Record::<Caste>::unpack(felts.slice(32 + 2 * k, 2));
         assert(*caste.skills.span()[0] == 1 && caste.health >= 100, 'a caste of skill 1');
     }
-    let brute = Record::<Caste>::unpack(felts.slice(34, 2));
+    let brute = Record::<Caste>::unpack(felts.slice(36, 2));
     assert(brute.tier == 2 && brute.weapon.damage == 9, 'caste 3: the brute');
 }
 
@@ -741,5 +751,5 @@ fn test_seed_rewritten_unchanged() {
     SeedTrait::write(registry);
     SeedTrait::write(registry);
     let read = IRegistryReadDispatcher { contract_address: registry };
-    assert(read.content_version() == 25, 'version kept');
+    assert(read.content_version() == 26, 'version kept');
 }

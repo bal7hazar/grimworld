@@ -261,6 +261,7 @@ pub impl ZoneImpl of ZoneTrait {
                     Default::default(),
                 ],
                 density: 128,
+                trap: 0,
             },
             packs: templates(),
             pieces: array![].span(),

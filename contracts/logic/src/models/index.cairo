@@ -388,12 +388,15 @@ pub struct Spawn {
 
 /// `SPAWN_TABLE`, 1 part (design/18 *Features*: 0 to 2 packs a chunk, from the location's table).
 /// Entry `i` (24 bits: template 0–15 · weight 16–23) at `24 i` for `i` 0–4 (low limb) and at
-/// `128 + 24 (i − 5)` for `i` 5–6 · density 176–183 · `LIVE`.
+/// `128 + 24 (i − 5)` for `i` 5–6 · density 176–183 · trap 184–199 · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct SpawnTable {
     pub spawns: [Spawn; 7],
     /// Each of a chunk's two pack slots holds a pack with probability `density / 256`.
     pub density: u8,
+    /// The `SKILL` of the location's generated terrain traps (ruins and caves; D-268, D-304); 0
+    /// none: such a trap stays inert.
+    pub trap: u16,
 }
 
 /// One caste of a pack template and its count bounds.

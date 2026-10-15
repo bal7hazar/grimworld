@@ -3,7 +3,7 @@
 //! probability `density / 256`, its template drawn by weight (`types::reveal`).
 
 use crate::content::{Record, SPAWN_TABLE};
-use crate::packing::{P16, P24, P48, P72, P8, P96, join, peel, split};
+use crate::packing::{P16, P24, P48, P56, P72, P8, P96, join, peel, split};
 pub use super::index::{Spawn, SpawnTable};
 
 /// Entries of a spawn table.
@@ -18,8 +18,8 @@ pub mod errors {
 
 #[generate_trait]
 pub impl SpawnTableImpl of SpawnTableTrait {
-    fn new(spawns: [Spawn; 7], density: u8) -> SpawnTable {
-        SpawnTable { spawns, density }
+    fn new(spawns: [Spawn; 7], density: u8, trap: u16) -> SpawnTable {
+        SpawnTable { spawns, density, trap }
     }
 
     /// The sum of the weights (at most 7 × 255).
@@ -94,7 +94,8 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
             + SpawnBitsTrait::bits(s4) * P96;
         let high = SpawnBitsTrait::bits(s5)
             + SpawnBitsTrait::bits(s6) * P24
-            + (*self.density).into() * P48;
+            + (*self.density).into() * P48
+            + (*self.trap).into() * P56;
         array![join(low, high)].span()
     }
 
@@ -108,7 +109,12 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
         let s5 = SpawnBitsTrait::peel(ref high);
         let s6 = SpawnBitsTrait::peel(ref high);
         let density = peel(ref high, P8.try_into().unwrap());
-        SpawnTable { spawns: [s0, s1, s2, s3, s4, s5, s6], density: density.try_into().unwrap() }
+        let trap = peel(ref high, P16.try_into().unwrap());
+        SpawnTable {
+            spawns: [s0, s1, s2, s3, s4, s5, s6],
+            density: density.try_into().unwrap(),
+            trap: trap.try_into().unwrap(),
+        }
     }
 }
 
@@ -129,9 +135,12 @@ mod tests {
                 Default::default(), Default::default(), last,
             ],
             0x80,
+            0xbeef,
         );
         let parts = table.pack();
-        let high: felt252 = (0x1234 + 0xff * 0x10000) * 0x1000000 + 0x80 * 0x1000000000000;
+        let high: felt252 = (0x1234 + 0xff * 0x10000) * 0x1000000
+            + 0x80 * 0x1000000000000
+            + 0xbeef * 0x100000000000000;
         assert(
             *parts[0] == 0xabcd
                 + 0x12 * 0x10000
@@ -152,6 +161,7 @@ mod tests {
                 Default::default(), Default::default(),
             ],
             64,
+            0,
         );
         assert(table.weight() == 3, 'weight skips empty entries');
         assert(table.pick(0) == 3, '0');
@@ -166,6 +176,7 @@ mod tests {
                 Default::default(), Default::default(), Default::default(),
             ],
             density,
+            0,
         )
     }
 

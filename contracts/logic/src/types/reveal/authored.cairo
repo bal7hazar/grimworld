@@ -304,7 +304,7 @@ mod tests {
                 ],
             },
             tasks: array![].span(),
-            spawn: SpawnTable { spawns: [Default::default(); 7], density: 0 },
+            spawn: SpawnTable { spawns: [Default::default(); 7], density: 0, trap: 0 },
             packs: array![
                 (
                     1,

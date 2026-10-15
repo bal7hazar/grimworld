@@ -1211,7 +1211,7 @@ fn test_set_record_self_single_allies_kept() {
 
 // CARRIER-03 (D-303): a `DAMAGE` entry on `SELF`, `SINGLE` takes nobody under either filter.
 // `FOES` is R-45's reason, and under `ALLIES` the caster is its own hit's source, which `own_hit`
-// cuts from the hit's set (`ExecutorLibrary::actors`). Wherever it stands in the carrier.
+// cuts from the hit's set (`ExecutorLibrary::actors`). At index 0, the only place a hit stands.
 #[test]
 #[available_gas(l2_gas: 3748219)] // ceil(1.05 × 3569732 measured)
 fn test_set_record_damage_self_single_refused() {
@@ -1428,6 +1428,7 @@ fn spawn_table(first: Spawn, density: u8) -> Span<felt252> {
                 Default::default(), Default::default(), Default::default(),
             ],
             density,
+            0,
         ),
     )
 }
