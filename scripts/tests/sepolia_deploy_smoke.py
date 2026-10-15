@@ -14,6 +14,12 @@ It needs `gh` (read access to the repository's Actions):
   * the refusals, each with its message and nothing sent: a pull request's run, `--give-build` (and the
     other options of the devnet script), a chain id that is not `SN_SEPOLIA` (a stub RPC), a local URL
     without `--devnet-rehearsal`, a remote URL with it, a devnet reached without it, a variable missing;
+  * OPS-03, on stubs (no `gh`, no node): a read answered 429 or -32011 twice is retried with the backoff and
+    each retry prints one line without the URL; the tries are bounded; any other error is not retried; an
+    `sncast` rate-limit error is retried only when the deployer's nonce did not move (it is read before and
+    after); when it moved the call is not resent and the accepted transaction is taken as the result (or the
+    run stops, naming the call); an error that is no rate limit is never retried; `--pace` waits between
+    transactions;
   * no value of any `STARKNET_*` variable, in any form (raw, an address padded or not, the URL's host and
     path), appears in stdout, stderr, the log file, the record or the files left behind: the rehearsal runs
     with the node's real URL, address and key (and a sentinel network), the refusal runs with sentinels,
@@ -274,7 +280,7 @@ def check_cut_secret():
                 old = os.environ["PATH"]
                 os.environ["PATH"] = tool + os.pathsep + old
                 try:
-                    node.sncast("persistent", "--account", "deployer", "invoke")
+                    node.sncast("persistent", "--account", "deployer", "call")  # no transaction: no nonce read
                 except RuntimeError as error:
                     message = str(error)
                 else:
@@ -349,6 +355,344 @@ def check_chain_unit():
         raise AssertionError("a local URL passed without --devnet-rehearsal")
     sepolia_deploy.check_endpoint("https://starknet-sepolia.public.blastapi.io/rpc/v0_8", False, Log())
     sepolia_deploy.check_endpoint("http://127.0.0.1:5050", True, Log())
+
+
+class Scripted(http.server.BaseHTTPRequestHandler):
+    """A JSON-RPC node driven by `Scripted.answer(method, params)`: ("http", 429), ("error", code, message)
+    or ("result", value). Every request is counted in `Scripted.calls`."""
+
+    answer, calls = None, []
+
+    def do_POST(self):
+        request = json.loads(self.rfile.read(int(self.headers["content-length"])))
+        Scripted.calls.append(request["method"])
+        kind, *rest = Scripted.answer(request["method"], request.get("params"))
+        if kind == "http":
+            self.send_response(rest[0])
+            self.send_header("content-length", "0")
+            self.end_headers()
+            return
+        answer = {"error": {"code": rest[0], "message": rest[1]}} if kind == "error" else {"result": rest[0]}
+        body = json.dumps({"jsonrpc": "2.0", "id": 1, **answer}).encode()
+        self.send_response(200)
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+def check_run_node():
+    """The node `run()` builds: its tag and pace, with the RPC and the artefact stubbed out, stopped before
+    the first send (find_run raises)."""
+    class Stop(Exception):
+        pass
+
+    class Log:
+        def say(self, text, error=False):
+            pass
+
+        def die(self, text):
+            raise AssertionError(text)
+
+    built = []
+    real = {name: getattr(sepolia_deploy, name) for name in
+            ("check_endpoint", "check_chain", "read_sncast_version", "find_run", "SepoliaNode")}
+
+    class Recording(real["SepoliaNode"]):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            built.append(self)
+
+    def stop(*args):
+        raise Stop
+
+    sepolia_deploy.check_endpoint = lambda *a: None
+    sepolia_deploy.check_chain = lambda *a: "SN_SEPOLIA"
+    sepolia_deploy.read_sncast_version = lambda *a: "sncast 0"
+    sepolia_deploy.find_run = stop
+    sepolia_deploy.SepoliaNode = Recording
+    try:
+        for extra, tag, pace in (([], "pre_confirmed", 1.0), (["--pace", "2.5"], "pre_confirmed", 2.5),
+                                 (["--devnet-rehearsal", "--out", "/tmp/x.json", "--pace", "2.5"], "latest", 0.0)):
+            args = sepolia_deploy.parse(["--commit", "0" * 40, *extra])
+            try:
+                sepolia_deploy.run(args, Log(), sepolia_deploy.Redactor(FAKE), {
+                    **FAKE, "STARKNET_RPC_URL": "https://x.example/rpc"})
+            except Stop:
+                pass
+            assert built[-1].tag == tag and built[-1].pace == pace, (extra, built[-1].tag, built[-1].pace)
+    finally:
+        for name, value in real.items():
+            setattr(sepolia_deploy, name, value)
+
+
+def check_rate_limit():
+    """OPS-03 on a scripted node and a stub `sncast`: nothing here goes near Sepolia. The stub is in the
+    PATH only while this runs: the later checks need the real `sncast`."""
+    path = os.environ["PATH"]
+    try:
+        rate_limit_checks()
+    finally:
+        os.environ["PATH"] = path
+        os.environ.pop("SMOKE_FAIL", None)
+
+
+def rate_limit_checks():
+    server = http.server.HTTPServer(("127.0.0.1", 0), Scripted)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_address[1]}"
+    host = "rpc.sentinel-host-9c1d.example"
+    limited = f"cu limit exceeded; Request too fast per second at {host}"
+    redact = sepolia_deploy.Redactor({**FAKE, "STARKNET_RPC_URL": FAKE["STARKNET_RPC_URL"]})
+    folder = tempfile.mkdtemp(prefix="smoke-ratelimit-")
+    counter = os.path.join(folder, "count")
+    errors = os.path.join(folder, "error")
+    stub_tool(os.path.join(folder, "bin"), "sncast",
+              f'n=$(cat "{counter}" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "{counter}"\n'
+              f'echo "$@" >> "{folder}/argv"\n'
+              f'f="{errors}.$n"; [ -f "$f" ] || f="{errors}"\n'
+              f'if [ "$n" -le "$SMOKE_FAIL" ]; then cat "$f" >&2; exit 1; fi\n'
+              'echo "Transaction Hash: 0xabc1"\n')
+    os.environ["PATH"] = os.path.join(folder, "bin") + os.pathsep + os.environ["PATH"]
+    lines, sleeps = [], []
+
+    def make(answer, pace=0.0):
+        Scripted.answer, Scripted.calls = staticmethod(answer), []
+        for path in (counter,):
+            if os.path.exists(path):
+                os.remove(path)
+        logs = tempfile.mkdtemp(prefix="smoke-node-", dir=folder)
+        lines.clear()
+        sleeps.clear()
+        return sepolia_deploy.SepoliaNode(url, "0x5e47a1d0c0ffee1234", "unused", logs, {}, redact,
+                                          lines.append, pace=pace, backoff=1.0, sleep=sleeps.append)
+
+    def sncast_count():
+        return int(open(counter).read()) if os.path.exists(counter) else 0
+
+    def invoke(node):
+        return node.sncast("persistent", "--account", "deployer", "--wait", "invoke", "--url", url,
+                           "--contract-address", "0x1", "--function", "f")
+
+    def nothing_leaked():
+        text = "\n".join(lines)
+        for secret in (url, host, "sentinelapikey7788"):
+            assert secret not in text, (secret, text)
+
+    # a read that gets a 429, then a -32011, then succeeds, is retried; one line per retry, no URL
+    seen = []
+
+    def twice(method, params):
+        seen.append(method)
+        if len(seen) == 1:
+            return ("http", 429)
+        if len(seen) == 2:
+            return ("error", -32011, limited)
+        return ("result", "0x534e5f5345504f4c4941")
+    node = make(twice)
+    assert node.rpc("starknet_chainId", {}) == "0x534e5f5345504f4c4941" and len(seen) == 3
+    assert sleeps == [1.0, 2.0], sleeps
+    assert len(lines) == 2 and "HTTP 429" in lines[0] and "try 1 of 6" in lines[0] and "waiting 1 s" in lines[0], lines
+    assert "JSON-RPC -32011" in lines[1] and "try 2 of 6" in lines[1], lines
+    assert all(line.startswith("STARKNET_RPC_URL:") for line in lines), lines
+    nothing_leaked()
+    # a message alone ("Request too fast", "cu limit") is a rate limit too
+    node = make(lambda m, p: ("error", -32000, "Request too fast") if len(Scripted.calls) < 2 else ("result", "0x1"))
+    assert node.rpc("starknet_blockNumber", {}) == "0x1" and len(Scripted.calls) == 2
+    # bounded: always limited, TRIES calls, then the error as before, with the host redacted
+    node = make(lambda m, p: ("error", -32011, limited))
+    try:
+        node.rpc("starknet_chainId", {})
+    except sepolia_deploy.dd.RpcError as error:
+        assert host not in str(error) and "sentinel-host" not in str(error), error
+    else:
+        raise AssertionError("a read that is always limited did not fail")
+    assert len(Scripted.calls) == sepolia_deploy.TRIES and len(sleeps) == sepolia_deploy.TRIES - 1, Scripted.calls
+    assert sleeps == [1.0, 2.0, 4.0, 8.0, 16.0], sleeps
+    assert max(sepolia_deploy.SepoliaNode.wait_time(node, k) for k in range(1, 30)) == sepolia_deploy.BACKOFF_CAP
+    nothing_leaked()
+    # any other answer is not retried
+    node = make(lambda m, p: ("error", -32601, "Method not found"))
+    try:
+        node.rpc("devnet_getPredeployedAccounts", {})
+    except sepolia_deploy.dd.RpcError:
+        pass
+    assert Scripted.calls == ["devnet_getPredeployedAccounts"] and not sleeps
+    node = make(lambda m, p: ("http", 500))
+    try:
+        node.rpc("starknet_chainId", {})
+    except Exception:
+        pass
+    assert len(Scripted.calls) == 1, "an HTTP 500 is not a rate limit"
+
+    rate = ('Error: Failed to fetch chain_id\n\nCaused by:\n    JSON-RPC error: code=-32011, message="'
+            + limited + '"\n')
+    open(errors, "w").write(rate)
+    nonces = {"value": 7}
+
+    def chain(method, params):
+        if method == "starknet_getNonce":
+            assert params["block_id"] == "pre_confirmed", params  # RPC 0.9: the tag that moves when a transaction is accepted
+            return ("result", hex(nonces["value"]))
+        return ("error", -32601, "unexpected " + method)
+
+    # sncast: a rate limit before submission (nonce unchanged) is resent, and succeeds
+    os.environ["SMOKE_FAIL"] = "2"
+    node = make(chain)
+    out = invoke(node)
+    assert "Transaction Hash: 0xabc1" in out and sncast_count() == 3 and node.sent == ["0xabc1"], (out, sncast_count())
+    assert [l for l in lines if "nothing submitted" in l and "try " in l].__len__() == 2, lines
+    nothing_leaked()
+    # the tries are bounded
+    os.environ["SMOKE_FAIL"] = "99"
+    node = make(chain)
+    try:
+        invoke(node)
+    except RuntimeError as error:
+        assert host not in str(error), error
+    else:
+        raise AssertionError("an sncast that is always limited did not stop")
+    assert sncast_count() == sepolia_deploy.TRIES and not node.sent, sncast_count()
+    # an error that is no rate limit (after submission, unclassified) is never retried and the nonce is not even read after
+    open(errors, "w").write("Error: Transaction timed out\n")
+    os.environ["SMOKE_FAIL"] = "99"
+    node = make(chain)
+    try:
+        invoke(node)
+    except RuntimeError as error:
+        assert "timed out" in str(error)
+    else:
+        raise AssertionError("an unclassified error did not stop")
+    assert sncast_count() == 1 and Scripted.calls.count("starknet_getNonce") == 1, (sncast_count(), Scripted.calls)
+    # a rate-limit text after which the nonce advanced is NOT resent: the node took the transaction
+    open(errors, "w").write(rate)
+    os.environ["SMOKE_FAIL"] = "99"
+    reads = []
+
+    def accepted(method, params):
+        if method == "starknet_getNonce":
+            reads.append(1)
+            return ("result", hex(7 if len(reads) == 1 else 8))
+        if method == "starknet_blockNumber":
+            return ("result", 100)
+        if method == "starknet_getBlockWithTxs":
+            return ("result", {"transactions": [
+                {"type": "INVOKE", "sender_address": "0x5e47a1d0c0ffee1234", "nonce": "0x7",
+                 "transaction_hash": "0xfeed"}]})
+        if method == "starknet_getTransactionReceipt":
+            return ("result", {"execution_status": "SUCCEEDED", "finality_status": "ACCEPTED_ON_L2", "events": []})
+        return ("error", -32601, method)
+    node = make(accepted)
+    out = invoke(node)
+    assert sncast_count() == 1, "an accepted transaction was sent again"
+    assert "Transaction Hash: 0xfeed" in out and node.sent == ["0xfeed"], (out, node.sent)
+    nothing_leaked()
+    # nonce advanced and the transaction cannot be found: stop, naming the call, nothing resent
+    reads.clear()
+    node = make(lambda m, p: accepted(m, p) if m in ("starknet_getNonce", "starknet_blockNumber")
+                else ("result", {"transactions": []}))
+    try:
+        invoke(node)
+    except RuntimeError as error:
+        assert "invoke" in str(error) and "accepted" in str(error), error
+    else:
+        raise AssertionError("a lost transaction did not stop the run")
+    assert sncast_count() == 1
+    # the same, for a declare-from: the class hash comes from the DECLARE transaction
+    reads.clear()
+
+    def declared(method, params):
+        if method == "starknet_getBlockWithTxs":
+            return ("result", {"transactions": [
+                {"type": "DECLARE", "sender_address": "0x5e47a1d0c0ffee1234", "nonce": "0x7",
+                 "transaction_hash": "0xdec1", "class_hash": "0xc1a55"}]})
+        return accepted(method, params)
+    node = make(declared)
+    out = node.sncast("persistent", "--account", "deployer", "--wait", "declare-from", "--url", url,
+                      "--sierra-file", "x")
+    assert "Class Hash: 0xc1a55" in out and "Transaction Hash: 0xdec1" in out and sncast_count() == 1, out
+    # a deploy: the address is the ContractDeployed event's (data: address, deployer, unique, class hash)
+    reads.clear()
+    selector = hex(sepolia_deploy.dd.storage_key("ContractDeployed"))
+
+    def deployed(method, params):
+        if method == "starknet_getTransactionReceipt":
+            other = {"keys": [selector], "data": ["0xbad", "0x1", "0x0", "0x999"]}
+            mine = {"keys": [selector], "data": ["0xadd7e55", "0x5e47a1d0c0ffee1234", "0x0", "0xc1a55"]}
+            return ("result", {"execution_status": "SUCCEEDED", "finality_status": "ACCEPTED_ON_L2",
+                               "events": [{"keys": ["0x1"], "data": []}, other, mine]})
+        return accepted(method, params)
+    node = make(deployed)
+    out = node.sncast("persistent", "--account", "deployer", "--wait", "deploy", "--url", url,
+                      "--class-hash", "0xc1a55")
+    assert "Contract Address: 0xadd7e55" in out and sncast_count() == 1, out
+    # the race: the node takes the first copy only after our "after" read. The first call and the resend
+    # carry the same reference nonce, so the node refuses the resend; we then see nonce + 1 and take the
+    # first copy: no second copy is ever accepted
+    open(errors + ".2", "w").write("Error: Invalid transaction nonce\n")
+    os.remove(folder + "/argv")
+    reads.clear()
+    os.environ["SMOKE_FAIL"] = "99"
+
+    def race(method, params):
+        if method == "starknet_getNonce":
+            reads.append(1)
+            return ("result", hex(8 if len(reads) >= 3 else 7))  # reference 7, after 7, then taken: 8
+        return accepted(method, params)
+    node = make(race)
+    out = invoke(node)
+    argv = open(folder + "/argv").read().splitlines()
+    assert len(argv) == 2 and all(" --nonce 0x7" in line + " " for line in argv), argv  # the reference, twice
+    assert "Transaction Hash: 0xfeed" in out and node.sent == ["0xfeed"], (out, node.sent)
+    os.remove(errors + ".2")
+    # the last try fails after acceptance: the nonce is still checked and the transaction recovered
+    reads.clear()
+    os.environ["SMOKE_FAIL"] = "99"
+
+    def last(method, params):
+        if method == "starknet_getNonce":
+            reads.append(1)
+            # reference 7; every "after" read says 7 until the sixth one
+            return ("result", hex(8 if len(reads) > sepolia_deploy.TRIES else 7))
+        return accepted(method, params)
+    node = make(last)
+    out = invoke(node)
+    assert sncast_count() == sepolia_deploy.TRIES and "Transaction Hash: 0xfeed" in out, (sncast_count(), out)
+    # ...and when nothing was accepted by then, the run stops naming the call
+    node = make(chain)
+    try:
+        invoke(node)
+    except RuntimeError as error:
+        assert "invoke" in str(error) and "tries are spent" in str(error), error
+    else:
+        raise AssertionError("the spent tries did not stop the run")
+    # a nonce that cannot be read stops the run (rate limited to the end)
+    state = []
+
+    def unreadable(method, params):
+        state.append(method)
+        return ("result", "0x7") if len(state) == 1 else ("error", -32011, limited)
+    node = make(unreadable)
+    try:
+        invoke(node)
+    except RuntimeError as error:
+        assert "nonce could not be read" in str(error), error
+    else:
+        raise AssertionError("an unreadable nonce did not stop the run")
+    assert sncast_count() == 1
+    # pace: a wait between two transactions, none before the first
+    os.environ["SMOKE_FAIL"] = "0"
+    node = make(chain, pace=2.5)
+    invoke(node)
+    assert 2.5 not in sleeps, sleeps
+    invoke(node)
+    assert sleeps == [2.5], sleeps
+    # the rehearsal and the defaults
+    assert sepolia_deploy.parse(["--commit", "x"]).pace == sepolia_deploy.PACE == 1.0
+    server.shutdown()
+    print("sepolia_deploy_smoke: rate limit ok: reads retried, sncast resent only when the nonce did not move")
 
 
 def nonce(node):
@@ -529,6 +873,8 @@ def main():
     check_command_line()
     check_cut_secret()
     check_chain_unit()
+    check_run_node()
+    check_rate_limit()
     url, address, key = (os.environ["NODE_URL"], os.environ["NODE_ACCOUNT_ADDRESS"],
                          os.environ["NODE_ACCOUNT_PRIVATE_KEY"])
     real = {"STARKNET_NETWORK": FAKE["STARKNET_NETWORK"], "STARKNET_RPC_URL": url,
