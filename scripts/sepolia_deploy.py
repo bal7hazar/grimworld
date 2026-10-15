@@ -82,6 +82,9 @@ RATE_LIMITED = re.compile(r"request too fast|cu limit|rate.?limit|too many reque
 # chain_id` then `JSON-RPC error: code=-32011, message="cu limit exceeded; Request too fast per second ..."`.
 # The text only decides whether the nonce check is worth trying, never whether a transaction was submitted:
 # a -32011 can arrive after the node accepted the transaction (PM ruling, OPS-03).
+# The node refuses a resend whose nonce it has already used: Starknet's INVALID_TRANSACTION_NONCE (code 52,
+# "Invalid transaction nonce"); sncast 0.64 echoes the node's message. Only a resend is read this way.
+NONCE_REFUSED = re.compile(r"invalid transaction nonce|invalid.?nonce|code=52\b", re.IGNORECASE)
 SUBMITTING = ("declare-from", "declare", "deploy", "invoke")
 FOUND_TRIES, FOUND_WAIT = 20, 3.0  # looking for the transaction an accepted-but-failed call left
 KINDS = {dd.REGION: "region", dd.LOCATION: "location", dd.GATE: "gate", dd.ITEM: "item",
@@ -189,7 +192,7 @@ class SepoliaNode(dd.Node):
     check_url = staticmethod(lambda url: None)  # this script checks the URL itself (`check_endpoint`)
 
     def __init__(self, url, address, key, logs, files, redact, say=lambda text: None, pace=0.0,
-                 backoff=BACKOFF, sleep=time.sleep, tag="pending"):
+                 backoff=BACKOFF, sleep=time.sleep, tag="pre_confirmed"):
         super().__init__(url, address, key, logs)
         self.files = files
         self.redact = redact
@@ -233,12 +236,12 @@ class SepoliaNode(dd.Node):
                 self.sleep(wait)
 
     def account_nonce(self):
-        """The deployer's nonce at `pending`. sncast numbers a transaction from the pending nonce, and
-        `pending` moves as soon as the node accepts a transaction; `latest` moves only when a block holds
-        it, so after an accepted-but-failed call it would still read the old value and the call would be
-        sent twice. (The devnet rehearsal reads `latest`: a devnet mines at once, so it is the same value and
-        needs no support for `pending`.) (A node whose `pending` is only `latest` cannot be told apart; the check then cannot
-        be sound, and the Sepolia nodes answer `pending`.)"""
+        """The deployer's nonce at `pre_confirmed` (Starknet 0.14 / RPC 0.9 replaced `pending` with it; a 0.9
+        node refuses `pending`). It moves as soon as the node accepts a transaction; `latest` moves only
+        when a block holds it, so after an accepted-but-failed call it would still read the old value.
+        (The devnet rehearsal reads `latest`: a devnet mines at once, so it is the same value and needs
+        no support for `pre_confirmed`.) The read alone is not what keeps a transaction from being sent
+        twice: every send carries the reference nonce (`attempts`), so a second copy is refused by the node."""
         return int(self.rpc("starknet_getNonce", {"block_id": self.tag, "contract_address": self.address}), 16)
 
     def sncast_cwd(self, package):
@@ -266,17 +269,23 @@ class SepoliaNode(dd.Node):
 
     def attempts(self, package, args, account, submits):
         """`sncast`, again when it failed on a rate limit and the account's nonce shows that no
-        transaction was accepted. The nonce is read before and after the call; the error text is never
-        the proof. Nonce unchanged: resend. Advanced: the node took the transaction, wait for it and
-        take it as the call's result. Anything else (an unclassified error, an unreadable nonce, the
-        tries spent) stops the run as before."""
+        transaction was accepted. One reference nonce is read before the first send and every send
+        carries it (`--nonce`), so a second copy can only be refused by the node (an invalid nonce),
+        never accepted, even if the node takes the first copy after our check. After a failure the
+        nonce is read again and compared with the reference: unchanged, resend; reference + 1, the node
+        took the transaction: wait for it and take it as the call's result; anything else, an
+        unclassified error, an unreadable nonce, the tries spent: stop as before. The error text is
+        never the proof; it only decides whether to try the check."""
         what = " ".join(a for a in args[:4] if not a.startswith("--") and not a.startswith("0x"))
+        reference = self.account_nonce() if submits else None
+        sent = [*args, "--nonce", hex(reference)] if submits else list(args)
         for attempt in range(1, TRIES + 1):
-            before = self.account_nonce() if submits else None
             try:
-                return super().sncast(package, *args, account=account)
+                return super().sncast(package, *sent, account=account)
             except RuntimeError as error:
                 kind = self.rate_limit_kind(error)
+                if kind is None and attempt > 1 and NONCE_REFUSED.search(str(error)):
+                    kind = "nonce refused"  # the resend met the first copy: the node has it
                 if kind is None or attempt == TRIES:
                     raise
                 if not submits:  # nothing to send: a read, a hash, an import
@@ -287,13 +296,13 @@ class SepoliaNode(dd.Node):
                 except Exception as read:
                     raise RuntimeError(f"sncast {what}: failed ({kind}) and the nonce could not be read "
                                        f"to tell whether it was sent: stopping ({read})") from error
-                if after == before:
+                if after == reference and kind != "nonce refused":
                     self.retry_line(kind, attempt)
                     continue
-                if after != before + 1:
-                    raise RuntimeError(f"sncast {what}: failed ({kind}) and the nonce went from {before} "
+                if after != reference + 1:
+                    raise RuntimeError(f"sncast {what}: failed ({kind}) and the nonce went from {reference} "
                                        f"to {after}: stopping") from error
-                return self.accepted(what, args, before, kind)
+                return self.accepted(what, args, reference, kind)
         raise AssertionError("unreachable")
 
     def retry_line(self, kind, attempt):
@@ -323,12 +332,16 @@ class SepoliaNode(dd.Node):
         return out
 
     def find_transaction(self, nonce):
-        """The deployer's transaction with that nonce, in the pending block or the latest ten."""
+        """The deployer's transaction with that nonce, in the pre-confirmed block or the blocks from the latest
+        down to ten before the first latest seen. It matches on (sender, nonce): that assumes nothing
+        else sends from the deployer's account during the run."""
+        anchor = None
         for attempt in range(FOUND_TRIES):
-            blocks = [{"block_id": "pending"}]
+            blocks = [{"block_id": "pre_confirmed"}]
             try:
                 latest = self.rpc("starknet_blockNumber", {})
-                blocks += [{"block_id": {"block_number": n}} for n in range(latest, max(latest - 10, -1), -1)]
+                anchor = latest if anchor is None else anchor
+                blocks += [{"block_id": {"block_number": n}} for n in range(latest, max(anchor - 10, -1), -1)]
             except dd.RpcError:
                 pass
             for block in blocks:

@@ -406,7 +406,9 @@ def rate_limit_checks():
     errors = os.path.join(folder, "error")
     stub_tool(os.path.join(folder, "bin"), "sncast",
               f'n=$(cat "{counter}" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "{counter}"\n'
-              f'if [ "$n" -le "$SMOKE_FAIL" ]; then cat "{errors}" >&2; exit 1; fi\n'
+              f'echo "$@" >> "{folder}/argv"\n'
+              f'f="{errors}.$n"; [ -f "$f" ] || f="{errors}"\n'
+              f'if [ "$n" -le "$SMOKE_FAIL" ]; then cat "$f" >&2; exit 1; fi\n'
               'echo "Transaction Hash: 0xabc1"\n')
     os.environ["PATH"] = os.path.join(folder, "bin") + os.pathsep + os.environ["PATH"]
     lines, sleeps = [], []
@@ -487,7 +489,7 @@ def rate_limit_checks():
 
     def chain(method, params):
         if method == "starknet_getNonce":
-            assert params["block_id"] == "pending", params  # the tag that moves when a transaction is accepted
+            assert params["block_id"] == "pre_confirmed", params  # RPC 0.9: the tag that moves when a transaction is accepted
             return ("result", hex(nonces["value"]))
         return ("error", -32601, "unexpected " + method)
 
@@ -553,6 +555,53 @@ def rate_limit_checks():
     else:
         raise AssertionError("a lost transaction did not stop the run")
     assert sncast_count() == 1
+    # the same, for a declare-from: the class hash comes from the DECLARE transaction
+    reads.clear()
+
+    def declared(method, params):
+        if method == "starknet_getBlockWithTxs":
+            return ("result", {"transactions": [
+                {"type": "DECLARE", "sender_address": "0x5e47a1d0c0ffee1234", "nonce": "0x7",
+                 "transaction_hash": "0xdec1", "class_hash": "0xc1a55"}]})
+        return accepted(method, params)
+    node = make(declared)
+    out = node.sncast("persistent", "--account", "deployer", "--wait", "declare-from", "--url", url,
+                      "--sierra-file", "x")
+    assert "Class Hash: 0xc1a55" in out and "Transaction Hash: 0xdec1" in out and sncast_count() == 1, out
+    # a deploy: the address is the ContractDeployed event's (data: address, deployer, unique, class hash)
+    reads.clear()
+    selector = hex(sepolia_deploy.dd.storage_key("ContractDeployed"))
+
+    def deployed(method, params):
+        if method == "starknet_getTransactionReceipt":
+            other = {"keys": [selector], "data": ["0xbad", "0x1", "0x0", "0x999"]}
+            mine = {"keys": [selector], "data": ["0xadd7e55", "0x5e47a1d0c0ffee1234", "0x0", "0xc1a55"]}
+            return ("result", {"execution_status": "SUCCEEDED", "finality_status": "ACCEPTED_ON_L2",
+                               "events": [{"keys": ["0x1"], "data": []}, other, mine]})
+        return accepted(method, params)
+    node = make(deployed)
+    out = node.sncast("persistent", "--account", "deployer", "--wait", "deploy", "--url", url,
+                      "--class-hash", "0xc1a55")
+    assert "Contract Address: 0xadd7e55" in out and sncast_count() == 1, out
+    # the race: the node takes the first copy only after our "after" read. The first call and the resend
+    # carry the same reference nonce, so the node refuses the resend; we then see nonce + 1 and take the
+    # first copy: no second copy is ever accepted
+    open(errors + ".2", "w").write("Error: Invalid transaction nonce\n")
+    os.remove(folder + "/argv")
+    reads.clear()
+    os.environ["SMOKE_FAIL"] = "99"
+
+    def race(method, params):
+        if method == "starknet_getNonce":
+            reads.append(1)
+            return ("result", hex(8 if len(reads) >= 3 else 7))  # reference 7, after 7, then taken: 8
+        return accepted(method, params)
+    node = make(race)
+    out = invoke(node)
+    argv = open(folder + "/argv").read().splitlines()
+    assert len(argv) == 2 and all(" --nonce 0x7" in line + " " for line in argv), argv  # the reference, twice
+    assert "Transaction Hash: 0xfeed" in out and node.sent == ["0xfeed"], (out, node.sent)
+    os.remove(errors + ".2")
     # a nonce that cannot be read stops the run (rate limited to the end)
     state = []
 
