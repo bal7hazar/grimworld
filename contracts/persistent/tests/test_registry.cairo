@@ -1153,7 +1153,7 @@ fn test_set_record_mixed_targets() {
 // holds the caster alone and takes none (`ExecutorLibrary::actors`, `takes` is `foe` under `FOES`).
 // Any entry, any carrier, wherever it stands in it.
 #[test]
-#[available_gas(l2_gas: 5125353)] // ceil(1.05 × 4881288 measured)
+#[available_gas(l2_gas: 5053638)] // ceil(1.05 × 4812988 measured)
 fn test_set_record_self_single_foes_refused() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1207,6 +1207,51 @@ fn test_set_record_self_single_allies_kept() {
     assert_accepted(try_write(r, SKILL, spell_of([heal(shape::RING_1), none, none])));
     let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
     assert_accepted(try_write(r, ITEM, potion(heal(shape::SINGLE))));
+}
+
+// CARRIER-03 (D-303): a `DAMAGE` entry on `SELF`, `SINGLE` takes nobody under either filter.
+// `FOES` is R-45's reason, and under `ALLIES` the caster is its own hit's source, which `own_hit`
+// cuts from the hit's set (`ExecutorLibrary::actors`). Wherever it stands in the carrier.
+#[test]
+#[available_gas(l2_gas: 3748219)] // ceil(1.05 × 3569732 measured)
+fn test_set_record_damage_self_single_refused() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let strike = |
+        f: u8,
+    | EntryTrait::new(
+        kind::DAMAGE, damage::FIRE, 30, 30, 0, 0, 0, target::SELF, shape::SINGLE, f, 0, 0,
+    );
+    assert_refused(
+        try_write(r, SKILL, spell_of([strike(filter::FOES), none, none])),
+        entry_errors::TAKES_NOBODY,
+    );
+    assert_refused(
+        try_write(r, SKILL, spell_of([strike(filter::ALLIES), none, none])),
+        entry_errors::TAKES_NOBODY,
+    );
+    // A potion's entry too.
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    assert_refused(try_write(r, ITEM, potion(strike(filter::ALLIES))), entry_errors::TAKES_NOBODY);
+}
+
+// CARRIER-03 (D-303): a `DAMAGE` entry on `SELF` with an area (a strike around the caster) and a
+// `SELF`, `SINGLE`, `ALLIES` entry that is not a hit (a heal) stay legal.
+#[test]
+#[available_gas(l2_gas: 5774181)] // ceil(1.05 × 5499220 measured)
+fn test_set_record_damage_self_area_kept() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let strike = |
+        s: u8, f: u8,
+    | EntryTrait::new(kind::DAMAGE, damage::FIRE, 30, 30, 0, 0, 0, target::SELF, s, f, 0, 0);
+    assert_accepted(
+        try_write(r, SKILL, spell_of([strike(shape::RING_1, filter::FOES), none, none])),
+    );
+    let heal = EntryTrait::new(
+        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+    );
+    assert_accepted(try_write(r, SKILL, spell_of([heal, none, none])));
 }
 
 // DS-20 (§6 test 7): a second `ATTACK_BONUS` on one carrier is refused; a potion's entry is a

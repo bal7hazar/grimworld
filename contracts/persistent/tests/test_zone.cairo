@@ -984,12 +984,40 @@ fn test_refuse_carrier_self_before_ally() {
 // R-45 (D-289): a `SELF`, `SINGLE`, `FOES` entry, new, is refused at registration: its set is the
 // caster alone and the caster is never its own foe, so it takes nobody.
 #[test]
-#[available_gas(l2_gas: 7883228)] // ceil(1.05 × 7507836 measured)
+#[available_gas(l2_gas: 7864958)] // ceil(1.05 × 7490436 measured)
 #[should_panic(expected: 'carrier: takes nobody')]
 fn test_refuse_carrier_self_single_foes() {
     let r = ZoneFixture::bare();
     let nobody = EntryTrait::new(
         kind::HEAL, 0, 3, 3, 0, 0, 0, target::SELF, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    let entries = [nobody, Default::default(), Default::default()];
+    let skill = SkillTrait::new(
+        1, 1, skill_kind::SPELL, 0, 0, 1, 5, 1, target::SELF, false, entries,
+    );
+    r.refuse(SKILL, 1, skill.pack());
+}
+
+// CARRIER-03 (D-303): a `DAMAGE`, `SELF`, `SINGLE` entry, under `ALLIES` (the `FOES` one is
+// R-45's), is refused at registration: the caster is never in its own hit's set.
+#[test]
+#[available_gas(l2_gas: 7864853)] // ceil(1.05 × 7490336 measured)
+#[should_panic(expected: 'carrier: takes nobody')]
+fn test_refuse_carrier_damage_self_single() {
+    let r = ZoneFixture::bare();
+    let nobody = EntryTrait::new(
+        kind::DAMAGE,
+        damage::FIRE,
+        3,
+        3,
+        0,
+        0,
+        0,
+        target::SELF,
+        shape::SINGLE,
+        filter::ALLIES,
+        0,
+        0,
     );
     let entries = [nobody, Default::default(), Default::default()];
     let skill = SkillTrait::new(
