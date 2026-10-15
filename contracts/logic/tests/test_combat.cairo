@@ -45,7 +45,10 @@ impl FixtureImpl of Fixture {
     /// (R-45).
     fn on_self(kind: u8) -> Entry {
         Entry {
-            kind, target: target::SELF, shape: shape::SINGLE, filter: filter::ALLIES,
+            kind,
+            target: target::SELF,
+            shape: shape::SINGLE,
+            filter: filter::ALLIES,
             ..Default::default(),
         }
     }

@@ -1159,21 +1159,15 @@ fn test_set_record_self_single_foes_refused() {
     let none: Entry = Default::default();
     let inflict = |
         t: u8, s: u8, f: u8,
-    | EntryTrait::new(
-        kind::CONDITION, condition::BURNING, 3, 3, 0, 0, 0, t, s, f, 0, 0,
-    );
+    | EntryTrait::new(kind::CONDITION, condition::BURNING, 3, 3, 0, 0, 0, t, s, f, 0, 0);
     let nobody = inflict(target::SELF, shape::SINGLE, filter::FOES);
     let heal = EntryTrait::new(
         kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
     );
     // A skill's first, second and third entry.
     assert_refused(try_write(r, SKILL, spell_of([nobody, none, none])), entry_errors::TAKES_NOBODY);
-    assert_refused(
-        try_write(r, SKILL, spell_of([heal, nobody, none])), entry_errors::TAKES_NOBODY,
-    );
-    assert_refused(
-        try_write(r, SKILL, spell_of([heal, heal, nobody])), entry_errors::TAKES_NOBODY,
-    );
+    assert_refused(try_write(r, SKILL, spell_of([heal, nobody, none])), entry_errors::TAKES_NOBODY);
+    assert_refused(try_write(r, SKILL, spell_of([heal, heal, nobody])), entry_errors::TAKES_NOBODY);
     // A potion's entry (the seed's bug: a healing potion built `SELF`, `FOES`).
     let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
     let drink = EntryTrait::new(
@@ -1208,9 +1202,7 @@ fn test_set_record_self_single_allies_kept() {
     let none: Entry = Default::default();
     let heal = |
         s: u8,
-    | EntryTrait::new(
-        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, s, filter::ALLIES, 0, 0,
-    );
+    | EntryTrait::new(kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, s, filter::ALLIES, 0, 0);
     assert_accepted(try_write(r, SKILL, spell_of([heal(shape::SINGLE), none, none])));
     assert_accepted(try_write(r, SKILL, spell_of([heal(shape::RING_1), none, none])));
     let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();

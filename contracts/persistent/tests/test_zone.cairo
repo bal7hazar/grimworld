@@ -880,13 +880,22 @@ fn test_refuse_carrier_self_before_tile() {
     let on = |
         k: u8, param: u8, t: u8,
     | EntryTrait::new(
-        k, param, 3, 3, 0, 0, 0, t, shape::SINGLE,
+        k,
+        param,
+        3,
+        3,
+        0,
+        0,
+        0,
+        t,
+        shape::SINGLE,
         if t == target::SELF {
             filter::ALLIES
         } else {
             filter::FOES
         },
-        0, 0,
+        0,
+        0,
     );
     let entries = [
         on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::TILE),
@@ -908,13 +917,22 @@ fn test_refuse_carrier_self_before_foe() {
     let on = |
         k: u8, param: u8, t: u8,
     | EntryTrait::new(
-        k, param, 3, 3, 0, 0, 0, t, shape::SINGLE,
+        k,
+        param,
+        3,
+        3,
+        0,
+        0,
+        0,
+        t,
+        shape::SINGLE,
         if t == target::SELF {
             filter::ALLIES
         } else {
             filter::FOES
         },
-        0, 0,
+        0,
+        0,
     );
     let entries = [
         on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::FOE),
@@ -936,13 +954,22 @@ fn test_refuse_carrier_self_before_ally() {
     let on = |
         k: u8, param: u8, t: u8,
     | EntryTrait::new(
-        k, param, 3, 3, 0, 0, 0, t, shape::SINGLE,
+        k,
+        param,
+        3,
+        3,
+        0,
+        0,
+        0,
+        t,
+        shape::SINGLE,
         if t == target::SELF {
             filter::ALLIES
         } else {
             filter::FOES
         },
-        0, 0,
+        0,
+        0,
     );
     let entries = [
         on(kind::HEAL, 0, target::SELF), on(kind::CONDITION, condition::BURNING, target::ALLY),
