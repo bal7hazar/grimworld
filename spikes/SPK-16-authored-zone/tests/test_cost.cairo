@@ -15,7 +15,7 @@ use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota};
 use grimworld_logic::models::set_piece::{SetPack, SetPiece, SetPieceRecord};
 use grimworld_logic::models::spawn_table::SpawnTable;
-use grimworld_logic::snapshot::TaskEntry;
+use grimworld_logic::models::task::TaskEntry;
 use grimworld_logic::types::content::{
     BOOK, CRITERION_REACH_LANDMARK, GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE,
 };

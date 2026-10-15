@@ -5,9 +5,9 @@
 use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetTrait};
 use grimworld_logic::models::base::slot as base_slot;
 use grimworld_logic::models::item::{ItemAssert, ItemTrait, class};
+use grimworld_logic::models::member_bar::{QuickCast, QuickCastTrait};
 use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait, slot};
 use grimworld_logic::models::skill::{SkillAssert, SkillTrait};
-use grimworld_logic::snapshot::{QuickCast, QuickCastTrait};
 use grimworld_logic::types::combat::{condition, skill_kind};
 use grimworld_logic::types::effect::{Entry, EntryAssert, filter, guard, kind, scope, shape, target};
 use grimworld_logic::types::passive::{MAX_DAMAGE_PERCENT, Passive, PassiveAssert, PassiveTrait, id};

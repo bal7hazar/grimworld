@@ -269,7 +269,8 @@ pub mod Instances {
     use grimworld_logic::models::quotas::QuotaSetRecord;
     use grimworld_logic::models::set_piece::SetPieceRecord;
     use grimworld_logic::models::spawn_table::SpawnTableRecord;
-    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
+    use grimworld_logic::models::task::{TaskEntry, TaskPage};
+    use grimworld_logic::snapshot::SnapshotWords;
     use grimworld_logic::types::content::{GATE, LOCATION, OUTLINE, exists};
     use grimworld_logic::types::identifier::InstanceIdTrait;
     use grimworld_logic::types::reveal::SightTrait;

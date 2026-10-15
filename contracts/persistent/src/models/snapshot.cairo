@@ -110,11 +110,12 @@ pub impl StoredSnapshotAssert of StoredSnapshotAssertTrait {
 #[cfg(test)]
 mod tests {
     use grimworld_logic::helpers::packing::LIVE;
-    use grimworld_logic::snapshot::{MemberKit, MemberStats, pack_kit, pack_stats, unpack_kit};
+    use grimworld_logic::models::member_kit::{MemberKit, MemberKitTrait};
+    use grimworld_logic::models::member_stats::{MemberStats, MemberStatsTrait};
     use super::{RULES_EPOCHS, STALE_MARK, StoredSnapshotAssert, StoredSnapshotTrait, errors};
 
     fn kit() -> felt252 {
-        pack_kit(
+        MemberKitTrait::pack(
             MemberKit {
                 belt: [0xffffffff; 4],
                 life_steal: 255,
@@ -142,7 +143,7 @@ mod tests {
         StoredSnapshotAssert::assert_fresh(word, epoch);
         let back = StoredSnapshotTrait::kit(word, epoch);
         assert(back == kit(), 'kit');
-        assert(unpack_kit(back) == unpack_kit(kit()), 'unpacked');
+        assert(MemberKitTrait::unpack(back) == MemberKitTrait::unpack(kit()), 'unpacked');
         let word = StoredSnapshotTrait::seal(kit(), 0);
         StoredSnapshotAssert::assert_fresh(word, 0);
     }
@@ -206,11 +207,11 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05f: pack_stats packs the attribute mappings into MemberStats
+    // gas: raised, CBT-05f: MemberStatsTrait::pack packs the attribute mappings into MemberStats
     #[available_gas(l2_gas: 132374)] // ceil(1.05 × 126070 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_level_refused() {
-        let stats = pack_stats(MemberStats { level: 3, ..Default::default() });
+        let stats = MemberStatsTrait::pack(MemberStats { level: 3, ..Default::default() });
         StoredSnapshotAssert::assert_level(stats, 3);
         StoredSnapshotAssert::assert_level(stats, 4);
     }

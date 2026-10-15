@@ -16,6 +16,12 @@ pub mod item;
 pub mod location;
 /// A member in a world tick (CBT-02).
 pub mod member;
+/// The member's second snapshot word: the skill bar and the passives read at each hit or cast.
+pub mod member_bar;
+/// The member's third snapshot word: the belt and the equipment's modifiers.
+pub mod member_kit;
+/// The member's first snapshot word: what the build and the equipment give.
+pub mod member_stats;
 pub mod modifier;
 pub mod outline;
 /// A pack template, `PACK` (ENG-05).
@@ -28,5 +34,7 @@ pub mod set_piece;
 pub mod skill;
 /// A location's spawn table, `SPAWN_TABLE` (ENG-05).
 pub mod spawn_table;
+/// The tasks an instance reports, four to a stored page (D-131).
+pub mod task;
 /// One chunk of an authored zone, `ZONE_CHUNK` (D-214, D-215; ENG-09).
 pub mod zone_chunk;

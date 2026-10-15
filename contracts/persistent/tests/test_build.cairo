@@ -13,13 +13,15 @@ use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatche
 use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
+use grimworld_logic::models::member_kit::MemberKitTrait;
+use grimworld_logic::models::member_stats::MemberStatsTrait;
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::snapshot::errors::{
     INSIGNIA_PIECE, MAX_HEALTH, NO_MODIFIER, SLOT_TYPE, SOURCE_COUNT, VALUE as MODIFIER_VALUE,
 };
-use grimworld_logic::snapshot::{SnapshotBuildTrait, Worn, unpack_kit, unpack_stats};
+use grimworld_logic::snapshot::{SnapshotBuildTrait, Worn};
 use grimworld_logic::types::combat::damage;
 use grimworld_logic::types::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};
@@ -578,8 +580,11 @@ fn test_set_build_empty() {
     assert(read(world.hub, adventurer_word(id, 3)) == LIVE, 'belt');
     assert(read(world.hub, adventurer_word(id, 4)) == LIVE, 'equipped');
     let (stats, _, kit) = stored_snapshot(world, id);
-    assert(unpack_stats(stats).max_health == 480, 'level 20 health');
-    assert(unpack_kit(StoredSnapshotTrait::kit(kit, epoch(world))).belt == [0; 4], 'no belt');
+    assert(MemberStatsTrait::unpack(stats).max_health == 480, 'level 20 health');
+    assert(
+        MemberKitTrait::unpack(StoredSnapshotTrait::kit(kit, epoch(world))).belt == [0; 4],
+        'no belt',
+    );
 }
 
 // ---- who, where, and the layouts
@@ -1007,7 +1012,7 @@ fn test_set_build_stores_the_extremal_max_health() {
     let stored = stored_snapshot(world, id);
     assert(stored == expected, 'the flattening stored');
     let (stats, _, _) = stored;
-    assert(unpack_stats(stats).max_health == 920, 'max health 920');
+    assert(MemberStatsTrait::unpack(stats).max_health == 920, 'max health 920');
 }
 
 // Fix loop 1, AC-1: design/20 §6 test 2's max-energy build as `set_build` can hold it today: a
@@ -1048,7 +1053,7 @@ fn test_set_build_stores_the_extremal_max_energy() {
     let stored = stored_snapshot(world, id);
     assert(stored == expected, 'the flattening stored');
     let (stats, _, _) = stored;
-    assert(unpack_stats(stats).max_energy == 75, 'max energy 75');
+    assert(MemberStatsTrait::unpack(stats).max_energy == 75, 'max energy 75');
 }
 
 // ---- the flattening's input kinds, as `set_build` asks for them (D-169, CBT-02f fix loop 1)

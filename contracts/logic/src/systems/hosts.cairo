@@ -47,8 +47,8 @@ pub mod HostsLibrary {
     use crate::models::quotas::{QuotaSet, QuotaSetRecord, kind as quota_kind};
     use crate::models::set_piece::{SetPiece, SetPieceRecord};
     use crate::models::spawn_table::{SpawnTable, SpawnTableRecord};
+    use crate::models::task::TaskEntry;
     use crate::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
-    use crate::snapshot::TaskEntry;
     use crate::types::content::{
         CANDIDATES, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, ZONE_CHUNK, exists,
     };

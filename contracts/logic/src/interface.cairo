@@ -4,7 +4,8 @@
 use starknet::{ClassHash, ContractAddress};
 use crate::models::chunk::{Features, Terrain};
 use crate::models::set_piece::SetPiece;
-use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
+use crate::models::task::TaskEntry;
+use crate::snapshot::{Loadout, SnapshotWords, Worn};
 use crate::types::action::Illegal;
 use crate::types::batch::Action;
 use crate::types::executor::{Board, Cache, Carrier};
@@ -260,7 +261,7 @@ pub trait IHostsLibrary<T> {
         location: crate::models::location::Location,
         entry_chunk: u8,
         entry_tile: u8,
-        tasks: Span<crate::snapshot::TaskEntry>,
+        tasks: Span<crate::models::task::TaskEntry>,
         hosts: Span<felt252>,
         outline: Option<(felt252, felt252, felt252)>,
         progress: crate::types::reveal::Progress,
@@ -280,7 +281,7 @@ pub trait IHostsLibrary<T> {
         location: crate::models::location::Location,
         entry_chunk: u8,
         entry_tile: u8,
-        tasks: Span<crate::snapshot::TaskEntry>,
+        tasks: Span<crate::models::task::TaskEntry>,
         chunks: Span<u8>,
         entropy: felt252,
         instance_id: felt252,

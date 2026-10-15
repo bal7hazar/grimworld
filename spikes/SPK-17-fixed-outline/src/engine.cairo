@@ -69,7 +69,7 @@ use grimworld_logic::models::pack::Pack;
 use grimworld_logic::models::quotas::{QuotaSet, kind as quota};
 use grimworld_logic::models::set_piece::SetPiece;
 use grimworld_logic::models::spawn_table::SpawnTable;
-use grimworld_logic::snapshot::TaskEntry;
+use grimworld_logic::models::task::TaskEntry;
 use grimworld_logic::types::ChunkKind;
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
 use hexx::board::bits::Bits;
