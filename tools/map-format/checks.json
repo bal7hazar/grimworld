@@ -188,6 +188,16 @@
    "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
   },
   {
+   "case": "carrier_damage_self_single",
+   "id": "R-46",
+   "code": "carrier: takes nobody",
+   "checked_at": "SKILL",
+   "reads": "—",
+   "rule": "A carrier's DAMAGE entry is not SELF with SINGLE, under either filter: under FOES the caster is never its own foe (R-45), and under ALLIES the caster is the source of its own hit, which the hit's set cuts (ExecutorLibrary::actors, own_hit) (D-303, CARRIER-03); SELF with an area shape (a strike around the caster), and a SELF, SINGLE, ALLIES entry that is not a hit (a heal), stay legal",
+   "mutation": "a spell whose first entry is a DAMAGE on SELF, SINGLE, filter ALLIES (or FOES)",
+   "converter": "The converter writes authored zones only: it writes no SKILL record (skills are the content pipeline's, named in the manifest by id)"
+  },
+  {
    "case": "pack_fewest_zero",
    "id": "R-42",
    "code": "pack: fewest is 0",
