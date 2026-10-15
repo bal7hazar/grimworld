@@ -298,10 +298,6 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `snapshot::tests::test_worn_unknown_modifier_refused` | 340860 | 357903 | 2026-10-02 | f55176c |
 | grimworld_logic | `snapshot::tests::test_worn_value_above_refused` | 514400 | 540120 | 2026-10-02 | f55176c |
 | grimworld_logic | `snapshot::tests::test_worn_value_below_refused` | 513930 | 539627 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_actions::test_batch_layout` | 112780 | 118419 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_actions::test_batch_refusals` | 94880 | 99624 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_actions::test_batch_round_trip` | 360530 | 378557 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_actions::test_encoder_refusals` | 32770 | 34409 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_build::test_cancelling_attribute_rune_refused` | 120540 | 126567 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_build::test_cancelling_rune_refused` | 120070 | 126074 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_build::test_capacity_proof` | 262710 | 275846 | 2026-10-02 | f55176c |
@@ -480,7 +476,6 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_models::test_outline_round_trip` | 21230 | 22292 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_models::test_region_name_too_long` | 16760 | 17598 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_models::test_region_round_trip` | 78930 | 82877 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_packing::test_identifiers` | 12590 | 13220 | 2026-10-10 | 1ac4f86 |
 | grimworld_logic | `test_reveal_cost::test_cost_library_baseline` | 3998915 | 4192351 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `test_reveal_cost::test_cost_library_call` | 4508805 | 4725804 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `test_reveal_cost::test_cost_reveal_baseline` | 187760 | 195153 | 2026-10-15 | 515ae2e |
@@ -834,6 +829,11 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_7` | 621381019 | 652450070 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_8` | 244281024 | 256495076 | 2026-10-11 | 731ada5 |
 | grimworld_logic | `types::action::tests::vectors::test_act_vectors_9` | 369508439 | 387983861 | 2026-10-11 | 731ada5 |
+| grimworld_logic | `types::batch::tests::test_batch_layout` | 112780 | 118419 | 2026-10-15 | b459d17 |
+| grimworld_logic | `types::batch::tests::test_batch_refusals` | 94880 | 99624 | 2026-10-15 | b459d17 |
+| grimworld_logic | `types::batch::tests::test_batch_round_trip` | 360530 | 378557 | 2026-10-15 | b459d17 |
+| grimworld_logic | `types::batch::tests::test_encoder_refusals` | 32770 | 34409 | 2026-10-15 | b459d17 |
+| grimworld_logic | `types::content::tests::test_parts_per_kind` | 12590 | 13220 | 2026-10-15 | b459d17 |
 | grimworld_logic | `types::executor::tests::body::test_body_vectors_0` | 445893620 | 468137187 | 2026-10-11 | 3d86a31 |
 | grimworld_logic | `types::executor::tests::body::test_body_vectors_1` | 1080698825 | 1134695389 | 2026-10-11 | 3d86a31 |
 | grimworld_logic | `types::executor::tests::body::test_body_vectors_2` | 720625233 | 756618118 | 2026-10-11 | 3d86a31 |
@@ -905,6 +905,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::hit::tests::test_vectors_4` | 236464418 | 248287639 | 2026-10-09 | efdaf8c |
 | grimworld_logic | `types::hit::tests::test_weakness` | 23270 | 24434 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::hit::tests::test_weapon_base` | 6010 | 6311 | 2026-10-02 | f55176c |
+| grimworld_logic | `types::identifier::tests::test_identifiers` | 6010 | 6311 | 2026-10-15 | b459d17 |
 | grimworld_logic | `types::infliction::tests::test_infliction_duration` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::infliction::tests::test_infliction_duration_edges` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `types::play::tests::test_batch_vectors` | 23110939 | 24266486 | 2026-10-10 | c6633cb |
