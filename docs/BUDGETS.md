@@ -126,7 +126,14 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_tick_words::test_tick_constants` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_ephemeral | `test_tick_words::test_tick_words_goblin` | 677390 | 711260 | 2026-10-07 | faa262c |
 | grimworld_ephemeral | `test_tick_words::test_tick_words_member` | 1433900 | 1492985 | 2026-10-10 | 0bf80ab |
-| grimworld_logic | `fate::tests::test_vectors` | 442411338 | 464531905 | 2026-10-07 | faa262c |
+| grimworld_logic | `helpers::duration::tests::test_base_above_cap_refused` | 7810 | 8201 | 2026-10-15 | b1a737f |
+| grimworld_logic | `helpers::duration::tests::test_effective_duration_maximum` | 6010 | 6311 | 2026-10-15 | b1a737f |
+| grimworld_logic | `helpers::fate::tests::test_derive_distinct_per_domain_and_index` | 4091400 | 4295970 | 2026-10-15 | b1a737f |
+| grimworld_logic | `helpers::fate::tests::test_derive_fuzz` | 1047250 | 1099613 | 2026-10-15 | b1a737f |
+| grimworld_logic | `helpers::fate::tests::test_derive_oracle` | 48870 | 51314 | 2026-10-15 | b1a737f |
+| grimworld_logic | `helpers::fate::tests::test_domain_binds_subject_and_counter` | 91040 | 95592 | 2026-10-15 | b1a737f |
+| grimworld_logic | `helpers::fate::tests::test_purposes_distinct` | 433268 | 454932 | 2026-10-15 | b1a737f |
+| grimworld_logic | `helpers::fate::tests::test_vectors` | 442411338 | 464531905 | 2026-10-15 | b1a737f |
 | grimworld_logic | `helpers::packing::tests::test_bitmap` | 12380 | 12999 | 2026-10-15 | a1b1d16 |
 | grimworld_logic | `helpers::packing::tests::test_bitmap_above_249_refused` | 9890 | 10385 | 2026-10-15 | a1b1d16 |
 | grimworld_logic | `helpers::packing::tests::test_counter_never_zero` | 10170 | 10679 | 2026-10-15 | a1b1d16 |
@@ -429,8 +436,6 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_combat::test_skill_round_trip` | 1646310 | 1728626 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_combat::test_skill_seal_of_capture_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_combat::test_skill_target_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_durations::test_base_above_cap_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_durations::test_effective_duration_maximum` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_exp2::test_assert_covered` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_exp2::test_assert_covered_above_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_exp2::test_assert_covered_below_refused` | 7810 | 8201 | 2026-10-02 | f55176c |
@@ -438,11 +443,6 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_exp2::test_clamp_ends` | 13020 | 13671 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_exp2::test_every_entry_and_clamp` | 2894090 | 3038795 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_exp2::test_octaves_exact` | 16130 | 16937 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_fate::test_derive_distinct_per_domain_and_index` | 4091400 | 4295970 | 2026-10-03 | ffef058 |
-| grimworld_logic | `test_fate::test_derive_fuzz` | 1047250 | 1099613 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_fate::test_derive_oracle` | 48870 | 51314 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_fate::test_domain_binds_subject_and_counter` | 91040 | 95592 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_fate::test_purposes_distinct` | 433268 | 454932 | 2026-10-03 | ffef058 |
 | grimworld_logic | `test_flatten::test_cost_library_call_empty` | 1985453 | 2065900 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `test_flatten::test_cost_library_call_widest` | 4459298 | 4631937 | 2026-10-10 | 0bf80ab |
 | grimworld_logic | `test_flatten::test_extremal_max_energy_through_the_library` | 3346746 | 3459547 | 2026-10-10 | 0bf80ab |
@@ -935,6 +935,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::play::tests::test_segment_slow_move_heavy` | 105860447 | 111111543 | 2026-10-10 | c6633cb |
 | grimworld_logic | `types::play::tests::test_segment_vectors` | 977633484 | 1026515159 | 2026-10-11 | fde8a90 |
 | grimworld_logic | `types::play::tests::test_vectors` | 284846076 | 299063390 | 2026-10-09 | a76c672 |
+| grimworld_logic | `types::profession::tests::test_playable_professions` | 6010 | 6311 | 2026-10-15 | b1a737f |
 | grimworld_logic | `types::reveal::authored::tests::test_authored_domains_apart` | 8158734 | 8566671 | 2026-10-10 | 1ac4f86 |
 | grimworld_logic | `types::reveal::authored::tests::test_authored_reveal_missing_record` | 482241 | 503099 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `types::reveal::authored::tests::test_authored_reveal_order_free` | 39229546 | 41091904 | 2026-10-15 | 515ae2e |
@@ -1255,7 +1256,6 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_accounts::test_helper_no_adventurer` | 14032180 | 14720643 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_accounts::test_helper_not_in_a_hub` | 13602850 | 14269847 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_accounts::test_helper_not_owner` | 19564520 | 20529600 | 2026-10-11 | fde8a90 |
-| grimworld_persistent | `test_accounts::test_playable_professions` | 6010 | 6311 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_accounts::test_register` | 15430730 | 16189121 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_accounts::test_register_twice_refused` | 9508760 | 9971052 | 2026-10-11 | fde8a90 |
 | grimworld_persistent | `test_accounts::test_set_account_owner` | 28771690 | 30197129 | 2026-10-11 | fde8a90 |
