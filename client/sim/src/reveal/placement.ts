@@ -51,7 +51,8 @@ export const object = {
 export type Quota = { kind: number; param: number; count: number };
 export type TaskEntry = { task: number; kind: number; param: number };
 export type Spawn = { template: number; weight: number };
-export type SpawnTable = { spawns: Spawn[]; density: number };
+/** `trap` is the skill a generated terrain trap takes as its param (D-268, D-304); 0 stays inert. */
+export type SpawnTable = { spawns: Spawn[]; density: number; trap: number };
 export type PackCaste = { caste: number; min: number; max: number };
 /** A pack template; `level` is an `i8`, the offset from the band. */
 export type Pack = { castes: PackCaste[]; level: number };
@@ -434,8 +435,9 @@ export function place(
   const trap = draw(rng, 3) === 0;
   if (chest) placeObject(placement, rng, object.CHEST, placement.level);
   if (node && site.target === 0) placeObject(placement, rng, object.NODE, 0);
+  // The terrain trap's param is the spawn table's `trap` skill, 0 inert (placement.cairo, D-268, D-304)
   if (trap && (site.biome === RUIN || site.biome === CAVE)) {
-    placeObject(placement, rng, object.TRAP, 0);
+    placeObject(placement, rng, object.TRAP, site.spawn.trap);
   }
   return placement;
 }
