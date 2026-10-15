@@ -1,8 +1,8 @@
 //! `MODIFIER`: its constructor, its checks and its record (layout: `models::index::Modifier`). A
 //! modifier carries two passives, a benefit and a cost (design/15 Q-4, design/19 §4).
 
-use crate::content::{MODIFIER, Record};
 use crate::helpers::packing::{P8, PackingTrait};
+use crate::types::content::{MODIFIER, Record};
 use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, Source, id};
 use super::base::slot as base_slot;
 pub use super::index::Modifier;

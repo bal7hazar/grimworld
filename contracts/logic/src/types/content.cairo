@@ -58,37 +58,63 @@ pub const PARTS: [u8; 29] = [
     0, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 3,
 ];
 
-/// Allocation (ENG-01 fix loop 1, F-8). **Sequential** kinds take ids 1, 2, 3 … in order: a new
-/// id must be `last_id(kind) + 1`, and `last_id` is the highest written. **Composite** kinds take
-/// ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE` and `ZONE_CHUNK`:
-/// `location × 256 + chunk`; `BRIDGE`: `location × 4096 + chunk × 16 + k`; `CANDIDATES`:
-/// `location × 2 + k`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by
-/// quiver (`TASK`, `QUEST`: the administrator's quiver ids, taken as they are, D-145). `last_id`
-/// stays 0 for them.
-/// For every kind a record **exists** when its part 0 is not 0: its writer sets `LIVE` (bit 250)
-/// in part 0, so that a record whose fields are all 0 still exists.
-pub fn is_sequential(kind: u8) -> bool {
-    kind != QUOTAS
-        && kind != OUTLINE
-        && kind != SHOP
-        && kind != TASK
-        && kind != QUEST
-        && kind != ZONE_CHUNK
-        && kind != BRIDGE
-        && kind != CANDIDATES
+pub mod errors {
+    /// Not a kind of record (1 to `LAST_KIND`).
+    pub const UNKNOWN_KIND: felt252 = 'registry: unknown kind';
+}
+
+#[generate_trait]
+pub impl KindImpl of KindTrait {
+    /// Allocation (ENG-01 fix loop 1, F-8). **Sequential** kinds take ids 1, 2, 3 … in order: a
+    /// new id must be `last_id(kind) + 1`, and `last_id` is the highest written. **Composite**
+    /// kinds take ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE` and
+    /// `ZONE_CHUNK`:
+    /// `location × 256 + chunk`; `BRIDGE`: `location × 4096 + chunk × 16 + k`; `CANDIDATES`:
+    /// `location × 2 + k`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by
+    /// quiver (`TASK`, `QUEST`: the administrator's quiver ids, taken as they are, D-145).
+    /// `last_id`
+    /// stays 0 for them.
+    /// For every kind a record **exists** when its part 0 is not 0: its writer sets `LIVE` (bit
+    /// 250)
+    /// in part 0, so that a record whose fields are all 0 still exists.
+    fn is_sequential(kind: u8) -> bool {
+        kind != QUOTAS
+            && kind != OUTLINE
+            && kind != SHOP
+            && kind != TASK
+            && kind != QUEST
+            && kind != ZONE_CHUNK
+            && kind != BRIDGE
+            && kind != CANDIDATES
+    }
+
+    /// Felts per record of `kind`.
+    fn parts(kind: u8) -> u8 {
+        KindAssert::assert_known(kind);
+        *PARTS.span()[kind.into()]
+    }
+}
+
+#[generate_trait]
+pub impl KindAssert of KindAssertTrait {
+    /// Refuses a kind outside 1 to `LAST_KIND`.
+    #[inline(always)]
+    fn assert_known(kind: u8) {
+        assert(kind != 0 && kind <= LAST_KIND, errors::UNKNOWN_KIND);
+    }
 }
 
 /// Whether a record read from the registry exists: its part 0 is not 0 (a record never written
-/// reads as zeros). A free function beside `is_sequential`: the rule is the registry's, for every
+/// reads as zeros). A free function beside `KindTrait`: the rule is the registry's, for every
 /// kind, and no model owns it.
 #[inline(always)]
 pub fn exists(parts: Span<felt252>) -> bool {
     *parts[0] != 0
 }
 
-/// A registry record's model and its parts (D-143): the model packs into the `parts(KIND)` felts
-/// that `Registry.set_record` takes and `record`, `records` and `bundle` return, and unpacks from
-/// them. Implemented by each model of `crate::models`.
+/// A registry record's model and its parts (D-143): the model packs into the
+/// `KindTrait::parts(KIND)` felts that `Registry.set_record` takes and `record`, `records` and
+/// `bundle` return, and unpacks from them. Implemented by each model of `crate::models`.
 pub trait Record<T> {
     /// The record's kind.
     const KIND: u8;
@@ -100,11 +126,6 @@ pub trait Record<T> {
 /// Records one `records` or `bundle` call returns at most (ENG-01 §4.5): at most 3 parts each, so
 /// a call reads at most 96 records' slots and, for `bundle`, the content version.
 pub const MAX_READ: u32 = 32;
-
-pub fn parts(kind: u8) -> u8 {
-    assert(kind != 0 && kind <= LAST_KIND, 'registry: unknown kind');
-    *PARTS.span()[kind.into()]
-}
 
 /// Criteria of a task (`TaskEntry.kind`, D-131).
 pub const CRITERION_KILL_CASTE: u8 = 1;

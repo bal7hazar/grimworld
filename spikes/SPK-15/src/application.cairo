@@ -18,7 +18,7 @@
 //! - `Afflictions`: a tick's applications on one actor gathered (the maximum of each deadline, the
 //!   first knock-down's `t0`), written once (`flush_member`, `flush_goblin`).
 
-use grimworld_logic::durations::effective_duration;
+use grimworld_logic::helpers::duration::DurationTrait;
 use grimworld_logic::helpers::packing::{LimbTrait, P32, PackingTrait};
 use grimworld_logic::helpers::tick::TickMathTrait;
 use grimworld_logic::models::goblin::{Goblin, GoblinTickTrait, GoblinTrait, GoblinWordsTrait};
@@ -51,7 +51,7 @@ fn duration(source: @Infliction, condition: u8, v: i32) -> u32 {
     } else {
         0
     };
-    effective_duration(base, percent, flat)
+    DurationTrait::effective_duration(base, percent, flat)
 }
 
 /// `max(old, t0 + d − 1)` (FX-6), `d ≥ 1` by construction (`duration` is at least 1).

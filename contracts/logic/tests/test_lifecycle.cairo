@@ -1,11 +1,11 @@
 // ENG-06: the shared rules of the lifecycle: a tile of a chunk as a global position, the gate an
 // adventurer can leave by, the hub's checks of a gate, the snapshot's base stats (design/03).
-use grimworld_logic::content::exists;
 use grimworld_logic::helpers::packing::Lanes16;
 use grimworld_logic::models::gate::{GateAssert, GateTrait, kind};
 use grimworld_logic::models::location::{LocationTrait, kind as location_kind};
-use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats, SnapshotTrait};
+use grimworld_logic::types::content::exists;
+use grimworld_logic::types::profession::ProfessionTrait;
 
 #[test]
 #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)

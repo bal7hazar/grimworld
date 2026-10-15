@@ -525,16 +525,16 @@ gas). This is C.
   = 65,535 the registry's widest duration, recharge or activation. So every deadline fits 28 bits
   (E-4, corrected in fix loop 1).
 - **Effective durations are bounded after modifiers** (fix loop 2, F-9;
-  `grimworld_logic::durations`). design/15's modifiers lengthen durations: conditions inflicted
+  `grimworld_logic::helpers::duration`). design/15's modifiers lengthen durations: conditions inflicted
   +33 %, enchantments +10 to +20 %, a set bonus +1 tick. The rule:
   - the registry holds base durations, recharges and activations of at most
     `MAX_BASE_DURATION = 43,688` ticks, and its writer refuses more;
   - the percent bonuses that apply to one duration are summed and capped at 50 % (the MVP's largest
     is +33 %);
   - the flat bonuses are summed and capped at 3 ticks;
-  - so `effective_duration(base, percent, flat) = ⌊base × (100 + percent) / 100⌋ + flat ≤ 65,535 =
-    MAX_DURATION`, the maximum being exactly it (tested: `test_effective_duration_maximum`,
-    `test_base_above_cap_refused`).
+  - so `DurationTrait::effective_duration(base, percent, flat) = ⌊base × (100 + percent) / 100⌋ +
+    flat ≤ 65,535 = MAX_DURATION`, the maximum being exactly it (tested in `helpers::duration`:
+    `test_effective_duration_maximum`, `test_base_above_cap_refused`).
 
   `LAST_TICK` then keeps every deadline an action sets, `clock + ticks + effective`, at or below
   `MAX_CLOCK`.
@@ -789,10 +789,10 @@ a boss item: `2^41 + base`.
 version at 32–63, D-169, CBT-02f; `models/versions.cairo`, read and written through the store,
 `RegistryStoreTrait::get_versions`, `set_versions`), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
 `CASTE` records name each skill; layout-tested). A record is
-`parts(kind)` felts (`grimworld_logic::content`); values may change (design/01 rules 1–2). Pillar 6
-and S-6: a zone or a quest is data.
+`KindTrait::parts(kind)` felts (`grimworld_logic::types::content`); values may change (design/01
+rules 1–2). Pillar 6 and S-6: a zone or a quest is data.
 
-**Allocation** (fix loop 1, F-8; `content::is_sequential`):
+**Allocation** (fix loop 1, F-8; `KindTrait::is_sequential`):
 - **Sequential kinds** (every kind but five): ids 1, 2, 3 … A new id must be `last_id(kind) + 1`;
   `last_id` is the highest written. Append-only: an id is never reused.
 - **Composite kinds**, `last_id` 0 for all of them:
@@ -900,7 +900,7 @@ validators (ENG-05's report).
 
 **Layouts of the world's records** (ENG-03; models under D-143: the structs in
 `grimworld_logic::models::index`, each with `new`, its `...Assert` checks, its `errors` and its
-`content::Record` impl packing into the record's parts; round-trip and bit tests in
+`types::content::Record` impl packing into the record's parts; round-trip and bit tests in
 `logic/tests/test_models.cairo`). Every content id is a `u16`, as every registry id the frozen
 layouts hold (`Header.location`, the bar, a pack's template); a quest is quiver's `u32`; levels,
 ranks and counts are `u8`; a location is at most 15 × 15 chunks (§3.2), so a chunk index `15 cy +
@@ -2594,7 +2594,7 @@ follows the **default** named; the project manager decides.
 | **E-1** (fix loop 3; decided (a), D-141; recomputed, ENG-01b) | **A goblin's first key in a slot costs N** (2 words: 0.84 M over O). Cold, the worst capped batch without a weight wrote 35 new keys (32 goblin words, 2 roster pages, the counter): **62.02 M against 47.34 M** initialised (§10.1). **With the weight (a), the worst cold batch is 48.54 M** (`n = 0` first records, 10 ticks; each first record replaces a tick), which is the gas maximum; the branch with the most new keys is another (21 N / 41 O, 17.56 M, nine first records and one tick). The key is cold whenever this slot never woke that goblin index, in any generation (§9.1) | (a) **weigh it**: +1 per goblin record written for the first time in the slot (the contract reads the record as 0). (b) **one word per goblin**: drop `GoblinTimers`. That loses **the activation** (slot, target and deadline: the telegraphed skills of design/04, the hobgoblin's wind-up and its interruption), **the five conditions** and **the effect** (a shaman's enchantment, a hex). A cold 3-tick action then costs 38.56 M instead of 57.61 M (E-21); the initialised batch saves the 16 overwritten words, 513,152, about 46.82 M, still above 40 M. Keeping the activation in one word would need two of the four recharge lanes of `GoblinState` (a caste then tracks 2 skills' recharges), and the conditions would still have no room: a change of the combat design. (c) accept | **(a)**, a rule of `play` (ENG-07), decided by D-141; the tables count it (`n` first records run `10 − n` ticks). (b) only with a combat design that gives up what it loses. **Built by ENG-07b** (2026-10-09): a first record is a goblin whose spawn chunk's `touched` bit is clear (the contract never reads a derived goblin's slot, so a reused slot's word of an earlier generation is not looked at: the weight errs high, never low); `SegmentLibrary` weighs each action's first records with its ticks, the batch stopping before the action that would pass the weight left; an untouched goblin engaged and nothing else is no record (its pack's `alert` bits, §3.2); a Move's ticks owed across a reveal count with the next segment's first action (ENG-07's brief, *ENG-07b* rows 2 to 4) |
 | **E-2** | **The roster holds 60 entries**: displaced goblins, alive or dead and not looted (F-6). Design/02 bounds awake goblins, not displaced ones or unlooted remains | (a) 60, four pages, only pages in use are written; (b) no roster: scan the touched records of every revealed chunk (up to 2,250 records a view, and a tick cannot find followers cheaply) | (a). **The rule for a 61st, D-238 (the project manager, 2026-10-09):** the roster lists the living goblins away from their spawn chunk; when it holds 60, a goblin whose move would need a new entry (leaving its spawn chunk) does not leave the chunk: that move becomes a Wait, the same in a batch and in single batches; goblins already listed move freely; an entry freed (a goblin killed, or one back in its spawn chunk) lets the next one leave; no new `Stop`. A goblin killed away from its spawn leaves the roster (its remains are found through the roster no more until `loot`'s lot). Never reached in the representative fight (its 8 goblins stay in their spawn chunk: 0 away, `test_fight_roster_count`) |
 | **E-3** | At most 2 packs of 5 and 3 objects per chunk (the features word) | a third pack or a fourth object: a third chunk word (+1 slot a reveal) | 2 / 5 / 3; ENG-05 caps |
-| **E-4** (corrected, fix loops 1 and 2) | **Every deadline is at most `MAX_CLOCK` = 2^28 − 1**, not only the clock. An action runs only while `clock ≤ LAST_TICK = MAX_CLOCK − MAX_DURATION − 10`. `MAX_DURATION` = 65,535 is the widest **effective** duration: the registry holds bases of at most 43,688 ticks, the modifiers' percents are capped at +50 % and their flat bonuses at +3 (F-9, `durations.cairo`), so the effective maximum is exactly 65,535 (tested). The packers refuse a deadline above `MAX_CLOCK` or 2^28 (tested) | 32-bit deadlines: recharges need 2 slots a member | 2^28 − 1; an action past `LAST_TICK` is invalid (268,369,910 ticks: 8.5 years at a tick a second) |
+| **E-4** (corrected, fix loops 1 and 2) | **Every deadline is at most `MAX_CLOCK` = 2^28 − 1**, not only the clock. An action runs only while `clock ≤ LAST_TICK = MAX_CLOCK − MAX_DURATION − 10`. `MAX_DURATION` = 65,535 is the widest **effective** duration: the registry holds bases of at most 43,688 ticks, the modifiers' percents are capped at +50 % and their flat bonuses at +3 (F-9, `helpers/duration.cairo`), so the effective maximum is exactly 65,535 (tested). The packers refuse a deadline above `MAX_CLOCK` or 2^28 (tested) | 32-bit deadlines: recharges need 2 slots a member | 2^28 − 1; an action past `LAST_TICK` is invalid (268,369,910 ticks: 8.5 years at a tick a second) |
 | **E-5** (decided, D-141; frozen, ENG-01b) | The ephemeral domain reads the registry during play (content, not a persistent model); a content update during an instance changes outcomes | (a) one `bundle` call an invocation (0.14 M); (b) mirror play's content in `Instances`; (c) (a) plus a content version checked at every invocation | **a content version**: `Registry.content_version` (`u32`), returned first by `bundle`; `play(…, sequence, version, actions)` compares it and refuses a different one whole (`Stop::Version`), `BatchPlayed.version` says so; +1 calldata felt (5,120) and one compared value, measured by ENG-03. **Also carried by `open`, `mine` and `barter`** (a mismatch: `Refused`, `Refusal::Version`, before any tick); not by `loot`, `leave`, `travel_back`, `enter` (project manager's decision, 2026-09-29; §4.1). Closed |
 | **E-6** | `barter` calls the hub during play (the price is in the pack) | (a) `Hub.barter` in the transaction; (b) snapshot trophies at entry (+1 member word); (c) barter in hubs only | (a) |
 | **E-7** | **`enter` exceeds 1.9 M**: 3.73 M for a later entry (the belt's reserve, the snapshot's bundle, two events, the calldata); 11.77 M at an adventurer's first entry | the snapshot travelling as calldata against a hash (−3 slots), at the price of `instance_state` no longer holding it (design/02) | stored snapshot; target 3.73 M |

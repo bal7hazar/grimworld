@@ -1,8 +1,8 @@
 //! `OUTLINE`: its id, its constructor, its checks and its record (layout:
 //! `models::index::Outline`).
 
-use crate::content::{OUTLINE, Record};
 use crate::helpers::packing::PackingTrait;
+use crate::types::content::{OUTLINE, Record};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::Outline;
 

@@ -4,7 +4,6 @@
 //! snforge's `read_json` gives the keys in alphabetical order, each array after its length:
 //! `chunk_count`, then `chunk_fields`, `chunk_parts`, `records`. A felt is 8 limbs of 32 bits.
 
-use grimworld_logic::content::{GATE, LOCATION, OUTLINE, QUOTAS as QUOTAS_KIND};
 use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::gate::{Gate, GateRecord};
 use grimworld_logic::models::location::{Location, LocationRecord};
@@ -13,6 +12,7 @@ use grimworld_logic::models::pack::{Pack, PackCaste};
 use grimworld_logic::models::quotas::{QuotaSet, QuotaSetRecord};
 use grimworld_logic::models::set_piece::SetPack;
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable};
+use grimworld_logic::types::content::{GATE, LOCATION, OUTLINE, QUOTAS as QUOTAS_KIND};
 use grimworld_logic::types::reveal::Site;
 use snforge_std::fs::{FileTrait, read_json};
 use spk16::records::{BRIDGE, Bridge, BridgeTrait, CANDIDATES, CandidatesTrait, MarkerTrait};

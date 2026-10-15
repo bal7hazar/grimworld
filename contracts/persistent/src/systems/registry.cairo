@@ -1,12 +1,13 @@
 //! `Registry`: content as data (pillar 6, design/01 *Horizontal scaling*), read by every contract
 //! and by the client. One uniform store: a record of kind `k` is `parts(k)` felts under
-//! `(k, id, part)` (`grimworld_logic::content`). Written by the administrator role only (ADR-0007;
-//! who holds it is Q-08). ENG-01 froze the interface and storage; ENG-03 wrote the checks.
+//! `(k, id, part)` (`grimworld_logic::types::content`). Written by the administrator role only
+//! (ADR-0007; who holds it is Q-08). ENG-01 froze the interface and storage; ENG-03 wrote the
+//! checks.
 //!
 //! A record that was never written reads as `parts(kind)` zeros: part 0 is 0, which is how every
 //! reader tells a missing record (a written record has `LIVE` in part 0).
 
-use grimworld_logic::content::{ITEM, MODIFIER, SKILL};
+use grimworld_logic::types::content::{ITEM, MODIFIER, SKILL};
 use starknet::{ClassHash, ContractAddress};
 
 pub const VERSION: felt252 = 'grimworld-registry-1';
@@ -41,7 +42,7 @@ pub trait IRegistryAdmin<T> {
     fn version(self: @T) -> felt252;
     /// Writes one record: exactly `parts(kind)` felts, part 0 with `LIVE` set. A sequential kind's
     /// new id must be `last_id + 1` (append-only, design/01 rule 2); a composite kind's id must
-    /// name an existing parent (`content::is_sequential`). An existing id's values may change.
+    /// name an existing parent (`KindTrait::is_sequential`). An existing id's values may change.
     /// Every changed record raises the content version by one (D-141, E-5): a batch computed under
     /// the earlier content is then refused by `play` (`Stop::Version`). A changed record of a kind
     /// the flattening reads that existed before (`Inputs::includes`) also raises the inputs
@@ -85,10 +86,6 @@ pub impl InputsImpl of Inputs {
 #[starknet::contract]
 pub mod Registry {
     use core::num::traits::Zero;
-    use grimworld_logic::content::{
-        ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE,
-        PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK, is_sequential, parts,
-    };
     use grimworld_logic::helpers::packing::{Counter, LIVE_HIGH};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
@@ -106,6 +103,10 @@ pub mod Registry {
     use grimworld_logic::models::set_piece::{SetPieceAssert, SetPieceRecord};
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
+    use grimworld_logic::types::content::{
+        ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KindTrait, LOCATION, MAX_READ, MODIFIER,
+        OUTLINE, PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK,
+    };
     use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address};
@@ -122,7 +123,7 @@ pub mod Registry {
         pub admin: ContractAddress,
         /// `(kind, id, part)` → one felt of the record.
         pub records: Map<(u8, u32, u8), felt252>,
-        /// Highest id of each sequential kind (`content::is_sequential`); 0 for composite kinds.
+        /// Highest id of each sequential kind (`KindTrait::is_sequential`); 0 for composite kinds.
         pub last_ids: Map<u8, Counter>,
         /// The content version (D-141, E-5) and the inputs version (D-169), one slot
         /// (`models::versions`): 0 at deployment, raised by `set_record`, automatically, no admin
@@ -159,13 +160,13 @@ pub mod Registry {
         /// `parts(kind)` felts; zeros for a record never written.
         fn record(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
             let mut out: Array<felt252> = array![];
-            self.read_record_into(kind, id, parts(kind), ref out);
+            self.read_record_into(kind, id, KindTrait::parts(kind), ref out);
             out.span()
         }
         /// The records of `ids`, one after the other, `parts(kind)` felts each.
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
             RegistryAssert::assert_bound(ids.len());
-            let count = parts(kind);
+            let count = KindTrait::parts(kind);
             let mut out: Array<felt252> = array![];
             for id in ids {
                 self.read_record_into(kind, *id, count, ref out);
@@ -177,7 +178,7 @@ pub mod Registry {
             let mut out: Array<felt252> = array![];
             for request in requests {
                 let (kind, id) = *request;
-                self.read_record_into(kind, id, parts(kind), ref out);
+                self.read_record_into(kind, id, KindTrait::parts(kind), ref out);
             }
             let versions = self.get_versions();
             (versions.content, versions.inputs, out.span())
@@ -200,7 +201,7 @@ pub mod Registry {
             self.assert_admin();
             RegistryAssert::assert_record(kind, id, record);
             self.assert_content(kind, id, record);
-            if is_sequential(kind) {
+            if KindTrait::is_sequential(kind) {
                 let last = self.get_last_id(kind);
                 let id_wide: u64 = id.into();
                 if id_wide == last + 1 {
@@ -224,7 +225,7 @@ pub mod Registry {
             }
         }
         fn last_id(self: @ContractState, kind: u8) -> u32 {
-            parts(kind);
+            KindTrait::parts(kind);
             self.get_last_id(kind).try_into().unwrap()
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.
@@ -263,7 +264,7 @@ pub mod Registry {
         /// Cairo 2.19 (as `PackingTrait::split`).
         #[inline(always)]
         fn assert_record(kind: u8, id: u32, record: Span<felt252>) {
-            let count = parts(kind);
+            let count = KindTrait::parts(kind);
             assert(record.len() == count.into(), errors::PART_COUNT);
             assert(id != 0, errors::ZERO_ID);
             let wide: u256 = (*record.at(0)).into();
@@ -355,7 +356,7 @@ pub mod Registry {
                 for skill in caste.skills.span() {
                     if *skill != 0 && self.records.read((SKILL, (*skill).into(), 0)) != 0 {
                         let mut out = array![];
-                        self.read_into(SKILL, (*skill).into(), parts(SKILL), ref out);
+                        self.read_into(SKILL, (*skill).into(), KindTrait::parts(SKILL), ref out);
                         skills.append(SkillRecord::unpack(out.span()));
                     }
                 }
@@ -441,7 +442,7 @@ pub mod Registry {
             let new = CasteRecord::unpack(record).skills;
             let old: [u16; 4] = if self.has_record(CASTE, id) {
                 let mut out = array![];
-                self.read_record_into(CASTE, id, parts(CASTE), ref out);
+                self.read_record_into(CASTE, id, KindTrait::parts(CASTE), ref out);
                 CasteRecord::unpack(out.span()).skills
             } else {
                 [0; 4]
@@ -513,7 +514,7 @@ pub mod Registry {
 /// `Hub.set_build` asks the registry for is `test_build::test_set_build_requests_the_input_kinds`.
 #[cfg(test)]
 mod inputs_tests {
-    use grimworld_logic::content::{ITEM, LAST_KIND, MODIFIER, SKILL};
+    use grimworld_logic::types::content::{ITEM, LAST_KIND, MODIFIER, SKILL};
     use super::Inputs;
 
     #[test]

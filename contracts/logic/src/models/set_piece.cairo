@@ -2,8 +2,8 @@
 //! authored chunk laid by a quota (ADR-0006 *Set pieces*): the reveal keeps its interior and
 //! placements and joins its ring like any chunk's (`types::reveal`).
 
-use crate::content::{Record, SET_PIECE};
 use crate::helpers::packing::{LimbTrait, P16, P24, P48, P8, P80, PackingTrait};
+use crate::types::content::{Record, SET_PIECE};
 use crate::types::reveal::board::BoardTrait;
 use super::chunk::{ObjectTrait, errors as chunk_errors, object};
 pub use super::index::{Object, SetPack, SetPiece};
@@ -119,8 +119,8 @@ pub impl SetPieceRecord of Record<SetPiece> {
 
 #[cfg(test)]
 mod tests {
-    use crate::content::Record;
     use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
     use super::{Object, SetPack, SetPieceAssert, SetPieceRecord, SetPieceTrait};
 
     #[test]

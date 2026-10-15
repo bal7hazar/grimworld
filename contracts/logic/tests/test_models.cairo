@@ -1,12 +1,12 @@
 // The world's record models (ENG-03, D-143; docs/architecture/ENG-01-interfaces.md §3.5): every
 // field round-trips at its maximum through the record's parts, sits at its documented bit, and a
 // value wider than its field is refused.
-use grimworld_logic::content::Record;
 use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait, kind};
 use grimworld_logic::models::outline::{CHUNK_SET, Outline, OutlineRecord, OutlineTrait};
 use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
+use grimworld_logic::types::content::Record;
 
 const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

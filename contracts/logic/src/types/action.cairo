@@ -42,10 +42,10 @@ use crate::models::member::{
     Member, MemberConditionTrait, MemberSnapshotTrait, MemberTickTrait, MemberTrait,
     MemberWordsTrait,
 };
-use crate::professions::Profession;
 use crate::types::combat::skill_kind;
 use crate::types::effect::{EntryTrait, kind, target};
 use crate::types::executor::{Board, BoardTrait, Carrier, Executed, ExecutorTrait, Levered, Levers};
+use crate::types::profession::Profession;
 use crate::types::tick::{ABSENT_LANE, ENERGY_THIRDS, Sheets, flag};
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::WindowTrait;

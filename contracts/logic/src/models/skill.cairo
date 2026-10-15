@@ -1,9 +1,9 @@
 //! `SKILL`: its constructor, its checks and its record (layout: `models::index::Skill`).
 
-use crate::content::{Record, SKILL};
-use crate::durations::MAX_BASE_DURATION;
+use crate::helpers::duration::MAX_BASE_DURATION;
 use crate::helpers::packing::{P16, P24, P32, P40, P56, P72, P8, P80, PackingTrait};
 use crate::types::combat::skill_kind;
+use crate::types::content::{Record, SKILL};
 use crate::types::effect::{Carrier, Entry, EntryAssert, EntryTrait};
 pub use super::index::Skill;
 

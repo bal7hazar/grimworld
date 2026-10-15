@@ -2,13 +2,13 @@
 //! grimoire (design/07) and the Rift board (design/17). Layouts:
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
-use grimworld_logic::content::MODIFIER;
 use grimworld_logic::helpers::packing::{
     LimbTrait, P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, PackingAssert,
     PackingTrait,
 };
 use grimworld_logic::models::base::Base;
 use grimworld_logic::snapshot::Worn;
+use grimworld_logic::types::content::MODIFIER;
 use super::account::PACK;
 
 /// `ItemBase.hands` sits at bit 124.
@@ -414,9 +414,9 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
 // read for `set_build`.
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::content::MODIFIER;
     use grimworld_logic::helpers::packing::LIVE;
     use grimworld_logic::models::base::{BaseTrait, slot};
+    use grimworld_logic::types::content::MODIFIER;
     use starknet::storage_access::StorePacking;
     use super::super::account::PACK;
     use super::{

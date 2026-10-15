@@ -38,16 +38,19 @@ pub const PURPOSES: [felt252; 9] = [
 ];
 
 
-/// The domain of one draw: `poseidon(subject, counter, purpose)`.
-#[inline]
-pub fn domain(subject: felt252, counter: felt252, purpose: felt252) -> felt252 {
-    poseidon_hash_span([subject, counter, purpose].span())
-}
+#[generate_trait]
+pub impl FateImpl of FateTrait {
+    /// The domain of one draw: `poseidon(subject, counter, purpose)`.
+    #[inline]
+    fn domain(subject: felt252, counter: felt252, purpose: felt252) -> felt252 {
+        poseidon_hash_span([subject, counter, purpose].span())
+    }
 
-/// The value at `index` of a decision drawn under `domain`: `poseidon(word, domain, index)`.
-#[inline]
-pub fn derive(word: felt252, domain: felt252, index: u32) -> felt252 {
-    poseidon_hash_span([word, domain, index.into()].span())
+    /// The value at `index` of a decision drawn under `domain`: `poseidon(word, domain, index)`.
+    #[inline]
+    fn derive(word: felt252, domain: felt252, index: u32) -> felt252 {
+        poseidon_hash_span([word, domain, index.into()].span())
+    }
 }
 
 /// An instance's entropy (ADR-0006 option C, ENG-01 §3.2): the entry draw plus one hash per
@@ -72,7 +75,7 @@ pub impl EntropyImpl of EntropyTrait {
     /// The chunk is the counter, never the sequence or the clock.
     #[inline]
     fn word(entropy: felt252, instance_id: felt252, chunk: u8) -> felt252 {
-        derive(entropy, domain(instance_id, chunk.into(), REVEAL), 0)
+        FateTrait::derive(entropy, FateTrait::domain(instance_id, chunk.into(), REVEAL), 0)
     }
 
     /// The seed of a zone's quota hosts (D-208, `PlacementTrait::hosts`), drawn once at `create`:
@@ -89,7 +92,7 @@ pub impl EntropyImpl of EntropyTrait {
     /// zone's hosts (225).
     #[inline]
     fn authored_hosts(entropy: felt252, instance_id: felt252) -> felt252 {
-        derive(entropy, domain(instance_id, 226, REVEAL), 0)
+        FateTrait::derive(entropy, FateTrait::domain(instance_id, 226, REVEAL), 0)
     }
 
     /// The word of an authored chunk's spawn points (D-215 ruling 4, ENG-08's Q6): their level
@@ -98,7 +101,7 @@ pub impl EntropyImpl of EntropyTrait {
     /// nor the hosts' (225, 226), nor the outline's (227).
     #[inline]
     fn spawns(entropy: felt252, instance_id: felt252, chunk: u8) -> felt252 {
-        derive(entropy, domain(instance_id, 256 + chunk.into(), REVEAL), 0)
+        FateTrait::derive(entropy, FateTrait::domain(instance_id, 256 + chunk.into(), REVEAL), 0)
     }
 
     /// The seed of a dungeon floor's outline (ENG-10a, D-223, `reveal::outline::OutlineTrait`),
@@ -117,7 +120,7 @@ pub impl EntropyImpl of EntropyTrait {
 mod tests {
     use core::poseidon::poseidon_hash_span;
     use crate::helpers::packing::LIVE;
-    use super::{PURPOSES, derive, domain};
+    use super::{FateTrait, LOOT, PURPOSES};
 
     fn hex(felts: Span<felt252>) -> ByteArray {
         let mut out: ByteArray = "[";
@@ -177,7 +180,7 @@ mod tests {
         for purpose in PURPOSES.span() {
             for pair in pairs.span() {
                 let (subject, counter) = *pair;
-                let ok = domain(subject, counter, *purpose);
+                let ok = FateTrait::domain(subject, counter, *purpose);
                 emit(
                     ref digest, ref id, "domain", [subject, counter, *purpose].span(), [ok].span(),
                 );
@@ -189,18 +192,18 @@ mod tests {
         let entry = *PURPOSES.span()[0];
         for subject in subjects.span() {
             for counter in counters.span() {
-                let ok = domain(*subject, *counter, entry);
+                let ok = FateTrait::domain(*subject, *counter, entry);
                 emit(ref digest, ref id, "domain", [*subject, *counter, entry].span(), [ok].span());
             }
         }
         // `derive`: words, domains and indices at their edges.
         let words: [felt252; 5] = [0, 1, 0x123456789, TWO_POW_128, MAX];
-        let domains: [felt252; 3] = [0, domain(1, 0, entry), MAX];
+        let domains: [felt252; 3] = [0, FateTrait::domain(1, 0, entry), MAX];
         let indices: [u32; 6] = [0, 1, 7, 255, 65535, 0xffffffff];
         for word in words.span() {
             for dom in domains.span() {
                 for index in indices.span() {
-                    let ok = derive(*word, *dom, *index);
+                    let ok = FateTrait::derive(*word, *dom, *index);
                     let index_felt: felt252 = (*index).into();
                     emit(
                         ref digest, ref id, "derive", [*word, *dom, index_felt].span(), [ok].span(),
@@ -215,4 +218,105 @@ mod tests {
 
     const DIGEST: felt252 =
         1839100577459864661906567117798787229400223419200535450393868919826041224050;
+
+    // ADR-0002, rule 2: one domain purpose per use of Fate, all distinct; `derive` gives a distinct
+    // value per domain and per index, and is `poseidon(word, domain, index)` (the plain oracle).
+    fn all_distinct(values: Span<felt252>) -> bool {
+        let n = values.len();
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if *values.at(i) == *values.at(j) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    // The nine purposes (ENG-05 added the reveal's) are distinct, and so are their domains for one
+    // subject and counter.
+    #[test]
+    // gas: raised, ENG-05: the reveal purpose (one more domain)
+    #[available_gas(l2_gas: 454932)] // ceil(1.05 × 433268 measured)
+    fn test_purposes_distinct() {
+        let purposes = PURPOSES.span();
+        assert(purposes.len() == 9, 'nine purposes');
+        assert(all_distinct(purposes), 'purposes distinct');
+        let mut domains = array![];
+        for purpose in purposes {
+            domains.append(FateTrait::domain(0x100000001, 7, *purpose));
+        }
+        assert(all_distinct(domains.span()), 'domains distinct');
+    }
+
+    // A domain binds its subject, its counter and their order: the same purpose in another
+    // instance, at another sequence, or with subject and counter swapped, is another domain.
+    #[test]
+    #[available_gas(l2_gas: 95592)] // ceil(1.05 × 91040 measured)
+    fn test_domain_binds_subject_and_counter() {
+        let base = FateTrait::domain(1, 2, LOOT);
+        assert(base == poseidon_hash_span(array![1, 2, LOOT].span()), 'poseidon(s, c, p)');
+        assert(
+            all_distinct(
+                array![
+                    base, FateTrait::domain(3, 2, LOOT), FateTrait::domain(1, 3, LOOT),
+                    FateTrait::domain(2, 1, LOOT),
+                ]
+                    .span(),
+            ),
+            'subject, counter, order',
+        );
+    }
+
+    // derive is the plain poseidon of its three inputs.
+    #[test]
+    #[available_gas(l2_gas: 51314)] // ceil(1.05 × 48870 measured)
+    fn test_derive_oracle() {
+        let d = FateTrait::domain(1, 0, LOOT);
+        assert(
+            FateTrait::derive(0xabc, d, 0) == poseidon_hash_span(array![0xabc, d, 0].span()),
+            'index 0',
+        );
+        assert(
+            FateTrait::derive(0xabc, d, 9) == poseidon_hash_span(array![0xabc, d, 9].span()),
+            'index 9',
+        );
+    }
+
+    // One word, every purpose's domain, indices 0 to 3: 36 values, all distinct, and none equal to
+    // the word itself or to a domain.
+    #[test]
+    // gas: raised, ENG-05: the reveal purpose (one more domain)
+    #[available_gas(l2_gas: 4295970)] // ceil(1.05 × 4091400 measured)
+    fn test_derive_distinct_per_domain_and_index() {
+        let word = 0x5eed;
+        let mut values = array![word];
+        for purpose in PURPOSES.span() {
+            let d = FateTrait::domain(0x100000001, 3, *purpose);
+            values.append(d);
+            for index in 0..4_u32 {
+                values.append(FateTrait::derive(word, d, index));
+            }
+        }
+        assert(values.len() == 46, 'forty-six');
+        assert(all_distinct(values.span()), 'all distinct');
+    }
+
+    // For any word and index, the next index and another word give other values; the same inputs
+    // give the same value (determinism).
+    #[test]
+    #[fuzzer(runs: 64)]
+    #[available_gas(l2_gas: 1099613)] // ceil(1.05 × 1047250 measured)
+    fn test_derive_fuzz(word: felt252, index: u32) {
+        let d = FateTrait::domain(1, 0, LOOT);
+        let value = FateTrait::derive(word, d, index);
+        assert(value == FateTrait::derive(word, d, index), 'deterministic');
+        let next = if index == 0xffffffff {
+            0
+        } else {
+            index + 1
+        };
+        assert(value != FateTrait::derive(word, d, next), 'index');
+        assert(value != FateTrait::derive(word + 1, d, index), 'word');
+    }
 }

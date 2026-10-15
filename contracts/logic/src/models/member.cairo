@@ -838,7 +838,7 @@ pub impl MemberTickImpl of MemberTickTrait {
 
 /// The lifecycle rules of design/19 §5.7 and §5.12 on a member (AUD-182-6): conditions inflicted
 /// and cured, held effects held, refreshed and replaced, adrenaline gained. The executor (CBT-05)
-/// calls them; the durations it passes are after `durations::effective_duration`.
+/// calls them; the durations it passes are after `DurationTrait::effective_duration`.
 #[generate_trait]
 pub impl MemberLifecycleImpl of MemberLifecycleTrait {
     /// Condition `condition` (1–5, the MVP's: FX-22) inflicted at `t0` for `d ≥ 1` ticks: `D =

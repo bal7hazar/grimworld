@@ -2,7 +2,7 @@
 //! quotas' hosts drawn among their candidates and each spawn point's level and count, all at
 //! entry, each from a domain of its own; no order of the reveals moves any of it.
 
-use grimworld_logic::fate::{REVEAL, derive, domain};
+use grimworld_logic::helpers::fate::{FateTrait, REVEAL};
 use grimworld_logic::models::chunk::{Features, Object, PackPlacement, Terrain, object};
 use grimworld_logic::models::pack::PackTrait;
 use grimworld_logic::types::reveal::board::BoardTrait;
@@ -143,14 +143,25 @@ fn test_authored_reveal_places_as_drawn() {
 /// spawn points' `256 + chunk` are no chunk's word (0-224) and not ENG-05's hosts (225).
 #[test]
 fn test_domains_apart() {
-    let hosts = derive('e', domain(INSTANCE, HOSTS_COUNTER, REVEAL), 0);
+    let hosts = FateTrait::derive('e', FateTrait::domain(INSTANCE, HOSTS_COUNTER, REVEAL), 0);
     assert(hosts == AuthoredTrait::hosts_seed('e', INSTANCE), 'the hosts seed');
-    assert(hosts != derive('e', domain(INSTANCE, 225, REVEAL), 0), 'not ENG-05 hosts');
+    assert(
+        hosts != FateTrait::derive('e', FateTrait::domain(INSTANCE, 225, REVEAL), 0),
+        'not ENG-05 hosts',
+    );
     let mut c: u8 = 0;
     while c < 225 {
         let spawn = AuthoredTrait::spawn_word('e', INSTANCE, c);
-        assert(spawn == derive('e', domain(INSTANCE, SPAWN_BASE + c.into(), REVEAL), 0), 'spawn');
-        assert(spawn != derive('e', domain(INSTANCE, c.into(), REVEAL), 0), 'not the chunk word');
+        assert(
+            spawn == FateTrait::derive(
+                'e', FateTrait::domain(INSTANCE, SPAWN_BASE + c.into(), REVEAL), 0,
+            ),
+            'spawn',
+        );
+        assert(
+            spawn != FateTrait::derive('e', FateTrait::domain(INSTANCE, c.into(), REVEAL), 0),
+            'not the chunk word',
+        );
         assert(spawn != hosts, 'not the hosts');
         c += 16;
     }

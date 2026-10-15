@@ -5,11 +5,10 @@
 // double stands in its place and records the controller it is given.
 use core::num::traits::Pow;
 use core::testing::get_available_gas;
-use grimworld_logic::content::REGION;
 use grimworld_logic::helpers::packing::Lanes32;
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
-use grimworld_logic::professions::errors::BAD_PROFESSION;
-use grimworld_logic::professions::{Profession, ProfessionTrait};
+use grimworld_logic::types::content::REGION;
+use grimworld_logic::types::profession::errors::BAD_PROFESSION;
 use grimworld_persistent::models::account::errors::{
     HAS_ACCOUNT, NOT_ACCOUNT_OWNER, NO_ACCOUNT, NO_FREE_SLOT, OWNER_HAS_ACCOUNT, ZERO_OWNER,
 };
@@ -124,7 +123,8 @@ mod RefusingInstances {
     }
 }
 
-// The profession ids the tests pass (pinned against `Profession` in `test_playable_professions`).
+// The profession ids the tests pass: design/03's, pinned against `Profession` in
+// `grimworld_logic::types::profession::tests::test_playable_professions`.
 const VANGUARD: u8 = 1;
 const WARDEN: u8 = 2;
 const ARCANIST: u8 = 3;
@@ -386,27 +386,6 @@ fn test_create_adventurer() {
     assert(record.adventurers == 2, 'two adventurers');
     assert(ids == array![1, 2].span(), 'listed');
     assert(views(hub).adventurer(99) == array![0, 0, 0, 0, 0, 0].span(), 'never created');
-}
-
-// A unit test of `grimworld_logic::professions`, kept here for ENG-R1c, the lot of the logic
-// package.
-#[test]
-#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
-fn test_playable_professions() {
-    assert(!ProfessionTrait::is_playable(0), 'none');
-    assert(
-        ProfessionTrait::is_playable(VANGUARD)
-            && ProfessionTrait::is_playable(WARDEN)
-            && ProfessionTrait::is_playable(ARCANIST),
-        'the MVP three',
-    );
-    let ids: (u8, u8, u8) = (
-        Profession::Vanguard.into(), Profession::Warden.into(), Profession::Arcanist.into(),
-    );
-    assert(ids == (VANGUARD, WARDEN, ARCANIST), 'design/03 order');
-    assert(
-        !ProfessionTrait::is_playable(4) && !ProfessionTrait::is_playable(255), 'not in the MVP',
-    );
 }
 
 #[test]

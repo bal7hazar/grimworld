@@ -116,7 +116,6 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_accounts::test_helper_no_adventurer` | 14032180 | 14720643 | 4.91 % | 0 | 2496 | 2026-10-11 | fde8a90 |
 | `test_accounts::test_helper_not_in_a_hub` | 13602850 | 14269847 | 4.90 % | 0 | 2496 | 2026-10-11 | fde8a90 |
 | `test_accounts::test_helper_not_owner` | 19564520 | 20529600 | 4.93 % | 0 | 3456 | 2026-10-11 | fde8a90 |
-| `test_accounts::test_playable_professions` | 6010 | 6311 | 5.01 % | 0 | 0 | 2026-10-02 | f55176c |
 | `test_accounts::test_register` | 15430730 | 16189121 | 4.91 % | 0 | 2112 | 2026-10-11 | fde8a90 |
 | `test_accounts::test_register_twice_refused` | 9508760 | 9971052 | 4.86 % | 0 | 1824 | 2026-10-11 | fde8a90 |
 | `test_accounts::test_set_account_owner` | 28771690 | 30197129 | 4.95 % | 0 | 3936 | 2026-10-11 | fde8a90 |

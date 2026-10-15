@@ -6,9 +6,6 @@
 // (`tools/map-format/tests/test_convert.py`, which holds that each `test_refuse_<case>` exists
 // here with its code). A rule between two records is refused at the write of either: the reverse
 // checks are tested from the other side.
-use grimworld_logic::content::{
-    BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, Record, SKILL, ZONE_CHUNK,
-};
 use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
@@ -27,6 +24,9 @@ use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as q
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::zone_chunk::{ZoneChunk, ZoneChunkRecord, ZoneChunkTrait};
 use grimworld_logic::types::combat::{condition, damage, skill_kind};
+use grimworld_logic::types::content::{
+    BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, Record, SKILL, ZONE_CHUNK,
+};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::reveal::Progress;
 use grimworld_logic::types::reveal::board::BoardTrait;

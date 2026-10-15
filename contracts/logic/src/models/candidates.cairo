@@ -3,8 +3,8 @@
 //! ruling 3), so that the draw at entry reads two records, not every chunk; the tile of each
 //! candidate is in its `ZONE_CHUNK`.
 
-use crate::content::{CANDIDATES, Record};
 use crate::helpers::packing::LIVE;
+use crate::types::content::{CANDIDATES, Record};
 use crate::types::reveal::board::BoardTrait;
 pub use super::index::Candidates;
 
@@ -69,8 +69,8 @@ fn set(part: felt252) -> felt252 {
 
 #[cfg(test)]
 mod tests {
-    use crate::content::Record;
     use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
     use super::{Candidates, CandidatesAssert, CandidatesRecord, CandidatesTrait};
 
     #[test]

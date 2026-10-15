@@ -16,7 +16,7 @@
 //! modules (`Cbt04MemberTrait`, `Cbt04GoblinTrait`, `Cbt04MathTrait`), so that they sit beside
 //! main's own traits on `Member` and `Goblin` without a clash.
 
-use grimworld_logic::durations::effective_duration;
+use grimworld_logic::helpers::duration::DurationTrait;
 use grimworld_logic::helpers::packing::{LimbTrait, P16, P20, P72, PackingTrait};
 use grimworld_logic::models::goblin::{Goblin, GoblinLifecycleTrait, GoblinTickTrait, GoblinTrait};
 use grimworld_logic::models::member::{
@@ -64,7 +64,7 @@ pub impl InflictionImpl of InflictionTrait {
         } else {
             0
         };
-        effective_duration(base, percent, flat)
+        DurationTrait::effective_duration(base, percent, flat)
     }
 }
 

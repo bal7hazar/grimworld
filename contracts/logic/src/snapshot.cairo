@@ -10,7 +10,7 @@
 //! `MemberStats` holds the armor against each damage type where the single armor, the physical and
 //! elemental armors and the single penetration were.
 
-use crate::durations::MAX_DURATION_BONUS_PERCENT;
+use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
 use crate::helpers::packing::{
     LimbTrait, P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80,
     P84, P88, P96, PackingTrait,
@@ -19,10 +19,10 @@ use crate::helpers::signed::SignedTrait;
 use crate::models::base::slot as base_slot;
 use crate::models::index::Modifier;
 use crate::models::modifier::{ModifierRecord, ModifierTrait};
-use crate::professions::ProfessionTrait;
 use crate::types::effect::guard;
 use crate::types::hit::HitTrait;
 use crate::types::passive::{Passive, Source, id};
+use crate::types::profession::ProfessionTrait;
 
 /// The widest unguarded armor (design/19 §7.2, F-20; F-21 settled by CBT-01): the weighted rating
 /// of the five pieces (each `u8`, weights summing to 1: at most 255) and the shield's (`u8`, 255),
@@ -537,7 +537,7 @@ pub fn saturate(sum: u32, cap: u32) -> u32 {
 
 /// Armor against a type saturates at 63 (6 bits, FX-23).
 pub const MAX_ARMOR_VS: u32 = 63;
-/// The knock-down's flat bonus saturates at 3 ticks (`durations::MAX_DURATION_FLAT`, DS-5).
+/// The knock-down's flat bonus saturates at 3 ticks (`helpers::duration::MAX_DURATION_FLAT`, DS-5).
 pub const MAX_KNOCKDOWN: u32 = 3;
 /// Ranks go up to 15 (DS-8: design/15's "about 16" reads 15).
 pub const MAX_RANK: u8 = 15;
@@ -1389,17 +1389,17 @@ pub impl TaskPageStorePacking of starknet::storage_access::StorePacking<TaskPage
 /// registry's refusals in the persistent package's `tests/test_registry.cairo`.
 #[cfg(test)]
 mod tests {
-    use crate::durations::MAX_DURATION_BONUS_PERCENT;
+    use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
     use crate::helpers::packing::LIVE;
     use crate::models::base::slot as base_slot;
     use crate::models::index::Modifier;
     use crate::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
-    use crate::professions::ProfessionTrait;
     use crate::types::combat::{condition, damage, weapon};
     use crate::types::effect::{guard, scope};
     use crate::types::passive::{
         HIT_ATTACK_SKILL, HIT_SPELL, HIT_WEAPON, Passive, PassiveTrait, Source, id,
     };
+    use crate::types::profession::ProfessionTrait;
     use super::{
         BuildAssert, HEAVY_VS_PHYSICAL, HeldPassive, LIGHT_ENERGY, LIGHT_ENERGY_REGEN, Loadout,
         MAX_ARMOR_VS, MAX_KNOCKDOWN, MAX_UNGUARDED_ARMOR, MEDIUM_VS_ELEMENTAL, MemberBar, MemberKit,

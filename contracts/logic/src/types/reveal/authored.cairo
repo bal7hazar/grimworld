@@ -26,7 +26,7 @@
 
 use core::poseidon::poseidon_hash_span;
 use hexx::board::rng::{Rng, RngTrait};
-use crate::fate::EntropyTrait;
+use crate::helpers::fate::EntropyTrait;
 use crate::models::chunk::{Object, Terrain, object};
 use crate::models::quotas::{QuotaSet, kind as quota};
 use crate::models::set_piece::{SetPack, SetPiece};
@@ -267,7 +267,7 @@ pub impl AuthoredImpl of AuthoredTrait {
 
 #[cfg(test)]
 mod tests {
-    use crate::fate::{EntropyTrait, REVEAL, derive, domain};
+    use crate::helpers::fate::{EntropyTrait, FateTrait, REVEAL};
     use crate::models::chunk::{Features, Object, object};
     use crate::models::pack::{Pack, PackCaste};
     use crate::models::quotas::{Quota, QuotaSet, kind as quota};
@@ -481,7 +481,9 @@ mod tests {
         assert(hosts != EntropyTrait::outline(e, INSTANCE), 'outline');
         assert(hosts == EntropyTrait::word(e, INSTANCE, 226), 'counter 226');
         assert(
-            EntropyTrait::spawns(e, INSTANCE, 7) == derive(e, domain(INSTANCE, 256 + 7, REVEAL), 0),
+            EntropyTrait::spawns(
+                e, INSTANCE, 7,
+            ) == FateTrait::derive(e, FateTrait::domain(INSTANCE, 256 + 7, REVEAL), 0),
             'counter 256 + chunk',
         );
         for chunk in 0..225_u8 {

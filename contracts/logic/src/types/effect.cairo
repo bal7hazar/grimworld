@@ -9,7 +9,7 @@
 //! 92–94 ·
 //! scope 95–96. 97 bits: an entry fits a high limb (122 bits) as well as a low one (128).
 
-use crate::durations::MAX_BASE_DURATION;
+use crate::helpers::duration::MAX_BASE_DURATION;
 use crate::helpers::packing::{P16, P32, P48, P64, P8, P80};
 use crate::helpers::signed::SignedTrait;
 use super::combat::{condition, damage};

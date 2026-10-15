@@ -21,7 +21,7 @@
 //! honest order against the forcing one (the residue's figure).
 
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::fate::EntropyTrait;
+use grimworld_logic::helpers::fate::EntropyTrait;
 use grimworld_logic::models::chunk::Terrain;
 use grimworld_logic::types::reveal as eng05;
 use grimworld_logic::types::reveal::board::BoardTrait;

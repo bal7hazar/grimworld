@@ -3,8 +3,9 @@
 //! chunks and a zone not yet authored (no `LOCATION` marker, D-215 ruling 7) are generated here;
 //! an authored zone's are copied from the registry by ENG-09's path (ENG-08's format). A chunk is
 //! generated when sight first touches it, from a random word that does not exist before the reveal
-//! (ADR-0006 option C, D-111: the entry draw and the player entropy, `fate::EntropyTrait::word`)
-//! and from the edges of its revealed neighbours, in design/18's order:
+//! (ADR-0006 option C, D-111: the entry draw and the player entropy,
+//! `helpers::fate::EntropyTrait::word`) and from the edges of its revealed neighbours, in
+//! design/18's order:
 //!
 //! 1. the base from the chunk's word (`board::BoardTrait::base`, the biome's density);
 //! 2. smoothing with the margins of the neighbours already revealed (`smooth`, the ring frozen to
@@ -59,7 +60,7 @@ pub mod placement;
 use core::poseidon::poseidon_hash_span;
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
-use crate::fate::EntropyTrait;
+use crate::helpers::fate::EntropyTrait;
 use crate::models::chunk::{Features, Object, PackPlacement, Terrain};
 use crate::models::pack::Pack;
 use crate::models::quotas::{QuotaSet, kind as quota};
@@ -779,7 +780,7 @@ pub mod tests {
     use hexx::board::bits::Bits;
     use hexx::board::rng::RngTrait;
     use hexx::board::seams::{SeamTrait, Side};
-    use crate::fate::{ENTRY, EntropyTrait, REVEAL, domain};
+    use crate::helpers::fate::{ENTRY, EntropyTrait, FateTrait, REVEAL};
     use crate::models::chunk::{PackPlacementTrait, Terrain, object};
     use crate::models::location::biome;
     use crate::models::pack::{Pack, PackCaste};
@@ -1533,7 +1534,10 @@ pub mod tests {
             'a fact twice counts twice',
         );
         // The word's domain is the reveal's, per chunk.
-        assert(domain(INSTANCE, 1, REVEAL) != domain(INSTANCE, 1, ENTRY), 'not the entry');
+        assert(
+            FateTrait::domain(INSTANCE, 1, REVEAL) != FateTrait::domain(INSTANCE, 1, ENTRY),
+            'not the entry',
+        );
         assert(
             EntropyTrait::word(5, INSTANCE, 1) != EntropyTrait::word(5, INSTANCE, 2), 'per chunk',
         );

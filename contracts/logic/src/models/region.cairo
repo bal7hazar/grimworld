@@ -1,7 +1,7 @@
 //! `REGION`: its constructor, its checks and its record (layout: `models::index::Region`).
 
-use crate::content::{REGION, Record};
 use crate::helpers::packing::{P120, P16, P32, PackingTrait};
+use crate::types::content::{REGION, Record};
 pub use super::index::Region;
 
 pub mod errors {

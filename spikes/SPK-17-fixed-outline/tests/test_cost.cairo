@@ -4,7 +4,7 @@
 //! slots. A reveal: one chunk and a whole floor on ENG-05's engine and on the changed one.
 
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::fate::EntropyTrait;
+use grimworld_logic::helpers::fate::EntropyTrait;
 use grimworld_logic::models::chunk::Terrain;
 use grimworld_logic::types::reveal as eng05;
 use grimworld_logic::types::reveal::board::BoardTrait;

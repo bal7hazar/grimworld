@@ -12,7 +12,6 @@
 // §9.2).
 use core::testing::get_available_gas;
 use grimworld_logic::actions::Action;
-use grimworld_logic::content::Record;
 use grimworld_logic::helpers::signed::SignedTrait;
 use grimworld_logic::interface::{
     ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher, ITrapLibraryDispatcherTrait,
@@ -27,6 +26,7 @@ use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::MAX_CLOCK;
 use grimworld_logic::types::action::{ActionTrait, Carry};
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
+use grimworld_logic::types::content::Record;
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::executor::{Board, BoardTrait, ExecutorTrait};
 use grimworld_logic::types::tick::{

@@ -1,10 +1,9 @@
 // D-160 (design/20 §6): the acceptance tests the validators owe before any production snapshot.
-// Tests 1, 6, 7 and 9 are here or in `test_tick`, `test_capacity`, `test_durations` and the
-// ephemeral `test_layout` (each named below); tests 2 to 5, the flattening's, are its unit tests
-// (`snapshot.cairo`, D-167); the registry's refusals of the same records, when the administrator
-// writes them (D-166), are the persistent package's `test_registry`. Test 8 (a hit's percents) is
-// the damage formula's, CBT-03's, and test 10's counters are CBT-05's.
-use grimworld_logic::content::Record;
+// Tests 1, 6, 7 and 9 are here or in `test_tick`, `test_capacity`, `helpers::duration`'s tests and
+// the ephemeral `test_layout` (each named below); tests 2 to 5, the flattening's, are its unit
+// tests (`snapshot.cairo`, D-167); the registry's refusals of the same records, when the
+// administrator writes them (D-166), are the persistent package's `test_registry`. Test 8 (a hit's
+// percents) is the damage formula's, CBT-03's, and test 10's counters are CBT-05's.
 use grimworld_logic::helpers::exp2::Exp2;
 use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetTrait};
 use grimworld_logic::models::base::slot as base_slot;
@@ -16,6 +15,7 @@ use grimworld_logic::models::modifier::{
 use grimworld_logic::models::skill::SkillTrait;
 use grimworld_logic::snapshot::max_instances;
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
+use grimworld_logic::types::content::Record;
 use grimworld_logic::types::effect::{Carrier, EntryAssert, EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, Source, id, source_bound};
 use grimworld_logic::types::tick::CasteSheetTrait;

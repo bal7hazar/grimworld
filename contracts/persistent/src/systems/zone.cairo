@@ -22,9 +22,6 @@ pub trait IZoneChecks<T> {
 
 #[starknet::contract]
 pub mod ZoneChecks {
-    use grimworld_logic::content::{
-        BRIDGE, CANDIDATES, GATE, LOCATION, OUTLINE, PACK, QUOTAS, ZONE_CHUNK, parts,
-    };
     use grimworld_logic::helpers::packing::{LIVE, PackingTrait};
     use grimworld_logic::models::bridge::{
         Bridge, BridgeAssert, BridgeRecord, errors as bridge_errors,
@@ -42,6 +39,9 @@ pub mod ZoneChecks {
     };
     use grimworld_logic::models::zone_chunk::{
         ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait, errors as chunk_errors,
+    };
+    use grimworld_logic::types::content::{
+        BRIDGE, CANDIDATES, GATE, KindTrait, LOCATION, OUTLINE, PACK, QUOTAS, ZONE_CHUNK,
     };
     use grimworld_logic::types::reveal::board::BoardTrait;
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
@@ -198,7 +198,7 @@ pub mod ZoneChecks {
         /// A record's parts as stored (zeros for none).
         fn parts_of(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
             let mut out = array![];
-            self.read_into(kind, id, parts(kind), ref out);
+            self.read_into(kind, id, KindTrait::parts(kind), ref out);
             out.span()
         }
 

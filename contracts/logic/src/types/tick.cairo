@@ -632,12 +632,12 @@ pub impl SheetsImpl of SheetsTrait {
 mod tests {
     /// `vectors/tick.jsonl` (RV-03c, D-257).
     mod vectors;
-    use crate::content::Record;
     use crate::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
     use crate::models::index::{Caste, Item, Skill};
     use crate::models::item::{ItemRecord, ItemTrait, class as item_class};
     use crate::models::skill::{SkillRecord, SkillTrait};
     use crate::types::combat::{skill_kind, weapon};
+    use crate::types::content::Record;
     use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
     use crate::types::world::fixtures::{Fixture, SMASH};
     use super::{

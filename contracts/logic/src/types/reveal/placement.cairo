@@ -41,13 +41,13 @@
 use core::poseidon::poseidon_hash_span;
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
-use crate::content::CRITERION_REACH_LANDMARK;
 use crate::models::chunk::{CENTRE, Object, PackPlacement, object};
 use crate::models::location::biome;
 use crate::models::pack::PackTrait;
 use crate::models::quotas::kind as quota;
 use crate::models::set_piece::SetPiece;
 use crate::models::spawn_table::SpawnTableTrait;
+use crate::types::content::CRITERION_REACH_LANDMARK;
 use crate::types::{MAX_OBJECTS_PER_CHUNK, MAX_PACKS_PER_CHUNK};
 use super::board::{BOARD, BoardTrait};
 use super::{Progress, Site, SiteTrait};

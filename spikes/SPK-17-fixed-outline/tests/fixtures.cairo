@@ -4,7 +4,7 @@
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use core::poseidon::poseidon_hash_span;
-use grimworld_logic::fate::EntropyTrait;
+use grimworld_logic::helpers::fate::EntropyTrait;
 use grimworld_logic::models::chunk::{Features, Object, Terrain, object};
 use grimworld_logic::models::location::biome;
 use grimworld_logic::models::pack::{Pack, PackCaste};

@@ -2,8 +2,8 @@
 //! A location's packs (design/18 *Features*): each of a chunk's two pack slots holds a pack with
 //! probability `density / 256`, its template drawn by weight (`types::reveal`).
 
-use crate::content::{Record, SPAWN_TABLE};
 use crate::helpers::packing::{LimbTrait, P16, P24, P48, P56, P72, P8, P96, PackingTrait};
+use crate::types::content::{Record, SPAWN_TABLE};
 pub use super::index::{Spawn, SpawnTable};
 
 /// Entries of a spawn table.
@@ -120,8 +120,8 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
 
 #[cfg(test)]
 mod tests {
-    use crate::content::Record;
     use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
     use super::{Spawn, SpawnTableAssert, SpawnTableRecord, SpawnTableTrait};
 
     #[test]

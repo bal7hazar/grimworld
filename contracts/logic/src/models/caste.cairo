@@ -2,11 +2,11 @@
 //! caste sheet's shape (design/19 §7.3); DES-06 fills the values. A goblin's stats, weapon and
 //! skills are read from it: no `BASE` read.
 
-use crate::content::{CASTE, Record};
 use crate::helpers::packing::{
     P104, P12, P16, P24, P32, P36, P40, P48, P8, P80, P88, P96, PackingTrait,
 };
 use crate::types::combat::{damage, weapon};
+use crate::types::content::{CASTE, Record};
 pub use super::index::{Caste, Weapon};
 
 /// The widest tier (design/05).
