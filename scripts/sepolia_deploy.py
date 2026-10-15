@@ -34,6 +34,9 @@ What it does, in order, and nothing is sent before step 3:
      and registers in OPERATIONS §7's order (`devnet_deploy.deploy_core`, shared with the devnet script:
      `set_zone_checks` first, the play classes with `set_play_class`, GoblinsLibrary as key 6 last), then
      writes the seed's records (`write_seed`). No adventurer is created, nothing is credited.
+     A rate-limited RPC read is retried with a backoff; an `sncast` call that failed on a rate limit is
+     sent again only if the deployer's nonce, read before and after, did not move (OPS-03); `--pace`
+     waits between transactions. The retry lines name the variable, never the URL.
   7. counts the transactions and their fees (from the receipts), prints the totals and writes
      `deployments/sepolia/<YYYY-MM-DD>-<short sha>.json` (a rehearsal needs `--out`).
 
@@ -53,6 +56,8 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.parse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,6 +71,19 @@ VARIABLES = ("STARKNET_NETWORK", "STARKNET_RPC_URL", "STARKNET_ACCOUNT_ADDRESS",
 REFUSED = ("--give-build", "--credit-only", "--build", "--deployment", "--account", "--key-env",
            "--adventurer", "--salt")
 RECORDS = os.path.join(ROOT, "deployments", "sepolia")
+# OPS-03: the RPC's rate limit. A read is retried with an exponential backoff (BACKOFF * 2^k, capped at
+# BACKOFF_CAP seconds) and at most TRIES tries in all; then the run fails as before.
+TRIES, BACKOFF, BACKOFF_CAP = 6, 1.0, 30.0
+PACE = 1.0  # seconds between two transactions: each costs about six RPC calls (nonce twice, chain id, fee
+#             estimate, send, receipt polls); a free tier allows a few calls per second, one transaction per
+#             second keeps under it, and the 30-odd transactions of a full run take half a minute more
+RATE_LIMITED = re.compile(r"request too fast|cu limit|rate.?limit|too many requests|-32011|\b429\b", re.IGNORECASE)
+# What sncast 0.64 prints when the RPC refuses a call (seen 2026-10-15, run 2): `Error: Failed to fetch
+# chain_id` then `JSON-RPC error: code=-32011, message="cu limit exceeded; Request too fast per second ..."`.
+# The text only decides whether the nonce check is worth trying, never whether a transaction was submitted:
+# a -32011 can arrive after the node accepted the transaction (PM ruling, OPS-03).
+SUBMITTING = ("declare-from", "declare", "deploy", "invoke")
+FOUND_TRIES, FOUND_WAIT = 20, 3.0  # looking for the transaction an accepted-but-failed call left
 KINDS = {dd.REGION: "region", dd.LOCATION: "location", dd.GATE: "gate", dd.ITEM: "item",
          9: "skill", 8: "caste", 7: "pack", 6: "spawn_table"}
 
@@ -170,11 +188,14 @@ class SepoliaNode(dd.Node):
 
     check_url = staticmethod(lambda url: None)  # this script checks the URL itself (`check_endpoint`)
 
-    def __init__(self, url, address, key, logs, files, redact, say=lambda text: None):
+    def __init__(self, url, address, key, logs, files, redact, say=lambda text: None, pace=0.0,
+                 backoff=BACKOFF, sleep=time.sleep, tag="pending"):
         super().__init__(url, address, key, logs)
         self.files = files
         self.redact = redact
         self.say = say
+        self.pace, self.backoff, self.sleep, self.tag = pace, backoff, sleep, tag
+        self.submitted = 0  # the transactions sent so far: the pace waits between two of them
         # The URL may carry an API key and `ps` shows a command line: `sncast` reads it from the
         # `snfoundry.toml` of its working folder (a private folder, 0600 file, removed with `logs`).
         self.home = os.path.join(logs, "sncast")
@@ -184,6 +205,41 @@ class SepoliaNode(dd.Node):
             handle.write(f"[sncast.default]\nurl = {json.dumps(url)}\n")
         # asdf's shim picks `sncast` by the .tool-versions of the working folder
         shutil.copy(os.path.join(ROOT, ".tool-versions"), self.home)
+
+    def wait_time(self, attempt):
+        return min(self.backoff * 2 ** (attempt - 1), BACKOFF_CAP)
+
+    @staticmethod
+    def rate_limit_kind(error):
+        """"HTTP 429", "JSON-RPC -32011", "rate limit" for a rate-limit answer, else None."""
+        if isinstance(error, urllib.error.HTTPError):
+            return "HTTP 429" if error.code == 429 else None
+        if isinstance(error, dd.RpcError) and error.code == -32011:
+            return "JSON-RPC -32011"
+        return "rate limit" if RATE_LIMITED.search(str(error)) else None
+
+    def rpc(self, method, params):
+        """An RPC read retried when the answer is a rate limit (a read changes nothing). Each retry prints
+        the variable, the kind, the try and the wait: never the URL."""
+        for attempt in range(1, TRIES + 1):
+            try:
+                return super().rpc(method, params)
+            except (urllib.error.HTTPError, dd.RpcError) as error:
+                kind = self.rate_limit_kind(error)
+                if kind is None or attempt == TRIES:
+                    raise
+                wait = self.wait_time(attempt)
+                self.say(f"STARKNET_RPC_URL: {kind}, try {attempt} of {TRIES}, waiting {wait:g} s")
+                self.sleep(wait)
+
+    def account_nonce(self):
+        """The deployer's nonce at `pending`. sncast numbers a transaction from the pending nonce, and
+        `pending` moves as soon as the node accepts a transaction; `latest` moves only when a block holds
+        it, so after an accepted-but-failed call it would still read the old value and the call would be
+        sent twice. (The devnet rehearsal reads `latest`: a devnet mines at once, so it is the same value and
+        needs no support for `pending`.) (A node whose `pending` is only `latest` cannot be told apart; the check then cannot
+        be sound, and the Sepolia nodes answer `pending`.)"""
+        return int(self.rpc("starknet_getNonce", {"block_id": self.tag, "contract_address": self.address}), 16)
 
     def sncast_cwd(self, package):
         return self.home
@@ -197,11 +253,123 @@ class SepoliaNode(dd.Node):
         return args
 
     def sncast(self, package, *args, account=True):
+        submits = account and any(a in SUBMITTING for a in args[:4])
+        if submits and self.submitted:
+            self.sleep(self.pace)
         before = len(self.sent)
-        out = super().sncast(package, *args, account=account)
+        out = self.attempts(package, args, account, submits)
+        if submits:
+            self.submitted += 1
         for tx in self.sent[before:]:
             self.say(f"transaction {tx}")
         return out
+
+    def attempts(self, package, args, account, submits):
+        """`sncast`, again when it failed on a rate limit and the account's nonce shows that no
+        transaction was accepted. The nonce is read before and after the call; the error text is never
+        the proof. Nonce unchanged: resend. Advanced: the node took the transaction, wait for it and
+        take it as the call's result. Anything else (an unclassified error, an unreadable nonce, the
+        tries spent) stops the run as before."""
+        what = " ".join(a for a in args[:4] if not a.startswith("--") and not a.startswith("0x"))
+        for attempt in range(1, TRIES + 1):
+            before = self.account_nonce() if submits else None
+            try:
+                return super().sncast(package, *args, account=account)
+            except RuntimeError as error:
+                kind = self.rate_limit_kind(error)
+                if kind is None or attempt == TRIES:
+                    raise
+                if not submits:  # nothing to send: a read, a hash, an import
+                    self.retry_line(kind, attempt)
+                    continue
+                try:
+                    after = self.account_nonce()
+                except Exception as read:
+                    raise RuntimeError(f"sncast {what}: failed ({kind}) and the nonce could not be read "
+                                       f"to tell whether it was sent: stopping ({read})") from error
+                if after == before:
+                    self.retry_line(kind, attempt)
+                    continue
+                if after != before + 1:
+                    raise RuntimeError(f"sncast {what}: failed ({kind}) and the nonce went from {before} "
+                                       f"to {after}: stopping") from error
+                return self.accepted(what, args, before, kind)
+        raise AssertionError("unreachable")
+
+    def retry_line(self, kind, attempt):
+        wait = self.wait_time(attempt)
+        self.say(f"STARKNET_RPC_URL: sncast {kind}, nothing submitted, try {attempt} of {TRIES}, waiting {wait:g} s")
+        self.sleep(wait)
+
+    def accepted(self, what, args, nonce, kind):
+        """The call failed but the node accepted its transaction (the nonce advanced): find it by
+        (sender, nonce), wait for its receipt and rebuild what sncast would have printed. If it cannot
+        be had reliably, stop, saying which call."""
+        try:
+            tx = self.find_transaction(nonce)
+            receipt = self.wait_receipt(tx["transaction_hash"])
+            out = f"Transaction Hash: {tx['transaction_hash']}\n"
+            if "declare-from" in args or "declare" in args:
+                out += f"Class Hash: {tx['class_hash']}\n"
+            elif "deploy" in args:
+                out += f"Contract Address: {self.deployed(receipt, args)}\n"
+        except Exception as error:
+            raise RuntimeError(f"sncast {what}: failed ({kind}) after the node accepted its transaction "
+                               f"(nonce {nonce}) and the result could not be had: {error}: stopping") from error
+        self.say(f"sncast {what}: failed ({kind}) but the node accepted it (nonce {nonce}): "
+                 f"took transaction {tx['transaction_hash']}")
+        sent = re.search(r"Transaction Hash:\s*(0x[0-9a-fA-F]+)", out)
+        self.sent.append(sent.group(1))
+        return out
+
+    def find_transaction(self, nonce):
+        """The deployer's transaction with that nonce, in the pending block or the latest ten."""
+        for attempt in range(FOUND_TRIES):
+            blocks = [{"block_id": "pending"}]
+            try:
+                latest = self.rpc("starknet_blockNumber", {})
+                blocks += [{"block_id": {"block_number": n}} for n in range(latest, max(latest - 10, -1), -1)]
+            except dd.RpcError:
+                pass
+            for block in blocks:
+                try:
+                    txs = self.rpc("starknet_getBlockWithTxs", block)["transactions"]
+                except dd.RpcError:
+                    continue
+                for tx in txs:
+                    if tx.get("type") in ("INVOKE", "DECLARE") and "sender_address" in tx \
+                            and int(tx["sender_address"], 16) == int(self.address, 16) \
+                            and int(tx["nonce"], 16) == nonce:
+                        return tx
+            self.sleep(FOUND_WAIT)
+        raise RuntimeError("no transaction of the account with that nonce in the pending or latest blocks")
+
+    def wait_receipt(self, tx):
+        for _ in range(FOUND_TRIES * 4):
+            try:
+                receipt = self.rpc("starknet_getTransactionReceipt", {"transaction_hash": tx})
+            except dd.RpcError as error:
+                if error.code != 29:  # TXN_HASH_NOT_FOUND: not there yet
+                    raise
+            else:
+                if receipt.get("execution_status") == "REVERTED":
+                    raise RuntimeError(f"transaction {tx} reverted: {receipt.get('revert_reason')}")
+                if receipt.get("finality_status") in ("ACCEPTED_ON_L2", "ACCEPTED_ON_L1"):
+                    return receipt
+            self.sleep(FOUND_WAIT)
+        raise RuntimeError(f"transaction {tx} not accepted in time")
+
+    def deployed(self, receipt, args):
+        """The address of the `ContractDeployed` event (data: address, deployer, unique, class hash, ...)
+        whose class hash is the call's `--class-hash`."""
+        class_hash = int(args[args.index("--class-hash") + 1], 16)
+        selector = dd.storage_key("ContractDeployed")
+        for event in receipt.get("events", []):
+            data = event["data"]
+            if event["keys"] and int(event["keys"][0], 16) == selector and len(data) > 3 \
+                    and int(data[3], 16) == class_hash:
+                return data[0]
+        raise RuntimeError("no ContractDeployed event of that class in the receipt")
 
     def is_declared(self, class_hash):
         try:
@@ -401,6 +569,10 @@ def parse(argv):
                              "Sepolia; the only way the script runs on a local node; needs --out")
     parser.add_argument("--out", help="the record's path (default deployments/sepolia/<date>-<sha>.json; "
                                       "required with --devnet-rehearsal)")
+    parser.add_argument("--pace", type=float, default=PACE, metavar="SECONDS",
+                        help=f"wait this long between two transactions, against the RPC's rate limit "
+                             f"(default {PACE:g}; --devnet-rehearsal uses 0)")
+    parser.add_argument("--backoff", type=float, default=BACKOFF, help=argparse.SUPPRESS)  # the smoke's
     parser.add_argument("--account-type", choices=("oz", "argent", "braavos"), default="oz",
                         help="the account's class, as sncast names it (default oz)")
     for option in REFUSED:
@@ -446,10 +618,14 @@ def run(args, log, redact, environ):
     except ValueError:
         log.die("STARKNET_ACCOUNT_ADDRESS or STARKNET_PRIVATE_KEY: not hex")
     check_endpoint(url, args.devnet_rehearsal, log)
+    if args.pace < 0 or args.backoff < 0:
+        log.die("--pace: not a number of seconds, 0 or more")
+    pace = 0.0 if args.devnet_rehearsal else args.pace
 
     logs = tempfile.mkdtemp(prefix="sepolia-deploy-")  # 0700: the accounts file holds the key
     try:
-        node = SepoliaNode(url, address, "unused", logs, {}, redact, log.say)
+        node = SepoliaNode(url, address, "unused", logs, {}, redact, log.say, pace=pace, backoff=args.backoff,
+                           tag="latest" if args.devnet_rehearsal else "pending")
         chain = check_chain(node, args.devnet_rehearsal, log)
         sncast_version = read_sncast_version(log)
         run_id, info = find_run(args, log)
@@ -461,6 +637,7 @@ def run(args, log, redact, environ):
         log.say(f"plan: declare {len(plan)} classes from the artefact, deploy Registry, TxHashFate, Hub, "
                 f"Instances; set_zone_checks first, set_contracts, set_play_class keys 0-"
                 f"{len(dd.PLAY_CLASSES) - 1} (GoblinsLibrary last), then {len(dd.seed_records())} seed records")
+        log.say(f"pace: {pace:g} s between transactions" + (" (rehearsal)" if args.devnet_rehearsal else ""))
         if args.dry_run:
             log.say("--dry-run: nothing sent")
             return 0
