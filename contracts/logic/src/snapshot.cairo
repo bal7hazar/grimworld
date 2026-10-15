@@ -537,7 +537,7 @@ pub fn saturate(sum: u32, cap: u32) -> u32 {
 
 /// Armor against a type saturates at 63 (6 bits, FX-23).
 pub const MAX_ARMOR_VS: u32 = 63;
-/// The knock-down's flat bonus saturates at 3 ticks (`durations::MAX_DURATION_FLAT`, DS-5).
+/// The knock-down's flat bonus saturates at 3 ticks (`helpers::duration::MAX_DURATION_FLAT`, DS-5).
 pub const MAX_KNOCKDOWN: u32 = 3;
 /// Ranks go up to 15 (DS-8: design/15's "about 16" reads 15).
 pub const MAX_RANK: u8 = 15;
