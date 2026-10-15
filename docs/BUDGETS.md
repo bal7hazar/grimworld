@@ -1000,7 +1000,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::reveal::tests::test_vectors_2` | 300193221 | 311827906 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `types::reveal::tests::test_vectors_3` | 143531789 | 149967213 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `types::reveal::tests::test_vectors_4` | 167368787 | 175153413 | 2026-10-15 | 515ae2e |
-| grimworld_logic | `types::reveal::tests::test_vectors_5` | 116765496 | 122603876 | 2026-10-15 | 515ae2e |
+| grimworld_logic | `types::reveal::tests::test_vectors_5` | 116765496 | 122603771 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `types::reveal::tests::test_walls_both_is_generate` | 29095655 | 30495933 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `types::reveal::tests::test_word_and_feed` | 7645178 | 8008222 | 2026-10-15 | 515ae2e |
 | grimworld_logic | `types::reveal::tests::test_zone_quota_hosts_order_free` | 272431328 | 285487039 | 2026-10-15 | 515ae2e |
