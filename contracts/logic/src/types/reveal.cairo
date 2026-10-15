@@ -834,6 +834,7 @@ pub mod tests {
                 Default::default(),
             ],
             density,
+            trap: 0,
         }
     }
 
@@ -2848,6 +2849,7 @@ pub mod tests {
                         Default::default(), Default::default(),
                     ],
                     density: 255,
+                    trap: 0,
                 };
         let mut progress = ProgressTrait::new(@site, 'templates');
         emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![0, 1].span());

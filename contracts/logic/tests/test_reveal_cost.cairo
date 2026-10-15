@@ -80,6 +80,7 @@ fn site(kind: u8, heavy: bool) -> Site {
                 Default::default(), Default::default(), Default::default(), Default::default(),
             ],
             density,
+            trap: 0,
         },
         packs: packs(),
         pieces: array![].span(),

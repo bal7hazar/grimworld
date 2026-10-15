@@ -29,7 +29,9 @@
 //!   2 of an opening or an anchor, not taken. In order: a set piece's own packs and objects; the
 //!   quotas due, in their order (an object, or a pack for a Heart); the spawn table's two pack
 //!   slots (each with probability `density / 256`, the template by weight); then a chest (1 chunk
-//!   in 6), a gathering node (zones, 1 in 4), a terrain trap (ruins and caves, 1 in 3). Never more
+//!   in 6), a gathering node (zones, 1 in 4), a terrain trap (ruins and caves, 1 in 3, its `param`
+//!   the spawn table's `trap` skill, D-304).
+//!   Never more
 //!   than 2 packs of 5 goblins and 3 objects (E-3): what finds no room, or no tile, is not placed,
 //!   and a quota keeps it owed. A pack's goblin 0 stands on the pack's tile, the others on allowed
 //!   tiles within 2 of it, drawn without replacement (`PackPlacement.offsets`); asleep or on watch.
@@ -911,7 +913,7 @@ pub impl PlacementImpl of PlacementTrait {
             placement.object(ref rng, object::NODE, 0);
         }
         if trap && (*site.biome == biome::RUIN || *site.biome == biome::CAVE) {
-            placement.object(ref rng, object::TRAP, 0);
+            placement.object(ref rng, object::TRAP, *spawn.trap);
         }
         placement
     }

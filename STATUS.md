@@ -15,7 +15,7 @@ Track CV's PRs are not listed; those that consumed our tables are #443 and #444 
 
 **Class sizes after VIEW-01.** `PlayLibrary` went from 55,510 to **58,483 CASM felts** (71.39 % of the limit, 10.76 % free under its 80 % cap of 65,536; #437's description). `Instances` 31,845 (38.87 %). Main at `8c5e62b` measures `PlayLibrary` at 57,203 (69.83 %), the figure in #448. **FIX-02b** ([#448](https://github.com/bal7hazar/grimworld/pull/448), open) moves the goblin loader into a new `GoblinsLibrary` (D-269): `PlayLibrary` 50,941 (62.18 %), `GoblinsLibrary` 27,431 (33.49 %), per its description.
 
-**Inert generated traps (D-268).** A generated terrain trap carries no skill today (`param` 0), so it is inert. GEN-TRAP gives each biome's traps a skill after RV-03c, once `RevealLibrary` has room under its 50 % wall. An authored terrain trap fires once FIX-02b merges: until then `play` did not read a terrain trap's skill (track CV's finding, [#445](https://github.com/bal7hazar/grimworld/pull/445)).
+**Generated traps fire (GEN-TRAP, D-268, D-304).** A generated terrain trap (ruins and caves) carries its spawn table's `trap` skill and fires; the seed's table 1 gives skill 5, Rockfall; a table of `trap` 0 keeps its traps inert.
 
 **The entry watch** (the project manager, 2026-10-11). A later `enter` without a quota measures **7,222,400** on main against its D-231 ceiling of **7,289,520** (#437 and #438). Every lot that touches entry reports that figure. A sample above the ceiling goes to the project manager before the merge. The ceiling is re-measured with six runs, never raised by argument.
 

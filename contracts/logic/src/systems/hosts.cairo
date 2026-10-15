@@ -278,7 +278,7 @@ pub mod HostsLibrary {
             at += 1;
             SpawnTableRecord::unpack(parts.slice(1, 1))
         } else {
-            SpawnTable { spawns: [Default::default(); 7], density: 0 }
+            SpawnTable { spawns: [Default::default(); 7], density: 0, trap: 0 }
         };
         let mut chunk_set: felt252 = 0;
         let mut masks: Array<(u8, felt252)> = array![];
@@ -415,7 +415,7 @@ pub mod HostsLibrary {
             anchors: array![].span(),
             quotas,
             tasks: array![].span(),
-            spawn: SpawnTable { spawns: [Default::default(); 7], density: 0 },
+            spawn: SpawnTable { spawns: [Default::default(); 7], density: 0, trap: 0 },
             packs,
             pieces: array![].span(),
         };

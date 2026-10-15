@@ -145,11 +145,9 @@ fn location(kind: u8, width: u8, zone_biome: u8, table: u16) -> Span<felt252> {
         .pack()
 }
 
-/// A spawn table of no pack whose generated terrain traps take the skill `trap`: its bits 184-199.
+/// A spawn table of no pack whose generated terrain traps take the skill `trap`.
 fn spawn_table(trap: u16) -> Span<felt252> {
-    let table = SpawnTable { spawns: [Default::default(); 7], density: 0 };
-    let part = *SpawnTableRecord::pack(@table)[0];
-    array![part + trap.into() * two(184)].span()
+    SpawnTableRecord::pack(@SpawnTable { spawns: [Default::default(); 7], density: 0, trap })
 }
 
 fn play_classes(world: World) {
