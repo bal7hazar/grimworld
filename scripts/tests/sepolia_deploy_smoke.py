@@ -384,7 +384,17 @@ class Scripted(http.server.BaseHTTPRequestHandler):
 
 
 def check_rate_limit():
-    """OPS-03 on a scripted node and a stub `sncast`: nothing here goes near Sepolia."""
+    """OPS-03 on a scripted node and a stub `sncast`: nothing here goes near Sepolia. The stub is in the
+    PATH only while this runs: the later checks need the real `sncast`."""
+    path = os.environ["PATH"]
+    try:
+        rate_limit_checks()
+    finally:
+        os.environ["PATH"] = path
+        os.environ.pop("SMOKE_FAIL", None)
+
+
+def rate_limit_checks():
     server = http.server.HTTPServer(("127.0.0.1", 0), Scripted)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{server.server_address[1]}"
