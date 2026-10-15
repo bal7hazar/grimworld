@@ -16,7 +16,7 @@
 //!   today; 1 authored, format version 1). `LocationRecord::unpack` reads the entry tile as the
 //!   rest of the high limb today: ENG-09 bounds it to 8 bits and reads the marker beside it.
 
-use grimworld_logic::packing::{LIVE, join, split};
+use grimworld_logic::helpers::packing::{LIVE, PackingTrait};
 
 pub const BRIDGE: u8 = 27;
 pub const CANDIDATES: u8 = 28;
@@ -52,11 +52,11 @@ pub impl BridgeImpl of BridgeTrait {
         assert(deck.high < P97, errors::DECK_ABOVE_224);
         let (a, b) = *self.ends;
         let high = deck.high + (a.into() + b.into() * 0x100) * P97;
-        array![join(deck.low, high)].span()
+        array![PackingTrait::join(deck.low, high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Bridge {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let (ends, deck_high) = DivRem::div_rem(high, P97.try_into().unwrap());
         let (b, a) = DivRem::div_rem(ends, 0x100);
         Bridge {
@@ -92,7 +92,7 @@ pub impl CandidatesImpl of CandidatesTrait {
 pub impl MarkerImpl of MarkerTrait {
     /// The map's format a `LOCATION`'s part 0 carries.
     fn read(part0: felt252) -> u8 {
-        let (_, high) = split(part0);
+        let (_, high) = PackingTrait::split(part0);
         let (above, _) = DivRem::div_rem(high, MARKER_SHIFT.try_into().unwrap());
         let (_, marker) = DivRem::div_rem(above, 0x100);
         marker.try_into().unwrap()

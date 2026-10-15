@@ -14,9 +14,9 @@
 //!
 //! The spike's prototype: ENG-09 moves it to `grimworld_logic::models::zone_chunk`.
 
+use grimworld_logic::helpers::packing::{P16, P24, P48, P80, PackingTrait, peel};
 use grimworld_logic::models::chunk::{Object, ObjectTrait, object};
 use grimworld_logic::models::set_piece::{SetPack, SetPackBitsTrait};
-use grimworld_logic::packing::{P16, P24, P48, P80, join, peel, split};
 
 /// The proposed kind (ENG-01 §3.5): the next after `COUNTER` (25).
 pub const ZONE_CHUNK: u8 = 26;
@@ -86,15 +86,15 @@ pub impl ZoneChunkRecord of ZoneChunkRecordTrait {
         let [g0, g1] = *self.gates;
         high += g0.into() * shift * 0x10;
         high += g1.into() * shift * 0x100000;
-        array![join(walls.low, walls.high), join(low, high)].span()
+        array![PackingTrait::join(walls.low, walls.high), PackingTrait::join(low, high)].span()
     }
 
     fn unpack(parts: Span<felt252>) -> ZoneChunk {
-        let (low, high) = split(*parts[0]);
+        let (low, high) = PackingTrait::split(*parts[0]);
         let (reserved, walls_high) = DivRem::div_rem(high, P97.try_into().unwrap());
         assert(reserved == 0, errors::RESERVED);
         let walls: felt252 = low.into() + walls_high.into() * 0x100000000000000000000000000000000;
-        let (mut low, mut high) = split(*parts[1]);
+        let (mut low, mut high) = PackingTrait::split(*parts[1]);
         let p0 = SetPackBitsTrait::peel(ref low);
         let p1 = SetPackBitsTrait::peel(ref low);
         let s32: NonZero<u128> = 0x100000000;

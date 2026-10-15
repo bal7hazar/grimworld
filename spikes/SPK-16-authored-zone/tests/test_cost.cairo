@@ -8,6 +8,7 @@
 use grimworld_logic::content::{
     BOOK, CRITERION_REACH_LANDMARK, GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE,
 };
+use grimworld_logic::helpers::packing::LIVE;
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::gate::GateRecord;
@@ -17,7 +18,6 @@ use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota};
 use grimworld_logic::models::set_piece::{SetPack, SetPiece, SetPieceRecord};
 use grimworld_logic::models::spawn_table::SpawnTable;
-use grimworld_logic::packing::LIVE;
 use grimworld_logic::snapshot::TaskEntry;
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
 use grimworld_logic::types::reveal::placement::PlacementTrait;

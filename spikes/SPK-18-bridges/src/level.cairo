@@ -15,7 +15,7 @@
 //! `GoblinSnapshotTrait::place` and `set_facing`'s delta, on the word); `place_level` and
 //! `moved_level` add the level. The spike's costs are the differences (`tests/test_cost.cairo`).
 
-use grimworld_logic::packing::{N32, N8, P112, P48, field, limbs, peel};
+use grimworld_logic::helpers::packing::{N32, N8, P112, P48, PackingTrait, field, peel};
 
 /// The level of every tile but a deck's.
 pub const GROUND: u8 = 0;
@@ -46,7 +46,7 @@ pub struct Place {
 pub impl MemberPlaceImpl of MemberPlaceTrait {
     /// Today's read: x, y, facing (`MemberSnapshotTrait::place`); the level is not read.
     fn place(state: felt252) -> Place {
-        let (low, _) = limbs(state);
+        let (low, _) = PackingTrait::limbs(state);
         let (mut rest, _) = DivRem::div_rem(low, N32);
         let x = peel(ref rest, N8);
         let y = peel(ref rest, N8);
@@ -61,7 +61,7 @@ pub impl MemberPlaceImpl of MemberPlaceTrait {
 
     /// The read with the level (bit 176, the high limb's bit 48).
     fn place_level(state: felt252) -> Place {
-        let (low, high) = limbs(state);
+        let (low, high) = PackingTrait::limbs(state);
         let (mut rest, _) = DivRem::div_rem(low, N32);
         let x = peel(ref rest, N8);
         let y = peel(ref rest, N8);
@@ -92,7 +92,7 @@ pub impl MemberPlaceImpl of MemberPlaceTrait {
 pub impl GoblinPlaceImpl of GoblinPlaceTrait {
     /// Today's read: x, y, facing (`GoblinState` 0–23).
     fn place(state: felt252) -> Place {
-        let (low, _) = limbs(state);
+        let (low, _) = PackingTrait::limbs(state);
         let mut rest = low;
         let x = peel(ref rest, N8);
         let y = peel(ref rest, N8);
@@ -107,7 +107,7 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
 
     /// The read with the level (bit 240, the high limb's bit 112).
     fn place_level(state: felt252) -> Place {
-        let (low, high) = limbs(state);
+        let (low, high) = PackingTrait::limbs(state);
         let mut rest = low;
         let x = peel(ref rest, N8);
         let y = peel(ref rest, N8);
