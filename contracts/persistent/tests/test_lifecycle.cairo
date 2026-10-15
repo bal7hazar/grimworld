@@ -23,9 +23,10 @@ use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as m
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats};
+use grimworld_logic::types::Outcome;
 use grimworld_logic::types::content::{GATE, ITEM, LOCATION, MODIFIER, QUEST, REGION, SKILL};
+use grimworld_logic::types::identifier::InstanceIdTrait;
 use grimworld_logic::types::passive::{PassiveTrait, id as passive_id};
-use grimworld_logic::types::{Outcome, instance_id, instance_parts};
 use grimworld_persistent::events::AdventurerLocated;
 use grimworld_persistent::models::account::{OwnerTrait, PACK};
 use grimworld_persistent::models::adventurer::errors::{
@@ -75,12 +76,13 @@ pub trait ICreated<T> {
 }
 
 /// Stands in for `Instances.create`: only the registered hub may call it; it keeps its arguments
-/// and returns `instance_id(1, n)` for its `n`-th call.
+/// and returns `InstanceIdTrait::new(1, n)` for its `n`-th call.
 #[starknet::contract]
 mod EntryDouble {
     use grimworld_logic::interface::IInstanceEntry;
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry};
-    use grimworld_logic::types::{InstanceId, instance_id};
+    use grimworld_logic::types::InstanceId;
+    use grimworld_logic::types::identifier::InstanceIdTrait;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::{ContractAddress, get_caller_address};
     use super::Created;
@@ -128,7 +130,7 @@ mod EntryDouble {
             self
                 .belt
                 .write(a.into() + b.into() * 0x100 + c.into() * 0x10000 + d.into() * 0x1000000);
-            instance_id(1, count)
+            InstanceIdTrait::new(1, count)
         }
         fn set_controller(
             ref self: ContractState, adventurer_id: u32, controller: ContractAddress,
@@ -487,7 +489,7 @@ fn test_enter() {
     let gas = get_available_gas();
     let instance = hub.enter(id, INTO_ZONE);
     println!("gas enter, no belt (Instances a double): {}", gas - get_available_gas());
-    assert(instance == instance_id(1, 1), 'instance id');
+    assert(instance == InstanceIdTrait::new(1, 1), 'instance id');
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
     let expected = AdventurerPlace { instance, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2 };
@@ -513,7 +515,7 @@ fn test_enter() {
     let second = hub.create_adventurer('Brenna', VANGUARD);
     put_snapshot(world, second, [0; 4]);
     let hub = act(world, ALICE);
-    assert(hub.enter(second, 7) == instance_id(1, 2), 'through a link');
+    assert(hub.enter(second, 7) == InstanceIdTrait::new(1, 2), 'through a link');
 }
 
 // The belt's reserve, the worst case (ENG-01 §6, §9.3): four items on four pages, each lane
@@ -1101,8 +1103,8 @@ fn test_report_to_the_last_hub() {
 // belt of 3 potions (item 8) that `set_build` stored, is defeated with 1 unused (credited back to
 // the pack: 1), and enters again through `Hub.enter`. The stored belt of 3 is more than the pack
 // holds (`NOT_ENOUGH`), so `set_build` stores a belt of 1 first; the new instance opens with it,
-// the slot reused with the next generation (the double's numbering: `instance_id(1, n)` for its
-// `n`-th `create`; the real `Instances` is `grimworld_ephemeral`'s).
+// the slot reused with the next generation (the double's numbering: `InstanceIdTrait::new(1, n)`
+// for its `n`-th `create`; the real `Instances` is `grimworld_ephemeral`'s).
 #[test]
 #[available_gas(l2_gas: 66110564)] // ceil(1.05 × 62962441 measured)
 fn test_reenter_after_a_defeat() {
@@ -1143,8 +1145,8 @@ fn test_reenter_after_a_defeat() {
     act(world, ALICE).set_build(id, EMPTY_BUILD, one - LIVE, 0);
     let second = act(world, ALICE).enter(id, INTO_ZONE);
     assert(second != first, 'a new instance');
-    assert(instance_parts(first) == (1, 1), 'the first generation');
-    assert(instance_parts(second) == (1, 2), 'the slot, the next generation');
+    assert(InstanceIdTrait::parts(first) == (1, 1), 'the first generation');
+    assert(InstanceIdTrait::parts(second) == (1, 2), 'the slot, the next generation');
     let inside = AdventurerPlace {
         instance: second, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2,
     };
@@ -1163,7 +1165,7 @@ fn test_reenter_after_a_defeat() {
 fn test_report_moved() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
-    let next = instance_id(1, 2);
+    let next = InstanceIdTrait::new(1, 2);
     refused(
         try_report(
             world, Results { next, belt: [1, 0, 0, 0], ..results(instance, id, Outcome::Moved) },

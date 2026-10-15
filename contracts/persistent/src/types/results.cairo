@@ -6,8 +6,9 @@
 //! embedded, E-14), the facts other than a hub reached (the "distinct" counters, the Rift board,
 //! trials). ENG-06's report escalates each.
 
+use grimworld_logic::constants::MAX_MEMBERS;
 use grimworld_logic::interface::{Results, facts};
-use grimworld_logic::types::{MAX_MEMBERS, Outcome};
+use grimworld_logic::types::Outcome;
 use crate::models::balance::BalanceTrait;
 
 /// Balances one report carries at most (ENG-01 §4.5).

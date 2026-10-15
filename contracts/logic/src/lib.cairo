@@ -4,8 +4,8 @@
 //! on the other (ENG-01): identifiers and bounds, the wire format of actions, the snapshot and
 //! results, the packing rules, the kinds of registry records and the calls between contracts.
 
-/// The actions of a played batch and their wire format (one felt per batch).
-pub mod actions;
+/// The bounds of the MVP, and the layout of entity ids (M-5).
+pub mod constants;
 /// What belongs to no entity, scoped in traits: the table of `2^(x/40)`, the packing rules.
 pub mod helpers;
 /// The calls between contracts: results, entry, registry reads, randomness.

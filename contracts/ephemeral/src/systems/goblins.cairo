@@ -57,8 +57,9 @@ pub mod GoblinsLibrary {
     use grimworld_logic::models::chunk::Features;
     use grimworld_logic::models::index::GoblinWords;
     use grimworld_logic::models::pack::Pack;
+    use grimworld_logic::types::InstanceId;
+    use grimworld_logic::types::identifier::InstanceIdTrait;
     use grimworld_logic::types::tick::{CasteSheet, SkillSheet};
-    use grimworld_logic::types::{InstanceId, instance_parts};
     use crate::store::InstancesStoreTrait;
     use crate::systems::instances::{GoblinView, Instances};
     use crate::systems::play::Book;
@@ -112,7 +113,7 @@ pub mod GoblinsLibrary {
 
         fn window(self: @ContractState, instance_id: InstanceId) -> Option<Span<GoblinView>> {
             let mut instances = Instances::unsafe_new_contract_state();
-            let (slot, _) = instance_parts(instance_id);
+            let (slot, _) = InstanceIdTrait::parts(instance_id);
             Some(GoblinsTrait::window(ref instances, slot)?.span())
         }
     }
@@ -122,7 +123,7 @@ use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatche
 use grimworld_logic::models::chunk::{PackPlacementTrait, object};
 use grimworld_logic::models::pack::{PackRecord, PackTrait};
 use grimworld_logic::types::content::{CASTE, MAX_READ, PACK, SKILL, exists};
-use grimworld_logic::types::goblin_entity;
+use grimworld_logic::types::identifier::EntityTrait;
 use grimworld_logic::types::reveal::board::BoardTrait as Bits;
 use grimworld_logic::types::tick::{CasteSheetTrait, SkillSheetTrait};
 use starknet::storage_access::StorePacking;
@@ -263,7 +264,7 @@ pub impl GoblinsImpl of GoblinsTrait {
                 let mut i: u8 = 0;
                 while i < *pack.count {
                     let k = 5 * p + i;
-                    let entity = goblin_entity(*chunk, k);
+                    let entity = EntityTrait::goblin(*chunk, k);
                     if PlayTrait::listed(
                         skip, entity,
                     ) {} else if Bits::has((*features.touched).into(), k) {

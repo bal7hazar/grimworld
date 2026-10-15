@@ -94,7 +94,7 @@ pub mod PlayLibrary {
         }
     }
 }
-use grimworld_logic::actions::decode_batch;
+use grimworld_logic::constants::MAX_WEIGHT;
 use grimworld_logic::helpers::packing::{Bitmap, Lanes16};
 use grimworld_logic::interface::{
     IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRegistryReadDispatcher,
@@ -106,6 +106,7 @@ use grimworld_logic::models::location::{Location, LocationRecord};
 use grimworld_logic::models::member::{MemberTrait, MemberWordsTrait};
 use grimworld_logic::models::outline::{CHUNK_SET, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackRecord};
+use grimworld_logic::types::batch::BatchTrait;
 use grimworld_logic::types::content::{ITEM, LOCATION, OUTLINE, PACK, SKILL, exists};
 use grimworld_logic::types::play::{Area, Classes, SegmentTrait};
 use grimworld_logic::types::reveal::SightTrait;
@@ -114,7 +115,7 @@ use grimworld_logic::types::tick::{
     CasteSheet, Content, PotionSheet, PotionSheetTrait, SkillSheet, SkillSheetTrait, ai,
 };
 use grimworld_logic::types::world::Words;
-use grimworld_logic::types::{MAX_WEIGHT, Refusal, Stop};
+use grimworld_logic::types::{Refusal, Stop};
 use starknet::event::EventEmitter;
 use starknet::storage_access::StorePacking;
 use crate::events::{BatchPlayed, ChunkRevealed, Defeated, GoblinKilled};
@@ -168,7 +169,9 @@ pub impl PlayImpl of PlayTrait {
     ) -> bool {
         // The admission (D-236, from `Instances`): the caller controls the member, then the
         // instance's checks; a refusal is a `BatchPlayed` that ran nothing.
-        let (slot, generation) = grimworld_logic::types::instance_parts(instance_id);
+        let (slot, generation) = grimworld_logic::types::identifier::InstanceIdTrait::parts(
+            instance_id,
+        );
         let placement = self.get_placement(adventurer_id);
         let member = placement.member;
         let mstate = self
@@ -285,7 +288,7 @@ pub impl PlayImpl of PlayTrait {
                 return false;
             },
         };
-        let actions = match decode_batch(actions) {
+        let actions = match BatchTrait::decode(actions) {
             Some(actions) => actions,
             None => {
                 self
@@ -1183,4 +1186,4 @@ pub impl PlayImpl of PlayTrait {
         value
     }
 }
-use grimworld_logic::actions::Action;
+use grimworld_logic::types::batch::Action;

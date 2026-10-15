@@ -2,11 +2,11 @@
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
 use starknet::{ClassHash, ContractAddress};
-use crate::actions::Action;
 use crate::models::chunk::{Features, Terrain};
 use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::action::Illegal;
+use crate::types::batch::Action;
 use crate::types::executor::{Board, Cache, Carrier};
 use crate::types::play::{Area, Classes, Done};
 use crate::types::reveal::outline::Outline;

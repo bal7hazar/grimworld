@@ -41,6 +41,7 @@
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use hexx::board::bits::Bits;
 use starknet::ClassHash;
+use crate::constants::{FIRST_GOBLIN, MAX_CLOCK};
 use crate::helpers::duration::DurationTrait;
 use crate::interface::{
     IAiLibraryDispatcherTrait, IAiLibraryLibraryDispatcher, IExecutorLibraryDispatcherTrait,
@@ -66,7 +67,6 @@ use crate::types::tick::{
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::window::{FAR, HEIGHT, WIDTH, Window, WindowTrait, range};
 use crate::types::world::{Actor, Pending, Rules, TickTrait, Words, World, WorldTrait};
-use crate::types::{FIRST_GOBLIN, MAX_CLOCK};
 
 /// A value's bounds at play (design/19 §6: a value outside its kind's bounds is clamped).
 const MAX_VALUE: i32 = 32767;
@@ -2890,6 +2890,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 #[cfg(test)]
 pub mod tests {
     use snforge_std::{DeclareResultTrait, declare};
+    use crate::constants::MAX_CLOCK;
     use crate::interface::{IExecutorLibraryDispatcherTrait, IExecutorLibraryLibraryDispatcher};
     use crate::models::goblin::{
         Goblin, GoblinLifecycleTrait, GoblinTickTrait, GoblinTrait, GoblinWordsTrait,
@@ -2897,7 +2898,6 @@ pub mod tests {
     use crate::models::member::{
         Member, MemberLifecycleTrait, MemberTickTrait, MemberTrait, MemberWordsTrait,
     };
-    use crate::types::MAX_CLOCK;
     use crate::types::combat::{condition, damage, skill_kind, weapon};
     use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
     use crate::types::tick::{

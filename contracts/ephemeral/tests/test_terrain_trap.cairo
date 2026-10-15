@@ -4,7 +4,6 @@
 // hub are `test_lifecycle`'s doubles, declared by name.
 use grimworld_ephemeral::models::member::MemberState;
 use grimworld_ephemeral::systems::instances::{IInstancesDispatcher, IInstancesDispatcherTrait};
-use grimworld_logic::actions::Action;
 use grimworld_logic::helpers::packing::{LIVE, Lanes16};
 use grimworld_logic::interface::{IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
@@ -19,6 +18,7 @@ use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry};
+use grimworld_logic::types::batch::Action;
 use grimworld_logic::types::combat::{damage, skill_kind};
 use grimworld_logic::types::content::{CASTE, GATE, LOCATION, PACK, REGION, SKILL, SPAWN_TABLE};
 use grimworld_logic::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
@@ -197,7 +197,7 @@ fn play(world: World) -> IInstancesDispatcher {
 }
 
 fn batch(actions: Span<Action>) -> felt252 {
-    grimworld_logic::actions::encode_batch(actions).unwrap()
+    grimworld_logic::types::batch::BatchTrait::encode(actions).unwrap()
 }
 
 // ---- storage keys (ENG-01 §3.2) ----------------------------------------------------------------

@@ -53,6 +53,7 @@
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use core::poseidon::poseidon_hash_span;
+use grimworld_logic::constants::{MAX_OBJECTS_PER_CHUNK, MAX_PACKS_PER_CHUNK};
 use grimworld_logic::models::chunk::{
     CENTRE, NEAR, Object, PackPlacement, PackPlacementTrait, object,
 };
@@ -63,7 +64,6 @@ use grimworld_logic::models::set_piece::SetPiece;
 use grimworld_logic::models::spawn_table::SpawnTableTrait;
 use grimworld_logic::types::content::CRITERION_REACH_LANDMARK;
 use grimworld_logic::types::reveal::board::{BOARD, BoardTrait};
-use grimworld_logic::types::{MAX_OBJECTS_PER_CHUNK, MAX_PACKS_PER_CHUNK};
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
 use super::{Progress, Site, SiteTrait};

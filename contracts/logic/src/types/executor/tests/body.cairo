@@ -10,9 +10,9 @@
 //! write (the structs derive none). The operations run through `UnitBody`, the executor's
 //! dispatch (CBT-05a, route (c)).
 
+use crate::constants::MAX_CLOCK;
 use crate::models::goblin::{Goblin, GoblinTrait, GoblinWords, GoblinWordsTrait};
 use crate::models::member::{Member, MemberLifecycleTrait, MemberTrait, MemberWordsTrait};
-use crate::types::MAX_CLOCK;
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::effect::{Entry, EntryTrait, kind};
 use crate::types::executor::{Unit, UnitBody};
