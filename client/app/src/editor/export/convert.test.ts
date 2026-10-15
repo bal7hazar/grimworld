@@ -436,6 +436,7 @@ describe("every case of checks.json, refused with its code", () => {
         "carrier_self_before_ally",
         "carrier_self_before_foe",
         "carrier_self_before_tile",
+        "carrier_self_single_foes",
         "floor_count_above_members",
         "generated_count_above_members",
         "generated_heart_template",
