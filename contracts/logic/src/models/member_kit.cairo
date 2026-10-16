@@ -183,8 +183,11 @@ mod tests {
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
-    fn passive(id: u8, param: u8, value: i16) -> Passive {
-        PassiveTrait::new(id, param, 0, 0, value, value)
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn passive(id: u8, param: u8, value: i16) -> Passive {
+            PassiveTrait::new(id, param, 0, 0, value, value)
+        }
     }
 
     #[test]
@@ -293,7 +296,7 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 32739)] // ceil(1.05 × 31180 measured)
     fn test_same_condition_capped() {
-        let wide = passive(id::CONDITION_DURATION, condition::POISON, 32767);
+        let wide = Fixture::passive(id::CONDITION_DURATION, condition::POISON, 32767);
         assert(
             MemberKitTrait::condition_duration(
                 array![wide, wide].span(),
@@ -311,8 +314,8 @@ mod tests {
     fn test_two_conditions_builder_refused() {
         MemberKitTrait::condition_duration(
             array![
-                passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
-                passive(id::CONDITION_DURATION, condition::POISON, 10),
+                Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
+                Fixture::passive(id::CONDITION_DURATION, condition::POISON, 10),
             ]
                 .span(),
         );

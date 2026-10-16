@@ -40,70 +40,73 @@ pub enum Call {
     Trap: (felt252, Words, Array<(u8, Features)>, bool),
 }
 
-fn address(key: felt252) -> StorageAddress {
-    key.try_into().unwrap()
-}
-
-pub fn read(key: felt252) -> felt252 {
-    storage_read_syscall(0, address(key)).unwrap_syscall()
-}
-
-pub fn write(key: felt252, value: felt252) {
-    storage_write_syscall(0, address(key), value).unwrap_syscall();
-}
-
-pub fn real(key: felt252) -> ClassHash {
-    read(key).try_into().unwrap()
-}
-
-/// Enters a call: whether it is the segment's own (to log).
-pub fn enter() -> bool {
-    let depth = read(DEPTH);
-    write(DEPTH, depth + 1);
-    depth == 0
-}
-
-pub fn leave() {
-    write(DEPTH, read(DEPTH) - 1);
-}
-
-pub fn digest(inputs: @Array<felt252>) -> felt252 {
-    poseidon_hash_span(inputs.span())
-}
-
-/// Logs `call` after the ones before it.
-pub fn log(call: @Call) {
-    let mut felts = array![];
-    call.serialize(ref felts);
-    let mut at = read(LENGTH);
-    for felt in felts {
-        write(LOG + at, felt);
-        at += 1;
+#[generate_trait]
+pub impl RecorderImpl of Recorder {
+    fn address(key: felt252) -> StorageAddress {
+        key.try_into().unwrap()
     }
-    write(LENGTH, at);
-    write(COUNT, read(COUNT) + 1);
-}
 
-/// Sets the real classes and clears the log.
-pub fn reset(tick: ClassHash, action: ClassHash, trap: ClassHash) {
-    write(REAL_TICK, tick.into());
-    write(REAL_ACTION, action.into());
-    write(REAL_TRAP, trap.into());
-    write(DEPTH, 0);
-    write(COUNT, 0);
-    write(LENGTH, 0);
-}
-
-/// The calls logged since `reset`, as `Serde` felts of `Array<Call>`.
-pub fn calls() -> Array<felt252> {
-    let mut felts = array![read(COUNT)];
-    let length = read(LENGTH);
-    let mut at = 0;
-    while at != length {
-        felts.append(read(LOG + at));
-        at += 1;
+    fn read(key: felt252) -> felt252 {
+        storage_read_syscall(0, Self::address(key)).unwrap_syscall()
     }
-    felts
+
+    fn write(key: felt252, value: felt252) {
+        storage_write_syscall(0, Self::address(key), value).unwrap_syscall();
+    }
+
+    fn real(key: felt252) -> ClassHash {
+        Self::read(key).try_into().unwrap()
+    }
+
+    /// Enters a call: whether it is the segment's own (to log).
+    fn enter() -> bool {
+        let depth = Self::read(DEPTH);
+        Self::write(DEPTH, depth + 1);
+        depth == 0
+    }
+
+    fn leave() {
+        Self::write(DEPTH, Self::read(DEPTH) - 1);
+    }
+
+    fn digest(inputs: @Array<felt252>) -> felt252 {
+        poseidon_hash_span(inputs.span())
+    }
+
+    /// Logs `call` after the ones before it.
+    fn log(call: @Call) {
+        let mut felts = array![];
+        call.serialize(ref felts);
+        let mut at = Self::read(LENGTH);
+        for felt in felts {
+            Self::write(LOG + at, felt);
+            at += 1;
+        }
+        Self::write(LENGTH, at);
+        Self::write(COUNT, Self::read(COUNT) + 1);
+    }
+
+    /// Sets the real classes and clears the log.
+    fn reset(tick: ClassHash, action: ClassHash, trap: ClassHash) {
+        Self::write(REAL_TICK, tick.into());
+        Self::write(REAL_ACTION, action.into());
+        Self::write(REAL_TRAP, trap.into());
+        Self::write(DEPTH, 0);
+        Self::write(COUNT, 0);
+        Self::write(LENGTH, 0);
+    }
+
+    /// The calls logged since `reset`, as `Serde` felts of `Array<Call>`.
+    fn calls() -> Array<felt252> {
+        let mut felts = array![Self::read(COUNT)];
+        let length = Self::read(LENGTH);
+        let mut at = 0;
+        while at != length {
+            felts.append(Self::read(LOG + at));
+            at += 1;
+        }
+        felts
+    }
 }
 
 #[starknet::contract]
@@ -116,7 +119,7 @@ pub mod TickRecorder {
     use crate::types::play::Classes;
     use crate::types::tick::Content;
     use crate::types::world::Words;
-    use super::{Call, REAL_TICK, digest, enter, leave, log, real};
+    use super::{Call, REAL_TICK, Recorder};
 
     #[storage]
     struct Storage {}
@@ -133,18 +136,22 @@ pub mod TickRecorder {
             ground: Array<(u8, Features)>,
             ticks: u8,
         ) -> (Words, Array<(u8, Features)>) {
-            let own = enter();
+            let own = Recorder::enter();
             let mut inputs = array![];
             words.serialize(ref inputs);
             board.serialize(ref inputs);
             level.serialize(ref inputs);
             ground.serialize(ref inputs);
             ticks.serialize(ref inputs);
-            let (out, ground) = ITickLibraryLibraryDispatcher { class_hash: real(REAL_TICK) }
+            let (out, ground) = ITickLibraryLibraryDispatcher {
+                class_hash: Recorder::real(REAL_TICK),
+            }
                 .ticks(words, content, board, classes, level, ground, ticks);
-            leave();
+            Recorder::leave();
             if own {
-                log(@Call::Tick((digest(@inputs), out.clone(), ground.clone())));
+                Recorder::log(
+                    @Call::Tick((Recorder::digest(@inputs), out.clone(), ground.clone())),
+                );
             }
             (out, ground)
         }
@@ -163,7 +170,7 @@ pub mod ActionRecorder {
     use crate::types::executor::Board;
     use crate::types::tick::Content;
     use crate::types::world::Words;
-    use super::{Call, REAL_ACTION, digest, enter, leave, log, real};
+    use super::{Call, REAL_ACTION, Recorder};
 
     #[storage]
     struct Storage {}
@@ -179,19 +186,21 @@ pub mod ActionRecorder {
             ground: Array<(u8, Features)>,
             action: Action,
         ) -> (Words, Array<(u8, Features)>, Result<u8, Illegal>) {
-            let own = enter();
+            let own = Recorder::enter();
             let mut inputs = array![];
             words.serialize(ref inputs);
             board.serialize(ref inputs);
             ground.serialize(ref inputs);
             action.serialize(ref inputs);
             let (out, ground, result) = IActionLibraryLibraryDispatcher {
-                class_hash: real(REAL_ACTION),
+                class_hash: Recorder::real(REAL_ACTION),
             }
                 .act(words, content, board, executor, ground, action);
-            leave();
+            Recorder::leave();
             if own {
-                log(@Call::Act((digest(@inputs), out.clone(), ground.clone(), result)));
+                Recorder::log(
+                    @Call::Act((Recorder::digest(@inputs), out.clone(), ground.clone(), result)),
+                );
             }
             (out, ground, result)
         }
@@ -207,7 +216,7 @@ pub mod TrapRecorder {
     use crate::types::executor::Board;
     use crate::types::tick::Content;
     use crate::types::world::Words;
-    use super::{Call, REAL_TRAP, digest, enter, leave, log, real};
+    use super::{Call, REAL_TRAP, Recorder};
 
     #[storage]
     struct Storage {}
@@ -224,7 +233,7 @@ pub mod TrapRecorder {
             position: u8,
             level: u8,
         ) -> (Words, Array<(u8, Features)>, bool) {
-            let own = enter();
+            let own = Recorder::enter();
             let mut inputs = array![];
             words.serialize(ref inputs);
             board.serialize(ref inputs);
@@ -233,12 +242,16 @@ pub mod TrapRecorder {
             position.serialize(ref inputs);
             level.serialize(ref inputs);
             let (out, ground, triggered) = ITrapLibraryLibraryDispatcher {
-                class_hash: real(REAL_TRAP),
+                class_hash: Recorder::real(REAL_TRAP),
             }
                 .trigger(words, content, board, ground, entrant, position, level);
-            leave();
+            Recorder::leave();
             if own {
-                log(@Call::Trap((digest(@inputs), out.clone(), ground.clone(), triggered)));
+                Recorder::log(
+                    @Call::Trap(
+                        (Recorder::digest(@inputs), out.clone(), ground.clone(), triggered),
+                    ),
+                );
             }
             (out, ground, triggered)
         }

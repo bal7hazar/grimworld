@@ -607,9 +607,7 @@ mod tests {
     use crate::types::infliction::{Infliction, InflictionTrait};
     use crate::types::tick::{CasteSheet, Content, ContentTrait, Sheets, SkillSheet, ai};
     use crate::types::world::TickTrait;
-    use crate::types::world::fixtures::{
-        Fixture, HOB, LIVE, RUNT, SMASH, Script, activation_of, opaque, two,
-    };
+    use crate::types::world::fixtures::{Fixture, HOB, LIVE, RUNT, SMASH, Script};
     use super::{
         Goblin, GoblinAssert, GoblinConditionTrait, GoblinLifecycleTrait, GoblinTickTrait,
         GoblinTrait, GoblinWords, GoblinWordsTrait,
@@ -683,12 +681,14 @@ mod tests {
         goblin.start(0, 0, 3, 50);
         goblin.knock(2, @none, 52, @sheets);
         assert(goblin.knocked == 53, 'D = 53');
-        assert(activation_of(@goblin) == (activation::NONE, 0, 0), 'field none');
+        assert(Fixture::activation_of(@goblin) == (activation::NONE, 0, 0), 'field none');
         assert(goblin.recharge(0) == 61, 'R = 61');
         let mut recovering = Fixture::goblin(41, HOB);
         recovering.recover(3, 60);
         recovering.knock(2, @none, 61, @sheets);
-        assert(activation_of(@recovering) == (activation::RECOVERING, 0, 62), 'recovery kept');
+        assert(
+            Fixture::activation_of(@recovering) == (activation::RECOVERING, 0, 62), 'recovery kept',
+        );
     }
 
     // §3.2 row 5 (§5.2, §5.6, FX-7): knocked down to D = 53, it cannot act in step 2 of ticks
@@ -721,22 +721,37 @@ mod tests {
         let k = goblin.move_ticks(62, false);
         assert(k == 2, 'crippled: 2');
         goblin.recover(k, 62);
-        assert(activation_of(@goblin) == (activation::RECOVERING, 0, 63), 'B = 63');
+        assert(Fixture::activation_of(@goblin) == (activation::RECOVERING, 0, 63), 'B = 63');
         assert(goblin.move_ticks(63, false) == 1, 'over: 1');
         assert(goblin.move_ticks(62, true) == 1, 'movement: 1');
     }
 
-    /// CBT-04's application before SPK-15's L2 (fix loop 2, D-172), kept as the oracle of the
-    /// in-place `apply` and `knock` (docs/CAIRO.md §2).
-    fn oracle(
-        ref goblin: Goblin, condition: u8, v: i32, source: @Infliction, t0: u32, sheets: @Sheets,
-    ) {
-        if !goblin.is_alive() {
-            return;
+    #[generate_trait]
+    impl GoblinFixtureImpl of GoblinFixture {
+        /// CBT-04's application before SPK-15's L2 (fix loop 2, D-172), kept as the oracle of the
+        /// in-place `apply` and `knock` (docs/CAIRO.md §2).
+        fn oracle(
+            ref goblin: Goblin,
+            condition: u8,
+            v: i32,
+            source: @Infliction,
+            t0: u32,
+            sheets: @Sheets,
+        ) {
+            if !goblin.is_alive() {
+                return;
+            }
+            goblin.inflict(condition, t0, source.duration(condition, v));
+            if condition == condition::KNOCKED_DOWN {
+                goblin.interrupt(t0, sheets);
+            }
         }
-        goblin.inflict(condition, t0, source.duration(condition, v));
-        if condition == condition::KNOCKED_DOWN {
-            goblin.interrupt(t0, sheets);
+
+        fn condition_cost_state() -> (Goblin, Sheets) {
+            let mut goblin = Fixture::opaque(Fixture::goblin(40, HOB));
+            goblin.start(Fixture::opaque(0), 0, 3, Fixture::opaque(50));
+            goblin.bleeding = Fixture::opaque(55);
+            (goblin, Fixture::opaque(Fixture::sheets()))
         }
     }
 
@@ -750,7 +765,7 @@ mod tests {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
         let none: Infliction = Default::default();
-        let (activating, _) = condition_cost_state();
+        let (activating, _) = GoblinFixture::condition_cost_state();
         let mut recovering = Fixture::goblin(41, HOB);
         recovering.recover(3, 50);
         let mut held = Fixture::goblin(42, HOB);
@@ -770,7 +785,7 @@ mod tests {
                 for v in array![1_i32, 20, 0, 40000].span() {
                     for source in array![rending, none].span() {
                         let mut expected = *state;
-                        oracle(ref expected, *c, *v, source, 52, @sheets);
+                        GoblinFixture::oracle(ref expected, *c, *v, source, 52, @sheets);
                         let mut goblin = *state;
                         if *c == condition::KNOCKED_DOWN {
                             goblin.knock(*v, source, 52, @sheets);
@@ -812,19 +827,13 @@ mod tests {
     // by its call alone, so the difference of snforge's totals is the call's cost. `knock`'s
     // costliest path is an interrupt of an activation; `apply`'s is Crippled's word. The other
     // paths show that each function is charged one cost whatever path runs.
-    fn condition_cost_state() -> (Goblin, Sheets) {
-        let mut goblin = opaque(Fixture::goblin(40, HOB));
-        goblin.start(opaque(0), 0, 3, opaque(50));
-        goblin.bleeding = opaque(55);
-        (goblin, opaque(Fixture::sheets()))
-    }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 785211)] // ceil(1.05 × 747820 measured)
     fn test_cost_goblin_condition_base() {
-        let (goblin, _sheets) = condition_cost_state();
-        opaque(goblin);
+        let (goblin, _sheets) = GoblinFixture::condition_cost_state();
+        Fixture::opaque(goblin);
     }
 
     // The base of the pairs that give a source.
@@ -832,9 +841,9 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 786051)] // ceil(1.05 × 748620 measured)
     fn test_cost_goblin_source_base() {
-        let (goblin, _sheets) = condition_cost_state();
-        let _source: Infliction = opaque(Default::default());
-        opaque(goblin);
+        let (goblin, _sheets) = GoblinFixture::condition_cost_state();
+        let _source: Infliction = Fixture::opaque(Default::default());
+        Fixture::opaque(goblin);
     }
 
     // The other paths' bases: no activation and a longer knock-down held; dead.
@@ -842,74 +851,92 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 786471)] // ceil(1.05 × 749020 measured)
     fn test_cost_goblin_idle_base() {
-        let (mut goblin, _sheets) = condition_cost_state();
+        let (mut goblin, _sheets) = GoblinFixture::condition_cost_state();
         goblin.clear();
-        goblin.knocked = opaque(80);
-        let _source: Infliction = opaque(Default::default());
-        opaque(goblin);
+        goblin.knocked = Fixture::opaque(80);
+        let _source: Infliction = Fixture::opaque(Default::default());
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 786471)] // ceil(1.05 × 749020 measured)
     fn test_cost_goblin_dead_base() {
-        let (mut goblin, _sheets) = condition_cost_state();
-        goblin.ai = opaque(ai::DEAD);
-        let _source: Infliction = opaque(Default::default());
-        opaque(goblin);
+        let (mut goblin, _sheets) = GoblinFixture::condition_cost_state();
+        goblin.ai = Fixture::opaque(ai::DEAD);
+        let _source: Infliction = Fixture::opaque(Default::default());
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 832440)] // ceil(1.05 × 792800 measured)
     fn test_cost_goblin_knock() {
-        let (mut goblin, sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        goblin.knock(opaque(2), @source, opaque(52), @sheets);
-        opaque(goblin);
+        let (mut goblin, sheets) = GoblinFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        goblin.knock(Fixture::opaque(2), @source, Fixture::opaque(52), @sheets);
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 832860)] // ceil(1.05 × 793200 measured)
     fn test_cost_goblin_knock_idle() {
-        let (mut goblin, sheets) = condition_cost_state();
+        let (mut goblin, sheets) = GoblinFixture::condition_cost_state();
         goblin.clear();
-        goblin.knocked = opaque(80);
-        let source: Infliction = opaque(Default::default());
-        goblin.knock(opaque(2), @source, opaque(52), @sheets);
-        opaque(goblin);
+        goblin.knocked = Fixture::opaque(80);
+        let source: Infliction = Fixture::opaque(Default::default());
+        goblin.knock(Fixture::opaque(2), @source, Fixture::opaque(52), @sheets);
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 815651)] // ceil(1.05 × 776810 measured)
     fn test_cost_goblin_apply_crippled() {
-        let (mut goblin, _sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        goblin.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(52));
-        opaque(goblin);
+        let (mut goblin, _sheets) = GoblinFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        goblin
+            .apply(
+                Fixture::opaque(condition::CRIPPLED),
+                Fixture::opaque(20),
+                @source,
+                Fixture::opaque(52),
+            );
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 815651)] // ceil(1.05 × 776810 measured)
     fn test_cost_goblin_apply_bleeding() {
-        let (mut goblin, _sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        goblin.apply(opaque(condition::BLEEDING), opaque(20), @source, opaque(52));
-        opaque(goblin);
+        let (mut goblin, _sheets) = GoblinFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        goblin
+            .apply(
+                Fixture::opaque(condition::BLEEDING),
+                Fixture::opaque(20),
+                @source,
+                Fixture::opaque(52),
+            );
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 816071)] // ceil(1.05 × 777210 measured)
     fn test_cost_goblin_apply_dead() {
-        let (mut goblin, _sheets) = condition_cost_state();
-        goblin.ai = opaque(ai::DEAD);
-        let source: Infliction = opaque(Default::default());
-        goblin.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(52));
-        opaque(goblin);
+        let (mut goblin, _sheets) = GoblinFixture::condition_cost_state();
+        goblin.ai = Fixture::opaque(ai::DEAD);
+        let source: Infliction = Fixture::opaque(Default::default());
+        goblin
+            .apply(
+                Fixture::opaque(condition::CRIPPLED),
+                Fixture::opaque(20),
+                @source,
+                Fixture::opaque(52),
+            );
+        Fixture::opaque(goblin);
     }
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
@@ -917,33 +944,38 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 863121)] // ceil(1.05 × 822020 measured)
     fn test_cost_goblin_oracle() {
-        let (mut goblin, sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        oracle(
-            ref goblin, opaque(condition::KNOCKED_DOWN), opaque(2), @source, opaque(52), @sheets,
+        let (mut goblin, sheets) = GoblinFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        GoblinFixture::oracle(
+            ref goblin,
+            Fixture::opaque(condition::KNOCKED_DOWN),
+            Fixture::opaque(2),
+            @source,
+            Fixture::opaque(52),
+            @sheets,
         );
-        opaque(goblin);
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 817446)] // ceil(1.05 × 778520 measured)
     fn test_cost_goblin_cure() {
-        let (mut goblin, _sheets) = condition_cost_state();
-        goblin.cure(opaque(condition::BLEEDING), opaque(52));
-        opaque(goblin);
+        let (mut goblin, _sheets) = GoblinFixture::condition_cost_state();
+        goblin.cure(Fixture::opaque(condition::BLEEDING), Fixture::opaque(52));
+        Fixture::opaque(goblin);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 795459)] // ceil(1.05 × 757580 measured)
     fn test_cost_goblin_predicates() {
-        let (goblin, _sheets) = condition_cost_state();
-        let t = opaque(52);
-        opaque(goblin.takes_critical(t));
-        opaque(goblin.can_defend(t));
-        opaque(goblin.move_ticks(t, opaque(false)));
-        opaque(goblin);
+        let (goblin, _sheets) = GoblinFixture::condition_cost_state();
+        let t = Fixture::opaque(52);
+        Fixture::opaque(goblin.takes_critical(t));
+        Fixture::opaque(goblin.can_defend(t));
+        Fixture::opaque(goblin.move_ticks(t, Fixture::opaque(false)));
+        Fixture::opaque(goblin);
     }
 
     // A goblin's derived fields: max health from the adventurer's formula times its caste's
@@ -973,8 +1005,8 @@ mod tests {
             castes: array![Fixture::caste(HOB, 1), caste].span(),
         };
         // Level 20, caste 3; its effect is skill 24 at rank 8: 1 + 3 × 8 / 12 = 3.
-        let state = LIVE + 3 * two(64) + 20 * two(80);
-        let timers = LIVE + 255 + SMASH.into() * two(108) + 8 * two(246);
+        let state = LIVE + 3 * Fixture::two(64) + 20 * Fixture::two(80);
+        let timers = LIVE + 255 + SMASH.into() * Fixture::two(108) + 8 * Fixture::two(246);
         let goblin = Fixture::load_goblin(
             GoblinWords { entity: 77, awake: false, state, timers }, @content,
         );
@@ -1008,7 +1040,9 @@ mod tests {
         let back = Fixture::load_goblin(changed.store(), @content);
         assert(back.state == changed.store().state, 'goblin state');
         assert(back.health == 3 && back.poison == 88 && back.effect_deadline == 90, 'fields');
-        assert(activation_of(@back) == (2, 8, 72) && back.recharge(3) == 500, 'goblin timers');
+        assert(
+            Fixture::activation_of(@back) == (2, 8, 72) && back.recharge(3) == 500, 'goblin timers',
+        );
     }
 
     // A caste skill missing from the content is refused when a goblin of the caste loads.

@@ -45,15 +45,6 @@ const HOB: u16 = 1;
 const RUNT: u16 = 2;
 const SMASH: u16 = 24;
 
-/// `2^n` (fixtures only: the benchmarks subtract the fixtures' cost).
-fn two(n: u32) -> felt252 {
-    let mut p: felt252 = 1;
-    for _ in 0..n {
-        p *= 2;
-    }
-    p
-}
-
 /// A member's hot fields and derived ones.
 #[derive(Copy, Drop)]
 struct MemberSpec {
@@ -92,18 +83,18 @@ impl FixtureImpl of Fixture {
     /// bar 1–8, belt items 100–103.
     fn member_words(spec: MemberSpec) -> MemberWords {
         let state = LIVE
-            + spec.status.into() * two(56)
-            + spec.health.into() * two(64)
-            + spec.energy.into() * two(80)
-            + spec.adrenaline.into() * two(96)
-            + spec.flags.into() * two(160);
+            + spec.status.into() * Self::two(56)
+            + spec.health.into() * Self::two(64)
+            + spec.energy.into() * Self::two(80)
+            + spec.adrenaline.into() * Self::two(96)
+            + spec.flags.into() * Self::two(160);
         let [bleeding, poison, burning, knocked] = spec.conditions;
         let timers = LIVE
             + NO_SLOT.into()
-            + bleeding.into() * two(64)
-            + poison.into() * two(96)
-            + burning.into() * two(128)
-            + knocked.into() * two(192);
+            + bleeding.into() * Self::two(64)
+            + poison.into() * Self::two(96)
+            + burning.into() * Self::two(128)
+            + knocked.into() * Self::two(192);
         let mut effects = LIVE;
         let bases = [0_u32, 56, 128, 184];
         let mut k = 0;
@@ -114,24 +105,24 @@ impl FixtureImpl of Fixture {
             } else {
                 0
             };
-            effects += (*carrier).into() * two(base)
-                + tag * two(base + 23)
-                + (*deadline).into() * two(base + 24)
-                + (*rank).into() * two(base + 52);
+            effects += (*carrier).into() * Self::two(base)
+                + tag * Self::two(base + 23)
+                + (*deadline).into() * Self::two(base + 24)
+                + (*rank).into() * Self::two(base + 52);
             k += 1;
         }
         let mut bar = LIVE;
         for slot in 0..8_u32 {
-            bar += (slot + 1).into() * two(16 * slot);
+            bar += (slot + 1).into() * Self::two(16 * slot);
         }
         let regen: i32 = spec.health_regen.into() + 10;
         let regen: felt252 = regen.into();
         let stats = LIVE
             + 480
-            + 20 * two(16)
-            + spec.energy_regen.into() * two(24)
-            + regen * two(32);
-        let kit = LIVE + 100 + 101 * two(32) + 102 * two(64) + 103 * two(96);
+            + 20 * Self::two(16)
+            + spec.energy_regen.into() * Self::two(24)
+            + regen * Self::two(32);
+        let kit = LIVE + 100 + 101 * Self::two(32) + 102 * Self::two(64) + 103 * Self::two(96);
         MemberWords { state, timers, effects, recharges: LIVE, stats, bar, kit }
     }
 
@@ -190,10 +181,10 @@ impl FixtureImpl of Fixture {
             caste_at: (caste - 1).into(),
             effect_at: ABSENT,
             state: LIVE
-                + ai::ENGAGED.into() * two(24)
-                + 100 * two(32)
-                + caste.into() * two(64)
-                + 10 * two(80),
+                + ai::ENGAGED.into() * Self::two(24)
+                + 100 * Self::two(32)
+                + caste.into() * Self::two(64)
+                + 10 * Self::two(80),
             timers: LIVE + activation::NONE.into(),
         }
     }
@@ -262,10 +253,1944 @@ impl FixtureImpl of Fixture {
     fn only(clock: u32, goblin: Goblin) -> World {
         Self::world(clock, array![Self::member(Self::spec())], array![goblin])
     }
-}
 
-fn activation_of(goblin: @Goblin) -> (u8, u16, u32) {
-    (*goblin.act_slot, *goblin.act_target, *goblin.act_deadline)
+    /// `2^n` (fixtures only: the benchmarks subtract the fixtures' cost).
+    fn two(n: u32) -> felt252 {
+        let mut p: felt252 = 1;
+        for _ in 0..n {
+            p *= 2;
+        }
+        p
+    }
+
+    fn activation_of(goblin: @Goblin) -> (u8, u16, u32) {
+        (*goblin.act_slot, *goblin.act_target, *goblin.act_deadline)
+    }
+
+    fn run(ref world: World, ticks: u8) {
+        let mut rules = Idle {};
+        TickTrait::run(ref world, @Self::sheets(), ticks, ref rules);
+    }
+
+    /// The words of a goblin of caste 5 at level 10 (ENG-01 §3.2 offsets): Alerted (not Engaged),
+    /// `health`, activating slot 0 due at `due` (0: none), the three degenerating conditions to
+    /// `until`, its effect skill 43 to `until` at rank 4.
+    fn goblin_words(entity: u16, awake: bool, health: u16, due: u32, until: u32) -> GoblinWords {
+        // One goblin a tile (design/04; the cost audit of #334, F-2): goblin `e` on the window's
+        // position `e − 7`, the member on position 0.
+        let position: u16 = entity - 7;
+        let tile: felt252 = (position % 15).into() + (position / 15).into() * 0x100;
+        let state = LIVE
+            + tile
+            + ai::ALERTED.into() * B24
+            + health.into() * B32
+            + 5 * B64
+            + 10 * B80;
+        let act: felt252 = if due == 0 {
+            activation::NONE.into()
+        } else {
+            due.into() * B24
+        };
+        let effect: felt252 = if until == 0 {
+            0
+        } else {
+            43 * B108 + 4 * B246
+        };
+        let timers = LIVE + act + until.into() * (B52 + B80 + B128 + B212) + effect;
+        GoblinWords { entity, awake, state, timers }
+    }
+
+    /// The content at the MVP's widest (design/19 §7.2: `C = 5`, `T = 10`): the bar's 8 skills (7
+    /// and 8 regenerating 3 pips), 10 terrain traps' skills, the 5 castes' 20; 4 potions. The
+    /// goblins'
+    /// caste, 5, and its skills (40–43) come last in their lists: before CBT-02d every lookup
+    /// scanned the whole list; the index reads them at the cost of any other.
+    /// The castes' weapons cost `k` ticks.
+    fn worst_content(k: u8) -> Content {
+        let mut skills = array![];
+        for id in 1..9_u16 {
+            let mut sheet = Self::skill(id, skill_kind::SPELL, 2, 10);
+            sheet.adrenaline = 2;
+            if id >= 7 {
+                sheet.regen0 = 3;
+                sheet.regen12 = 3;
+            }
+            skills.append(sheet);
+        }
+        for id in 60..70_u16 {
+            skills.append(Self::skill(id, skill_kind::TRAP, 0, 0));
+        }
+        let mut castes = array![];
+        for caste in 1..6_u16 {
+            let first = 20 + 4 * caste;
+            skills.append(Self::skill(first, skill_kind::ATTACK, 1, 10));
+            skills.append(Self::skill(first + 1, skill_kind::SPELL, 2, 8));
+            skills.append(Self::skill(first + 2, skill_kind::ATTACK, 3, 12));
+            let mut last = Self::skill(first + 3, skill_kind::ENCHANTMENT, 1, 20);
+            last.regen0 = 2;
+            last.regen12 = 2;
+            skills.append(last);
+            castes.append(Self::caste(caste, k));
+        }
+        let potions = array![
+            PotionSheet { id: 100, regen: 1, ..Default::default() },
+            PotionSheet { id: 101, regen: 2, ..Default::default() },
+            PotionSheet { id: 102, regen: 1, ..Default::default() },
+            PotionSheet { id: 103, regen: 2, ..Default::default() },
+        ];
+        Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
+    }
+
+    /// CBT-02's heavy scenario of a tick (AUD-182-7), a measured state, not a maximum (COST-3: the
+    /// upper bound is CBT-02b's, below), every actor loaded from its words so that the derived
+    /// fields agree with the stored ones:
+    /// - the goblin array at its bound, `MAX_GOBLINS` = 100 (before CBT-02d every pass was linear
+    /// in
+    ///   it; the steps now read the awake set alone), 8 of them awake (design/02), the 92 others
+    ///   frozen; every one of the 100 holds a retained effect, so `load` reads its skill and scales
+    ///   it for each (COST-1);
+    /// - each awake goblin concludes its activation (a recovery with `k = 3 ≥ n + 2`), the awake
+    /// set
+    ///   rebuilt;
+    /// - step 3 with every term: the 3 degenerating conditions and a regenerating effect on each
+    /// awake
+    ///   goblin; on the member, its 3 conditions, 4 regenerating effects (2 potions) and its own
+    ///   activation concluding; no goblin Engaged, so the Engaged scan runs the whole awake set;
+    /// - with `dying`, every awake goblin dies in step 3 (8 kills recorded) and the member too
+    /// (step
+    ///   5's defeat rewrites the members).
+    /// With `dying` false and `k = 1`, the state `Busy` keeps busy over a batch (no death, no
+    /// recovery).
+    fn worst_state(dying: bool, k: u8) -> (World, Sheets) {
+        Self::worst_of(dying, k, 100)
+    }
+
+    /// `worst_state` with `count` goblins in the array, the last 8 awake.
+    fn worst_of(dying: bool, k: u8, count: u16) -> (World, Sheets) {
+        let (sheets, mut index) = Self::worst_content(k).index();
+        let mut spec = Self::spec();
+        spec.health = if dying {
+            7
+        } else {
+            400
+        };
+        spec.conditions = [99, 99, 99, 0];
+        spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
+        let mut member = MemberTrait::load(Self::member_words(spec), ref index, @sheets);
+        member.start(7, 8, 1, 49);
+        let health: u16 = if dying {
+            1
+        } else {
+            280
+        };
+        let mut goblins = array![];
+        let mut i: u16 = 0;
+        while i < count {
+            let awake = i + 8 >= count;
+            let words = if awake {
+                Self::goblin_words(8 + i, true, health, 50, 99)
+            } else {
+                // Frozen, but loaded: its retained effect is looked up like an awake one's
+                // (COST-1).
+                Self::goblin_words(8 + i, false, 280, 0, 99)
+            };
+            goblins.append(GoblinTrait::load(words, ref index, @sheets));
+            i += 1;
+        }
+        (Self::world(49, array![member], goblins), sheets)
+    }
+
+    /// `worst_state`'s scenario as the words `Instances` would pass.
+    fn worst_words() -> (Words, Content) {
+        let (world, sheets) = Self::worst_state(true, 3);
+        (world.store(), Self::content_of(@sheets))
+    }
+
+    /// The content the sheets were built from, for the library call.
+    fn content_of(sheets: @Sheets) -> Content {
+        Content { skills: *sheets.skills, potions: *sheets.potions, castes: *sheets.castes }
+    }
+
+    /// A representative tick: the member with one condition and one effect, 8 awake goblins of 2
+    /// castes fighting (no activation due, no condition), the content of two castes.
+    fn representative() -> (World, Sheets) {
+        let mut spec = Self::spec();
+        spec.conditions = [99, 0, 0, 0];
+        spec.effects = [(5, false, 99, 8), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
+        let member = Self::member(spec);
+        let mut goblins = array![];
+        let mut k: u16 = 0;
+        while k < 8 {
+            goblins.append(Self::goblin(8 + 16 * k, 1 + k % 2));
+            k += 1;
+        }
+        (Self::world(49, array![member], goblins), Self::sheets())
+    }
+
+    /// 100 candidates, every one eligible (Alerted, alive), at distances falling along the array:
+    /// each of the 8 selection scans updates its running minimum at every element, the costliest
+    /// order.
+    fn candidates() -> (World, Span<u16>) {
+        let (sheets, mut index) = Self::worst_content(3).index();
+        let mut goblins = array![];
+        let mut distances = array![];
+        let mut i: u16 = 0;
+        while i < 100 {
+            let words = Self::goblin_words(8 + i, false, 280, 0, 0);
+            goblins.append(GoblinTrait::load(words, ref index, @sheets));
+            distances.append(200 - i);
+            i += 1;
+        }
+        (Self::world(49, array![], goblins), distances.span())
+    }
+
+    /// `candidates()` with the goblins at `prior` flagged awake, and distances `order`: 0 falling,
+    /// 1 rising, 2 the `prior` goblins nearest (the others falling).
+    fn awake_state(prior: Span<u16>, order: u8) -> (World, Span<u16>) {
+        let (sheets, mut index) = Self::worst_content(3).index();
+        let mut goblins = array![];
+        let mut distances = array![];
+        let mut i: u16 = 0;
+        while i < 100 {
+            let mut awake = false;
+            for p in prior {
+                if *p == i {
+                    awake = true;
+                }
+            }
+            let words = Self::goblin_words(8 + i, awake, 280, 0, 0);
+            goblins.append(GoblinTrait::load(words, ref index, @sheets));
+            let distance = if order == 1 {
+                100 + i
+            } else if order == 2 && awake {
+                1 + i / 16
+            } else {
+                200 - i
+            };
+            distances.append(distance);
+            i += 1;
+        }
+        (Self::world(49, array![], goblins), distances.span())
+    }
+
+    /// The selection over `awake_state(prior, order)`, measured alone; then the set is `expected`.
+    fn awake_tick(prior: Span<u16>, order: u8, expected: Span<u16>) {
+        let (mut world, distances) = Self::awake_state(prior, order);
+        assert(world.woken().len() == prior.len(), 'the prior set');
+        let before = get_available_gas();
+        TickTrait::awake(ref world, distances);
+        println!("gas awake: {}", before - get_available_gas());
+        let mut woken = array![];
+        for index in expected {
+            woken.append((*index).into());
+        }
+        assert(world.woken() == woken.span(), 'the new set');
+    }
+
+    /// A spell whose holding entry is a `REGENERATION` of 2…6 pips, and a caste of multiplier 150
+    /// %.
+    fn records() -> (Span<felt252>, Span<felt252>) {
+        let regen = EntryTrait::new(
+            kind::REGENERATION, 0, 2, 6, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+        );
+        let skill = SkillTrait::new(
+            1,
+            1,
+            skill_kind::SPELL,
+            10,
+            0,
+            1,
+            12,
+            0,
+            target::SELF,
+            false,
+            [regen, Default::default(), Default::default()],
+        );
+        let caste = CasteTrait::new(
+            4,
+            1,
+            150,
+            10,
+            40,
+            [0; 9],
+            WeaponTrait::new(weapon::MAUL, 30, 3, 2, 1),
+            10,
+            1,
+            [SMASH, 25, 26, 27],
+            12,
+            30,
+            0,
+            false,
+        );
+        (Record::<Skill>::pack(@skill), Record::<Caste>::pack(@caste))
+    }
+
+    /// `goblin_words` with its activation field's slot: a caste skill 0–3 due at `due`, or
+    /// `activation::RECOVERING` until `due`, or none.
+    fn goblin_words_at(
+        entity: u16, awake: bool, health: u16, slot: u8, due: u32, until: u32,
+    ) -> GoblinWords {
+        let mut words = Self::goblin_words(entity, awake, health, 0, until);
+        words.timers += slot.into() - activation::NONE.into() + due.into() * B24;
+        words
+    }
+
+    /// `worst_content(k)` with skill 43, the list's last, an attack skill of activation 1: the
+    /// branch goblin concludes it (slot 3) and holds it as its effect, so each of its lookups ends
+    /// its list.
+    fn branch_content(k: u8) -> Content {
+        let content = Self::worst_content(k);
+        let mut skills = array![];
+        for sheet in content.skills {
+            let mut sheet = *sheet;
+            if sheet.id == 43 {
+                sheet.kind = skill_kind::ATTACK;
+            }
+            skills.append(sheet);
+        }
+        Content { skills: skills.span(), ..content }
+    }
+
+    /// The member of `worst_state` (concluding bar slot 7 at 50, three conditions, four effects),
+    /// dying or not; the 100-goblin array, all frozen but the last, which takes `branch` (none for
+    /// `B_NONE`), dying or not.
+    fn branch_world(branch: u8, dying: bool, member_dying: bool) -> (World, Sheets) {
+        Self::branch_world_n(branch, dying, member_dying, 1)
+    }
+
+    /// `branch_world` with the last `n` goblins all taking `branch`.
+    fn branch_world_n(branch: u8, dying: bool, member_dying: bool, n: u16) -> (World, Sheets) {
+        let k = if branch == B_CONCLUDE_CLEAR {
+            1
+        } else {
+            3
+        };
+        let (sheets, mut index) = Self::branch_content(k).index();
+        let mut spec = Self::spec();
+        spec.health = if member_dying {
+            7
+        } else {
+            400
+        };
+        spec.conditions = [99, 99, 99, 0];
+        spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
+        let mut member = MemberTrait::load(Self::member_words(spec), ref index, @sheets);
+        member.start(7, 8, 1, 49);
+        let health: u16 = if dying {
+            1
+        } else {
+            280
+        };
+        let mut goblins = array![];
+        let mut i: u16 = 0;
+        while i < 100 - n {
+            let words = Self::goblin_words(8 + i, false, 280, 0, 99);
+            goblins.append(GoblinTrait::load(words, ref index, @sheets));
+            i += 1;
+        }
+        let (awake, slot, due) = if branch == B_NONE {
+            (false, activation::NONE, 0)
+        } else if branch == B_CONCLUDE_RECOVER || branch == B_CONCLUDE_CLEAR {
+            (true, 3, 50)
+        } else if branch == B_LAPSE {
+            (true, 3, 45)
+        } else if branch == B_RECOVERY_END {
+            (true, activation::RECOVERING, 48)
+        } else if branch == B_ACTIVATING {
+            (true, 3, 55)
+        } else {
+            (true, activation::NONE, 0)
+        };
+        while i < 100 {
+            let words = Self::goblin_words_at(8 + i, awake, health, slot, due, 99);
+            goblins.append(GoblinTrait::load(words, ref index, @sheets));
+            i += 1;
+        }
+        (Self::world(49, array![member], goblins), sheets)
+    }
+
+    fn branch_tick(branch: u8, dying: bool, member_dying: bool) {
+        let (mut world, content) = Self::branch_world(branch, dying, member_dying);
+        let mut rules = Idle {};
+        TickTrait::tick(ref world, @content, ref rules);
+        assert(world.clock == 50, 'one tick');
+    }
+
+    fn branch_fixture(branch: u8, dying: bool, member_dying: bool) {
+        let (world, content) = Self::branch_world(branch, dying, member_dying);
+        assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
+    }
+
+    /// A member's words whose four effects are the content's last four skills (40–43, positions
+    /// 35–38) or its four potions (belt slots 0–3, items 100–103), for the load's two effect
+    /// branches.
+    fn member_effect_words(potions: bool) -> MemberWords {
+        let mut spec = Self::spec();
+        spec
+            .effects =
+                if potions {
+                    [(0, true, 99, 0), (1, true, 99, 0), (2, true, 99, 0), (3, true, 99, 0)]
+                } else {
+                    [
+                        (40, false, 99, 12), (41, false, 99, 12), (42, false, 99, 12),
+                        (43, false, 99, 12),
+                    ]
+                };
+        Self::member_words(spec)
+    }
+
+    fn permuted(content: Content) -> Content {
+        let mut forty: SkillSheet = Default::default();
+        let mut forty_two: SkillSheet = Default::default();
+        for sheet in content.skills {
+            if *sheet.id == 40 {
+                forty = *sheet;
+            } else if *sheet.id == 42 {
+                forty_two = *sheet;
+            }
+        }
+        let mut skills = array![];
+        for sheet in content.skills {
+            let mut sheet = *sheet;
+            if sheet.id == 40 {
+                sheet = forty_two;
+            } else if sheet.id == 42 {
+                sheet = forty;
+            }
+            skills.append(sheet);
+        }
+        Content { skills: skills.span(), ..content }
+    }
+
+    /// Keeps a value from the compiler's constant folding, so that the path under test runs.
+    #[inline(never)]
+    fn opaque<T, +Drop<T>>(value: T) -> T {
+        value
+    }
+
+    /// One goblin's step 3 (`GoblinTickTrait::regenerate`, no loop): its three degenerating
+    /// conditions to `until`, its effect's pips until `effect_until`, its regeneration, health,
+    /// energy, AI state and adrenaline; max health 280, max energy 30, energy regeneration 1, tick
+    /// 50.
+    fn regenerate_goblin(
+        until: u32,
+        effect: i8,
+        effect_until: u32,
+        regen: i8,
+        health: u16,
+        energy: u8,
+        state: u8,
+        adrenaline: u8,
+    ) -> u16 {
+        let mut goblin = Self::opaque(Self::goblin(8, HOB));
+        goblin.bleeding = Self::opaque(until);
+        goblin.poison = Self::opaque(until);
+        goblin.burning = Self::opaque(until);
+        goblin.effect_regen = Self::opaque(effect);
+        goblin.effect_deadline = Self::opaque(effect_until);
+
+        goblin.health = Self::opaque(health);
+        goblin.energy = Self::opaque(energy);
+        goblin.ai = Self::opaque(state);
+        goblin.adrenaline = Self::opaque(adrenaline);
+        // R3: the regeneration is the caste's (sheet `health_regen` = pips + 10).
+        let mut caste = Self::caste(HOB, 1);
+        let pips: i32 = regen.into();
+        caste.health_regen = (pips + 10).try_into().unwrap();
+        let content = Content {
+            skills: Self::content().skills, potions: array![].span(), castes: array![caste].span(),
+        };
+        let sheets = content.sheets();
+        goblin.caste_at = 0;
+        goblin.regenerate(Self::opaque(50), @sheets);
+        goblin.health
+    }
+
+    /// One member's step 3 (`MemberTickTrait::regenerate`, no loop): its conditions to `until`, its
+    /// four effects' pips until `effect_until`, its regeneration, health, energy, whether the awake
+    /// set is engaged and its adrenaline; max health 480, max energy 60 thirds, regeneration 2.
+    fn regenerate_member(
+        until: u32,
+        effect: i8,
+        effect_until: u32,
+        regen: i8,
+        health: u16,
+        energy: u16,
+        engaged: bool,
+        adrenaline: u16,
+    ) -> u16 {
+        let mut member = Self::opaque(Self::member(Self::spec()));
+        member.bleeding = Self::opaque(until);
+        member.poison = Self::opaque(until);
+        member.burning = Self::opaque(until);
+        member.effect_regen = Self::opaque([effect; 4]);
+        member.effect_deadlines = Self::opaque([effect_until; 4]);
+        member.health_regen = Self::opaque(regen);
+        member.health = Self::opaque(health);
+        member.energy = Self::opaque(energy);
+        member.adrenaline = Self::opaque(adrenaline);
+        member.regenerate(Self::opaque(50), Self::opaque(engaged));
+        member.health
+    }
+
+    fn store_goblin(state: u8, health: u16, small: u8, slot: u8, deadline: u32) -> felt252 {
+        let mut goblin = Self::opaque(Self::goblin(9, RUNT));
+        goblin.ai = Self::opaque(state);
+        goblin.health = Self::opaque(health);
+        goblin.energy = Self::opaque(small);
+        goblin.adrenaline = Self::opaque(small);
+        goblin.act_slot = Self::opaque(slot);
+        goblin.act_target = Self::opaque(small.into());
+        goblin.act_deadline = Self::opaque(deadline);
+        goblin.bleeding = Self::opaque(deadline);
+        goblin.poison = Self::opaque(deadline);
+        goblin.burning = Self::opaque(deadline);
+        goblin.knocked = Self::opaque(deadline);
+        goblin.effect_deadline = Self::opaque(deadline);
+        goblin.store().state
+    }
+
+    fn store_member(
+        state: u8, health: u16, energy: u16, small: u16, slot: u8, deadline: u32,
+    ) -> MemberWords {
+        let mut member = Self::opaque(Self::member(Self::spec()));
+        member.status = Self::opaque(state);
+        member.health = Self::opaque(health);
+        member.energy = Self::opaque(energy);
+        member.adrenaline = Self::opaque(small);
+        member.flags = Self::opaque(small.try_into().unwrap());
+        member.act_slot = Self::opaque(slot);
+        member.act_target = Self::opaque(small);
+        member.act_tile = Self::opaque(small.try_into().unwrap());
+        member.act_deadline = Self::opaque(deadline);
+        member.bleeding = Self::opaque(deadline);
+        member.poison = Self::opaque(deadline);
+        member.burning = Self::opaque(deadline);
+        member.knocked = Self::opaque(deadline);
+        member.store()
+    }
+
+    /// The words of an awake goblin taking `branch` in the tick of 50 (the clock at 49): at 1
+    /// health, dying in step 3 (at 280 with `survive`); its activation field, a later recharge
+    /// kept, dead, knocked down, as the branch needs.
+    fn term_words(entity: u16, branch: u8, survive: bool) -> GoblinWords {
+        let health = if survive {
+            280
+        } else {
+            1
+        };
+        let (slot, due) = if branch == B_CONCLUDE_RECOVER || branch == B_CONCLUDE_CLEAR {
+            (3, 50)
+        } else if branch == B_LAPSE || branch == B_LAPSE_KEEP {
+            (3, 45)
+        } else if branch == B_RECOVERY_END {
+            (activation::RECOVERING, 48)
+        } else if branch == B_ACTIVATING {
+            (3, 55)
+        } else if branch == B_RECOVERING {
+            (activation::RECOVERING, 55)
+        } else {
+            (activation::NONE, 0)
+        };
+        let mut words = Self::goblin_words_at(entity, true, health, slot, due, 99);
+        if branch == B_LAPSE_KEEP {
+            // Slot 3's recharge at 100, later than the lapse's 45 + 20 − 1.
+            words.state += 100 * B212;
+        } else if branch == B_DEAD {
+            words.state += (ai::DEAD - ai::ALERTED).into() * B24;
+        } else if branch == B_KNOCKED {
+            words.timers += 60 * B184;
+        }
+        words
+    }
+
+    /// The 100-goblin array, each frozen goblin holding a retained effect; the awake ones at
+    /// indexes `at`, taking `branches`; the member concluding bar slot 7 and dying (step 5's
+    /// defeat);
+    /// `members` copies of it (M-3); the content `branch_content(k)`: `k = 3` for a conclusion into
+    /// a recovery, 1 for one clearing the field (no other branch reads `k`).
+    fn term_world(
+        branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32,
+    ) -> (World, Sheets) {
+        let (sheets, mut index) = Self::branch_content(k).index();
+        let mut spec = Self::spec();
+        spec.health = 7;
+        spec.conditions = [99, 99, 99, 0];
+        spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
+        let mut member = MemberTrait::load(Self::member_words(spec), ref index, @sheets);
+        member.start(7, 8, 1, 49);
+        let mut all = array![];
+        for _ in 0..members {
+            all.append(member);
+        }
+        let mut goblins = array![];
+        let mut i: u16 = 0;
+        while i < 100 {
+            let mut words = Self::goblin_words(8 + i, false, 280, 0, 99);
+            let mut k = 0;
+            while k < at.len() {
+                if *at[k] == i {
+                    words = Self::term_words(8 + i, *branches[k], survive);
+                }
+                k += 1;
+            }
+            goblins.append(GoblinTrait::load(words, ref index, @sheets));
+            i += 1;
+        }
+        (Self::world(49, all, goblins), sheets)
+    }
+
+    /// The indexes of `n` awake goblins: at the array's end, at its start, or spread across it.
+    fn at_end(n: u16) -> Span<u16> {
+        let mut at = array![];
+        let mut i = 100 - n;
+        while i < 100 {
+            at.append(i);
+            i += 1;
+        }
+        at.span()
+    }
+
+    fn at_start(n: u16) -> Span<u16> {
+        let mut at = array![];
+        let mut i = 0;
+        while i < n {
+            at.append(i);
+            i += 1;
+        }
+        at.span()
+    }
+
+    fn at_spread() -> Span<u16> {
+        array![5, 17, 29, 41, 53, 65, 77, 89].span()
+    }
+
+    /// `n` times `branch`.
+    fn all_of(branch: u8, n: u32) -> Span<u8> {
+        let mut branches = array![];
+        for _ in 0..n {
+            branches.append(branch);
+        }
+        branches.span()
+    }
+
+    /// Seven times `first`, then `last`.
+    fn seven_then(first: u8, last: u8) -> Span<u8> {
+        let mut branches = array![];
+        for _ in 0..7_u8 {
+            branches.append(first);
+        }
+        branches.append(last);
+        branches.span()
+    }
+
+    /// What `branch` leaves on a goblin after the tick of 50: `(activation slot, its deadline, slot
+    /// 3's recharge)` (skill 43, activation 1, recharge 20: a conclusion at 50 recharges to 69, a
+    /// lapse dated 45 to 64; a recovery of `k = 3` runs to 51).
+    fn after(branch: u8) -> (u8, u32, u32) {
+        if branch == B_CONCLUDE_RECOVER {
+            (activation::RECOVERING, 51, 69)
+        } else if branch == B_CONCLUDE_CLEAR {
+            (activation::NONE, 0, 69)
+        } else if branch == B_LAPSE {
+            (activation::NONE, 0, 64)
+        } else if branch == B_LAPSE_KEEP {
+            (activation::NONE, 0, 100)
+        } else if branch == B_ACTIVATING {
+            (3, 55, 0)
+        } else if branch == B_RECOVERING {
+            (activation::RECOVERING, 55, 0)
+        } else {
+            (activation::NONE, 0, 0)
+        }
+    }
+
+    /// One tick of `term_world`, measured alone and printed; then every awake goblin is checked to
+    /// have taken its branch (its field, its deadline, its recharge) and died in step 3 (survived
+    /// with `survive`), an awake goblin already dead to be untouched, a knocked-down one to stay
+    /// so, the kills to be those deaths, the member down.
+    fn term_tick(branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32) -> u128 {
+        let (mut world, content) = Self::term_world(branches, at, survive, k, members);
+        let mut rules: Acts = Default::default();
+        let before = get_available_gas();
+        TickTrait::tick(ref world, @content, ref rules);
+        let used = before - get_available_gas();
+        println!("gas tick: {}", used);
+        let mut deaths = 0;
+        let mut free = 0;
+        let mut i = 0;
+        while i < branches.len() {
+            let branch = *branches[i];
+            let index: u32 = (*at[i]).into();
+            let goblin = @world.goblin(index);
+            let (slot, deadline, recharge) = Self::after(branch);
+            assert(*goblin.act_slot == slot && *goblin.act_deadline == deadline, 'branch: field');
+            assert(goblin.recharge(3) == recharge, 'branch: recharge');
+            // CBT-02d (CBT-02b's quality re-audit): a goblin free in step 2 acted, at its turn (a
+            // free one, and one whose lapse or recovery step 1 ended); no other did.
+            if branch == B_FREE
+                || branch == B_LAPSE
+                || branch == B_LAPSE_KEEP
+                || branch == B_RECOVERY_END {
+                assert(*rules.acts[free] == index, 'branch: acted in step 2');
+                free += 1;
+            }
+            if branch == B_DEAD {
+                assert(*goblin.ai == ai::DEAD && *goblin.health == 1, 'branch: dead untouched');
+            } else if survive {
+                assert(goblin.is_alive() && *goblin.health > 1, 'branch: survived');
+            } else {
+                assert(*goblin.ai == ai::DEAD && *goblin.health == 0, 'branch: died in step 3');
+                deaths += 1;
+            }
+            if branch == B_KNOCKED {
+                assert(*goblin.knocked == 60, 'branch: knocked down');
+            }
+            i += 1;
+        }
+        assert(rules.acts.len() == free, 'branch: only the free act');
+        assert(world.killed.len() == deaths, 'branch: the deaths');
+        assert(world.defeated && world.member(0).status == status::DOWN, 'branch: member down');
+        used
+    }
+
+    fn term_mix(branches: Array<u8>) {
+        Self::term_tick(branches.span(), Self::at_end(8), false, 1, 1);
+    }
+
+    /// `branch_content(3)` with increasing adrenaline costs: the bar's skills 1–8 cost 1–8
+    /// strikes, each caste's four skills 1–4, so that every step of an adrenaline cap's loop
+    /// raises it.
+    fn load_content() -> Content {
+        let content = Self::branch_content(3);
+        let mut skills = array![];
+        for sheet in content.skills {
+            let mut sheet = *sheet;
+            if sheet.id <= 8 {
+                sheet.adrenaline = sheet.id.try_into().unwrap();
+            } else if sheet.id >= 24 && sheet.id <= 43 {
+                sheet.adrenaline = ((sheet.id - 24) % 4 + 1).try_into().unwrap();
+            }
+            skills.append(sheet);
+        }
+        Content { skills: skills.span(), ..content }
+    }
+
+    /// The words of load's costliest paths: `members` members with the content's last four skills
+    /// as their effects and their bar 1–8; 100 goblins of caste 5, each holding skill 43, the
+    /// last 8 awake.
+    fn load_words(members: u32) -> (Words, Content) {
+        let content = Self::load_content();
+        let mut all = array![];
+        for _ in 0..members {
+            all.append(Self::member_effect_words(false));
+        }
+        let mut goblins = array![];
+        let mut i: u16 = 0;
+        while i < 100 {
+            goblins.append(Self::goblin_words(8 + i, i >= 92, 280, 0, 99));
+            i += 1;
+        }
+        (Words { clock: 49, members: all, goblins, killed: array![], defeated: false }, content)
+    }
+
+    /// A `SKILL`'s two parts (`models::skill` layout): a spell's header and three entries of
+    /// `kinds`, each holding `v0` and `v12` where a `REGENERATION` holds them.
+    fn skill_parts(kinds: [u8; 3], v0: i16, v12: i16) -> Span<felt252> {
+        let [a, b, c] = kinds;
+        let line: felt252 = (SignedTrait::bits16(v0) * 0x10000
+            + SignedTrait::bits16(v12) * 0x100000000)
+            .into();
+        let header: felt252 = skill_kind::SPELL.into() * 0x10000
+            + 2 * 0x100000000
+            + 1 * 0x10000000000
+            + 12 * 0x100000000000000;
+        let first = LIVE + header + (a.into() + line) * B128;
+        let second = LIVE + b.into() + line + (c.into() + line) * B128;
+        Self::opaque(array![first, second].span())
+    }
+
+    fn read_skill(kinds: [u8; 3], v0: i16, v12: i16) -> i16 {
+        let sheet = SkillSheetTrait::read(Self::opaque(5), Self::skill_parts(kinds, v0, v12));
+        assert(sheet.recharge == 12 && sheet.activation == 1, 'header');
+        sheet.regen0
+    }
+
+    /// A potion's part (`models::item` layout): its entry of `entry_kind` in the high limb, holding
+    /// `v0`.
+    fn potion_parts(entry_kind: u8, v0: i16) -> Span<felt252> {
+        let entry: felt252 = entry_kind.into() + (SignedTrait::bits16(v0) * 0x10000).into();
+        Self::opaque(array![LIVE + 3 + entry * B128].span())
+    }
+
+    /// `worst_words` with the 92 frozen goblins killed in the action phase.
+    fn worst_words_kills() -> (Words, Content) {
+        let (words, content) = Self::worst_words();
+        let mut goblins = array![];
+        let mut killed = array![];
+        for goblin in words.goblins.span() {
+            let mut goblin = *goblin;
+            if !goblin.awake {
+                goblin.state += (ai::DEAD - ai::ALERTED).into() * B24;
+                killed.append(goblin.entity);
+            }
+            goblins.append(goblin);
+        }
+        (Words { goblins, killed, ..words }, content)
+    }
+
+    /// `worst_words` with its member twice (M-3: members 0–7).
+    fn worst_words_two() -> (Words, Content) {
+        let (words, content) = Self::worst_words();
+        let member = *words.members.at(0);
+        (Words { members: array![member, member], ..words }, content)
+    }
+
+    /// `worst_words` with every goblin killed in the action phase: 100 kills in, 100 out, the most
+    /// the list holds (each goblin once).
+    fn worst_words_all_dead() -> (Words, Content) {
+        let (words, content) = Self::worst_words();
+        let mut goblins = array![];
+        let mut killed = array![];
+        for goblin in words.goblins.span() {
+            let mut goblin = *goblin;
+            goblin.state += (ai::DEAD - ai::ALERTED).into() * B24;
+            killed.append(goblin.entity);
+            goblins.append(goblin);
+        }
+        (Words { goblins, killed, ..words }, content)
+    }
+
+    fn digest(world: World, extra: Span<felt252>) -> felt252 {
+        let mut out = array![];
+        world.store().serialize(ref out);
+        out.append_span(extra);
+        core::poseidon::poseidon_hash_span(out.span())
+    }
+
+    fn script_digest(world: World, rules: Script) -> felt252 {
+        let mut extra = array![];
+        rules.acts.serialize(ref extra);
+        rules.resolved.serialize(ref extra);
+        Self::digest(world, extra.span())
+    }
+
+    fn scripted(mut world: World, content: @Sheets, ticks: u8) -> felt252 {
+        let mut rules: Script = Default::default();
+        TickTrait::run(ref world, content, ticks, ref rules);
+        Self::script_digest(world, rules)
+    }
+
+    /// The worked examples and the rules' tests, their states and rules as those tests build them.
+    fn parity_examples() -> Array<felt252> {
+        let content = Self::sheets();
+        let mut out = array![];
+        // §10.3, the degeneration.
+        let mut spec = Self::spec();
+        spec.conditions = [77, 72, 0, 0];
+        let world = Self::world(69, array![Self::member(spec)], array![Self::goblin(17, HOB)]);
+        out.append(Self::scripted(world, @content, 6));
+        // §10.1, a burning goblin.
+        let mut goblin = Self::goblin(24, HOB);
+        goblin.health = 87;
+        goblin.burning = 44;
+        out.append(Self::scripted(Self::only(41, goblin), @content, 4));
+        // §10.2, an interrupt.
+        let mut goblin = Self::goblin(40, HOB);
+        goblin.start(0, 0, 3, 50);
+        goblin.knocked = 53;
+        goblin.interrupt(52, @content);
+        out.append(Self::scripted(Self::only(51, goblin), @content, 3));
+        // §10.5, a lapse: frozen four ticks, then awake.
+        let mut goblin = Self::goblin(30, HOB);
+        goblin.start(0, 0, 3, 100);
+        goblin.awake = false;
+        goblin.health = 50;
+        goblin.bleeding = 105;
+        let mut world = Self::only(102, goblin);
+        Self::run(ref world, 4);
+        let mut goblin = world.goblin(0);
+        goblin.awake = true;
+        world.set_goblin(0, goblin);
+        out.append(Self::scripted(world, @content, 1));
+        let mut goblin = Self::goblin(30, HOB);
+        goblin.start(0, 0, 3, 100);
+        goblin.set_recharge(0, 200);
+        out.append(Self::scripted(Self::only(106, goblin), @content, 1));
+        // §10.9, an activated attack's cost.
+        let mut goblin = Self::goblin(9, RUNT);
+        goblin.recover(2, 50);
+        out.append(Self::scripted(Self::only(50, goblin), @content, 2));
+        let mut goblin = Self::goblin(9, RUNT);
+        goblin.start(1, 0, 1, 50);
+        out.append(Self::scripted(Self::only(50, goblin), @content, 2));
+        let k3 = Content {
+            castes: array![Self::caste(HOB, 1), Self::caste(RUNT, 3)].span(), ..Self::content(),
+        }
+            .sheets();
+        let mut goblin = Self::goblin(9, RUNT);
+        goblin.start(1, 0, 1, 50);
+        out.append(Self::scripted(Self::only(50, goblin), @k3, 3));
+        // §10.1 and §10.6, a member's activation.
+        let mut member = Self::member(Self::spec());
+        member.start(1, 57, 2, 40);
+        out.append(Self::scripted(Self::world(40, array![member], array![]), @content, 2));
+        // §5.8, regeneration.
+        let mut skills = array![
+            SkillSheet {
+                id: 1,
+                kind: skill_kind::SPELL,
+                adrenaline: 0,
+                activation: 0,
+                recharge: 0,
+                regen0: 2,
+                regen12: 6,
+                ..Default::default(),
+            },
+        ];
+        for id in 2..9_u16 {
+            skills.append(Self::skill(id, skill_kind::SPELL, 1, 10));
+        }
+        let regen = Content {
+            skills: skills.span(),
+            potions: array![PotionSheet { id: 101, regen: 3, ..Default::default() }].span(),
+            castes: array![].span(),
+        };
+        let mut spec = Self::spec();
+        spec
+            .effects =
+                [(1, false, 10, 12), (1, true, MAX_CLOCK, 0), (1, false, 4, 12), (0, false, 0, 0)];
+        spec.energy = 55;
+        spec.health_regen = 1;
+        spec.energy_regen = 4;
+        let (regen, mut index) = regen.index();
+        let member = MemberTrait::load(Self::member_words(spec), ref index, @regen);
+        out.append(Self::scripted(Self::world(4, array![member], array![]), @regen, 2));
+        let mut spec = Self::spec();
+        spec.health = 479;
+        spec.health_regen = 10;
+        out
+            .append(
+                Self::scripted(Self::world(0, array![Self::member(spec)], array![]), @content, 1),
+            );
+        // Step 3's extremes.
+        let mut spec = Self::spec();
+        spec.health_regen = -10;
+        spec.effect_regen = [-10; 4];
+        spec.effects = [(1, false, 99, 0); 4];
+        spec.conditions = [99, 99, 99, 0];
+        out
+            .append(
+                Self::scripted(Self::world(0, array![Self::member(spec)], array![]), @content, 1),
+            );
+        let mut spec = Self::spec();
+        spec.health = 300;
+        spec.health_regen = 10;
+        spec.effect_regen = [10; 4];
+        spec.effects = [(1, false, 99, 0); 4];
+        out
+            .append(
+                Self::scripted(Self::world(0, array![Self::member(spec)], array![]), @content, 1),
+            );
+        // Adrenaline decay.
+        let mut spec = Self::spec();
+        spec.adrenaline = 5;
+        let mut alerted = Self::goblin(8, HOB);
+        alerted.ai = ai::ALERTED;
+        alerted.adrenaline = 1;
+        let mut frozen_engaged = Self::goblin(9, HOB);
+        frozen_engaged.awake = false;
+        let world = Self::world(0, array![Self::member(spec)], array![alerted, frozen_engaged]);
+        out.append(Self::scripted(world, @content, 2));
+        let mut engaged = Self::goblin(8, HOB);
+        engaged.adrenaline = 4;
+        let world = Self::world(0, array![Self::member(spec)], array![engaged]);
+        out.append(Self::scripted(world, @content, 1));
+        // Deaths in step 3, then the executor's kill.
+        let mut a = Self::goblin(8, HOB);
+        a.health = 10;
+        a.burning = 5;
+        let mut b = Self::goblin(12, HOB);
+        b.health = 14;
+        b.burning = 5;
+        b.bleeding = 5;
+        let mut c = Self::goblin(20, HOB);
+        c.energy = 29;
+        let mut world = Self::world(0, array![Self::member(Self::spec())], array![a, b, c]);
+        Self::run(ref world, 2);
+        world.kill(2);
+        world.kill(2);
+        out.append(Self::digest(world, array![].span()));
+        // Defeat, in step 3 and in step 2.
+        let mut spec = Self::spec();
+        spec.health = 6;
+        spec.conditions = [9, 9, 9, 0];
+        out
+            .append(
+                Self::scripted(Self::world(0, array![Self::member(spec)], array![]), @content, 3),
+            );
+        let mut a = Self::goblin(8, HOB);
+        a.health = 50;
+        a.bleeding = 9;
+        let b = Self::goblin(9, HOB);
+        let mut world = Self::world(0, array![Self::member(Self::spec())], array![a, b]);
+        let mut rules: Script = Default::default();
+        rules.kill_member_at = 1;
+        TickTrait::run(ref world, @content, 2, ref rules);
+        out.append(Self::script_digest(world, rules));
+        // Who acts.
+        let mut knocked = Self::goblin(8, HOB);
+        knocked.knocked = 1;
+        let mut activating = Self::goblin(9, HOB);
+        activating.start(0, 0, 3, 0);
+        let mut recovering = Self::goblin(10, HOB);
+        recovering.recover(3, 0);
+        let mut frozen = Self::goblin(11, HOB);
+        frozen.awake = false;
+        let mut dead = Self::goblin(12, HOB);
+        dead.ai = ai::DEAD;
+        let goblins = array![
+            knocked, activating, recovering, frozen, dead, Self::goblin(13, HOB),
+            Self::goblin(14, RUNT),
+        ];
+        let world = Self::world(0, array![Self::member(Self::spec())], goblins);
+        out.append(Self::scripted(world, @content, 2));
+        // The flags.
+        let mut spec = Self::spec();
+        spec.flags = flag::TURNED + flag::INSTANT + flag::HIT + flag::HALVED;
+        out
+            .append(
+                Self::scripted(Self::world(0, array![Self::member(spec)], array![]), @content, 1),
+            );
+        // The awake set, then a tick.
+        let mut goblins = array![];
+        for entity in 8..19_u16 {
+            let mut goblin = Self::goblin(entity, HOB);
+            goblin.awake = false;
+            if entity == 8 {
+                goblin.ai = ai::ASLEEP;
+            } else if entity == 9 {
+                goblin.ai = ai::DEAD;
+            }
+            goblins.append(goblin);
+        }
+        let mut world = Self::world(0, array![Self::member(Self::spec())], goblins);
+        TickTrait::awake(ref world, array![1, 1, 5, 3, 3, 9, 2, 3, 4, 3, 6].span());
+        out.append(Self::scripted(world, @content, 2));
+        // The member down before the tick.
+        let mut spec = Self::spec();
+        spec.health = 0;
+        let mut goblin = Self::goblin(8, HOB);
+        goblin.bleeding = 99;
+        let world = Self::world(49, array![Self::member(spec)], array![goblin]);
+        out.append(Self::scripted(world, @content, 3));
+        out
+    }
+
+    /// The benchmarks' states: the representative batch, CBT-02's heavy tick, `Busy`'s batch, the
+    /// load's costliest words, the kills, two members, the awake selection over 100 candidates.
+    fn parity_states() -> Array<felt252> {
+        let mut out = array![];
+        let (world, content) = Self::representative();
+        out.append(Self::scripted(world, @content, 10));
+        let (world, content) = Self::worst_state(true, 3);
+        out.append(Self::scripted(world, @content, 1));
+        let (world, content) = Self::worst_of(true, 3, 8);
+        out.append(Self::scripted(world, @content, 1));
+        let (mut world, content) = Self::worst_state(false, 1);
+        let mut rules: Busy = Default::default();
+        TickTrait::run(ref world, @content, 10, ref rules);
+        out.append(Self::digest(world, array![].span()));
+        let (words, content) = Self::load_words(1);
+        let (world, sheets) = words.load(@content);
+        out.append(Self::scripted(world, @sheets, 1));
+        let (words, content) = Self::worst_words_kills();
+        let (world, sheets) = words.load(@content);
+        out.append(Self::scripted(world, @sheets, 1));
+        let (words, content) = Self::worst_words_two();
+        let (world, sheets) = words.load(@content);
+        out.append(Self::scripted(world, @sheets, 1));
+        let (mut world, distances) = Self::candidates();
+        TickTrait::awake(ref world, distances);
+        out.append(Self::scripted(world, @Self::worst_content(3).sheets(), 2));
+        out
+    }
+
+    fn term_digest(
+        branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32,
+    ) -> felt252 {
+        let (world, content) = Self::term_world(branches, at, survive, k, members);
+        Self::scripted(world, @content, 1)
+    }
+
+    /// The weapon cost of a branch's content: 1 for a conclusion clearing the field, else 3.
+    fn k_of(branch: u8) -> u8 {
+        if branch == B_CONCLUDE_CLEAR {
+            1
+        } else {
+            3
+        }
+    }
+
+    /// Every branch of step 1 taken by one awake goblin; the base, with one and two members; a
+    /// survivor.
+    fn parity_terms_one() -> Array<felt252> {
+        let mut out = array![];
+        out.append(Self::term_digest(array![].span(), array![].span(), false, 1, 1));
+        out.append(Self::term_digest(array![].span(), array![].span(), false, 1, 2));
+        for branch in 1..11_u8 {
+            out
+                .append(
+                    Self::term_digest(
+                        Self::all_of(branch, 1), Self::at_end(1), false, Self::k_of(branch), 1,
+                    ),
+                );
+        }
+        out
+            .append(
+                Self::term_digest(Self::all_of(B_CONCLUDE_RECOVER, 1), Self::at_end(1), true, 3, 1),
+            );
+        out
+    }
+
+    /// Every branch taken by eight awake goblins.
+    fn parity_terms_eight() -> Array<felt252> {
+        let mut out = array![];
+        for branch in 1..11_u8 {
+            out
+                .append(
+                    Self::term_digest(
+                        Self::all_of(branch, 8), Self::at_end(8), false, Self::k_of(branch), 1,
+                    ),
+                );
+        }
+        out
+    }
+
+    /// The mixes of branches, the costliest at three placements.
+    fn parity_terms_mixed() -> Array<felt252> {
+        let mut out = array![];
+        let mix = Self::seven_then(B_CONCLUDE_CLEAR, B_LAPSE);
+        out.append(Self::term_digest(mix, Self::at_end(8), false, 1, 1));
+        out.append(Self::term_digest(mix, Self::at_start(8), false, 1, 1));
+        out.append(Self::term_digest(mix, Self::at_spread(), false, 1, 1));
+        out
+            .append(
+                Self::term_digest(
+                    Self::seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), Self::at_end(8), false, 1, 1,
+                ),
+            );
+        out
+            .append(
+                Self::term_digest(
+                    Self::seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END),
+                    Self::at_end(8),
+                    false,
+                    1,
+                    1,
+                ),
+            );
+        out
+            .append(
+                Self::term_digest(
+                    Self::seven_then(B_ACTIVATING, B_LAPSE), Self::at_end(8), false, 3, 1,
+                ),
+            );
+        let first = array![
+            B_LAPSE, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
+            B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
+        ];
+        out.append(Self::term_digest(first.span(), Self::at_end(8), false, 1, 1));
+        out
+    }
+
+    /// Each case's hash against the one the representation before CBT-02d gave; re-taken once by
+    /// CBT-05a when the fixtures gave each goblin its own tile (the cost audit of #334, F-2: the
+    /// words hashed carry the position), checked equal with the positions zeroed at that commit.
+    fn check(digests: Span<felt252>, expected: Span<felt252>) {
+        assert(digests.len() == expected.len(), 'parity: the cases');
+        let mut i = 0;
+        for digest in digests {
+            if *digest != *expected[i] {
+                println!("parity: case {} differs", i);
+            }
+            assert(*digest == *expected[i], 'parity: a result moved');
+            i += 1;
+        }
+    }
+
+    /// The executor's class (route (c), CBT-05a), declared once a test.
+    fn executor() -> starknet::ClassHash {
+        *declare("ExecutorLibrary").unwrap().contract_class().class_hash
+    }
+
+    /// The goblins' acts' class (ENG-07) and the traps' (D-222).
+    fn ai_class() -> starknet::ClassHash {
+        *declare("AiLibrary").unwrap().contract_class().class_hash
+    }
+
+    /// `TickLibrary`'s ticks with the classes of the tests, the ground none (ENG-07, D-235).
+    fn ticks_of(
+        library: ITickLibraryLibraryDispatcher, words: Words, content: Content, board: Board, n: u8,
+    ) -> Words {
+        let (words, _) = library.ticks(words, content, board, Self::classes(), 10, array![], n);
+        words
+    }
+
+    fn classes() -> grimworld_logic::types::play::Classes {
+        grimworld_logic::types::play::Classes {
+            executor: Self::executor(),
+            ai: Self::ai_class(),
+            trap: Self::trap(),
+            action: *declare("ActionLibrary").unwrap().contract_class().class_hash,
+            tick: *declare("TickLibrary").unwrap().contract_class().class_hash,
+        }
+    }
+
+    fn trap() -> starknet::ClassHash {
+        *declare("TrapLibrary").unwrap().contract_class().class_hash
+    }
+
+    /// The board of the library's calls (CBT-05a): an open window at the location's origin. The
+    /// fixtures' actors stand at (0, 0) and conclude no carrier that reaches another actor.
+    fn board() -> Board {
+        // Every one of the 240 positions open.
+        BoardTrait::new(
+            WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), 0, 0,
+        )
+    }
+
+    fn place(position: u8) -> felt252 {
+        let x: felt252 = (position % 15).into();
+        let y: felt252 = (position / 15).into();
+        x + y * Self::two(8)
+    }
+
+    /// The fixtures' member at `AT`, level 20 (spell strength 60), health `health`.
+    fn member_at(health: u16) -> Member {
+        let mut spec = Self::spec();
+        spec.health = health;
+        let mut member = Self::member(spec);
+        member.words.state += Self::place(AT) * Self::two(32);
+        member.words.stats += 20 * Self::two(64);
+        member
+    }
+
+    /// A goblin of caste HOB at `position`, health `health`, awake if `awake`.
+    fn goblin_at(entity: u16, position: u8, health: u16, awake: bool) -> Goblin {
+        let mut goblin = Self::goblin(entity, HOB);
+        goblin.state += Self::place(position);
+        goblin.health = health;
+        goblin.awake = awake;
+        goblin
+    }
+
+    /// The tiles around `centre`, ascending.
+    fn ring(centre: u8) -> Span<u8> {
+        let open = WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        WindowTrait::tiles(open.shape(shape::RING_1, centre))
+    }
+
+    /// The fixtures' content with: bar skill 2, Cinder Ring (fire 80 and Burning 3 on `RING_1`,
+    /// `SELF`, `FOES`); caste HOB's weapon `damage` at rank 15 and range `range`; caste skill 25,
+    /// an attack skill of activation 1 (the implicit weapon hit).
+    fn route_content(damage: u8, range: u8) -> Content {
+        let base = Self::content();
+        let fire = EntryTrait::new(
+            kind::DAMAGE, 4, 80, 80, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+        );
+        let burn = EntryTrait::new(
+            kind::CONDITION, 3, 3, 3, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+        );
+        let mut skills = array![];
+        for sheet in base.skills {
+            let mut sheet = *sheet;
+            if sheet.id == 2 {
+                sheet.entry1 = fire.pack();
+                sheet.entry2 = burn.pack();
+            }
+            skills.append(sheet);
+        }
+        let mut castes = array![];
+        for caste in base.castes {
+            let mut caste = *caste;
+            if caste.id == HOB {
+                caste.weapon = weapon::SWORD;
+                caste.weapon_damage = damage;
+                caste.damage_type = 1;
+                caste.weapon_range = range;
+                caste.rank = 15;
+            }
+            castes.append(caste);
+        }
+        Content { skills: skills.span(), potions: base.potions, castes: castes.span() }
+    }
+
+    /// One tick through `TickLibrary` (route (c)) and the same tick in process with the in-class
+    /// executor: their words must agree.
+    fn agree(words: Words, content: Content) -> Words {
+        let class = declare("TickLibrary").unwrap().contract_class();
+        let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+        let (mut world, sheets) = words.clone().load(@content);
+        let out = Self::ticks_of(library, words, content, Self::board(), 1);
+        let mut rules = ExecutorTrait::new(Self::board());
+        TickTrait::run(ref world, @sheets, 1, ref rules);
+        assert(out == world.store(), 'route (c) = in process');
+        out
+    }
+
+    /// The representative worst tick (the review of #334, ENG-01 §9.2): 13 goblins within one tile
+    /// of the member or of each other, the member's ring of 6 and 7 at distance 2; 8 of them awake,
+    /// each concluding its attack skill on the member at tick 41 with a reach of 6 (all legal).
+    /// Each call carries the member and its source alone (lever (3); before it, the goblins within
+    /// one tile of its source or of the member too).
+    fn worst_tick() -> (World, Sheets, grimworld_logic::types::tick::Index) {
+        let inner = Self::ring(AT);
+        let mut outer: Array<u8> = array![];
+        let mut position: u8 = 0;
+        while position < 240 && outer.len() < 7 {
+            if WindowTrait::distance(position, AT) == 2 {
+                outer.append(position);
+            }
+            position += 1;
+        }
+        let mut goblins = array![];
+        let mut entity: u16 = 8;
+        let mut awake: u32 = 0;
+        for tile in inner {
+            let mut goblin = Self::goblin_at(entity, *tile, 250, true);
+            goblin.start(1, 0, 1, 40);
+            goblins.append(goblin);
+            entity += 1;
+            awake += 1;
+        }
+        for tile in outer.span() {
+            let wake = awake < 8;
+            let mut goblin = Self::goblin_at(entity, *tile, 250, wake);
+            if wake {
+                goblin.start(1, 0, 1, 40);
+                awake += 1;
+            }
+            goblins.append(goblin);
+            entity += 1;
+        }
+        let words = Self::world(40, array![Self::member_at(480)], goblins).store();
+        let content = Self::route_content(5, 6);
+        let (world, sheets, index) = words.indexed(@content);
+        (world, sheets, index)
+    }
+
+    fn rep_content() -> Content {
+        let base = Self::worst_content(1);
+        let fire = EntryTrait::new(
+            kind::DAMAGE, 4, 80, 80, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+        );
+        let burn = EntryTrait::new(
+            kind::CONDITION, 3, 3, 3, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+        );
+        let mut skills = array![];
+        for sheet in base.skills {
+            let mut sheet = *sheet;
+            if sheet.id == 2 {
+                sheet.kind = skill_kind::SPELL;
+                sheet.entry1 = fire.pack();
+                sheet.entry2 = burn.pack();
+            }
+            skills.append(sheet);
+        }
+        let mut castes = array![];
+        for caste in base.castes {
+            let mut caste = *caste;
+            caste.weapon = weapon::BOW;
+            caste.weapon_damage = 5;
+            caste.damage_type = 2;
+            caste.weapon_range = 6;
+            caste.rank = 15;
+            castes.append(caste);
+        }
+        Content { skills: skills.span(), potions: base.potions, castes: castes.span() }
+    }
+
+    fn rep_words(scenario: u8) -> Words {
+        let mut member = Self::member_at(480);
+        if scenario == 2 || scenario == 5 {
+            member.start(1, 0, 1, 40);
+        }
+        let mut goblins = array![];
+        let mut entity: u16 = 8;
+        if scenario == 3 || scenario == 4 {
+            // The member's ring of 6 (frozen but alive), and around a source 3 tiles away its 6
+            // neighbours (frozen) and the source itself, awake.
+            let source = AT + 3;
+            let mut tiles: Array<u8> = array![];
+            for tile in Self::ring(AT) {
+                tiles.append(*tile);
+            }
+            for tile in Self::ring(source) {
+                tiles.append(*tile);
+            }
+            tiles.append(source);
+            // Ascending positions, ascending entities.
+            let sorted = Self::ascending_u8(tiles.span());
+            for tile in sorted {
+                let own = *tile == source;
+                let mut goblin = Self::goblin_at(entity, *tile, 250, own);
+                if own && scenario == 3 {
+                    goblin.start(0, 0, 1, 40);
+                }
+                goblins.append(goblin);
+                entity += 1;
+            }
+        } else {
+            let mut tiles: Array<u8> = array![];
+            for tile in Self::ring(AT) {
+                tiles.append(*tile);
+            }
+            let mut position: u8 = 0;
+            let mut behind: u32 = 0;
+            while position < 240 && behind < 2 {
+                if WindowTrait::distance(position, AT) == 2 {
+                    tiles.append(position);
+                    behind += 1;
+                }
+                position += 1;
+            }
+            for tile in Self::ascending_u8(tiles.span()) {
+                let mut goblin = Self::goblin_at(entity, *tile, 250, true);
+                if scenario == 1 || scenario == 5 {
+                    goblin.start(0, 0, 1, 40);
+                }
+                goblins.append(goblin);
+                entity += 1;
+            }
+        }
+        Self::world(40, array![member], goblins).store()
+    }
+
+    /// `tiles` ascending (a selection: at most 13).
+    fn ascending_u8(tiles: Span<u8>) -> Span<u8> {
+        let mut sorted: Array<u8> = array![];
+        let mut last: u16 = 0;
+        let mut first = true;
+        while sorted.len() < tiles.len() {
+            let mut least: u16 = 0x100;
+            for tile in tiles {
+                let t: u16 = (*tile).into();
+                if (first || t > last) && t < least {
+                    least = t;
+                }
+            }
+            sorted.append(least.try_into().unwrap());
+            last = least;
+            first = false;
+        }
+        sorted.span()
+    }
+
+    fn rep_run(scenario: u8, ticks: u8) -> Words {
+        let class = declare("TickLibrary").unwrap().contract_class();
+        let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+        let executor = Self::executor();
+        Self::ticks_of(
+            library, Self::rep_words(scenario), Self::rep_content(), Self::board(), ticks,
+        )
+    }
+
+    /// A fixture: the same arguments and classes, no call.
+    fn rep_fixture(scenario: u8) {
+        let class = declare("TickLibrary").unwrap().contract_class();
+        let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+        let _ = Self::executor();
+        let words = Self::rep_words(scenario);
+        let content = Self::rep_content();
+        assert(Self::opaque(words.goblins.len()) > 0 && content.skills.len() == 38, 'fixture');
+    }
+
+    fn bomb_content() -> Content {
+        let base = Self::rep_content();
+        let bomb = EntryTrait::new(
+            kind::DAMAGE, 4, 30, 30, 0, 0, 0, target::TILE, shape::DISC_1, filter::FOES, 0, 0,
+        );
+        let mut potions = array![
+            PotionSheet { id: 100, regen: 0, entry: bomb.pack(), range: 6, strength: 20 },
+        ];
+        for potion in base.potions.slice(1, base.potions.len() - 1) {
+            potions.append(*potion);
+        }
+        Content { skills: base.skills, potions: potions.span(), castes: base.castes }
+    }
+
+    /// The ring tile around `AT` whose `DISC_1` holds the most goblins of scenario 1, as a location
+    /// tile `x + 256 y` (the board at the origin), and how many goblins its `DISC_1` holds.
+    fn bomb_tile() -> (u16, u32) {
+        let mut goblins: Array<u8> = array![];
+        for tile in Self::ring(AT) {
+            goblins.append(*tile);
+        }
+        let mut position: u8 = 0;
+        let mut behind: u32 = 0;
+        while position < 240 && behind < 2 {
+            if WindowTrait::distance(position, AT) == 2 {
+                goblins.append(position);
+                behind += 1;
+            }
+            position += 1;
+        }
+        let mut best: u8 = 0;
+        let mut most: u32 = 0;
+        for centre in Self::ring(AT) {
+            let mut count = 0;
+            for goblin in goblins.span() {
+                if WindowTrait::distance(*goblin, *centre) <= 1 {
+                    count += 1;
+                }
+            }
+            if count > most {
+                most = count;
+                best = *centre;
+            }
+        }
+        ((best % 15).into() + 256 * (best / 15).into(), most)
+    }
+
+    fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
+        let mut words = Self::rep_words(1);
+        let mut member = *words.members[0];
+        // Belt slot 0: one bomb (`MemberState` 128–135).
+        member.state += Self::two(128);
+        words.members = array![member];
+        let content = Self::bomb_content();
+        let (world, sheets, index) = words.indexed(@content);
+        let rules = grimworld_logic::types::executor::Delegate {
+            board: Self::board(),
+            cache: Default::default(),
+            executor: Self::executor(),
+            content,
+            index,
+            placed: array![],
+            ground: array![],
+            ai: Self::ai_class(),
+            trap: Self::trap(),
+            level: 10,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        (world, sheets, rules)
+    }
+
+    fn act_words() -> Words {
+        let mut words = Self::rep_words(1);
+        let mut member = *words.members[0];
+        member.state += Self::two(128);
+        words.members = array![member];
+        words
+    }
+
+    /// The action through `ActionLibrary` (D-233), then its ticks through `TickLibrary` (the
+    /// segment that chains the two is ENG-07's, not built yet: two calls here).
+    fn act_then_ticks(words: Words, action: Action) -> Words {
+        let class = declare("ActionLibrary").unwrap().contract_class();
+        let library = grimworld_logic::interface::IActionLibraryLibraryDispatcher {
+            class_hash: *class.class_hash,
+        };
+        let content = Self::bomb_content();
+        let (words, _, ticks) = grimworld_logic::interface::IActionLibraryDispatcherTrait::act(
+            library, words, content, Self::board(), Self::executor(), array![], action,
+        );
+        let ticks = match ticks {
+            Ok(ticks) => ticks,
+            Err(_) => core::panic_with_felt252('illegal'),
+        };
+        let class = declare("TickLibrary").unwrap().contract_class();
+        let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+        Self::ticks_of(library, words, content, Self::board(), ticks)
+    }
+
+    fn trap_args() -> (Words, Content, Array<(u8, grimworld_logic::models::chunk::Features)>) {
+        let words = Words {
+            clock: 40,
+            members: array![Self::member_at(480).store()],
+            goblins: array![],
+            killed: array![],
+            defeated: false,
+        };
+        let terrain = grimworld_logic::models::chunk::Object {
+            tile: AT, kind: grimworld_logic::models::chunk::object::TRAP, state: 0, param: 2,
+        };
+        let features = grimworld_logic::models::chunk::Features {
+            objects: [terrain, Default::default(), Default::default()],
+            ..grimworld_logic::models::chunk::FeaturesTrait::empty(),
+        };
+        (words, Self::rep_content(), array![(0, features)])
+    }
+
+    fn ai_words(state: u8, busy: bool) -> Words {
+        Self::ai_words_of(state, busy, false)
+    }
+
+    /// The same, every caste skill recharging until tick 100 when `recharging`: each Engaged goblin
+    /// attacks with its weapon.
+    fn ai_words_of(state: u8, busy: bool, recharging: bool) -> Words {
+        let words = Self::rep_words(0);
+        let mut goblins = array![];
+        for goblin in words.goblins.span() {
+            let mut goblin = *goblin;
+            goblin.state = goblin.state + (state.into() - ai::ENGAGED.into()) * Self::two(24);
+            if busy {
+                goblin.timers = goblin.timers - 1 + 100 * Self::two(24);
+            }
+            if recharging {
+                goblin.state = goblin.state
+                    + 100 * (Self::two(128) + Self::two(156) + Self::two(184) + Self::two(212));
+            }
+            goblins.append(goblin);
+        }
+        Words { goblins, ..words }
+    }
+
+    fn ai_call(state: u8) -> Words {
+        Self::ai_call_of(Self::ai_words(state, false))
+    }
+
+    fn ai_call_of(words: Words) -> Words {
+        let class = declare("AiLibrary").unwrap().contract_class();
+        let library = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
+            class_hash: *class.class_hash,
+        };
+        let (out, _) = grimworld_logic::interface::IAiLibraryDispatcherTrait::act(
+            library,
+            words,
+            Self::rep_content(),
+            Self::board(),
+            Self::executor(),
+            Self::trap(),
+            array![],
+            10,
+            0,
+            0,
+            0,
+        );
+        out
+    }
+
+    fn ai_tick(state: u8, busy: bool) -> Words {
+        let class = declare("TickLibrary").unwrap().contract_class();
+        let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+        Self::ticks_of(library, Self::ai_words(state, busy), Self::rep_content(), Self::board(), 1)
+    }
+
+    fn open_area() -> grimworld_logic::types::play::Area {
+        let mut known: felt252 = 0;
+        let mut chunks: Array<(u8, felt252)> = array![];
+        let all = Self::two(225) - 1;
+        for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
+            known += Self::two(chunk.into());
+            chunks.append((chunk, all));
+        }
+        grimworld_logic::types::play::Area {
+            width: 3,
+            height: 3,
+            known,
+            revealed: known,
+            chunks: chunks.span(),
+            changed: array![].span(),
+            ran: false,
+        }
+    }
+
+    fn segment_of(
+        words: Words, actions: Span<Action>,
+    ) -> (Words, grimworld_logic::types::play::Done) {
+        let content = Self::rep_content();
+        let classes = Self::classes();
+        let area = Self::open_area();
+        let (mut world, sheets, index) = words.indexed(@content);
+        let mut rules = grimworld_logic::types::executor::Delegate {
+            board: Self::board(),
+            cache: Default::default(),
+            executor: classes.executor,
+            content,
+            index,
+            placed: array![],
+            ground: array![],
+            ai: classes.ai,
+            trap: classes.trap,
+            level: 10,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        let done = grimworld_logic::types::play::SegmentTrait::run(
+            ref world, @sheets, ref rules, @area, @classes, actions, 0, 10,
+        );
+        (world.store(), done)
+    }
+
+    /// Ten Moves, East then West in turn: no goblin, every tick on the fast path.
+    fn exploration() -> (Words, Span<Action>) {
+        let words = Self::world(40, array![Self::member_at(400)], array![]).store();
+        let mut actions = array![];
+        let mut k: u8 = 0;
+        while k < 10 {
+            actions.append(Action::Move(if k % 2 == 0 {
+                0
+            } else {
+                3
+            }));
+            k += 1;
+        }
+        (words, actions.span())
+    }
+
+    /// Ten weapon attacks of the member on goblins 10, 11 and 12 (on its ring), the 8 goblins
+    /// Engaged around it, each attacking with its weapon (its skills recharging): every tick has a
+    /// fight.
+    fn fight() -> (Words, Span<Action>) {
+        let mut words = Self::ai_words_of(ai::ENGAGED, false, true);
+        // The member's weapon (the executor's tests' melee one): class 1, damage 27, range 1,
+        // strength 60, slashing, its requirement met.
+        let mut member = *words.members[0];
+        member.stats += Self::two(88)
+            + 27 * Self::two(96)
+            + Self::two(112)
+            + 60 * Self::two(120)
+            + Self::two(160)
+            + Self::two(176);
+        words.members = array![member];
+        (words, Self::attacks())
+    }
+
+    /// The same, the member's health and max health raised from 480 to 20,000 (`MemberState`
+    /// 64–79, `MemberStats` 0–15) so that it stands
+    /// through the ten ticks: the batch whole.
+    fn fight_whole() -> (Words, Span<Action>) {
+        let (mut words, actions) = Self::fight();
+        let mut member = *words.members[0];
+        member.state += 19520 * Self::two(64);
+        member.stats += 19520;
+        words.members = array![member];
+        (words, actions)
+    }
+
+    fn attacks() -> Span<Action> {
+        let mut actions = array![];
+        let mut k: u8 = 0;
+        // Goblin 10 falls to 4 hits: then 11, then 12, each on the member's ring.
+        while k < 10 {
+            actions.append(Action::Attack(10 + (k / 4).into()));
+            k += 1;
+        }
+        actions.span()
+    }
+
+    fn segment_fixture(words: Words, actions: Span<Action>) {
+        let _ = Self::classes();
+        let area = Self::open_area();
+        let content = Self::rep_content();
+        assert(
+            Self::opaque(words.members.len()) == 1
+                && actions.len() == 10
+                && area.chunks.len() == 9
+                && content.skills.len() == 38,
+            'fixture',
+        );
+    }
+
+    fn landing_words() -> Words {
+        let mut words = Self::ai_words_of(ai::ENGAGED, false, true);
+        let mut member = *words.members[0];
+        // Its activation field (`MemberTimers`), as scenario 2 starts it: due at tick 41.
+        member.timers = (*Self::rep_words(2).members[0]).timers;
+        words.members = array![member];
+        words
+    }
+
+    fn lever_words(health: u16) -> Words {
+        let (words, _) = Self::fight();
+        let mut goblins = array![];
+        let mut k: u32 = 0;
+        for goblin in words.goblins.span() {
+            let mut goblin = *goblin;
+            if k >= 4 {
+                goblin.state = goblin.state + 2 * Self::two(24);
+            }
+            goblins.append(goblin);
+            k += 1;
+        }
+        let mut member = *words.members[0];
+        if health > 480 {
+            member.state += (health - 480).into() * Self::two(64);
+            member.stats += (health - 480).into();
+        }
+        Words { goblins, members: array![member], ..words }
+    }
+
+    fn lever_actions() -> Span<Action> {
+        let mut actions = array![];
+        let mut k: u8 = 0;
+        while k < 10 {
+            actions.append(Action::Attack(12 + (k / 3).into()));
+            k += 1;
+        }
+        actions.span()
+    }
+
+    fn cap_step(cap: u8) -> u8 {
+        let (words, _) = Self::fight();
+        let content = Self::rep_content();
+        let classes = Self::classes();
+        let (mut world, sheets, index) = words.indexed(@content);
+        world.clock += 1;
+        let mut rules = grimworld_logic::types::executor::Delegate {
+            board: Self::board(),
+            cache: Default::default(),
+            executor: classes.executor,
+            content,
+            index,
+            placed: array![],
+            ground: array![],
+            ai: classes.ai,
+            trap: classes.trap,
+            level: 10,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        let (_, attacks) = grimworld_logic::types::ai::AiTrait::capped(
+            ref world, @sheets, ref rules, 0, cap,
+        );
+        attacks
+    }
+
+    fn segment_call(
+        words: Words, actions: Span<Action>,
+    ) -> (Words, grimworld_logic::types::play::Done) {
+        let class = declare("SegmentLibrary").unwrap().contract_class();
+        let library = grimworld_logic::interface::ISegmentLibraryLibraryDispatcher {
+            class_hash: *class.class_hash,
+        };
+        let (out, _, done) = grimworld_logic::interface::ISegmentLibraryDispatcherTrait::segment(
+            library,
+            words,
+            Self::rep_content(),
+            Self::open_area(),
+            Self::classes(),
+            10,
+            array![],
+            actions,
+            0,
+            10,
+        );
+        (out, done)
+    }
+
+    fn roster_world(away: u16) -> (World, Sheets) {
+        let mut member = Self::member_at(400);
+        member.words.state = member.words.state
+            - Self::place(AT) * Self::two(32)
+            + (7 + 17 * 256) * Self::two(32);
+        let mut goblins = array![];
+        let mut first = Self::goblin(8, HOB);
+        // Its skills recharging until tick 100: its act is a step.
+        first.state += 7
+            + 14 * Self::two(8)
+            + 100 * (Self::two(128) + Self::two(156) + Self::two(184) + Self::two(212));
+        goblins.append(first);
+        let mut n: u16 = 0;
+        while n < away {
+            let mut goblin = Self::goblin(8 + 16 * (1 + n / 10) + n % 10, HOB);
+            goblin.awake = false;
+            goblin.state += 100 + 100 * Self::two(8);
+            goblins.append(goblin);
+            n += 1;
+        }
+        let world = Self::world(40, array![member], goblins);
+        (world, Self::sheets())
+    }
+
+    fn roster_run(away: u16, splits: u8) -> Words {
+        let (mut world, sheets) = Self::roster_world(away);
+        let board = BoardTrait::new(
+            WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), 0, 8,
+        );
+        if splits == 1 {
+            let mut rules = ExecutorTrait::new(board);
+            TickTrait::run(ref world, @sheets, 2, ref rules);
+            return world.store();
+        }
+        let mut rules = ExecutorTrait::new(board);
+        TickTrait::run(ref world, @sheets, 1, ref rules);
+        let words = world.store();
+        let (mut world, sheets) = words.load(@Self::content());
+        let mut rules = ExecutorTrait::new(board);
+        TickTrait::run(ref world, @sheets, 1, ref rules);
+        world.store()
+    }
+
+    fn first_place(words: @Words) -> (u8, u8) {
+        let state: u256 = (*words.goblins[0].state).into();
+        ((state.low % 256).try_into().unwrap(), ((state.low / 256) % 256).try_into().unwrap())
+    }
+
+    /// The words after the second hit, and how many skill records the memo holds then. `effect`:
+    /// the member holds skill 2's effect before the second hit (what a carrier's hold writes);
+    /// `keep`: the memo of the first hit stays; `swap`: its records are replaced by the whole
+    /// content.
+    fn memo_hits(
+        first: u32, second: u32, effect: bool, keep: bool, swap: bool,
+    ) -> (Words, u32, Span<felt252>, Span<felt252>) {
+        let content = Self::rep_content();
+        let words = Self::ai_words_of(ai::ENGAGED, false, true);
+        let mut goblins = array![];
+        let mut k: u32 = 0;
+        for goblin in words.goblins.span() {
+            let mut goblin = *goblin;
+            if k == 1 {
+                goblin.state = goblin.state + (RUNT.into() - HOB.into()) * Self::two(64);
+            }
+            goblins.append(goblin);
+            k += 1;
+        }
+        let words = Words { goblins, ..words };
+        let (mut world, sheets, index) = words.indexed(@content);
+        let mut rules = grimworld_logic::types::executor::Delegate {
+            board: Self::board(),
+            cache: Default::default(),
+            executor: Self::executor(),
+            content,
+            index,
+            placed: array![],
+            ground: array![],
+            ai: Self::ai_class(),
+            trap: Self::trap(),
+            level: 10,
+            frozen: 0,
+            listed: 0,
+            memo: None,
+        };
+        let t = world.clock;
+        let weapon = grimworld_logic::types::executor::Carrier::Weapon;
+        let _ = rules.carry(ref world, @sheets, Actor::Goblin(first), 0, weapon, 0, t);
+        let (key, _) = rules.memo.unwrap().unbox();
+        if effect {
+            let mut member = world.member(0);
+            let at = rules.index.skill(2);
+            let held = grimworld_logic::types::tick::Held {
+                carrier: 2, potion: false, charges: 0, deadline: 100, rank: 1,
+            };
+            let _ = member.hold(held, at, false, t, @sheets);
+            world.set_member(0, member);
+        }
+        if !keep {
+            rules.memo = None;
+        } else if swap {
+            rules.memo = Some(BoxTrait::new((key, content)));
+        }
+        let _ = rules.carry(ref world, @sheets, Actor::Goblin(second), 0, weapon, 0, t);
+        let (after, records) = rules.memo.unwrap().unbox();
+        (world.store(), records.skills.len(), key, after)
+    }
 }
 
 /// Test rules: record every hook's call; optionally take the member to 0 at an act.
@@ -292,11 +2217,6 @@ impl ScriptRules of Rules<Script> {
         }
     }
     fn objectives(ref self: Script, ref world: World) {}
-}
-
-fn run(ref world: World, ticks: u8) {
-    let mut rules = Idle {};
-    TickTrait::run(ref world, @Fixture::sheets(), ticks, ref rules);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -329,29 +2249,6 @@ impl BusyRules of Rules<Busy> {
     fn objectives(ref self: Busy, ref world: World) {}
 }
 
-/// The words of a goblin of caste 5 at level 10 (ENG-01 §3.2 offsets): Alerted (not Engaged),
-/// `health`, activating slot 0 due at `due` (0: none), the three degenerating conditions to
-/// `until`, its effect skill 43 to `until` at rank 4.
-fn goblin_words(entity: u16, awake: bool, health: u16, due: u32, until: u32) -> GoblinWords {
-    // One goblin a tile (design/04; the cost audit of #334, F-2): goblin `e` on the window's
-    // position `e − 7`, the member on position 0.
-    let position: u16 = entity - 7;
-    let tile: felt252 = (position % 15).into() + (position / 15).into() * 0x100;
-    let state = LIVE + tile + ai::ALERTED.into() * B24 + health.into() * B32 + 5 * B64 + 10 * B80;
-    let act: felt252 = if due == 0 {
-        activation::NONE.into()
-    } else {
-        due.into() * B24
-    };
-    let effect: felt252 = if until == 0 {
-        0
-    } else {
-        43 * B108 + 4 * B246
-    };
-    let timers = LIVE + act + until.into() * (B52 + B80 + B128 + B212) + effect;
-    GoblinWords { entity, awake, state, timers }
-}
-
 // Powers of two for the fixtures above (cheap to build: the benchmarks subtract their fixtures).
 const B24: felt252 = 0x1000000;
 const B32: felt252 = 0x100000000;
@@ -363,134 +2260,13 @@ const B128: felt252 = 0x100000000000000000000000000000000;
 const B212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
 const B246: felt252 = 0x40000000000000000000000000000000000000000000000000000000000000;
 
-/// The content at the MVP's widest (design/19 §7.2: `C = 5`, `T = 10`): the bar's 8 skills (7 and
-/// 8 regenerating 3 pips), 10 terrain traps' skills, the 5 castes' 20; 4 potions. The goblins'
-/// caste, 5, and its skills (40–43) come last in their lists: before CBT-02d every lookup scanned
-/// the whole list; the index reads them at the cost of any other.
-/// The castes' weapons cost `k` ticks.
-fn worst_content(k: u8) -> Content {
-    let mut skills = array![];
-    for id in 1..9_u16 {
-        let mut sheet = Fixture::skill(id, skill_kind::SPELL, 2, 10);
-        sheet.adrenaline = 2;
-        if id >= 7 {
-            sheet.regen0 = 3;
-            sheet.regen12 = 3;
-        }
-        skills.append(sheet);
-    }
-    for id in 60..70_u16 {
-        skills.append(Fixture::skill(id, skill_kind::TRAP, 0, 0));
-    }
-    let mut castes = array![];
-    for caste in 1..6_u16 {
-        let first = 20 + 4 * caste;
-        skills.append(Fixture::skill(first, skill_kind::ATTACK, 1, 10));
-        skills.append(Fixture::skill(first + 1, skill_kind::SPELL, 2, 8));
-        skills.append(Fixture::skill(first + 2, skill_kind::ATTACK, 3, 12));
-        let mut last = Fixture::skill(first + 3, skill_kind::ENCHANTMENT, 1, 20);
-        last.regen0 = 2;
-        last.regen12 = 2;
-        skills.append(last);
-        castes.append(Fixture::caste(caste, k));
-    }
-    let potions = array![
-        PotionSheet { id: 100, regen: 1, ..Default::default() },
-        PotionSheet { id: 101, regen: 2, ..Default::default() },
-        PotionSheet { id: 102, regen: 1, ..Default::default() },
-        PotionSheet { id: 103, regen: 2, ..Default::default() },
-    ];
-    Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
-}
-
-/// CBT-02's heavy scenario of a tick (AUD-182-7), a measured state, not a maximum (COST-3: the
-/// upper bound is CBT-02b's, below), every actor loaded from its words so that the derived fields
-/// agree with the stored ones:
-/// - the goblin array at its bound, `MAX_GOBLINS` = 100 (before CBT-02d every pass was linear in
-///   it; the steps now read the awake set alone), 8 of them awake (design/02), the 92 others
-///   frozen; every one of the 100 holds a retained effect, so `load` reads its skill and scales
-///   it for each (COST-1);
-/// - each awake goblin concludes its activation (a recovery with `k = 3 ≥ n + 2`), the awake set
-///   rebuilt;
-/// - step 3 with every term: the 3 degenerating conditions and a regenerating effect on each awake
-///   goblin; on the member, its 3 conditions, 4 regenerating effects (2 potions) and its own
-///   activation concluding; no goblin Engaged, so the Engaged scan runs the whole awake set;
-/// - with `dying`, every awake goblin dies in step 3 (8 kills recorded) and the member too (step
-///   5's defeat rewrites the members).
-/// With `dying` false and `k = 1`, the state `Busy` keeps busy over a batch (no death, no
-/// recovery).
-fn worst_state(dying: bool, k: u8) -> (World, Sheets) {
-    worst_of(dying, k, 100)
-}
-
-/// `worst_state` with `count` goblins in the array, the last 8 awake.
-fn worst_of(dying: bool, k: u8, count: u16) -> (World, Sheets) {
-    let (sheets, mut index) = worst_content(k).index();
-    let mut spec = Fixture::spec();
-    spec.health = if dying {
-        7
-    } else {
-        400
-    };
-    spec.conditions = [99, 99, 99, 0];
-    spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
-    let mut member = MemberTrait::load(Fixture::member_words(spec), ref index, @sheets);
-    member.start(7, 8, 1, 49);
-    let health: u16 = if dying {
-        1
-    } else {
-        280
-    };
-    let mut goblins = array![];
-    let mut i: u16 = 0;
-    while i < count {
-        let awake = i + 8 >= count;
-        let words = if awake {
-            goblin_words(8 + i, true, health, 50, 99)
-        } else {
-            // Frozen, but loaded: its retained effect is looked up like an awake one's (COST-1).
-            goblin_words(8 + i, false, 280, 0, 99)
-        };
-        goblins.append(GoblinTrait::load(words, ref index, @sheets));
-        i += 1;
-    }
-    (Fixture::world(49, array![member], goblins), sheets)
-}
-
-/// `worst_state`'s scenario as the words `Instances` would pass.
-fn worst_words() -> (Words, Content) {
-    let (world, sheets) = worst_state(true, 3);
-    (world.store(), content_of(@sheets))
-}
-
-/// The content the sheets were built from, for the library call.
-fn content_of(sheets: @Sheets) -> Content {
-    Content { skills: *sheets.skills, potions: *sheets.potions, castes: *sheets.castes }
-}
-
-/// A representative tick: the member with one condition and one effect, 8 awake goblins of 2
-/// castes fighting (no activation due, no condition), the content of two castes.
-fn representative() -> (World, Sheets) {
-    let mut spec = Fixture::spec();
-    spec.conditions = [99, 0, 0, 0];
-    spec.effects = [(5, false, 99, 8), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
-    let member = Fixture::member(spec);
-    let mut goblins = array![];
-    let mut k: u16 = 0;
-    while k < 8 {
-        goblins.append(Fixture::goblin(8 + 16 * k, 1 + k % 2));
-        k += 1;
-    }
-    (Fixture::world(49, array![member], goblins), Fixture::sheets())
-}
-
 // Determinism (AC-2): the same state gives the same world, over 10 busy ticks.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 63378725)] // ceil(1.05 × 60360690 measured)
 fn test_deterministic() {
-    let (mut a, content) = worst_state(false, 1);
-    let (mut b, _) = worst_state(false, 1);
+    let (mut a, content) = Fixture::worst_state(false, 1);
+    let (mut b, _) = Fixture::worst_state(false, 1);
     let mut rules: Busy = Default::default();
     TickTrait::run(ref a, @content, 10, ref rules);
     TickTrait::run(ref b, @content, 10, ref rules);
@@ -503,7 +2279,7 @@ fn test_deterministic() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14702142)] // ceil(1.05 × 14002040 measured)
 fn test_cost_fixture_worst() {
-    let (world, content) = worst_state(true, 3);
+    let (world, content) = Fixture::worst_state(true, 3);
     assert(world.goblin_count() == 100 && content.skills.len() == 38, 'worst');
 }
 
@@ -511,7 +2287,7 @@ fn test_cost_fixture_worst() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14703927)] // ceil(1.05 × 14003740 measured)
 fn test_cost_fixture_worst_batch() {
-    let (world, content) = worst_state(false, 1);
+    let (world, content) = Fixture::worst_state(false, 1);
     assert(world.goblin_count() == 100 && content.skills.len() == 38, 'worst');
 }
 
@@ -519,7 +2295,7 @@ fn test_cost_fixture_worst_batch() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16970258)] // ceil(1.05 × 16162150 measured)
 fn test_cost_fixture_worst_words() {
-    let (words, content) = worst_words();
+    let (words, content) = Fixture::worst_words();
     assert(words.goblins.len() == 100 && content.skills.len() == 38, 'worst');
 }
 
@@ -527,7 +2303,7 @@ fn test_cost_fixture_worst_words() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 7757946)] // ceil(1.05 × 7388520 measured)
 fn test_cost_fixture_representative() {
-    let (world, content) = representative();
+    let (world, content) = Fixture::representative();
     assert(world.goblin_count() == 8 && content.castes.len() == 2, 'representative');
 }
 
@@ -536,7 +2312,7 @@ fn test_cost_fixture_representative() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 8495421)] // ceil(1.05 × 8090877 measured)
 fn test_cost_tick_representative() {
-    let (mut world, content) = representative();
+    let (mut world, content) = Fixture::representative();
     let mut rules = Idle {};
     TickTrait::tick(ref world, @content, ref rules);
     assert(world.clock == 50, 'one tick');
@@ -547,7 +2323,7 @@ fn test_cost_tick_representative() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15178548)] // ceil(1.05 × 14455760 measured)
 fn test_cost_batch_representative() {
-    let (mut world, content) = representative();
+    let (mut world, content) = Fixture::representative();
     let mut rules = Idle {};
     TickTrait::run(ref world, @content, 10, ref rules);
     assert(world.clock == 59, 'ten ticks');
@@ -557,7 +2333,7 @@ fn test_cost_batch_representative() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 8003846)] // ceil(1.05 × 7622710 measured)
 fn test_cost_fixture_representative_words() {
-    let (world, content) = representative();
+    let (world, content) = Fixture::representative();
     let words = world.store();
     assert(words.goblins.len() == 8 && content.castes.len() == 2, 'representative');
 }
@@ -569,8 +2345,10 @@ fn test_cost_fixture_representative_words() {
 fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (world, content) = representative();
-    let words = ticks_of(library, world.store(), content_of(@content), board(), 10);
+    let (world, content) = Fixture::representative();
+    let words = Fixture::ticks_of(
+        library, world.store(), Fixture::content_of(@content), Fixture::board(), 10,
+    );
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -579,7 +2357,7 @@ fn test_cost_library_call_batch_representative() {
 #[available_gas(l2_gas: 8014251)] // ceil(1.05 × 7632620 measured)
 fn test_cost_library_baseline_representative() {
     let _class = declare("TickLibrary").unwrap().contract_class();
-    let (world, _content) = representative();
+    let (world, _content) = Fixture::representative();
     let words = world.store();
     assert(words.clock == 49, 'declared');
 }
@@ -591,7 +2369,7 @@ fn test_cost_library_baseline_representative() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16338361)] // ceil(1.05 × 15560343 measured)
 fn test_cost_tick_worst() {
-    let (mut world, content) = worst_state(true, 3);
+    let (mut world, content) = Fixture::worst_state(true, 3);
     let mut rules = Idle {};
     let before = get_available_gas();
     TickTrait::tick(ref world, @content, ref rules);
@@ -608,7 +2386,7 @@ fn test_cost_tick_worst() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 7075362)] // ceil(1.05 × 6738440 measured)
 fn test_cost_fixture_worst_8() {
-    let (world, _) = worst_of(true, 3, 8);
+    let (world, _) = Fixture::worst_of(true, 3, 8);
     assert(world.goblin_count() == 8, 'eight');
 }
 
@@ -616,7 +2394,7 @@ fn test_cost_fixture_worst_8() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 8611610)] // ceil(1.05 × 8201533 measured)
 fn test_cost_tick_worst_8() {
-    let (mut world, content) = worst_of(true, 3, 8);
+    let (mut world, content) = Fixture::worst_of(true, 3, 8);
     let mut rules = Idle {};
     TickTrait::tick(ref world, @content, ref rules);
     assert(world.killed.len() == 8 && world.defeated, 'every death');
@@ -630,7 +2408,7 @@ fn test_cost_tick_worst_8() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 31927896)] // ceil(1.05 × 30407520 measured)
 fn test_cost_batch_worst() {
-    let (mut world, content) = worst_state(false, 1);
+    let (mut world, content) = Fixture::worst_state(false, 1);
     let mut rules: Busy = Default::default();
     let mut k = 0;
     while k < 10_u8 {
@@ -650,8 +2428,8 @@ fn test_cost_batch_worst() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 45245141)] // ceil(1.05 × 43090610 measured)
 fn test_cost_load_store_worst() {
-    let (words, content) = worst_words();
-    let (expected, _) = worst_words();
+    let (words, content) = Fixture::worst_words();
+    let (expected, _) = Fixture::worst_words();
     let (world, _) = words.load(@content);
     let words = world.store();
     assert(words == expected, 'the round trip keeps every word');
@@ -661,25 +2439,9 @@ fn test_cost_load_store_worst() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 33935885)] // ceil(1.05 × 32319890 measured)
 fn test_cost_fixture_worst_words_twice() {
-    let (words, content) = worst_words();
-    let (expected, _) = worst_words();
+    let (words, content) = Fixture::worst_words();
+    let (expected, _) = Fixture::worst_words();
     assert(words.goblins.len() == expected.goblins.len() && content.skills.len() == 38, 'twice');
-}
-
-/// 100 candidates, every one eligible (Alerted, alive), at distances falling along the array: each
-/// of the 8 selection scans updates its running minimum at every element, the costliest order.
-fn candidates() -> (World, Span<u16>) {
-    let (sheets, mut index) = worst_content(3).index();
-    let mut goblins = array![];
-    let mut distances = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        let words = goblin_words(8 + i, false, 280, 0, 0);
-        goblins.append(GoblinTrait::load(words, ref index, @sheets));
-        distances.append(200 - i);
-        i += 1;
-    }
-    (Fixture::world(49, array![], goblins), distances.span())
 }
 
 // COST-1: the awake set's selection (§5.2) at the candidate bound, `MAX_GOBLINS` = 100: the 8
@@ -688,7 +2450,7 @@ fn candidates() -> (World, Span<u16>) {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 13311743)] // ceil(1.05 × 12677850 measured)
 fn test_cost_awake_100() {
-    let (mut world, distances) = candidates();
+    let (mut world, distances) = Fixture::candidates();
     TickTrait::awake(ref world, distances);
     assert(world.goblin(92).awake && !world.goblin(91).awake, 'the 8 nearest');
 }
@@ -697,7 +2459,7 @@ fn test_cost_awake_100() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 8553185)] // ceil(1.05 × 8145890 measured)
 fn test_cost_fixture_candidates() {
-    let (world, distances) = candidates();
+    let (world, distances) = Fixture::candidates();
     assert(world.goblin_count() == 100 && distances.len() == 100, 'candidates');
 }
 
@@ -707,55 +2469,12 @@ fn test_cost_fixture_candidates() {
 // the last 8) or rise (the 8 nearest are the first 8), or put the spread set nearest. The
 // selection is measured alone (printed "gas awake") and checked to keep or replace the set.
 
-/// `candidates()` with the goblins at `prior` flagged awake, and distances `order`: 0 falling, 1
-/// rising, 2 the `prior` goblins nearest (the others falling).
-fn awake_state(prior: Span<u16>, order: u8) -> (World, Span<u16>) {
-    let (sheets, mut index) = worst_content(3).index();
-    let mut goblins = array![];
-    let mut distances = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        let mut awake = false;
-        for p in prior {
-            if *p == i {
-                awake = true;
-            }
-        }
-        let words = goblin_words(8 + i, awake, 280, 0, 0);
-        goblins.append(GoblinTrait::load(words, ref index, @sheets));
-        let distance = if order == 1 {
-            100 + i
-        } else if order == 2 && awake {
-            1 + i / 16
-        } else {
-            200 - i
-        };
-        distances.append(distance);
-        i += 1;
-    }
-    (Fixture::world(49, array![], goblins), distances.span())
-}
-
-/// The selection over `awake_state(prior, order)`, measured alone; then the set is `expected`.
-fn awake_tick(prior: Span<u16>, order: u8, expected: Span<u16>) {
-    let (mut world, distances) = awake_state(prior, order);
-    assert(world.woken().len() == prior.len(), 'the prior set');
-    let before = get_available_gas();
-    TickTrait::awake(ref world, distances);
-    println!("gas awake: {}", before - get_available_gas());
-    let mut woken = array![];
-    for index in expected {
-        woken.append((*index).into());
-    }
-    assert(world.woken() == woken.span(), 'the new set');
-}
-
 // No prior set: the scans' costliest order (`test_cost_awake_100`'s state, measured alone).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 13843851)] // ceil(1.05 × 13184620 measured)
 fn test_cost_awake_none() {
-    awake_tick(array![].span(), 0, at_end(8));
+    Fixture::awake_tick(array![].span(), 0, Fixture::at_end(8));
 }
 
 // The prior set at the array's end, kept.
@@ -763,7 +2482,7 @@ fn test_cost_awake_none() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15597551)] // ceil(1.05 × 14854810 measured)
 fn test_cost_awake_end_kept() {
-    awake_tick(at_end(8), 0, at_end(8));
+    Fixture::awake_tick(Fixture::at_end(8), 0, Fixture::at_end(8));
 }
 
 // The prior set at the array's start, replaced by the last 8.
@@ -771,7 +2490,7 @@ fn test_cost_awake_end_kept() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15596627)] // ceil(1.05 × 14853930 measured)
 fn test_cost_awake_start_replaced() {
-    awake_tick(at_start(8), 0, at_end(8));
+    Fixture::awake_tick(Fixture::at_start(8), 0, Fixture::at_end(8));
 }
 
 // The prior set spread across the array, replaced by the last 8.
@@ -779,7 +2498,7 @@ fn test_cost_awake_start_replaced() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15579627)] // ceil(1.05 × 14837740 measured)
 fn test_cost_awake_spread_replaced() {
-    awake_tick(at_spread(), 0, at_end(8));
+    Fixture::awake_tick(Fixture::at_spread(), 0, Fixture::at_end(8));
 }
 
 // The prior set at the array's start, kept (the distances rising).
@@ -787,7 +2506,7 @@ fn test_cost_awake_spread_replaced() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15544683)] // ceil(1.05 × 14804460 measured)
 fn test_cost_awake_start_kept() {
-    awake_tick(at_start(8), 1, at_start(8));
+    Fixture::awake_tick(Fixture::at_start(8), 1, Fixture::at_start(8));
 }
 
 // The prior set at the array's end, replaced by the first 8 (the distances rising).
@@ -795,7 +2514,7 @@ fn test_cost_awake_start_kept() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15543759)] // ceil(1.05 × 14803580 measured)
 fn test_cost_awake_end_replaced() {
-    awake_tick(at_end(8), 1, at_start(8));
+    Fixture::awake_tick(Fixture::at_end(8), 1, Fixture::at_start(8));
 }
 
 // The prior set spread across the array, kept (nearest).
@@ -803,7 +2522,7 @@ fn test_cost_awake_end_replaced() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15575291)] // ceil(1.05 × 14833610 measured)
 fn test_cost_awake_spread_kept() {
-    awake_tick(at_spread(), 2, at_spread());
+    Fixture::awake_tick(Fixture::at_spread(), 2, Fixture::at_spread());
 }
 
 // CBT-02d fix loop 1 (COST-1): what a figure measured inside a test misses, and `TickTrait::run`'s
@@ -827,7 +2546,9 @@ fn test_cost_awake_spread_kept() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 18911792)] // ceil(1.05 × 18011230 measured)
 fn test_cost_pair_term_fixture() {
-    let (_world, _sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
+    let (_world, _sheets) = Fixture::term_world(
+        Fixture::seven_then(C, L), Fixture::at_end(8), false, 1, 1,
+    );
 }
 
 // The same, and its tick with the bound's rules.
@@ -835,7 +2556,9 @@ fn test_cost_pair_term_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20490306)] // ceil(1.05 × 19514577 measured)
 fn test_cost_pair_term_tick() {
-    let (mut world, sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
+    let (mut world, sheets) = Fixture::term_world(
+        Fixture::seven_then(C, L), Fixture::at_end(8), false, 1, 1,
+    );
     let mut rules: Acts = Default::default();
     TickTrait::tick(ref world, @sheets, ref rules);
 }
@@ -845,7 +2568,9 @@ fn test_cost_pair_term_tick() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 18913230)] // ceil(1.05 × 18012600 measured)
 fn test_cost_pair_activating_fixture() {
-    let (_world, _sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
+    let (_world, _sheets) = Fixture::term_world(
+        Fixture::all_of(A, 8), Fixture::at_end(8), false, 1, 1,
+    );
 }
 
 // The same, and its tick with the bound's rules.
@@ -853,7 +2578,9 @@ fn test_cost_pair_activating_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 19734407)] // ceil(1.05 × 18794673 measured)
 fn test_cost_pair_activating_tick() {
-    let (mut world, sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
+    let (mut world, sheets) = Fixture::term_world(
+        Fixture::all_of(A, 8), Fixture::at_end(8), false, 1, 1,
+    );
     let mut rules: Acts = Default::default();
     TickTrait::tick(ref world, @sheets, ref rules);
 }
@@ -863,7 +2590,7 @@ fn test_cost_pair_activating_tick() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 7756896)] // ceil(1.05 × 7387520 measured)
 fn test_cost_pair_representative_fixture() {
-    let (_world, _sheets) = representative();
+    let (_world, _sheets) = Fixture::representative();
 }
 
 // The same, and one tick with the lot's rules.
@@ -871,7 +2598,7 @@ fn test_cost_pair_representative_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 8493741)] // ceil(1.05 × 8089277 measured)
 fn test_cost_pair_representative_tick() {
-    let (mut world, sheets) = representative();
+    let (mut world, sheets) = Fixture::representative();
     let mut rules = Idle {};
     TickTrait::tick(ref world, @sheets, ref rules);
 }
@@ -881,7 +2608,7 @@ fn test_cost_pair_representative_tick() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 8505333)] // ceil(1.05 × 8100317 measured)
 fn test_cost_pair_representative_run_one() {
-    let (mut world, sheets) = representative();
+    let (mut world, sheets) = Fixture::representative();
     let mut rules = Idle {};
     TickTrait::run(ref world, @sheets, 1, ref rules);
 }
@@ -891,7 +2618,7 @@ fn test_cost_pair_representative_run_one() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15176868)] // ceil(1.05 × 14454160 measured)
 fn test_cost_pair_representative_run_ten() {
-    let (mut world, sheets) = representative();
+    let (mut world, sheets) = Fixture::representative();
     let mut rules = Idle {};
     TickTrait::run(ref world, @sheets, 10, ref rules);
 }
@@ -902,14 +2629,14 @@ fn test_cost_pair_representative_run_ten() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 10619448)] // ceil(1.05 × 10113760 measured)
 fn test_cost_pair_awake_start_kept_fixture() {
-    let (_world, _distances) = awake_state(at_start(8), 1);
+    let (_world, _distances) = Fixture::awake_state(Fixture::at_start(8), 1);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15414861)] // ceil(1.05 × 14680820 measured)
 fn test_cost_pair_awake_start_kept() {
-    let (mut world, distances) = awake_state(at_start(8), 1);
+    let (mut world, distances) = Fixture::awake_state(Fixture::at_start(8), 1);
     TickTrait::awake(ref world, distances);
 }
 
@@ -917,14 +2644,14 @@ fn test_cost_pair_awake_start_kept() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 8989533)] // ceil(1.05 × 8561460 measured)
 fn test_cost_pair_awake_none_fixture() {
-    let (_world, _distances) = awake_state(array![].span(), 0);
+    let (_world, _distances) = Fixture::awake_state(array![].span(), 0);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 13713189)] // ceil(1.05 × 13060180 measured)
 fn test_cost_pair_awake_none() {
-    let (mut world, distances) = awake_state(array![].span(), 0);
+    let (mut world, distances) = Fixture::awake_state(array![].span(), 0);
     TickTrait::awake(ref world, distances);
 }
 
@@ -933,14 +2660,14 @@ fn test_cost_pair_awake_none() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14701302)] // ceil(1.05 × 14001240 measured)
 fn test_cost_pair_busy_fixture() {
-    let (_world, _sheets) = worst_state(false, 1);
+    let (_world, _sheets) = Fixture::worst_state(false, 1);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16270073)] // ceil(1.05 × 15495307 measured)
 fn test_cost_pair_busy_tick() {
-    let (mut world, sheets) = worst_state(false, 1);
+    let (mut world, sheets) = Fixture::worst_state(false, 1);
     let mut rules: Busy = Default::default();
     TickTrait::tick(ref world, @sheets, ref rules);
 }
@@ -950,7 +2677,7 @@ fn test_cost_pair_busy_tick() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16117290)] // ceil(1.05 × 15349800 measured)
 fn test_cost_run_ticks_alone() {
-    let (mut world, sheets) = representative();
+    let (mut world, sheets) = Fixture::representative();
     let mut rules = Idle {};
     let mut k = 0;
     while k < 10_u8 {
@@ -971,7 +2698,7 @@ fn test_cost_run_ticks_alone() {
 #[available_gas(l2_gas: 29436407)] // ceil(1.05 × 28034673 measured)
 fn test_cost_library_baseline() {
     let _class = declare("TickLibrary").unwrap().contract_class();
-    let (words, content) = worst_words();
+    let (words, content) = Fixture::worst_words();
     let (mut world, sheets) = words.load(@content);
     let mut rules = Idle {};
     TickTrait::run(ref world, @sheets, 1, ref rules);
@@ -988,8 +2715,8 @@ fn test_cost_library_baseline() {
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (words, content) = worst_words();
-    let words = ticks_of(library, words, content, board(), 1);
+    let (words, content) = Fixture::worst_words();
+    let words = Fixture::ticks_of(library, words, content, Fixture::board(), 1);
     assert(words.clock == 50, 'one tick');
 }
 
@@ -1005,8 +2732,10 @@ fn test_cost_library_call() {
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (world, content) = worst_state(false, 1);
-    let words = ticks_of(library, world.store(), content_of(@content), board(), 10);
+    let (world, content) = Fixture::worst_state(false, 1);
+    let words = Fixture::ticks_of(
+        library, world.store(), Fixture::content_of(@content), Fixture::board(), 10,
+    );
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -1015,7 +2744,7 @@ fn test_cost_library_call_batch() {
 #[available_gas(l2_gas: 16978563)] // ceil(1.05 × 16170060 measured)
 fn test_cost_library_baseline_batch() {
     let _class = declare("TickLibrary").unwrap().contract_class();
-    let (world, _content) = worst_state(false, 1);
+    let (world, _content) = Fixture::worst_state(false, 1);
     let words = world.store();
     assert(words.clock == 49, 'declared');
 }
@@ -1030,11 +2759,11 @@ fn test_cost_library_baseline_batch() {
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (words, content) = worst_words();
-    let (expected, _) = worst_words();
-    let words = ticks_of(library, words, content, board(), 3);
+    let (words, content) = Fixture::worst_words();
+    let (expected, _) = Fixture::worst_words();
+    let words = Fixture::ticks_of(library, words, content, Fixture::board(), 3);
     let (mut world, sheets) = expected.load(@content);
-    let mut rules = ExecutorTrait::new(board());
+    let mut rules = ExecutorTrait::new(Fixture::board());
     TickTrait::run(ref world, @sheets, 3, ref rules);
     assert(words == world.store(), 'the call runs the pipeline');
 }
@@ -1044,7 +2773,7 @@ fn test_library_matches_pipeline() {
 #[test]
 #[available_gas(l2_gas: 344757)] // ceil(1.05 × 328340 measured)
 fn test_cost_sheets_baseline() {
-    let (skill, caste) = records();
+    let (skill, caste) = Fixture::records();
     assert(skill.len() == 2 && caste.len() == 2, 'parts');
 }
 
@@ -1052,7 +2781,7 @@ fn test_cost_sheets_baseline() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 433839)] // ceil(1.05 × 413180 measured)
 fn test_cost_sheets() {
-    let (skill, caste) = records();
+    let (skill, caste) = Fixture::records();
     let sheet = SkillSheetTrait::read(5, skill);
     let caste_sheet = CasteSheetTrait::read(1, caste);
     assert(sheet.recharge == 12 && sheet.regen(12) == 6, 'skill sheet');
@@ -1063,50 +2792,13 @@ fn test_cost_sheets() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 757932)] // ceil(1.05 × 721840 measured)
 fn test_cost_sheets_unpacked() {
-    let (skill, caste) = records();
+    let (skill, caste) = Fixture::records();
     let skill: Skill = Record::<Skill>::unpack(skill);
     let caste: Caste = Record::<Caste>::unpack(caste);
     let sheet = SkillSheetTrait::new(5, @skill);
     let caste_sheet = CasteSheetTrait::new(1, @caste);
     assert(sheet.recharge == 12 && sheet.regen(12) == 6, 'skill sheet');
     assert(caste_sheet.weapon_ticks == 2 && caste_sheet.max_health(20) == 720, 'caste sheet');
-}
-
-/// A spell whose holding entry is a `REGENERATION` of 2…6 pips, and a caste of multiplier 150 %.
-fn records() -> (Span<felt252>, Span<felt252>) {
-    let regen = EntryTrait::new(
-        kind::REGENERATION, 0, 2, 6, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
-    );
-    let skill = SkillTrait::new(
-        1,
-        1,
-        skill_kind::SPELL,
-        10,
-        0,
-        1,
-        12,
-        0,
-        target::SELF,
-        false,
-        [regen, Default::default(), Default::default()],
-    );
-    let caste = CasteTrait::new(
-        4,
-        1,
-        150,
-        10,
-        40,
-        [0; 9],
-        WeaponTrait::new(weapon::MAUL, 30, 3, 2, 1),
-        10,
-        1,
-        [SMASH, 25, 26, 27],
-        12,
-        30,
-        0,
-        false,
-    );
-    (Record::<Skill>::pack(@skill), Record::<Caste>::pack(@caste))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1126,123 +2818,28 @@ const B_RECOVERY_END: u8 = 4;
 const B_ACTIVATING: u8 = 5;
 const B_FREE: u8 = 6;
 
-/// `goblin_words` with its activation field's slot: a caste skill 0–3 due at `due`, or
-/// `activation::RECOVERING` until `due`, or none.
-fn goblin_words_at(
-    entity: u16, awake: bool, health: u16, slot: u8, due: u32, until: u32,
-) -> GoblinWords {
-    let mut words = goblin_words(entity, awake, health, 0, until);
-    words.timers += slot.into() - activation::NONE.into() + due.into() * B24;
-    words
-}
-
-/// `worst_content(k)` with skill 43, the list's last, an attack skill of activation 1: the branch
-/// goblin concludes it (slot 3) and holds it as its effect, so each of its lookups ends its list.
-fn branch_content(k: u8) -> Content {
-    let content = worst_content(k);
-    let mut skills = array![];
-    for sheet in content.skills {
-        let mut sheet = *sheet;
-        if sheet.id == 43 {
-            sheet.kind = skill_kind::ATTACK;
-        }
-        skills.append(sheet);
-    }
-    Content { skills: skills.span(), ..content }
-}
-
-/// The member of `worst_state` (concluding bar slot 7 at 50, three conditions, four effects),
-/// dying or not; the 100-goblin array, all frozen but the last, which takes `branch` (none for
-/// `B_NONE`), dying or not.
-fn branch_world(branch: u8, dying: bool, member_dying: bool) -> (World, Sheets) {
-    branch_world_n(branch, dying, member_dying, 1)
-}
-
-/// `branch_world` with the last `n` goblins all taking `branch`.
-fn branch_world_n(branch: u8, dying: bool, member_dying: bool, n: u16) -> (World, Sheets) {
-    let k = if branch == B_CONCLUDE_CLEAR {
-        1
-    } else {
-        3
-    };
-    let (sheets, mut index) = branch_content(k).index();
-    let mut spec = Fixture::spec();
-    spec.health = if member_dying {
-        7
-    } else {
-        400
-    };
-    spec.conditions = [99, 99, 99, 0];
-    spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
-    let mut member = MemberTrait::load(Fixture::member_words(spec), ref index, @sheets);
-    member.start(7, 8, 1, 49);
-    let health: u16 = if dying {
-        1
-    } else {
-        280
-    };
-    let mut goblins = array![];
-    let mut i: u16 = 0;
-    while i < 100 - n {
-        let words = goblin_words(8 + i, false, 280, 0, 99);
-        goblins.append(GoblinTrait::load(words, ref index, @sheets));
-        i += 1;
-    }
-    let (awake, slot, due) = if branch == B_NONE {
-        (false, activation::NONE, 0)
-    } else if branch == B_CONCLUDE_RECOVER || branch == B_CONCLUDE_CLEAR {
-        (true, 3, 50)
-    } else if branch == B_LAPSE {
-        (true, 3, 45)
-    } else if branch == B_RECOVERY_END {
-        (true, activation::RECOVERING, 48)
-    } else if branch == B_ACTIVATING {
-        (true, 3, 55)
-    } else {
-        (true, activation::NONE, 0)
-    };
-    while i < 100 {
-        let words = goblin_words_at(8 + i, awake, health, slot, due, 99);
-        goblins.append(GoblinTrait::load(words, ref index, @sheets));
-        i += 1;
-    }
-    (Fixture::world(49, array![member], goblins), sheets)
-}
-
-fn branch_tick(branch: u8, dying: bool, member_dying: bool) {
-    let (mut world, content) = branch_world(branch, dying, member_dying);
-    let mut rules = Idle {};
-    TickTrait::tick(ref world, @content, ref rules);
-    assert(world.clock == 50, 'one tick');
-}
-
-fn branch_fixture(branch: u8, dying: bool, member_dying: bool) {
-    let (world, content) = branch_world(branch, dying, member_dying);
-    assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
-}
-
 // Each branch is the one named (not a cost test).
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 78324996)] // ceil(1.05 × 74595234 measured)
 fn test_branch_worlds_take_their_branch() {
-    let content = branch_content(3).sheets();
+    let content = Fixture::branch_content(3).sheets();
     let mut rules: Script = Default::default();
-    let (mut world, _) = branch_world(B_CONCLUDE_RECOVER, false, false);
+    let (mut world, _) = Fixture::branch_world(B_CONCLUDE_RECOVER, false, false);
     TickTrait::run(ref world, @content, 1, ref rules);
     assert(world.goblin(99).act_slot == activation::RECOVERING, 'recover');
     assert(rules.resolved.len() == 2 && rules.acts.len() == 0, 'resolved');
-    let (mut world, _) = branch_world(B_LAPSE, false, false);
+    let (mut world, _) = Fixture::branch_world(B_LAPSE, false, false);
     TickTrait::run(ref world, @content, 1, ref rules);
     assert(world.goblin(99).recharge(3) == 45 + 20 - 1, 'lapsed');
-    let (mut world, _) = branch_world(B_RECOVERY_END, false, false);
+    let (mut world, _) = Fixture::branch_world(B_RECOVERY_END, false, false);
     TickTrait::run(ref world, @content, 1, ref rules);
     assert(world.goblin(99).act_slot == activation::NONE, 'recovery ended');
-    let (mut world, _) = branch_world(B_ACTIVATING, true, false);
+    let (mut world, _) = Fixture::branch_world(B_ACTIVATING, true, false);
     TickTrait::run(ref world, @content, 1, ref rules);
     assert(world.killed.len() == 1 && world.goblin(99).act_slot == 3, 'busy, died');
-    let content = branch_content(1).sheets();
-    let (mut world, _) = branch_world(B_CONCLUDE_CLEAR, false, false);
+    let content = Fixture::branch_content(1).sheets();
+    let (mut world, _) = Fixture::branch_world(B_CONCLUDE_CLEAR, false, false);
     TickTrait::run(ref world, @content, 1, ref rules);
     assert(world.goblin(99).act_slot == activation::NONE, 'cleared');
 }
@@ -1252,7 +2849,7 @@ fn test_branch_worlds_take_their_branch() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16060409)] // ceil(1.05 × 15295627 measured)
 fn test_cost_bound_eight_lapses() {
-    let (mut world, content) = branch_world_n(B_LAPSE, true, true, 8);
+    let (mut world, content) = Fixture::branch_world_n(B_LAPSE, true, true, 8);
     let mut rules = Idle {};
     TickTrait::tick(ref world, @content, ref rules);
     assert(world.killed.len() == 8, 'eight deaths');
@@ -1262,7 +2859,7 @@ fn test_cost_bound_eight_lapses() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14756816)] // ceil(1.05 × 14054110 measured)
 fn test_cost_bound_eight_lapses_fixture() {
-    let (world, content) = branch_world_n(B_LAPSE, true, true, 8);
+    let (world, content) = Fixture::branch_world_n(B_LAPSE, true, true, 8);
     assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
 }
 
@@ -1270,126 +2867,126 @@ fn test_cost_bound_eight_lapses_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14972195)] // ceil(1.05 × 14259233 measured)
 fn test_cost_bound_base() {
-    branch_tick(B_NONE, false, true);
+    Fixture::branch_tick(B_NONE, false, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14733831)] // ceil(1.05 × 14032220 measured)
 fn test_cost_bound_base_fixture() {
-    branch_fixture(B_NONE, false, true);
+    Fixture::branch_fixture(B_NONE, false, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14950303)] // ceil(1.05 × 14238383 measured)
 fn test_cost_bound_base_member_alive() {
-    branch_tick(B_NONE, false, false);
+    Fixture::branch_tick(B_NONE, false, false);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14733936)] // ceil(1.05 × 14032320 measured)
 fn test_cost_bound_base_member_alive_fixture() {
-    branch_fixture(B_NONE, false, false);
+    Fixture::branch_fixture(B_NONE, false, false);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15096862)] // ceil(1.05 × 14377963 measured)
 fn test_cost_bound_conclude_recover() {
-    branch_tick(B_CONCLUDE_RECOVER, true, true);
+    Fixture::branch_tick(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14737212)] // ceil(1.05 × 14035440 measured)
 fn test_cost_bound_conclude_recover_fixture() {
-    branch_fixture(B_CONCLUDE_RECOVER, true, true);
+    Fixture::branch_fixture(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15096757)] // ceil(1.05 × 14377863 measured)
 fn test_cost_bound_conclude_recover_alive() {
-    branch_tick(B_CONCLUDE_RECOVER, false, true);
+    Fixture::branch_tick(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14737317)] // ceil(1.05 × 14035540 measured)
 fn test_cost_bound_conclude_recover_alive_fixture() {
-    branch_fixture(B_CONCLUDE_RECOVER, false, true);
+    Fixture::branch_fixture(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15098870)] // ceil(1.05 × 14379876 measured)
 fn test_cost_bound_conclude_clear() {
-    branch_tick(B_CONCLUDE_CLEAR, true, true);
+    Fixture::branch_tick(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14737517)] // ceil(1.05 × 14035730 measured)
 fn test_cost_bound_conclude_clear_fixture() {
-    branch_fixture(B_CONCLUDE_CLEAR, true, true);
+    Fixture::branch_fixture(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15118379)] // ceil(1.05 × 14398456 measured)
 fn test_cost_bound_lapse() {
-    branch_tick(B_LAPSE, true, true);
+    Fixture::branch_tick(B_LAPSE, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14738220)] // ceil(1.05 × 14036400 measured)
 fn test_cost_bound_lapse_fixture() {
-    branch_fixture(B_LAPSE, true, true);
+    Fixture::branch_fixture(B_LAPSE, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15077492)] // ceil(1.05 × 14359516 measured)
 fn test_cost_bound_recovery_end() {
-    branch_tick(B_RECOVERY_END, true, true);
+    Fixture::branch_tick(B_RECOVERY_END, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14738924)] // ceil(1.05 × 14037070 measured)
 fn test_cost_bound_recovery_end_fixture() {
-    branch_fixture(B_RECOVERY_END, true, true);
+    Fixture::branch_fixture(B_RECOVERY_END, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15051775)] // ceil(1.05 × 14335023 measured)
 fn test_cost_bound_activating() {
-    branch_tick(B_ACTIVATING, true, true);
+    Fixture::branch_tick(B_ACTIVATING, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14739522)] // ceil(1.05 × 14037640 measured)
 fn test_cost_bound_activating_fixture() {
-    branch_fixture(B_ACTIVATING, true, true);
+    Fixture::branch_fixture(B_ACTIVATING, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15056072)] // ceil(1.05 × 14339116 measured)
 fn test_cost_bound_free() {
-    branch_tick(B_FREE, true, true);
+    Fixture::branch_tick(B_FREE, true, true);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14739627)] // ceil(1.05 × 14037740 measured)
 fn test_cost_bound_free_fixture() {
-    branch_fixture(B_FREE, true, true);
+    Fixture::branch_fixture(B_FREE, true, true);
 }
 
 
@@ -1399,7 +2996,7 @@ fn test_cost_bound_free_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 1388919)] // ceil(1.05 × 1322780 measured)
 fn test_cost_index_skill_first() {
-    let (_, mut index) = branch_content(3).index();
+    let (_, mut index) = Fixture::branch_content(3).index();
     assert(index.skill(1) == 0, 'first');
 }
 
@@ -1407,7 +3004,7 @@ fn test_cost_index_skill_first() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 1389129)] // ceil(1.05 × 1322980 measured)
 fn test_cost_index_skill_last() {
-    let (_, mut index) = branch_content(3).index();
+    let (_, mut index) = Fixture::branch_content(3).index();
     assert(index.skill(43) == 37, 'last');
 }
 
@@ -1415,7 +3012,7 @@ fn test_cost_index_skill_last() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 1388919)] // ceil(1.05 × 1322780 measured)
 fn test_cost_index_caste_first() {
-    let (_, mut index) = branch_content(3).index();
+    let (_, mut index) = Fixture::branch_content(3).index();
     assert(index.caste(1) == 0, 'first');
 }
 
@@ -1423,7 +3020,7 @@ fn test_cost_index_caste_first() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 1389129)] // ceil(1.05 × 1322980 measured)
 fn test_cost_index_caste_last() {
-    let (_, mut index) = branch_content(3).index();
+    let (_, mut index) = Fixture::branch_content(3).index();
     assert(index.caste(5) == 4, 'last');
 }
 
@@ -1431,31 +3028,16 @@ fn test_cost_index_caste_last() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 1388804)] // ceil(1.05 × 1322670 measured)
 fn test_cost_index_fixture() {
-    let (sheets, _) = branch_content(3).index();
+    let (sheets, _) = Fixture::branch_content(3).index();
     assert(sheets.skills.len() == 38, 'fixture');
-}
-
-/// A member's words whose four effects are the content's last four skills (40–43, positions
-/// 35–38) or its four potions (belt slots 0–3, items 100–103), for the load's two effect
-/// branches.
-fn member_effect_words(potions: bool) -> MemberWords {
-    let mut spec = Fixture::spec();
-    spec
-        .effects =
-            if potions {
-                [(0, true, 99, 0), (1, true, 99, 0), (2, true, 99, 0), (3, true, 99, 0)]
-            } else {
-                [(40, false, 99, 12), (41, false, 99, 12), (42, false, 99, 12), (43, false, 99, 12)]
-            };
-    Fixture::member_words(spec)
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 6557250)] // ceil(1.05 × 6245000 measured)
 fn test_cost_load_member_skills() {
-    let (sheets, mut index) = branch_content(3).index();
-    let words = member_effect_words(false);
+    let (sheets, mut index) = Fixture::branch_content(3).index();
+    let words = Fixture::member_effect_words(false);
     assert(words.state != 0 && sheets.skills.len() == 38, 'fixture');
     let member = MemberTrait::load(words, ref index, @sheets);
     assert(member.max_health == 480, 'loaded');
@@ -1465,8 +3047,8 @@ fn test_cost_load_member_skills() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 6548535)] // ceil(1.05 × 6236700 measured)
 fn test_cost_load_member_potions() {
-    let (sheets, mut index) = branch_content(3).index();
-    let words = member_effect_words(true);
+    let (sheets, mut index) = Fixture::branch_content(3).index();
+    let words = Fixture::member_effect_words(true);
     assert(words.state != 0 && sheets.skills.len() == 38, 'fixture');
     let member = MemberTrait::load(words, ref index, @sheets);
     assert(member.max_health == 480, 'loaded');
@@ -1476,8 +3058,8 @@ fn test_cost_load_member_potions() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 6250283)] // ceil(1.05 × 5952650 measured)
 fn test_cost_load_member_skills_fixture() {
-    let (sheets, _) = branch_content(3).index();
-    let words = member_effect_words(false);
+    let (sheets, _) = Fixture::branch_content(3).index();
+    let words = Fixture::member_effect_words(false);
     assert(words.state != 0 && sheets.skills.len() == 38, 'fixture');
 }
 
@@ -1485,43 +3067,21 @@ fn test_cost_load_member_skills_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 6249548)] // ceil(1.05 × 5951950 measured)
 fn test_cost_load_member_potions_fixture() {
-    let (sheets, _) = branch_content(3).index();
-    let words = member_effect_words(true);
+    let (sheets, _) = Fixture::branch_content(3).index();
+    let words = Fixture::member_effect_words(true);
     assert(words.state != 0 && sheets.skills.len() == 38, 'fixture');
 }
 
 // The audit's permutation (skills 40 and 42 exchanged: before CBT-02d every conclusion's lookup
 // went 2 further; through the kits' positions it costs the same) measured under the tick's upper
 // bound.
-fn permuted(content: Content) -> Content {
-    let mut forty: SkillSheet = Default::default();
-    let mut forty_two: SkillSheet = Default::default();
-    for sheet in content.skills {
-        if *sheet.id == 40 {
-            forty = *sheet;
-        } else if *sheet.id == 42 {
-            forty_two = *sheet;
-        }
-    }
-    let mut skills = array![];
-    for sheet in content.skills {
-        let mut sheet = *sheet;
-        if sheet.id == 40 {
-            sheet = forty_two;
-        } else if sheet.id == 42 {
-            sheet = forty;
-        }
-        skills.append(sheet);
-    }
-    Content { skills: skills.span(), ..content }
-}
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 17965861)] // ceil(1.05 × 17110343 measured)
 fn test_cost_tick_worst_permuted() {
-    let (mut world, sheets) = worst_state(true, 3);
-    let content = permuted(content_of(@sheets)).sheets();
+    let (mut world, sheets) = Fixture::worst_state(true, 3);
+    let content = Fixture::permuted(Fixture::content_of(@sheets)).sheets();
     let mut rules = Idle {};
     TickTrait::tick(ref world, @content, ref rules);
     assert(world.killed.len() == 8 && world.defeated, 'every death');
@@ -1531,8 +3091,8 @@ fn test_cost_tick_worst_permuted() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16431293)] // ceil(1.05 × 15648850 measured)
 fn test_cost_fixture_worst_permuted() {
-    let (world, sheets) = worst_state(true, 3);
-    let content = permuted(content_of(@sheets)).sheets();
+    let (world, sheets) = Fixture::worst_state(true, 3);
+    let content = Fixture::permuted(Fixture::content_of(@sheets)).sheets();
     assert(world.goblin_count() == 100 && content.skills.len() == 38, 'worst');
 }
 
@@ -1554,76 +3114,6 @@ fn test_cost_fixture_worst_permuted() {
 //   (`test_cost_library_*`).
 // REPORT.md and ENG-01 §9.2 sum them.
 
-/// Keeps a value from the compiler's constant folding, so that the path under test runs.
-#[inline(never)]
-fn opaque<T, +Drop<T>>(value: T) -> T {
-    value
-}
-
-/// One goblin's step 3 (`GoblinTickTrait::regenerate`, no loop): its three degenerating
-/// conditions to `until`, its effect's pips until `effect_until`, its regeneration, health, energy,
-/// AI state and adrenaline; max health 280, max energy 30, energy regeneration 1, tick 50.
-fn regenerate_goblin(
-    until: u32,
-    effect: i8,
-    effect_until: u32,
-    regen: i8,
-    health: u16,
-    energy: u8,
-    state: u8,
-    adrenaline: u8,
-) -> u16 {
-    let mut goblin = opaque(Fixture::goblin(8, HOB));
-    goblin.bleeding = opaque(until);
-    goblin.poison = opaque(until);
-    goblin.burning = opaque(until);
-    goblin.effect_regen = opaque(effect);
-    goblin.effect_deadline = opaque(effect_until);
-
-    goblin.health = opaque(health);
-    goblin.energy = opaque(energy);
-    goblin.ai = opaque(state);
-    goblin.adrenaline = opaque(adrenaline);
-    // R3: the regeneration is the caste's (sheet `health_regen` = pips + 10).
-    let mut caste = Fixture::caste(HOB, 1);
-    let pips: i32 = regen.into();
-    caste.health_regen = (pips + 10).try_into().unwrap();
-    let content = Content {
-        skills: Fixture::content().skills, potions: array![].span(), castes: array![caste].span(),
-    };
-    let sheets = content.sheets();
-    goblin.caste_at = 0;
-    goblin.regenerate(opaque(50), @sheets);
-    goblin.health
-}
-
-/// One member's step 3 (`MemberTickTrait::regenerate`, no loop): its conditions to `until`, its
-/// four effects' pips until `effect_until`, its regeneration, health, energy, whether the awake
-/// set is engaged and its adrenaline; max health 480, max energy 60 thirds, regeneration 2.
-fn regenerate_member(
-    until: u32,
-    effect: i8,
-    effect_until: u32,
-    regen: i8,
-    health: u16,
-    energy: u16,
-    engaged: bool,
-    adrenaline: u16,
-) -> u16 {
-    let mut member = opaque(Fixture::member(Fixture::spec()));
-    member.bleeding = opaque(until);
-    member.poison = opaque(until);
-    member.burning = opaque(until);
-    member.effect_regen = opaque([effect; 4]);
-    member.effect_deadlines = opaque([effect_until; 4]);
-    member.health_regen = opaque(regen);
-    member.health = opaque(health);
-    member.energy = opaque(energy);
-    member.adrenaline = opaque(adrenaline);
-    member.regenerate(opaque(50), opaque(engaged));
-    member.health
-}
-
 // COST-1a: every path of one goblin's step 3 costs the same.
 
 // A goblin's step 3, the pips below −10 (clamped), health lost.
@@ -1631,7 +3121,7 @@ fn regenerate_member(
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_below() {
-    assert(regenerate_goblin(99, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, the same, health to 0.
@@ -1639,7 +3129,7 @@ fn test_cost_path_goblin_below() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_below_dead() {
-    assert(regenerate_goblin(99, 2, 99, 0, 15, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 99, 0, 15, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, the pips in −10…−1.
@@ -1647,7 +3137,7 @@ fn test_cost_path_goblin_below_dead() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_down() {
-    assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, the same, health to 0.
@@ -1655,7 +3145,7 @@ fn test_cost_path_goblin_down() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_down_dead() {
-    assert(regenerate_goblin(99, 2, 99, 5, 10, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 99, 5, 10, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, the pips in 0…10.
@@ -1663,7 +3153,7 @@ fn test_cost_path_goblin_down_dead() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_up() {
-    assert(regenerate_goblin(0, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(0, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, the same, health to its max.
@@ -1671,7 +3161,7 @@ fn test_cost_path_goblin_up() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_up_full() {
-    assert(regenerate_goblin(0, 2, 99, 0, 278, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(0, 2, 99, 0, 278, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, the pips above 10 (clamped).
@@ -1679,7 +3169,7 @@ fn test_cost_path_goblin_up_full() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_above() {
-    assert(regenerate_goblin(0, 10, 99, 10, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(0, 10, 99, 10, 100, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, the same, health to its max.
@@ -1687,7 +3177,7 @@ fn test_cost_path_goblin_above() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_above_full() {
-    assert(regenerate_goblin(0, 10, 99, 10, 270, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(0, 10, 99, 10, 270, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, no effect pips.
@@ -1695,7 +3185,7 @@ fn test_cost_path_goblin_above_full() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_effect_zero() {
-    assert(regenerate_goblin(99, 0, 99, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 0, 99, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, an effect over.
@@ -1703,7 +3193,7 @@ fn test_cost_path_goblin_effect_zero() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_effect_over() {
-    assert(regenerate_goblin(99, 2, 40, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 40, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, energy to its max.
@@ -1711,7 +3201,7 @@ fn test_cost_path_goblin_effect_over() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_energy_capped() {
-    assert(regenerate_goblin(99, 2, 99, 5, 100, 30, ai::ALERTED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 99, 5, 100, 30, ai::ALERTED, 5) <= 280, 'health');
 }
 
 // A goblin's step 3, no adrenaline to decay.
@@ -1719,7 +3209,7 @@ fn test_cost_path_goblin_energy_capped() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_adrenaline_zero() {
-    assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 0) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 0) <= 280, 'health');
 }
 
 // A goblin's step 3, Engaged: no decay.
@@ -1727,7 +3217,7 @@ fn test_cost_path_goblin_adrenaline_zero() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 721812)] // ceil(1.05 × 687440 measured)
 fn test_cost_path_goblin_engaged() {
-    assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ENGAGED, 5) <= 280, 'health');
+    assert(Fixture::regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ENGAGED, 5) <= 280, 'health');
 }
 
 // COST-1a: every path of one member's step 3 costs the same.
@@ -1737,7 +3227,7 @@ fn test_cost_path_goblin_engaged() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_below() {
-    assert(regenerate_member(99, 2, 99, -10, 100, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 99, -10, 100, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the same, health to 0.
@@ -1745,7 +3235,7 @@ fn test_cost_path_member_below() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_below_dead() {
-    assert(regenerate_member(99, 2, 99, -10, 15, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 99, -10, 15, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the pips in −10…−1.
@@ -1753,7 +3243,7 @@ fn test_cost_path_member_below_dead() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_down() {
-    assert(regenerate_member(99, 2, 99, -2, 100, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 99, -2, 100, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the same, health to 0.
@@ -1761,7 +3251,7 @@ fn test_cost_path_member_down() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_down_dead() {
-    assert(regenerate_member(99, 2, 99, -2, 10, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 99, -2, 10, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the pips in 0…10.
@@ -1769,7 +3259,7 @@ fn test_cost_path_member_down_dead() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_up() {
-    assert(regenerate_member(0, 2, 99, 0, 100, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(0, 2, 99, 0, 100, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the same, health to its max.
@@ -1777,7 +3267,7 @@ fn test_cost_path_member_up() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_up_full() {
-    assert(regenerate_member(0, 2, 99, 0, 478, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(0, 2, 99, 0, 478, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the pips above 10 (clamped).
@@ -1785,7 +3275,7 @@ fn test_cost_path_member_up_full() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_above() {
-    assert(regenerate_member(0, 3, 99, 5, 100, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(0, 3, 99, 5, 100, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the same, health to its max.
@@ -1793,7 +3283,7 @@ fn test_cost_path_member_above() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_above_full() {
-    assert(regenerate_member(0, 3, 99, 5, 475, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(0, 3, 99, 5, 475, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, no effect pips (the effects' block skipped).
@@ -1801,7 +3291,7 @@ fn test_cost_path_member_above_full() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_effects_zero() {
-    assert(regenerate_member(99, 0, 99, 6, 100, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 0, 99, 6, 100, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, the effects over.
@@ -1809,7 +3299,7 @@ fn test_cost_path_member_effects_zero() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_effects_over() {
-    assert(regenerate_member(99, 2, 40, 6, 100, 30, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 40, 6, 100, 30, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, energy to its max.
@@ -1817,7 +3307,7 @@ fn test_cost_path_member_effects_over() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_energy_capped() {
-    assert(regenerate_member(99, 2, 99, -2, 100, 59, false, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 99, -2, 100, 59, false, 5) <= 480, 'health');
 }
 
 // A member's step 3, no adrenaline to decay.
@@ -1825,7 +3315,7 @@ fn test_cost_path_member_energy_capped() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_adrenaline_zero() {
-    assert(regenerate_member(99, 2, 99, -2, 100, 30, false, 0) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 99, -2, 100, 30, false, 0) <= 480, 'health');
 }
 
 // A member's step 3, in combat: no decay.
@@ -1833,60 +3323,24 @@ fn test_cost_path_member_adrenaline_zero() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_engaged() {
-    assert(regenerate_member(99, 2, 99, -2, 100, 30, true, 5) <= 480, 'health');
+    assert(Fixture::regenerate_member(99, 2, 99, -2, 100, 30, true, 5) <= 480, 'health');
 }
 
 // `store` has no loop: a goblin's and a member's words cost the same written back unchanged or
 // changed in every hot field.
-fn store_goblin(state: u8, health: u16, small: u8, slot: u8, deadline: u32) -> felt252 {
-    let mut goblin = opaque(Fixture::goblin(9, RUNT));
-    goblin.ai = opaque(state);
-    goblin.health = opaque(health);
-    goblin.energy = opaque(small);
-    goblin.adrenaline = opaque(small);
-    goblin.act_slot = opaque(slot);
-    goblin.act_target = opaque(small.into());
-    goblin.act_deadline = opaque(deadline);
-    goblin.bleeding = opaque(deadline);
-    goblin.poison = opaque(deadline);
-    goblin.burning = opaque(deadline);
-    goblin.knocked = opaque(deadline);
-    goblin.effect_deadline = opaque(deadline);
-    goblin.store().state
-}
-
-fn store_member(
-    state: u8, health: u16, energy: u16, small: u16, slot: u8, deadline: u32,
-) -> MemberWords {
-    let mut member = opaque(Fixture::member(Fixture::spec()));
-    member.status = opaque(state);
-    member.health = opaque(health);
-    member.energy = opaque(energy);
-    member.adrenaline = opaque(small);
-    member.flags = opaque(small.try_into().unwrap());
-    member.act_slot = opaque(slot);
-    member.act_target = opaque(small);
-    member.act_tile = opaque(small.try_into().unwrap());
-    member.act_deadline = opaque(deadline);
-    member.bleeding = opaque(deadline);
-    member.poison = opaque(deadline);
-    member.burning = opaque(deadline);
-    member.knocked = opaque(deadline);
-    member.store()
-}
 
 #[test]
 #[available_gas(l2_gas: 603047)] // ceil(1.05 × 574330 measured)
 fn test_cost_path_goblin_store_same() {
     let words = Fixture::goblin(9, RUNT).state;
-    assert(store_goblin(ai::ENGAGED, 100, 0, activation::NONE, 0) == words, 'same');
+    assert(Fixture::store_goblin(ai::ENGAGED, 100, 0, activation::NONE, 0) == words, 'same');
 }
 
 #[test]
 #[available_gas(l2_gas: 603047)] // ceil(1.05 × 574330 measured)
 fn test_cost_path_goblin_store_changed() {
     let words = Fixture::goblin(9, RUNT).state;
-    assert(store_goblin(ai::DEAD, 0, 3, activation::RECOVERING, 60) != words, 'changed');
+    assert(Fixture::store_goblin(ai::DEAD, 0, 3, activation::RECOVERING, 60) != words, 'changed');
 }
 
 #[test]
@@ -1894,7 +3348,9 @@ fn test_cost_path_goblin_store_changed() {
 #[available_gas(l2_gas: 9776750)] // ceil(1.05 × 9311190 measured)
 fn test_cost_path_member_store_same() {
     let words = Fixture::member_words(Fixture::spec());
-    assert(store_member(status::INSIDE, 400, 30, 0, NO_SLOT, 0).state == words.state, 'same');
+    assert(
+        Fixture::store_member(status::INSIDE, 400, 30, 0, NO_SLOT, 0).state == words.state, 'same',
+    );
 }
 
 #[test]
@@ -1902,7 +3358,7 @@ fn test_cost_path_member_store_same() {
 #[available_gas(l2_gas: 9776750)] // ceil(1.05 × 9311190 measured)
 fn test_cost_path_member_store_changed() {
     let words = Fixture::member_words(Fixture::spec());
-    assert(store_member(status::DOWN, 0, 3, 3, 4, 60).state != words.state, 'changed');
+    assert(Fixture::store_member(status::DOWN, 0, 3, 3, 4, 60).state != words.state, 'changed');
 }
 
 // `EntryTrait::line` has no loop: an effect's pips at a rank cost the same rising or falling
@@ -1910,13 +3366,18 @@ fn test_cost_path_member_store_changed() {
 #[test]
 #[available_gas(l2_gas: 14606)] // ceil(1.05 × 13910 measured)
 fn test_cost_path_line_rising() {
-    assert(EntryTrait::line(opaque(2), opaque(6), opaque(8)) == 4, 'rising');
+    assert(
+        EntryTrait::line(Fixture::opaque(2), Fixture::opaque(6), Fixture::opaque(8)) == 4, 'rising',
+    );
 }
 
 #[test]
 #[available_gas(l2_gas: 14606)] // ceil(1.05 × 13910 measured)
 fn test_cost_path_line_falling() {
-    assert(EntryTrait::line(opaque(6), opaque(-10), opaque(9)) == -6, 'falling');
+    assert(
+        EntryTrait::line(Fixture::opaque(6), Fixture::opaque(-10), Fixture::opaque(9)) == -6,
+        'falling',
+    );
 }
 
 // COST-BOUND (CBT-02b fix loop 1): step 1's branches, taken by 0, 1 and 8 awake goblins of the
@@ -1940,189 +3401,6 @@ const B_DEAD: u8 = 9;
 const B_KNOCKED: u8 = 10;
 
 const B184: felt252 = 0x10000000000000000000000000000000000000000000000;
-
-/// The words of an awake goblin taking `branch` in the tick of 50 (the clock at 49): at 1 health,
-/// dying in step 3 (at 280 with `survive`); its activation field, a later recharge kept, dead,
-/// knocked down, as the branch needs.
-fn term_words(entity: u16, branch: u8, survive: bool) -> GoblinWords {
-    let health = if survive {
-        280
-    } else {
-        1
-    };
-    let (slot, due) = if branch == B_CONCLUDE_RECOVER || branch == B_CONCLUDE_CLEAR {
-        (3, 50)
-    } else if branch == B_LAPSE || branch == B_LAPSE_KEEP {
-        (3, 45)
-    } else if branch == B_RECOVERY_END {
-        (activation::RECOVERING, 48)
-    } else if branch == B_ACTIVATING {
-        (3, 55)
-    } else if branch == B_RECOVERING {
-        (activation::RECOVERING, 55)
-    } else {
-        (activation::NONE, 0)
-    };
-    let mut words = goblin_words_at(entity, true, health, slot, due, 99);
-    if branch == B_LAPSE_KEEP {
-        // Slot 3's recharge at 100, later than the lapse's 45 + 20 − 1.
-        words.state += 100 * B212;
-    } else if branch == B_DEAD {
-        words.state += (ai::DEAD - ai::ALERTED).into() * B24;
-    } else if branch == B_KNOCKED {
-        words.timers += 60 * B184;
-    }
-    words
-}
-
-/// The 100-goblin array, each frozen goblin holding a retained effect; the awake ones at indexes
-/// `at`, taking `branches`; the member concluding bar slot 7 and dying (step 5's defeat);
-/// `members` copies of it (M-3); the content `branch_content(k)`: `k = 3` for a conclusion into a
-/// recovery, 1 for one clearing the field (no other branch reads `k`).
-fn term_world(
-    branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32,
-) -> (World, Sheets) {
-    let (sheets, mut index) = branch_content(k).index();
-    let mut spec = Fixture::spec();
-    spec.health = 7;
-    spec.conditions = [99, 99, 99, 0];
-    spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
-    let mut member = MemberTrait::load(Fixture::member_words(spec), ref index, @sheets);
-    member.start(7, 8, 1, 49);
-    let mut all = array![];
-    for _ in 0..members {
-        all.append(member);
-    }
-    let mut goblins = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        let mut words = goblin_words(8 + i, false, 280, 0, 99);
-        let mut k = 0;
-        while k < at.len() {
-            if *at[k] == i {
-                words = term_words(8 + i, *branches[k], survive);
-            }
-            k += 1;
-        }
-        goblins.append(GoblinTrait::load(words, ref index, @sheets));
-        i += 1;
-    }
-    (Fixture::world(49, all, goblins), sheets)
-}
-
-/// The indexes of `n` awake goblins: at the array's end, at its start, or spread across it.
-fn at_end(n: u16) -> Span<u16> {
-    let mut at = array![];
-    let mut i = 100 - n;
-    while i < 100 {
-        at.append(i);
-        i += 1;
-    }
-    at.span()
-}
-
-fn at_start(n: u16) -> Span<u16> {
-    let mut at = array![];
-    let mut i = 0;
-    while i < n {
-        at.append(i);
-        i += 1;
-    }
-    at.span()
-}
-
-fn at_spread() -> Span<u16> {
-    array![5, 17, 29, 41, 53, 65, 77, 89].span()
-}
-
-/// `n` times `branch`.
-fn all_of(branch: u8, n: u32) -> Span<u8> {
-    let mut branches = array![];
-    for _ in 0..n {
-        branches.append(branch);
-    }
-    branches.span()
-}
-
-/// Seven times `first`, then `last`.
-fn seven_then(first: u8, last: u8) -> Span<u8> {
-    let mut branches = array![];
-    for _ in 0..7_u8 {
-        branches.append(first);
-    }
-    branches.append(last);
-    branches.span()
-}
-
-/// What `branch` leaves on a goblin after the tick of 50: `(activation slot, its deadline, slot
-/// 3's recharge)` (skill 43, activation 1, recharge 20: a conclusion at 50 recharges to 69, a lapse
-/// dated 45 to 64; a recovery of `k = 3` runs to 51).
-fn after(branch: u8) -> (u8, u32, u32) {
-    if branch == B_CONCLUDE_RECOVER {
-        (activation::RECOVERING, 51, 69)
-    } else if branch == B_CONCLUDE_CLEAR {
-        (activation::NONE, 0, 69)
-    } else if branch == B_LAPSE {
-        (activation::NONE, 0, 64)
-    } else if branch == B_LAPSE_KEEP {
-        (activation::NONE, 0, 100)
-    } else if branch == B_ACTIVATING {
-        (3, 55, 0)
-    } else if branch == B_RECOVERING {
-        (activation::RECOVERING, 55, 0)
-    } else {
-        (activation::NONE, 0, 0)
-    }
-}
-
-/// One tick of `term_world`, measured alone and printed; then every awake goblin is checked to
-/// have taken its branch (its field, its deadline, its recharge) and died in step 3 (survived with
-/// `survive`), an awake goblin already dead to be untouched, a knocked-down one to stay so, the
-/// kills to be those deaths, the member down.
-fn term_tick(branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32) -> u128 {
-    let (mut world, content) = term_world(branches, at, survive, k, members);
-    let mut rules: Acts = Default::default();
-    let before = get_available_gas();
-    TickTrait::tick(ref world, @content, ref rules);
-    let used = before - get_available_gas();
-    println!("gas tick: {}", used);
-    let mut deaths = 0;
-    let mut free = 0;
-    let mut i = 0;
-    while i < branches.len() {
-        let branch = *branches[i];
-        let index: u32 = (*at[i]).into();
-        let goblin = @world.goblin(index);
-        let (slot, deadline, recharge) = after(branch);
-        assert(*goblin.act_slot == slot && *goblin.act_deadline == deadline, 'branch: field');
-        assert(goblin.recharge(3) == recharge, 'branch: recharge');
-        // CBT-02d (CBT-02b's quality re-audit): a goblin free in step 2 acted, at its turn (a free
-        // one, and one whose lapse or recovery step 1 ended); no other did.
-        if branch == B_FREE
-            || branch == B_LAPSE
-            || branch == B_LAPSE_KEEP
-            || branch == B_RECOVERY_END {
-            assert(*rules.acts[free] == index, 'branch: acted in step 2');
-            free += 1;
-        }
-        if branch == B_DEAD {
-            assert(*goblin.ai == ai::DEAD && *goblin.health == 1, 'branch: dead untouched');
-        } else if survive {
-            assert(goblin.is_alive() && *goblin.health > 1, 'branch: survived');
-        } else {
-            assert(*goblin.ai == ai::DEAD && *goblin.health == 0, 'branch: died in step 3');
-            deaths += 1;
-        }
-        if branch == B_KNOCKED {
-            assert(*goblin.knocked == 60, 'branch: knocked down');
-        }
-        i += 1;
-    }
-    assert(rules.acts.len() == free, 'branch: only the free act');
-    assert(world.killed.len() == deaths, 'branch: the deaths');
-    assert(world.defeated && world.member(0).status == status::DOWN, 'branch: member down');
-    used
-}
 
 /// The measured tick's rules (CBT-02d): `Idle`'s, but step 2's hook records each goblin that acts,
 /// so that a free goblin's branch is proved to reach it. The record is an append a goblin that
@@ -2148,7 +3426,7 @@ impl ActsRules of Rules<Acts> {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15406108)] // ceil(1.05 × 14672483 measured)
 fn test_cost_term_none() {
-    term_tick(array![].span(), array![].span(), false, 1, 1);
+    Fixture::term_tick(array![].span(), array![].span(), false, 1, 1);
 }
 
 // The same with the content of a conclusion into a recovery: `k` changes nothing else.
@@ -2156,7 +3434,7 @@ fn test_cost_term_none() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15406108)] // ceil(1.05 × 14672483 measured)
 fn test_cost_term_none_k3() {
-    term_tick(array![].span(), array![].span(), false, 3, 1);
+    Fixture::term_tick(array![].span(), array![].span(), false, 3, 1);
 }
 
 // The base with two members (M-3): what the second member adds.
@@ -2164,7 +3442,7 @@ fn test_cost_term_none_k3() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15600308)] // ceil(1.05 × 14857436 measured)
 fn test_cost_term_none_two_members() {
-    term_tick(array![].span(), array![].span(), false, 1, 2);
+    Fixture::term_tick(array![].span(), array![].span(), false, 1, 2);
 }
 
 // CBT-02d fix loop 1 (COST-3): the base with four and eight members (M-3 allows 8). Each member's
@@ -2173,14 +3451,14 @@ fn test_cost_term_none_two_members() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16041441)] // ceil(1.05 × 15277562 measured)
 fn test_cost_term_none_four_members() {
-    term_tick(array![].span(), array![].span(), false, 1, 4);
+    Fixture::term_tick(array![].span(), array![].span(), false, 1, 4);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 17141622)] // ceil(1.05 × 16325354 measured)
 fn test_cost_term_none_eight_members() {
-    term_tick(array![].span(), array![].span(), false, 1, 8);
+    Fixture::term_tick(array![].span(), array![].span(), false, 1, 8);
 }
 
 // One goblin: concluding into a recovery.
@@ -2188,7 +3466,7 @@ fn test_cost_term_none_eight_members() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16043416)] // ceil(1.05 × 15279443 measured)
 fn test_cost_term_one_conclude_recover() {
-    term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), false, 3, 1);
+    Fixture::term_tick(Fixture::all_of(B_CONCLUDE_RECOVER, 1), Fixture::at_end(1), false, 3, 1);
 }
 
 // Eight goblins: concluding into a recovery.
@@ -2196,7 +3474,7 @@ fn test_cost_term_one_conclude_recover() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20852678)] // ceil(1.05 × 19859693 measured)
 fn test_cost_term_eight_conclude_recover() {
-    term_tick(all_of(B_CONCLUDE_RECOVER, 8), at_end(8), false, 3, 1);
+    Fixture::term_tick(Fixture::all_of(B_CONCLUDE_RECOVER, 8), Fixture::at_end(8), false, 3, 1);
 }
 
 // One goblin: concluding, the field cleared.
@@ -2204,7 +3482,7 @@ fn test_cost_term_eight_conclude_recover() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16045424)] // ceil(1.05 × 15281356 measured)
 fn test_cost_term_one_conclude_clear() {
-    term_tick(all_of(B_CONCLUDE_CLEAR, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_CONCLUDE_CLEAR, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: concluding, the field cleared.
@@ -2212,7 +3490,7 @@ fn test_cost_term_one_conclude_clear() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20868747)] // ceil(1.05 × 19874997 measured)
 fn test_cost_term_eight_conclude_clear() {
-    term_tick(all_of(B_CONCLUDE_CLEAR, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_CONCLUDE_CLEAR, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: a lapse.
@@ -2220,7 +3498,7 @@ fn test_cost_term_eight_conclude_clear() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16065794)] // ceil(1.05 × 15300756 measured)
 fn test_cost_term_one_lapse() {
-    term_tick(all_of(B_LAPSE, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_LAPSE, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: a lapse.
@@ -2228,7 +3506,7 @@ fn test_cost_term_one_lapse() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20635395)] // ceil(1.05 × 19652757 measured)
 fn test_cost_term_eight_lapse() {
-    term_tick(all_of(B_LAPSE, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_LAPSE, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: a lapse, the later recharge kept.
@@ -2236,7 +3514,7 @@ fn test_cost_term_eight_lapse() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16066193)] // ceil(1.05 × 15301136 measured)
 fn test_cost_term_one_lapse_keep() {
-    term_tick(all_of(B_LAPSE_KEEP, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_LAPSE_KEEP, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: a lapse, the later recharge kept.
@@ -2244,7 +3522,7 @@ fn test_cost_term_one_lapse_keep() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20638587)] // ceil(1.05 × 19655797 measured)
 fn test_cost_term_eight_lapse_keep() {
-    term_tick(all_of(B_LAPSE_KEEP, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_LAPSE_KEEP, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: a recovery over.
@@ -2252,7 +3530,7 @@ fn test_cost_term_eight_lapse_keep() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16024886)] // ceil(1.05 × 15261796 measured)
 fn test_cost_term_one_recovery_end() {
-    term_tick(all_of(B_RECOVERY_END, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_RECOVERY_END, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: a recovery over.
@@ -2260,7 +3538,7 @@ fn test_cost_term_one_recovery_end() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20301138)] // ceil(1.05 × 19334417 measured)
 fn test_cost_term_eight_recovery_end() {
-    term_tick(all_of(B_RECOVERY_END, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_RECOVERY_END, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: activating, busy.
@@ -2268,7 +3546,7 @@ fn test_cost_term_eight_recovery_end() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15996922)] // ceil(1.05 × 15235163 measured)
 fn test_cost_term_one_activating() {
-    term_tick(all_of(B_ACTIVATING, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_ACTIVATING, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: activating, busy.
@@ -2276,7 +3554,7 @@ fn test_cost_term_one_activating() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20125343)] // ceil(1.05 × 19166993 measured)
 fn test_cost_term_eight_activating() {
-    term_tick(all_of(B_ACTIVATING, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_ACTIVATING, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: a recovery running on.
@@ -2284,7 +3562,7 @@ fn test_cost_term_eight_activating() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15997331)] // ceil(1.05 × 15235553 measured)
 fn test_cost_term_one_recovering() {
-    term_tick(all_of(B_RECOVERING, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_RECOVERING, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: a recovery running on.
@@ -2292,7 +3570,7 @@ fn test_cost_term_one_recovering() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20128619)] // ceil(1.05 × 19170113 measured)
 fn test_cost_term_eight_recovering() {
-    term_tick(all_of(B_RECOVERING, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_RECOVERING, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: free, acting in step 2.
@@ -2300,7 +3578,7 @@ fn test_cost_term_eight_recovering() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16002164)] // ceil(1.05 × 15240156 measured)
 fn test_cost_term_one_free() {
-    term_tick(all_of(B_FREE, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_FREE, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: free, acting in step 2.
@@ -2308,7 +3586,7 @@ fn test_cost_term_one_free() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20167284)] // ceil(1.05 × 19206937 measured)
 fn test_cost_term_eight_free() {
-    term_tick(all_of(B_FREE, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_FREE, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: free but knocked down.
@@ -2316,7 +3594,7 @@ fn test_cost_term_eight_free() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15997531)] // ceil(1.05 × 15235743 measured)
 fn test_cost_term_one_knocked() {
-    term_tick(all_of(B_KNOCKED, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_KNOCKED, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: free but knocked down.
@@ -2324,7 +3602,7 @@ fn test_cost_term_one_knocked() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20130215)] // ceil(1.05 × 19171633 measured)
 fn test_cost_term_eight_knocked() {
-    term_tick(all_of(B_KNOCKED, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_KNOCKED, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin: awake and already dead.
@@ -2332,7 +3610,7 @@ fn test_cost_term_eight_knocked() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 15970504)] // ceil(1.05 × 15210003 measured)
 fn test_cost_term_one_dead() {
-    term_tick(all_of(B_DEAD, 1), at_end(1), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_DEAD, 1), Fixture::at_end(1), false, 1, 1);
 }
 
 // Eight goblins: awake and already dead.
@@ -2340,7 +3618,7 @@ fn test_cost_term_one_dead() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 19913999)] // ceil(1.05 × 18965713 measured)
 fn test_cost_term_eight_dead() {
-    term_tick(all_of(B_DEAD, 8), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::all_of(B_DEAD, 8), Fixture::at_end(8), false, 1, 1);
 }
 
 // One goblin concluding into a recovery, surviving step 3.
@@ -2348,7 +3626,7 @@ fn test_cost_term_eight_dead() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16043710)] // ceil(1.05 × 15279723 measured)
 fn test_cost_term_one_conclude_recover_surviving() {
-    term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), true, 3, 1);
+    Fixture::term_tick(Fixture::all_of(B_CONCLUDE_RECOVER, 1), Fixture::at_end(1), true, 3, 1);
 }
 
 // The costliest mix: 7 conclusions, then a lapse whose write the end of step 1 rebuilds.
@@ -2356,7 +3634,9 @@ fn test_cost_term_one_conclude_recover_surviving() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20884697)] // ceil(1.05 × 19890187 measured)
 fn test_cost_term_mix_clear_lapse() {
-    term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_end(8), false, 1, 1);
+    Fixture::term_tick(
+        Fixture::seven_then(B_CONCLUDE_CLEAR, B_LAPSE), Fixture::at_end(8), false, 1, 1,
+    );
 }
 
 // The same, the awake goblins at the array's start.
@@ -2364,7 +3644,9 @@ fn test_cost_term_mix_clear_lapse() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20879919)] // ceil(1.05 × 19885637 measured)
 fn test_cost_term_mix_clear_lapse_start() {
-    term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_start(8), false, 1, 1);
+    Fixture::term_tick(
+        Fixture::seven_then(B_CONCLUDE_CLEAR, B_LAPSE), Fixture::at_start(8), false, 1, 1,
+    );
 }
 
 // The same, the awake goblins spread across the array.
@@ -2372,7 +3654,9 @@ fn test_cost_term_mix_clear_lapse_start() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20867487)] // ceil(1.05 × 19873797 measured)
 fn test_cost_term_mix_clear_lapse_spread() {
-    term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_spread(), false, 1, 1);
+    Fixture::term_tick(
+        Fixture::seven_then(B_CONCLUDE_CLEAR, B_LAPSE), Fixture::at_spread(), false, 1, 1,
+    );
 }
 
 // Swap: 7 conclusions, then an activating goblin.
@@ -2380,7 +3664,9 @@ fn test_cost_term_mix_clear_lapse_spread() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20774885)] // ceil(1.05 × 19785604 measured)
 fn test_cost_term_mix_clear_activating() {
-    term_tick(seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), at_end(8), false, 1, 1);
+    Fixture::term_tick(
+        Fixture::seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), Fixture::at_end(8), false, 1, 1,
+    );
 }
 
 // Swap: 7 conclusions, then a recovery over.
@@ -2388,7 +3674,9 @@ fn test_cost_term_mix_clear_activating() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20843789)] // ceil(1.05 × 19851227 measured)
 fn test_cost_term_mix_clear_recovery_end() {
-    term_tick(seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END), at_end(8), false, 1, 1);
+    Fixture::term_tick(
+        Fixture::seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END), Fixture::at_end(8), false, 1, 1,
+    );
 }
 
 // Swap: 7 activating goblins, then a lapse.
@@ -2396,7 +3684,7 @@ fn test_cost_term_mix_clear_recovery_end() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20233717)] // ceil(1.05 × 19270206 measured)
 fn test_cost_term_mix_activating_lapse() {
-    term_tick(seven_then(B_ACTIVATING, B_LAPSE), at_end(8), false, 1, 1);
+    Fixture::term_tick(Fixture::seven_then(B_ACTIVATING, B_LAPSE), Fixture::at_end(8), false, 1, 1);
 }
 
 // A lapse first, then 7 conclusions: its write goes with the first conclusion's rebuild.
@@ -2404,13 +3692,13 @@ fn test_cost_term_mix_activating_lapse() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20832900)] // ceil(1.05 × 19840857 measured)
 fn test_cost_term_mix_lapse_first() {
-    term_tick(
+    Fixture::term_tick(
         array![
             B_LAPSE, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
             B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
         ]
             .span(),
-        at_end(8),
+        Fixture::at_end(8),
         false,
         1,
         1,
@@ -2420,9 +3708,6 @@ fn test_cost_term_mix_lapse_first() {
 // CBT-02d: the model at 8 awake goblins (REPORT.md, ENG-01 §9.2) against more states. Each state
 // is the awake set's 8 branches, in the set's order (`C` a conclusion clearing the field, `A`
 // activating, `L` a lapse, `R` a recovery over).
-fn term_mix(branches: Array<u8>) {
-    term_tick(branches.span(), at_end(8), false, 1, 1);
-}
 
 const C: u8 = B_CONCLUDE_CLEAR;
 const A: u8 = B_ACTIVATING;
@@ -2434,7 +3719,7 @@ const R: u8 = B_RECOVERY_END;
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20199550)] // ceil(1.05 × 19237666 measured)
 fn test_cost_term_set_c_first() {
-    term_mix(array![C, A, A, A, A, A, A, A]);
+    Fixture::term_mix(array![C, A, A, A, A, A, A, A]);
 }
 
 // A conclusion in the middle of the set.
@@ -2442,7 +3727,7 @@ fn test_cost_term_set_c_first() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20202532)] // ceil(1.05 × 19240506 measured)
 fn test_cost_term_set_c_middle() {
-    term_mix(array![A, A, A, C, A, A, A, A]);
+    Fixture::term_mix(array![A, A, A, C, A, A, A, A]);
 }
 
 // A conclusion last in the set.
@@ -2450,7 +3735,7 @@ fn test_cost_term_set_c_middle() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20202532)] // ceil(1.05 × 19240506 measured)
 fn test_cost_term_set_c_last() {
-    term_mix(array![A, A, A, A, A, A, A, C]);
+    Fixture::term_mix(array![A, A, A, A, A, A, A, C]);
 }
 
 // An activating goblin first, 7 conclusions after it.
@@ -2458,7 +3743,7 @@ fn test_cost_term_set_c_last() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20764070)] // ceil(1.05 × 19775304 measured)
 fn test_cost_term_set_a_then_c() {
-    term_mix(array![A, C, C, C, C, C, C, C]);
+    Fixture::term_mix(array![A, C, C, C, C, C, C, C]);
 }
 
 // Two conclusions, then activating goblins.
@@ -2466,7 +3751,7 @@ fn test_cost_term_set_a_then_c() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20291974)] // ceil(1.05 × 19325689 measured)
 fn test_cost_term_set_cc_first() {
-    term_mix(array![C, C, A, A, A, A, A, A]);
+    Fixture::term_mix(array![C, C, A, A, A, A, A, A]);
 }
 
 // Six conclusions, then two lapses (two writes left for the end of step 1).
@@ -2474,7 +3759,7 @@ fn test_cost_term_set_cc_first() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20834654)] // ceil(1.05 × 19842527 measured)
 fn test_cost_term_set_c6_ll() {
-    term_mix(array![C, C, C, C, C, C, L, L]);
+    Fixture::term_mix(array![C, C, C, C, C, C, L, L]);
 }
 
 // Six conclusions, an activating goblin, a lapse.
@@ -2482,7 +3767,7 @@ fn test_cost_term_set_c6_ll() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20778476)] // ceil(1.05 × 19789024 measured)
 fn test_cost_term_set_c6_al() {
-    term_mix(array![C, C, C, C, C, C, A, L]);
+    Fixture::term_mix(array![C, C, C, C, C, C, A, L]);
 }
 
 // Six conclusions, a lapse, an activating goblin.
@@ -2490,7 +3775,7 @@ fn test_cost_term_set_c6_al() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20778476)] // ceil(1.05 × 19789024 measured)
 fn test_cost_term_set_c6_la() {
-    term_mix(array![C, C, C, C, C, C, L, A]);
+    Fixture::term_mix(array![C, C, C, C, C, C, L, A]);
 }
 
 // Six conclusions, a recovery over, a lapse.
@@ -2498,7 +3783,7 @@ fn test_cost_term_set_c6_la() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20793746)] // ceil(1.05 × 19803567 measured)
 fn test_cost_term_set_c6_rl() {
-    term_mix(array![C, C, C, C, C, C, R, L]);
+    Fixture::term_mix(array![C, C, C, C, C, C, R, L]);
 }
 
 // A lapse between two conclusions: its write goes with the next conclusion's.
@@ -2506,7 +3791,7 @@ fn test_cost_term_set_c6_rl() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20829918)] // ceil(1.05 × 19838017 measured)
 fn test_cost_term_set_c_l_c6() {
-    term_mix(array![C, L, C, C, C, C, C, C]);
+    Fixture::term_mix(array![C, L, C, C, C, C, C, C]);
 }
 
 // A recovery over between two conclusions.
@@ -2514,7 +3799,7 @@ fn test_cost_term_set_c_l_c6() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20789010)] // ceil(1.05 × 19799057 measured)
 fn test_cost_term_set_c_r_c6() {
-    term_mix(array![C, R, C, C, C, C, C, C]);
+    Fixture::term_mix(array![C, R, C, C, C, C, C, C]);
 }
 
 // Two lapses between two conclusions: both writes go with the next conclusion's.
@@ -2522,7 +3807,7 @@ fn test_cost_term_set_c_r_c6() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20793672)] // ceil(1.05 × 19803497 measured)
 fn test_cost_term_set_c_ll_c5() {
-    term_mix(array![C, L, L, C, C, C, C, C]);
+    Fixture::term_mix(array![C, L, L, C, C, C, C, C]);
 }
 
 // A lapse first, the others activating.
@@ -2530,7 +3815,7 @@ fn test_cost_term_set_c_ll_c5() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20219920)] // ceil(1.05 × 19257066 measured)
 fn test_cost_term_set_l_first() {
-    term_mix(array![L, A, A, A, A, A, A, A]);
+    Fixture::term_mix(array![L, A, A, A, A, A, A, A]);
 }
 
 // A lapse in the middle, the others activating.
@@ -2538,7 +3823,7 @@ fn test_cost_term_set_l_first() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20219920)] // ceil(1.05 × 19257066 measured)
 fn test_cost_term_set_l_middle() {
-    term_mix(array![A, A, A, L, A, A, A, A]);
+    Fixture::term_mix(array![A, A, A, L, A, A, A, A]);
 }
 
 // Two lapses last, the others activating.
@@ -2546,7 +3831,7 @@ fn test_cost_term_set_l_middle() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20276098)] // ceil(1.05 × 19310569 measured)
 fn test_cost_term_set_a6_ll() {
-    term_mix(array![A, A, A, A, A, A, L, L]);
+    Fixture::term_mix(array![A, A, A, A, A, A, L, L]);
 }
 
 // COST-1a: load and store, once per call, on their costliest paths (CBT-02d: through the index).
@@ -2560,48 +3845,13 @@ fn test_cost_term_set_a6_ll() {
 // through the index costs the same wherever the record lies (`test_cost_index_*`): nothing is
 // charged beyond the measure.
 
-/// `branch_content(3)` with increasing adrenaline costs: the bar's skills 1–8 cost 1–8 strikes,
-/// each caste's four skills 1–4, so that every step of an adrenaline cap's loop raises it.
-fn load_content() -> Content {
-    let content = branch_content(3);
-    let mut skills = array![];
-    for sheet in content.skills {
-        let mut sheet = *sheet;
-        if sheet.id <= 8 {
-            sheet.adrenaline = sheet.id.try_into().unwrap();
-        } else if sheet.id >= 24 && sheet.id <= 43 {
-            sheet.adrenaline = ((sheet.id - 24) % 4 + 1).try_into().unwrap();
-        }
-        skills.append(sheet);
-    }
-    Content { skills: skills.span(), ..content }
-}
-
-/// The words of load's costliest paths: `members` members with the content's last four skills as
-/// their effects and their bar 1–8; 100 goblins of caste 5, each holding skill 43, the last 8
-/// awake.
-fn load_words(members: u32) -> (Words, Content) {
-    let content = load_content();
-    let mut all = array![];
-    for _ in 0..members {
-        all.append(member_effect_words(false));
-    }
-    let mut goblins = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        goblins.append(goblin_words(8 + i, i >= 92, 280, 0, 99));
-        i += 1;
-    }
-    (Words { clock: 49, members: all, goblins, killed: array![], defeated: false }, content)
-}
-
 // Load and store of the costliest words, the round trip checked.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 24011568)] // ceil(1.05 × 22868160 measured)
 fn test_cost_load_bound() {
-    let (words, content) = load_words(1);
-    let (expected, _) = load_words(1);
+    let (words, content) = Fixture::load_words(1);
+    let (expected, _) = Fixture::load_words(1);
     let (world, _) = words.load(@content);
     assert(world.store() == expected, 'round trip');
 }
@@ -2610,8 +3860,8 @@ fn test_cost_load_bound() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 12699026)] // ceil(1.05 × 12094310 measured)
 fn test_cost_load_bound_fixture() {
-    let (words, content) = load_words(1);
-    let (expected, _) = load_words(1);
+    let (words, content) = Fixture::load_words(1);
+    let (expected, _) = Fixture::load_words(1);
     assert(words.goblins.len() == expected.goblins.len() && content.skills.len() == 38, 'twice');
 }
 
@@ -2620,8 +3870,8 @@ fn test_cost_load_bound_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 34081404)] // ceil(1.05 × 32458480 measured)
 fn test_cost_load_bound_two_members() {
-    let (words, content) = load_words(2);
-    let (expected, _) = load_words(2);
+    let (words, content) = Fixture::load_words(2);
+    let (expected, _) = Fixture::load_words(2);
     let (world, _) = words.load(@content);
     assert(world.store() == expected, 'round trip');
 }
@@ -2630,8 +3880,8 @@ fn test_cost_load_bound_two_members() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 22425911)] // ceil(1.05 × 21358010 measured)
 fn test_cost_load_bound_two_members_fixture() {
-    let (words, content) = load_words(2);
-    let (expected, _) = load_words(2);
+    let (words, content) = Fixture::load_words(2);
+    let (expected, _) = Fixture::load_words(2);
     assert(words.goblins.len() == expected.goblins.len() && content.skills.len() == 38, 'twice');
 }
 
@@ -2639,33 +3889,14 @@ fn test_cost_load_bound_two_members_fixture() {
 // `SkillSheetTrait::read` scans the entries until the `REGENERATION` one or an empty one.
 // `PotionSheetTrait::read` and `CasteSheetTrait::read` have no loop.
 
-/// A `SKILL`'s two parts (`models::skill` layout): a spell's header and three entries of `kinds`,
-/// each holding `v0` and `v12` where a `REGENERATION` holds them.
-fn skill_parts(kinds: [u8; 3], v0: i16, v12: i16) -> Span<felt252> {
-    let [a, b, c] = kinds;
-    let line: felt252 = (SignedTrait::bits16(v0) * 0x10000 + SignedTrait::bits16(v12) * 0x100000000)
-        .into();
-    let header: felt252 = skill_kind::SPELL.into() * 0x10000
-        + 2 * 0x100000000
-        + 1 * 0x10000000000
-        + 12 * 0x100000000000000;
-    let first = LIVE + header + (a.into() + line) * B128;
-    let second = LIVE + b.into() + line + (c.into() + line) * B128;
-    opaque(array![first, second].span())
-}
-
-fn read_skill(kinds: [u8; 3], v0: i16, v12: i16) -> i16 {
-    let sheet = SkillSheetTrait::read(opaque(5), skill_parts(kinds, v0, v12));
-    assert(sheet.recharge == 12 && sheet.activation == 1, 'header');
-    sheet.regen0
-}
-
 // A skill's sheet, its `REGENERATION`: the first entry.
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 56060)] // ceil(1.05 × 53390 measured)
 fn test_cost_sheet_skill_regen_first() {
-    assert(read_skill([kind::REGENERATION, kind::DAMAGE, kind::DAMAGE], 2, 6) == 2, 'regen');
+    assert(
+        Fixture::read_skill([kind::REGENERATION, kind::DAMAGE, kind::DAMAGE], 2, 6) == 2, 'regen',
+    );
 }
 
 // A skill's sheet, its `REGENERATION`: the second.
@@ -2673,7 +3904,9 @@ fn test_cost_sheet_skill_regen_first() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 59472)] // ceil(1.05 × 56640 measured)
 fn test_cost_sheet_skill_regen_second() {
-    assert(read_skill([kind::DAMAGE, kind::REGENERATION, kind::DAMAGE], 2, 6) == 2, 'regen');
+    assert(
+        Fixture::read_skill([kind::DAMAGE, kind::REGENERATION, kind::DAMAGE], 2, 6) == 2, 'regen',
+    );
 }
 
 // A skill's sheet, its `REGENERATION`: the third.
@@ -2681,7 +3914,9 @@ fn test_cost_sheet_skill_regen_second() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 62885)] // ceil(1.05 × 59890 measured)
 fn test_cost_sheet_skill_regen_third() {
-    assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6) == 2, 'regen');
+    assert(
+        Fixture::read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6) == 2, 'regen',
+    );
 }
 
 // A skill's sheet, its `REGENERATION`: the third, negative.
@@ -2689,7 +3924,10 @@ fn test_cost_sheet_skill_regen_third() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 64145)] // ceil(1.05 × 61090 measured)
 fn test_cost_sheet_skill_regen_third_negative() {
-    assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], -3, -10) == -3, 'regen');
+    assert(
+        Fixture::read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], -3, -10) == -3,
+        'regen',
+    );
 }
 
 // A skill's sheet, its `REGENERATION`: none of three entries.
@@ -2697,7 +3935,7 @@ fn test_cost_sheet_skill_regen_third_negative() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 54894)] // ceil(1.05 × 52280 measured)
 fn test_cost_sheet_skill_none() {
-    assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::DAMAGE], 2, 6) == 0, 'regen');
+    assert(Fixture::read_skill([kind::DAMAGE, kind::DAMAGE, kind::DAMAGE], 2, 6) == 0, 'regen');
 }
 
 // A skill's sheet, its `REGENERATION`: an empty second entry.
@@ -2705,7 +3943,7 @@ fn test_cost_sheet_skill_none() {
 // gas: raised, CBT-05b: the skill sheet reads the header's energy and profession
 #[available_gas(l2_gas: 50715)] // ceil(1.05 × 48300 measured)
 fn test_cost_sheet_skill_damage_then_empty() {
-    assert(read_skill([kind::DAMAGE, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
+    assert(Fixture::read_skill([kind::DAMAGE, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
 }
 
 // A skill's sheet, its `REGENERATION`: no entry.
@@ -2713,20 +3951,16 @@ fn test_cost_sheet_skill_damage_then_empty() {
 // gas: raised, CBT-05b: the skill sheet reads the header's energy and profession
 #[available_gas(l2_gas: 47093)] // ceil(1.05 × 44850 measured)
 fn test_cost_sheet_skill_empty() {
-    assert(read_skill([kind::EMPTY, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
+    assert(Fixture::read_skill([kind::EMPTY, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
 }
 
 #[test]
 #[available_gas(l2_gas: 17052)] // ceil(1.05 × 16240 measured)
 fn test_cost_sheet_skill_fixture() {
-    assert(skill_parts([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6).len() == 2, 'parts');
-}
-
-/// A potion's part (`models::item` layout): its entry of `entry_kind` in the high limb, holding
-/// `v0`.
-fn potion_parts(entry_kind: u8, v0: i16) -> Span<felt252> {
-    let entry: felt252 = entry_kind.into() + (SignedTrait::bits16(v0) * 0x10000).into();
-    opaque(array![LIVE + 3 + entry * B128].span())
+    assert(
+        Fixture::skill_parts([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6).len() == 2,
+        'parts',
+    );
 }
 
 // A potion's sheet: a `REGENERATION`, positive or negative, or another entry.
@@ -2735,7 +3969,9 @@ fn potion_parts(entry_kind: u8, v0: i16) -> Span<felt252> {
 #[available_gas(l2_gas: 29096)] // ceil(1.05 × 27710 measured)
 fn test_cost_sheet_potion_regen() {
     assert(
-        PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, 3)).regen == 3, 'regen',
+        PotionSheetTrait::read(Fixture::opaque(7), Fixture::potion_parts(kind::REGENERATION, 3))
+            .regen == 3,
+        'regen',
     );
 }
 
@@ -2744,7 +3980,8 @@ fn test_cost_sheet_potion_regen() {
 #[available_gas(l2_gas: 29096)] // ceil(1.05 × 27710 measured)
 fn test_cost_sheet_potion_regen_negative() {
     assert(
-        PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, -3)).regen == -3,
+        PotionSheetTrait::read(Fixture::opaque(7), Fixture::potion_parts(kind::REGENERATION, -3))
+            .regen == -3,
         'regen',
     );
 }
@@ -2753,13 +3990,17 @@ fn test_cost_sheet_potion_regen_negative() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 28886)] // ceil(1.05 × 27510 measured)
 fn test_cost_sheet_potion_damage() {
-    assert(PotionSheetTrait::read(opaque(7), potion_parts(kind::DAMAGE, 3)).regen == 0, 'none');
+    assert(
+        PotionSheetTrait::read(Fixture::opaque(7), Fixture::potion_parts(kind::DAMAGE, 3))
+            .regen == 0,
+        'none',
+    );
 }
 
 #[test]
 #[available_gas(l2_gas: 12432)] // ceil(1.05 × 11840 measured)
 fn test_cost_sheet_potion_fixture() {
-    assert(potion_parts(kind::REGENERATION, 3).len() == 1, 'parts');
+    assert(Fixture::potion_parts(kind::REGENERATION, 3).len() == 1, 'parts');
 }
 
 // A caste's sheet (no loop).
@@ -2767,37 +4008,24 @@ fn test_cost_sheet_potion_fixture() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 388175)] // ceil(1.05 × 369690 measured)
 fn test_cost_sheet_caste() {
-    let (_, caste) = records();
-    assert(CasteSheetTrait::read(opaque(1), opaque(caste)).weapon_ticks == 2, 'caste');
+    let (_, caste) = Fixture::records();
+    assert(
+        CasteSheetTrait::read(Fixture::opaque(1), Fixture::opaque(caste)).weapon_ticks == 2,
+        'caste',
+    );
 }
 
 #[test]
 #[available_gas(l2_gas: 344967)] // ceil(1.05 × 328540 measured)
 fn test_cost_sheet_caste_fixture() {
-    let (_, caste) = records();
-    assert(opaque(caste).len() == 2, 'parts');
+    let (_, caste) = Fixture::records();
+    assert(Fixture::opaque(caste).len() == 2, 'parts');
 }
 
 // COST-1b: the library call with every list at its bound. `killed` crosses the call both ways: the
 // kills of the action phase come in, step 3's are added. Each goblin dies once, so the list holds
 // at most `MAX_GOBLINS` entries each way; here the 92 frozen goblins came in dead (their words
 // dead), and the 8 awake die: 92 in, 100 out.
-
-/// `worst_words` with the 92 frozen goblins killed in the action phase.
-fn worst_words_kills() -> (Words, Content) {
-    let (words, content) = worst_words();
-    let mut goblins = array![];
-    let mut killed = array![];
-    for goblin in words.goblins.span() {
-        let mut goblin = *goblin;
-        if !goblin.awake {
-            goblin.state += (ai::DEAD - ai::ALERTED).into() * B24;
-            killed.append(goblin.entity);
-        }
-        goblins.append(goblin);
-    }
-    (Words { goblins, killed, ..words }, content)
-}
 
 // Not the tick's cost (CBT-05a, route (c)): each concluding carrier of this fixture calls
 // ExecutorLibrary (one goblin a tile since F-2; the figures before were fixture artefacts). The
@@ -2808,8 +4036,8 @@ fn worst_words_kills() -> (Words, Content) {
 fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (words, content) = worst_words_kills();
-    let words = ticks_of(library, words, content, board(), 1);
+    let (words, content) = Fixture::worst_words_kills();
+    let words = Fixture::ticks_of(library, words, content, Fixture::board(), 1);
     assert(words.killed.len() == 100, 'every goblin once');
 }
 
@@ -2818,19 +4046,12 @@ fn test_cost_library_call_kills() {
 #[available_gas(l2_gas: 29795665)] // ceil(1.05 × 28376823 measured)
 fn test_cost_library_baseline_kills() {
     let _class = declare("TickLibrary").unwrap().contract_class();
-    let (words, content) = worst_words_kills();
+    let (words, content) = Fixture::worst_words_kills();
     let (mut world, sheets) = words.load(@content);
     let mut rules = Idle {};
     TickTrait::run(ref world, @sheets, 1, ref rules);
     let words = world.store();
     assert(words.killed.len() == 100, 'every goblin once');
-}
-
-/// `worst_words` with its member twice (M-3: members 0–7).
-fn worst_words_two() -> (Words, Content) {
-    let (words, content) = worst_words();
-    let member = *words.members.at(0);
-    (Words { members: array![member, member], ..words }, content)
 }
 
 // Not the tick's cost (CBT-05a, route (c)): each concluding carrier of this fixture calls
@@ -2842,8 +4063,8 @@ fn worst_words_two() -> (Words, Content) {
 fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (words, content) = worst_words_two();
-    let words = ticks_of(library, words, content, board(), 1);
+    let (words, content) = Fixture::worst_words_two();
+    let words = Fixture::ticks_of(library, words, content, Fixture::board(), 1);
     assert(words.members.len() == 2, 'two members');
 }
 
@@ -2852,27 +4073,12 @@ fn test_cost_library_call_two_members() {
 #[available_gas(l2_gas: 29955383)] // ceil(1.05 × 28528936 measured)
 fn test_cost_library_baseline_two_members() {
     let _class = declare("TickLibrary").unwrap().contract_class();
-    let (words, content) = worst_words_two();
+    let (words, content) = Fixture::worst_words_two();
     let (mut world, sheets) = words.load(@content);
     let mut rules = Idle {};
     TickTrait::run(ref world, @sheets, 1, ref rules);
     let words = world.store();
     assert(words.members.len() == 2, 'two members');
-}
-
-/// `worst_words` with every goblin killed in the action phase: 100 kills in, 100 out, the most the
-/// list holds (each goblin once).
-fn worst_words_all_dead() -> (Words, Content) {
-    let (words, content) = worst_words();
-    let mut goblins = array![];
-    let mut killed = array![];
-    for goblin in words.goblins.span() {
-        let mut goblin = *goblin;
-        goblin.state += (ai::DEAD - ai::ALERTED).into() * B24;
-        killed.append(goblin.entity);
-        goblins.append(goblin);
-    }
-    (Words { goblins, killed, ..words }, content)
 }
 
 #[test]
@@ -2881,8 +4087,8 @@ fn worst_words_all_dead() -> (Words, Content) {
 fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (words, content) = worst_words_all_dead();
-    let words = ticks_of(library, words, content, board(), 1);
+    let (words, content) = Fixture::worst_words_all_dead();
+    let words = Fixture::ticks_of(library, words, content, Fixture::board(), 1);
     assert(words.killed.len() == 100, 'each goblin once');
 }
 
@@ -2891,7 +4097,7 @@ fn test_cost_library_call_all_dead() {
 #[available_gas(l2_gas: 28780735)] // ceil(1.05 × 27410223 measured)
 fn test_cost_library_baseline_all_dead() {
     let _class = declare("TickLibrary").unwrap().contract_class();
-    let (words, content) = worst_words_all_dead();
+    let (words, content) = Fixture::worst_words_all_dead();
     let (mut world, sheets) = words.load(@content);
     let mut rules = Idle {};
     TickTrait::run(ref world, @sheets, 1, ref rules);
@@ -2905,316 +4111,6 @@ fn test_cost_library_baseline_all_dead() {
 // recorded). The hashes were taken on the representation before CBT-02d (every goblin in one array
 // of 23-felt structs, the content looked up by id at every load) and pin the new one's results:
 // the same states, the same rules, the same words.
-
-fn digest(world: World, extra: Span<felt252>) -> felt252 {
-    let mut out = array![];
-    world.store().serialize(ref out);
-    out.append_span(extra);
-    core::poseidon::poseidon_hash_span(out.span())
-}
-
-fn script_digest(world: World, rules: Script) -> felt252 {
-    let mut extra = array![];
-    rules.acts.serialize(ref extra);
-    rules.resolved.serialize(ref extra);
-    digest(world, extra.span())
-}
-
-fn scripted(mut world: World, content: @Sheets, ticks: u8) -> felt252 {
-    let mut rules: Script = Default::default();
-    TickTrait::run(ref world, content, ticks, ref rules);
-    script_digest(world, rules)
-}
-
-/// The worked examples and the rules' tests, their states and rules as those tests build them.
-fn parity_examples() -> Array<felt252> {
-    let content = Fixture::sheets();
-    let mut out = array![];
-    // §10.3, the degeneration.
-    let mut spec = Fixture::spec();
-    spec.conditions = [77, 72, 0, 0];
-    let world = Fixture::world(69, array![Fixture::member(spec)], array![Fixture::goblin(17, HOB)]);
-    out.append(scripted(world, @content, 6));
-    // §10.1, a burning goblin.
-    let mut goblin = Fixture::goblin(24, HOB);
-    goblin.health = 87;
-    goblin.burning = 44;
-    out.append(scripted(Fixture::only(41, goblin), @content, 4));
-    // §10.2, an interrupt.
-    let mut goblin = Fixture::goblin(40, HOB);
-    goblin.start(0, 0, 3, 50);
-    goblin.knocked = 53;
-    goblin.interrupt(52, @content);
-    out.append(scripted(Fixture::only(51, goblin), @content, 3));
-    // §10.5, a lapse: frozen four ticks, then awake.
-    let mut goblin = Fixture::goblin(30, HOB);
-    goblin.start(0, 0, 3, 100);
-    goblin.awake = false;
-    goblin.health = 50;
-    goblin.bleeding = 105;
-    let mut world = Fixture::only(102, goblin);
-    run(ref world, 4);
-    let mut goblin = world.goblin(0);
-    goblin.awake = true;
-    world.set_goblin(0, goblin);
-    out.append(scripted(world, @content, 1));
-    let mut goblin = Fixture::goblin(30, HOB);
-    goblin.start(0, 0, 3, 100);
-    goblin.set_recharge(0, 200);
-    out.append(scripted(Fixture::only(106, goblin), @content, 1));
-    // §10.9, an activated attack's cost.
-    let mut goblin = Fixture::goblin(9, RUNT);
-    goblin.recover(2, 50);
-    out.append(scripted(Fixture::only(50, goblin), @content, 2));
-    let mut goblin = Fixture::goblin(9, RUNT);
-    goblin.start(1, 0, 1, 50);
-    out.append(scripted(Fixture::only(50, goblin), @content, 2));
-    let k3 = Content {
-        castes: array![Fixture::caste(HOB, 1), Fixture::caste(RUNT, 3)].span(),
-        ..Fixture::content(),
-    }
-        .sheets();
-    let mut goblin = Fixture::goblin(9, RUNT);
-    goblin.start(1, 0, 1, 50);
-    out.append(scripted(Fixture::only(50, goblin), @k3, 3));
-    // §10.1 and §10.6, a member's activation.
-    let mut member = Fixture::member(Fixture::spec());
-    member.start(1, 57, 2, 40);
-    out.append(scripted(Fixture::world(40, array![member], array![]), @content, 2));
-    // §5.8, regeneration.
-    let mut skills = array![
-        SkillSheet {
-            id: 1,
-            kind: skill_kind::SPELL,
-            adrenaline: 0,
-            activation: 0,
-            recharge: 0,
-            regen0: 2,
-            regen12: 6,
-            ..Default::default(),
-        },
-    ];
-    for id in 2..9_u16 {
-        skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
-    }
-    let regen = Content {
-        skills: skills.span(),
-        potions: array![PotionSheet { id: 101, regen: 3, ..Default::default() }].span(),
-        castes: array![].span(),
-    };
-    let mut spec = Fixture::spec();
-    spec
-        .effects =
-            [(1, false, 10, 12), (1, true, MAX_CLOCK, 0), (1, false, 4, 12), (0, false, 0, 0)];
-    spec.energy = 55;
-    spec.health_regen = 1;
-    spec.energy_regen = 4;
-    let (regen, mut index) = regen.index();
-    let member = MemberTrait::load(Fixture::member_words(spec), ref index, @regen);
-    out.append(scripted(Fixture::world(4, array![member], array![]), @regen, 2));
-    let mut spec = Fixture::spec();
-    spec.health = 479;
-    spec.health_regen = 10;
-    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
-    // Step 3's extremes.
-    let mut spec = Fixture::spec();
-    spec.health_regen = -10;
-    spec.effect_regen = [-10; 4];
-    spec.effects = [(1, false, 99, 0); 4];
-    spec.conditions = [99, 99, 99, 0];
-    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
-    let mut spec = Fixture::spec();
-    spec.health = 300;
-    spec.health_regen = 10;
-    spec.effect_regen = [10; 4];
-    spec.effects = [(1, false, 99, 0); 4];
-    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
-    // Adrenaline decay.
-    let mut spec = Fixture::spec();
-    spec.adrenaline = 5;
-    let mut alerted = Fixture::goblin(8, HOB);
-    alerted.ai = ai::ALERTED;
-    alerted.adrenaline = 1;
-    let mut frozen_engaged = Fixture::goblin(9, HOB);
-    frozen_engaged.awake = false;
-    let world = Fixture::world(0, array![Fixture::member(spec)], array![alerted, frozen_engaged]);
-    out.append(scripted(world, @content, 2));
-    let mut engaged = Fixture::goblin(8, HOB);
-    engaged.adrenaline = 4;
-    let world = Fixture::world(0, array![Fixture::member(spec)], array![engaged]);
-    out.append(scripted(world, @content, 1));
-    // Deaths in step 3, then the executor's kill.
-    let mut a = Fixture::goblin(8, HOB);
-    a.health = 10;
-    a.burning = 5;
-    let mut b = Fixture::goblin(12, HOB);
-    b.health = 14;
-    b.burning = 5;
-    b.bleeding = 5;
-    let mut c = Fixture::goblin(20, HOB);
-    c.energy = 29;
-    let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], array![a, b, c]);
-    run(ref world, 2);
-    world.kill(2);
-    world.kill(2);
-    out.append(digest(world, array![].span()));
-    // Defeat, in step 3 and in step 2.
-    let mut spec = Fixture::spec();
-    spec.health = 6;
-    spec.conditions = [9, 9, 9, 0];
-    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 3));
-    let mut a = Fixture::goblin(8, HOB);
-    a.health = 50;
-    a.bleeding = 9;
-    let b = Fixture::goblin(9, HOB);
-    let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], array![a, b]);
-    let mut rules: Script = Default::default();
-    rules.kill_member_at = 1;
-    TickTrait::run(ref world, @content, 2, ref rules);
-    out.append(script_digest(world, rules));
-    // Who acts.
-    let mut knocked = Fixture::goblin(8, HOB);
-    knocked.knocked = 1;
-    let mut activating = Fixture::goblin(9, HOB);
-    activating.start(0, 0, 3, 0);
-    let mut recovering = Fixture::goblin(10, HOB);
-    recovering.recover(3, 0);
-    let mut frozen = Fixture::goblin(11, HOB);
-    frozen.awake = false;
-    let mut dead = Fixture::goblin(12, HOB);
-    dead.ai = ai::DEAD;
-    let goblins = array![
-        knocked, activating, recovering, frozen, dead, Fixture::goblin(13, HOB),
-        Fixture::goblin(14, RUNT),
-    ];
-    let world = Fixture::world(0, array![Fixture::member(Fixture::spec())], goblins);
-    out.append(scripted(world, @content, 2));
-    // The flags.
-    let mut spec = Fixture::spec();
-    spec.flags = flag::TURNED + flag::INSTANT + flag::HIT + flag::HALVED;
-    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
-    // The awake set, then a tick.
-    let mut goblins = array![];
-    for entity in 8..19_u16 {
-        let mut goblin = Fixture::goblin(entity, HOB);
-        goblin.awake = false;
-        if entity == 8 {
-            goblin.ai = ai::ASLEEP;
-        } else if entity == 9 {
-            goblin.ai = ai::DEAD;
-        }
-        goblins.append(goblin);
-    }
-    let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], goblins);
-    TickTrait::awake(ref world, array![1, 1, 5, 3, 3, 9, 2, 3, 4, 3, 6].span());
-    out.append(scripted(world, @content, 2));
-    // The member down before the tick.
-    let mut spec = Fixture::spec();
-    spec.health = 0;
-    let mut goblin = Fixture::goblin(8, HOB);
-    goblin.bleeding = 99;
-    let world = Fixture::world(49, array![Fixture::member(spec)], array![goblin]);
-    out.append(scripted(world, @content, 3));
-    out
-}
-
-/// The benchmarks' states: the representative batch, CBT-02's heavy tick, `Busy`'s batch, the
-/// load's costliest words, the kills, two members, the awake selection over 100 candidates.
-fn parity_states() -> Array<felt252> {
-    let mut out = array![];
-    let (world, content) = representative();
-    out.append(scripted(world, @content, 10));
-    let (world, content) = worst_state(true, 3);
-    out.append(scripted(world, @content, 1));
-    let (world, content) = worst_of(true, 3, 8);
-    out.append(scripted(world, @content, 1));
-    let (mut world, content) = worst_state(false, 1);
-    let mut rules: Busy = Default::default();
-    TickTrait::run(ref world, @content, 10, ref rules);
-    out.append(digest(world, array![].span()));
-    let (words, content) = load_words(1);
-    let (world, sheets) = words.load(@content);
-    out.append(scripted(world, @sheets, 1));
-    let (words, content) = worst_words_kills();
-    let (world, sheets) = words.load(@content);
-    out.append(scripted(world, @sheets, 1));
-    let (words, content) = worst_words_two();
-    let (world, sheets) = words.load(@content);
-    out.append(scripted(world, @sheets, 1));
-    let (mut world, distances) = candidates();
-    TickTrait::awake(ref world, distances);
-    out.append(scripted(world, @worst_content(3).sheets(), 2));
-    out
-}
-
-fn term_digest(branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32) -> felt252 {
-    let (world, content) = term_world(branches, at, survive, k, members);
-    scripted(world, @content, 1)
-}
-
-/// The weapon cost of a branch's content: 1 for a conclusion clearing the field, else 3.
-fn k_of(branch: u8) -> u8 {
-    if branch == B_CONCLUDE_CLEAR {
-        1
-    } else {
-        3
-    }
-}
-
-/// Every branch of step 1 taken by one awake goblin; the base, with one and two members; a
-/// survivor.
-fn parity_terms_one() -> Array<felt252> {
-    let mut out = array![];
-    out.append(term_digest(array![].span(), array![].span(), false, 1, 1));
-    out.append(term_digest(array![].span(), array![].span(), false, 1, 2));
-    for branch in 1..11_u8 {
-        out.append(term_digest(all_of(branch, 1), at_end(1), false, k_of(branch), 1));
-    }
-    out.append(term_digest(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), true, 3, 1));
-    out
-}
-
-/// Every branch taken by eight awake goblins.
-fn parity_terms_eight() -> Array<felt252> {
-    let mut out = array![];
-    for branch in 1..11_u8 {
-        out.append(term_digest(all_of(branch, 8), at_end(8), false, k_of(branch), 1));
-    }
-    out
-}
-
-/// The mixes of branches, the costliest at three placements.
-fn parity_terms_mixed() -> Array<felt252> {
-    let mut out = array![];
-    let mix = seven_then(B_CONCLUDE_CLEAR, B_LAPSE);
-    out.append(term_digest(mix, at_end(8), false, 1, 1));
-    out.append(term_digest(mix, at_start(8), false, 1, 1));
-    out.append(term_digest(mix, at_spread(), false, 1, 1));
-    out.append(term_digest(seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), at_end(8), false, 1, 1));
-    out.append(term_digest(seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END), at_end(8), false, 1, 1));
-    out.append(term_digest(seven_then(B_ACTIVATING, B_LAPSE), at_end(8), false, 3, 1));
-    let first = array![
-        B_LAPSE, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
-        B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
-    ];
-    out.append(term_digest(first.span(), at_end(8), false, 1, 1));
-    out
-}
-
-/// Each case's hash against the one the representation before CBT-02d gave; re-taken once by
-/// CBT-05a when the fixtures gave each goblin its own tile (the cost audit of #334, F-2: the words
-/// hashed carry the position), checked equal with the positions zeroed at that commit.
-fn check(digests: Span<felt252>, expected: Span<felt252>) {
-    assert(digests.len() == expected.len(), 'parity: the cases');
-    let mut i = 0;
-    for digest in digests {
-        if *digest != *expected[i] {
-            println!("parity: case {} differs", i);
-        }
-        assert(*digest == *expected[i], 'parity: a result moved');
-        i += 1;
-    }
-}
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
@@ -3244,7 +4140,7 @@ fn test_parity_examples() {
         2092477404879913529660556085007281953094978727880571781133569368787650641652,
         377493575383891479358179621635677024782546422683899913320429701904083862605,
     ];
-    check(parity_examples().span(), expected.span());
+    Fixture::check(Fixture::parity_examples().span(), expected.span());
 }
 
 #[test]
@@ -3261,7 +4157,7 @@ fn test_parity_states() {
         672680495394139033065139172651255376436422202887688089913912883213982738,
         655218035378556033694747075122745594573863938720241866706354387721645146505,
     ];
-    check(parity_states().span(), expected.span());
+    Fixture::check(Fixture::parity_states().span(), expected.span());
 }
 
 #[test]
@@ -3283,7 +4179,7 @@ fn test_parity_terms_one() {
         3229579640699399341668646575686735669814858765266248342283769751082534094116,
         2765035817719631134698385506113413930744617616572862413416551091584261272447,
     ];
-    check(parity_terms_one().span(), expected.span());
+    Fixture::check(Fixture::parity_terms_one().span(), expected.span());
 }
 
 #[test]
@@ -3302,7 +4198,7 @@ fn test_parity_terms_eight() {
         1254615115529063358619643491225183810307575748337925269938194755890448243009,
         3500926107291528816115360811725439760092008636757520683653937626418709972405,
     ];
-    check(parity_terms_eight().span(), expected.span());
+    Fixture::check(Fixture::parity_terms_eight().span(), expected.span());
 }
 
 #[test]
@@ -3318,48 +4214,7 @@ fn test_parity_terms_mixed() {
         1199420404553182624446564920822483066274570582284161552460626750024335536034,
         3181526588172973680219134105997191070994012937899146268664908348034237568484,
     ];
-    check(parity_terms_mixed().span(), expected.span());
-}
-
-/// The executor's class (route (c), CBT-05a), declared once a test.
-fn executor() -> starknet::ClassHash {
-    *declare("ExecutorLibrary").unwrap().contract_class().class_hash
-}
-
-/// The goblins' acts' class (ENG-07) and the traps' (D-222).
-fn ai_class() -> starknet::ClassHash {
-    *declare("AiLibrary").unwrap().contract_class().class_hash
-}
-
-/// `TickLibrary`'s ticks with the classes of the tests, the ground none (ENG-07, D-235).
-fn ticks_of(
-    library: ITickLibraryLibraryDispatcher, words: Words, content: Content, board: Board, n: u8,
-) -> Words {
-    let (words, _) = library.ticks(words, content, board, classes(), 10, array![], n);
-    words
-}
-
-fn classes() -> grimworld_logic::types::play::Classes {
-    grimworld_logic::types::play::Classes {
-        executor: executor(),
-        ai: ai_class(),
-        trap: trap(),
-        action: *declare("ActionLibrary").unwrap().contract_class().class_hash,
-        tick: *declare("TickLibrary").unwrap().contract_class().class_hash,
-    }
-}
-
-fn trap() -> starknet::ClassHash {
-    *declare("TrapLibrary").unwrap().contract_class().class_hash
-}
-
-/// The board of the library's calls (CBT-05a): an open window at the location's origin. The
-/// fixtures' actors stand at (0, 0) and conclude no carrier that reaches another actor.
-fn board() -> Board {
-    // Every one of the 240 positions open.
-    BoardTrait::new(
-        WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), 0, 0,
-    )
+    Fixture::check(Fixture::parity_terms_mixed().span(), expected.span());
 }
 
 // ---- Route (c), behaviour and cost (CBT-05a, the review of #334)
@@ -3373,85 +4228,6 @@ fn board() -> Board {
 /// The member's tile in the window: (7, 7), position 112.
 const AT: u8 = 112;
 
-fn place(position: u8) -> felt252 {
-    let x: felt252 = (position % 15).into();
-    let y: felt252 = (position / 15).into();
-    x + y * two(8)
-}
-
-/// The fixtures' member at `AT`, level 20 (spell strength 60), health `health`.
-fn member_at(health: u16) -> Member {
-    let mut spec = Fixture::spec();
-    spec.health = health;
-    let mut member = Fixture::member(spec);
-    member.words.state += place(AT) * two(32);
-    member.words.stats += 20 * two(64);
-    member
-}
-
-/// A goblin of caste HOB at `position`, health `health`, awake if `awake`.
-fn goblin_at(entity: u16, position: u8, health: u16, awake: bool) -> Goblin {
-    let mut goblin = Fixture::goblin(entity, HOB);
-    goblin.state += place(position);
-    goblin.health = health;
-    goblin.awake = awake;
-    goblin
-}
-
-/// The tiles around `centre`, ascending.
-fn ring(centre: u8) -> Span<u8> {
-    let open = WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
-    WindowTrait::tiles(open.shape(shape::RING_1, centre))
-}
-
-/// The fixtures' content with: bar skill 2, Cinder Ring (fire 80 and Burning 3 on `RING_1`, `SELF`,
-/// `FOES`); caste HOB's weapon `damage` at rank 15 and range `range`; caste skill 25, an attack
-/// skill of activation 1 (the implicit weapon hit).
-fn route_content(damage: u8, range: u8) -> Content {
-    let base = Fixture::content();
-    let fire = EntryTrait::new(
-        kind::DAMAGE, 4, 80, 80, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
-    );
-    let burn = EntryTrait::new(
-        kind::CONDITION, 3, 3, 3, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
-    );
-    let mut skills = array![];
-    for sheet in base.skills {
-        let mut sheet = *sheet;
-        if sheet.id == 2 {
-            sheet.entry1 = fire.pack();
-            sheet.entry2 = burn.pack();
-        }
-        skills.append(sheet);
-    }
-    let mut castes = array![];
-    for caste in base.castes {
-        let mut caste = *caste;
-        if caste.id == HOB {
-            caste.weapon = weapon::SWORD;
-            caste.weapon_damage = damage;
-            caste.damage_type = 1;
-            caste.weapon_range = range;
-            caste.rank = 15;
-        }
-        castes.append(caste);
-    }
-    Content { skills: skills.span(), potions: base.potions, castes: castes.span() }
-}
-
-/// One tick through `TickLibrary` (route (c)) and the same tick in process with the in-class
-/// executor: their words must agree.
-fn agree(words: Words, content: Content) -> Words {
-    let class = declare("TickLibrary").unwrap().contract_class();
-    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (mut world, sheets) = words.clone().load(@content);
-    let out = ticks_of(library, words, content, board(), 1);
-    let mut rules = ExecutorTrait::new(board());
-    TickTrait::run(ref world, @sheets, 1, ref rules);
-    assert(out == world.store(), 'route (c) = in process');
-    out
-}
-
 // The member's Cinder Ring concludes at tick 41 and kills goblins 9 and 10 (adjacent, 50 health;
 // 80 at x = 60 is 226), in tile order, which the sub-world reaches; goblins 8 and 11 are far and
 // stay out of the call. The library's words equal the in-process executor's.
@@ -3459,15 +4235,15 @@ fn agree(words: Words, content: Content) -> Words {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 25381616)] // ceil(1.05 × 24172967 measured)
 fn test_route_c_kills_in_order() {
-    let tiles = ring(AT);
-    let mut member = member_at(400);
+    let tiles = Fixture::ring(AT);
+    let mut member = Fixture::member_at(400);
     member.start(1, 0, 1, 40);
     let goblins = array![
-        goblin_at(8, 0, 100, false), goblin_at(9, *tiles[0], 50, true),
-        goblin_at(10, *tiles[2], 50, true), goblin_at(11, 230, 100, false),
+        Fixture::goblin_at(8, 0, 100, false), Fixture::goblin_at(9, *tiles[0], 50, true),
+        Fixture::goblin_at(10, *tiles[2], 50, true), Fixture::goblin_at(11, 230, 100, false),
     ];
     let words = Fixture::world(40, array![member], goblins).store();
-    let out = agree(words, route_content(30, 1));
+    let out = Fixture::agree(words, Fixture::route_content(30, 1));
     assert(out.killed.span() == array![9, 10].span(), 'killed in tile order');
     assert(!out.defeated, 'not defeated');
 }
@@ -3479,12 +4255,14 @@ fn test_route_c_kills_in_order() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 16075446)] // ceil(1.05 × 15309948 measured)
 fn test_route_c_source_sub_index_and_defeat() {
-    let tiles = ring(AT);
-    let mut source = goblin_at(10, *tiles[1], 100, true);
+    let tiles = Fixture::ring(AT);
+    let mut source = Fixture::goblin_at(10, *tiles[1], 100, true);
     source.start(1, 0, 1, 40);
-    let goblins = array![goblin_at(8, 230, 100, false), goblin_at(9, *tiles[0], 100, true), source];
-    let words = Fixture::world(40, array![member_at(10)], goblins).store();
-    let out = agree(words, route_content(255, 1));
+    let goblins = array![
+        Fixture::goblin_at(8, 230, 100, false), Fixture::goblin_at(9, *tiles[0], 100, true), source,
+    ];
+    let words = Fixture::world(40, array![Fixture::member_at(10)], goblins).store();
+    let out = Fixture::agree(words, Fixture::route_content(255, 1));
     assert(out.defeated, 'defeated');
     assert(out.killed.len() == 0, 'no kill');
 }
@@ -3497,75 +4275,34 @@ fn test_route_c_source_sub_index_and_defeat() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 20171312)] // ceil(1.05 × 19210773 measured)
 fn test_route_c_potion_effect() {
-    let tiles = ring(AT);
+    let tiles = Fixture::ring(AT);
     let mut spec = Fixture::spec();
     spec.health = 400;
     spec.effects = [(1, true, 99, 0), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
     let mut member = Fixture::member(spec);
-    member.words.state += place(AT) * two(32);
-    member.words.stats += 20 * two(64);
-    let mut source = goblin_at(9, *tiles[0], 100, true);
+    member.words.state += Fixture::place(AT) * Fixture::two(32);
+    member.words.stats += 20 * Fixture::two(64);
+    let mut source = Fixture::goblin_at(9, *tiles[0], 100, true);
     source.start(1, 0, 1, 40);
-    let goblins = array![goblin_at(8, 230, 100, false), source];
+    let goblins = array![Fixture::goblin_at(8, 230, 100, false), source];
     let words = Fixture::world(40, array![member], goblins).store();
-    let base = route_content(30, 1);
+    let base = Fixture::route_content(30, 1);
     let potions = array![
         PotionSheet { id: 100, regen: 7, ..Default::default() },
         PotionSheet { id: 101, regen: 3, ..Default::default() },
     ];
     let content = Content { skills: base.skills, potions: potions.span(), castes: base.castes };
-    let out = agree(words, content);
+    let out = Fixture::agree(words, content);
     assert(!out.defeated && out.killed.len() == 0, 'member hit, alive');
     assert(out.members.len() == 1, 'one member');
-}
-
-/// The representative worst tick (the review of #334, ENG-01 §9.2): 13 goblins within one tile of
-/// the member or of each other, the member's ring of 6 and 7 at distance 2; 8 of them awake, each
-/// concluding its attack skill on the member at tick 41 with a reach of 6 (all legal). Each call
-/// carries the member and its source alone (lever (3); before it, the goblins within one tile of
-/// its source or of the member too).
-fn worst_tick() -> (World, Sheets, grimworld_logic::types::tick::Index) {
-    let inner = ring(AT);
-    let mut outer: Array<u8> = array![];
-    let mut position: u8 = 0;
-    while position < 240 && outer.len() < 7 {
-        if WindowTrait::distance(position, AT) == 2 {
-            outer.append(position);
-        }
-        position += 1;
-    }
-    let mut goblins = array![];
-    let mut entity: u16 = 8;
-    let mut awake: u32 = 0;
-    for tile in inner {
-        let mut goblin = goblin_at(entity, *tile, 250, true);
-        goblin.start(1, 0, 1, 40);
-        goblins.append(goblin);
-        entity += 1;
-        awake += 1;
-    }
-    for tile in outer.span() {
-        let wake = awake < 8;
-        let mut goblin = goblin_at(entity, *tile, 250, wake);
-        if wake {
-            goblin.start(1, 0, 1, 40);
-            awake += 1;
-        }
-        goblins.append(goblin);
-        entity += 1;
-    }
-    let words = Fixture::world(40, array![member_at(480)], goblins).store();
-    let content = route_content(5, 6);
-    let (world, sheets, index) = words.indexed(@content);
-    (world, sheets, index)
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 13275816)] // ceil(1.05 × 12643634 measured)
 fn test_cost_route_c_tick_fixture() {
-    let (world, sheets, _) = worst_tick();
-    assert(opaque(world.goblin_count()) == 13 && sheets.skills.len() > 0, 'fixture');
+    let (world, sheets, _) = Fixture::worst_tick();
+    assert(Fixture::opaque(world.goblin_count()) == 13 && sheets.skills.len() > 0, 'fixture');
 }
 
 // The worst tick in process with the in-class executor (route (a)'s shape): the pair's base.
@@ -3573,8 +4310,8 @@ fn test_cost_route_c_tick_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 26816836)] // ceil(1.05 × 25539843 measured)
 fn test_cost_route_c_tick_in_class() {
-    let (mut world, sheets, _) = worst_tick();
-    let mut rules = ExecutorTrait::new(board());
+    let (mut world, sheets, _) = Fixture::worst_tick();
+    let mut rules = ExecutorTrait::new(Fixture::board());
     TickTrait::tick(ref world, @sheets, ref rules);
     assert(rules.cache.hits == 8, 'eight hits');
 }
@@ -3585,18 +4322,18 @@ fn test_cost_route_c_tick_in_class() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 41993273)] // ceil(1.05 × 39993593 measured)
 fn test_cost_route_c_tick() {
-    let (mut world, sheets, index) = worst_tick();
-    let content = route_content(5, 6);
+    let (mut world, sheets, index) = Fixture::worst_tick();
+    let content = Fixture::route_content(5, 6);
     let mut rules = grimworld_logic::types::executor::Delegate {
-        board: board(),
+        board: Fixture::board(),
         cache: Default::default(),
-        executor: executor(),
+        executor: Fixture::executor(),
         content,
         index,
         placed: array![],
         ground: array![],
-        ai: ai_class(),
-        trap: trap(),
+        ai: Fixture::ai_class(),
+        trap: Fixture::trap(),
         level: 10,
         frozen: 0,
         listed: 0,
@@ -3617,149 +4354,25 @@ fn test_cost_route_c_tick() {
 // scenarios 1 and 2 in the same tick (the member's activation and the 8 goblins' conclude
 // together).
 
-fn rep_content() -> Content {
-    let base = worst_content(1);
-    let fire = EntryTrait::new(
-        kind::DAMAGE, 4, 80, 80, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
-    );
-    let burn = EntryTrait::new(
-        kind::CONDITION, 3, 3, 3, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
-    );
-    let mut skills = array![];
-    for sheet in base.skills {
-        let mut sheet = *sheet;
-        if sheet.id == 2 {
-            sheet.kind = skill_kind::SPELL;
-            sheet.entry1 = fire.pack();
-            sheet.entry2 = burn.pack();
-        }
-        skills.append(sheet);
-    }
-    let mut castes = array![];
-    for caste in base.castes {
-        let mut caste = *caste;
-        caste.weapon = weapon::BOW;
-        caste.weapon_damage = 5;
-        caste.damage_type = 2;
-        caste.weapon_range = 6;
-        caste.rank = 15;
-        castes.append(caste);
-    }
-    Content { skills: skills.span(), potions: base.potions, castes: castes.span() }
-}
-
-fn rep_words(scenario: u8) -> Words {
-    let mut member = member_at(480);
-    if scenario == 2 || scenario == 5 {
-        member.start(1, 0, 1, 40);
-    }
-    let mut goblins = array![];
-    let mut entity: u16 = 8;
-    if scenario == 3 || scenario == 4 {
-        // The member's ring of 6 (frozen but alive), and around a source 3 tiles away its 6
-        // neighbours (frozen) and the source itself, awake.
-        let source = AT + 3;
-        let mut tiles: Array<u8> = array![];
-        for tile in ring(AT) {
-            tiles.append(*tile);
-        }
-        for tile in ring(source) {
-            tiles.append(*tile);
-        }
-        tiles.append(source);
-        // Ascending positions, ascending entities.
-        let sorted = ascending_u8(tiles.span());
-        for tile in sorted {
-            let own = *tile == source;
-            let mut goblin = goblin_at(entity, *tile, 250, own);
-            if own && scenario == 3 {
-                goblin.start(0, 0, 1, 40);
-            }
-            goblins.append(goblin);
-            entity += 1;
-        }
-    } else {
-        let mut tiles: Array<u8> = array![];
-        for tile in ring(AT) {
-            tiles.append(*tile);
-        }
-        let mut position: u8 = 0;
-        let mut behind: u32 = 0;
-        while position < 240 && behind < 2 {
-            if WindowTrait::distance(position, AT) == 2 {
-                tiles.append(position);
-                behind += 1;
-            }
-            position += 1;
-        }
-        for tile in ascending_u8(tiles.span()) {
-            let mut goblin = goblin_at(entity, *tile, 250, true);
-            if scenario == 1 || scenario == 5 {
-                goblin.start(0, 0, 1, 40);
-            }
-            goblins.append(goblin);
-            entity += 1;
-        }
-    }
-    Fixture::world(40, array![member], goblins).store()
-}
-
-/// `tiles` ascending (a selection: at most 13).
-fn ascending_u8(tiles: Span<u8>) -> Span<u8> {
-    let mut sorted: Array<u8> = array![];
-    let mut last: u16 = 0;
-    let mut first = true;
-    while sorted.len() < tiles.len() {
-        let mut least: u16 = 0x100;
-        for tile in tiles {
-            let t: u16 = (*tile).into();
-            if (first || t > last) && t < least {
-                least = t;
-            }
-        }
-        sorted.append(least.try_into().unwrap());
-        last = least;
-        first = false;
-    }
-    sorted.span()
-}
-
-fn rep_run(scenario: u8, ticks: u8) -> Words {
-    let class = declare("TickLibrary").unwrap().contract_class();
-    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let executor = executor();
-    ticks_of(library, rep_words(scenario), rep_content(), board(), ticks)
-}
-
-/// A fixture: the same arguments and classes, no call.
-fn rep_fixture(scenario: u8) {
-    let class = declare("TickLibrary").unwrap().contract_class();
-    let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let _ = executor();
-    let words = rep_words(scenario);
-    let content = rep_content();
-    assert(opaque(words.goblins.len()) > 0 && content.skills.len() == 38, 'fixture');
-}
-
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 10195463)] // ceil(1.05 × 9709964 measured)
 fn test_cost_rep_fixture() {
-    rep_fixture(0);
+    Fixture::rep_fixture(0);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 11090760)] // ceil(1.05 × 10562628 measured)
 fn test_cost_rep_far_fixture() {
-    rep_fixture(4);
+    Fixture::rep_fixture(4);
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 24739536)] // ceil(1.05 × 23561462 measured)
 fn test_cost_rep_idle() {
-    let words = rep_run(0, 1);
+    let words = Fixture::rep_run(0, 1);
     assert(words.members.len() == 1, 'ran');
 }
 
@@ -3767,7 +4380,7 @@ fn test_cost_rep_idle() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 41904643)] // ceil(1.05 × 39909183 measured)
 fn test_cost_rep_goblins() {
-    let words = rep_run(1, 1);
+    let words = Fixture::rep_run(1, 1);
     assert(!words.defeated, 'eight carriers');
 }
 
@@ -3775,7 +4388,7 @@ fn test_cost_rep_goblins() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 34365371)] // ceil(1.05 × 32728924 measured)
 fn test_cost_rep_member() {
-    let words = rep_run(2, 1);
+    let words = Fixture::rep_run(2, 1);
     assert(words.killed.len() == 0, 'no kill');
 }
 
@@ -3783,7 +4396,7 @@ fn test_cost_rep_member() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 51548433)] // ceil(1.05 × 49093745 measured)
 fn test_cost_rep_all() {
-    let words = rep_run(5, 1);
+    let words = Fixture::rep_run(5, 1);
     assert(!words.defeated && words.killed.len() == 0, 'nine carriers');
 }
 
@@ -3791,7 +4404,7 @@ fn test_cost_rep_all() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 27097367)] // ceil(1.05 × 25807016 measured)
 fn test_cost_rep_far() {
-    let words = rep_run(3, 1);
+    let words = Fixture::rep_run(3, 1);
     assert(words.goblins.len() == 13, 'thirteen');
 }
 
@@ -3799,7 +4412,7 @@ fn test_cost_rep_far() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 27097567)] // ceil(1.05 × 25807206 measured)
 fn test_cost_rep_far_idle() {
-    let words = rep_run(4, 1);
+    let words = Fixture::rep_run(4, 1);
     assert(words.goblins.len() == 13, 'thirteen');
 }
 
@@ -3807,7 +4420,7 @@ fn test_cost_rep_far_idle() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 148364277)] // ceil(1.05 × 141299311 measured)
 fn test_cost_rep_batch() {
-    let words = rep_run(1, 10);
+    let words = Fixture::rep_run(1, 10);
     assert(words.clock == 50, 'ten ticks');
 }
 
@@ -3818,86 +4431,13 @@ fn test_cost_rep_batch() {
 // with `TickLibrary`'s rules (`Delegate`): the bomb's carrier, and each goblin's in the tick,
 // through `ExecutorLibrary`. Each figure less `test_cost_bomb_fixture`.
 
-fn bomb_content() -> Content {
-    let base = rep_content();
-    let bomb = EntryTrait::new(
-        kind::DAMAGE, 4, 30, 30, 0, 0, 0, target::TILE, shape::DISC_1, filter::FOES, 0, 0,
-    );
-    let mut potions = array![
-        PotionSheet { id: 100, regen: 0, entry: bomb.pack(), range: 6, strength: 20 },
-    ];
-    for potion in base.potions.slice(1, base.potions.len() - 1) {
-        potions.append(*potion);
-    }
-    Content { skills: base.skills, potions: potions.span(), castes: base.castes }
-}
-
-/// The ring tile around `AT` whose `DISC_1` holds the most goblins of scenario 1, as a location
-/// tile `x + 256 y` (the board at the origin), and how many goblins its `DISC_1` holds.
-fn bomb_tile() -> (u16, u32) {
-    let mut goblins: Array<u8> = array![];
-    for tile in ring(AT) {
-        goblins.append(*tile);
-    }
-    let mut position: u8 = 0;
-    let mut behind: u32 = 0;
-    while position < 240 && behind < 2 {
-        if WindowTrait::distance(position, AT) == 2 {
-            goblins.append(position);
-            behind += 1;
-        }
-        position += 1;
-    }
-    let mut best: u8 = 0;
-    let mut most: u32 = 0;
-    for centre in ring(AT) {
-        let mut count = 0;
-        for goblin in goblins.span() {
-            if WindowTrait::distance(*goblin, *centre) <= 1 {
-                count += 1;
-            }
-        }
-        if count > most {
-            most = count;
-            best = *centre;
-        }
-    }
-    ((best % 15).into() + 256 * (best / 15).into(), most)
-}
-
-fn bomb_state() -> (World, Sheets, grimworld_logic::types::executor::Delegate) {
-    let mut words = rep_words(1);
-    let mut member = *words.members[0];
-    // Belt slot 0: one bomb (`MemberState` 128–135).
-    member.state += two(128);
-    words.members = array![member];
-    let content = bomb_content();
-    let (world, sheets, index) = words.indexed(@content);
-    let rules = grimworld_logic::types::executor::Delegate {
-        board: board(),
-        cache: Default::default(),
-        executor: executor(),
-        content,
-        index,
-        placed: array![],
-        ground: array![],
-        ai: ai_class(),
-        trap: trap(),
-        level: 10,
-        frozen: 0,
-        listed: 0,
-        memo: None,
-    };
-    (world, sheets, rules)
-}
-
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14567241)] // ceil(1.05 × 13873562 measured)
 fn test_cost_bomb_fixture() {
-    let (world, sheets, rules) = bomb_state();
-    let _ = bomb_tile();
-    assert(opaque(world.goblin_count()) == 8 && sheets.potions.len() == 4, 'fixture');
+    let (world, sheets, rules) = Fixture::bomb_state();
+    let _ = Fixture::bomb_tile();
+    assert(Fixture::opaque(world.goblin_count()) == 8 && sheets.potions.len() == 4, 'fixture');
     let _ = rules;
 }
 
@@ -3906,8 +4446,8 @@ fn test_cost_bomb_fixture() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 14615205)] // ceil(1.05 × 13919242 measured)
 fn test_cost_bomb_wait() {
-    let (mut world, sheets, mut rules) = bomb_state();
-    let _ = bomb_tile();
+    let (mut world, sheets, mut rules) = Fixture::bomb_state();
+    let _ = Fixture::bomb_tile();
     let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Wait);
     assert(ticks == Ok(1), 'wait');
 }
@@ -3917,8 +4457,8 @@ fn test_cost_bomb_wait() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 23585602)] // ceil(1.05 × 22462478 measured)
 fn test_cost_bomb_action() {
-    let (mut world, sheets, mut rules) = bomb_state();
-    let (tile, most) = bomb_tile();
+    let (mut world, sheets, mut rules) = Fixture::bomb_state();
+    let (tile, most) = Fixture::bomb_tile();
     let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile)));
     assert(ticks == Ok(1) && rules.cache.hits == most && most >= 3, 'bomb');
 }
@@ -3928,8 +4468,8 @@ fn test_cost_bomb_action() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 42621371)] // ceil(1.05 × 40591781 measured)
 fn test_cost_bomb_goblins() {
-    let (mut world, sheets, mut rules) = bomb_state();
-    let _ = bomb_tile();
+    let (mut world, sheets, mut rules) = Fixture::bomb_state();
+    let _ = Fixture::bomb_tile();
     TickTrait::run(ref world, @sheets, 1, ref rules);
     assert(rules.cache.hits == 8 && !world.defeated, 'eight carriers');
 }
@@ -3939,8 +4479,8 @@ fn test_cost_bomb_goblins() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 51704895)] // ceil(1.05 × 49242757 measured)
 fn test_cost_bomb_tick() {
-    let (mut world, sheets, mut rules) = bomb_state();
-    let (tile, most) = bomb_tile();
+    let (mut world, sheets, mut rules) = Fixture::bomb_state();
+    let (tile, most) = Fixture::bomb_tile();
     let ticks = ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Item((0, tile)))
         .unwrap();
     TickTrait::run(ref world, @sheets, ticks, ref rules);
@@ -3950,62 +4490,38 @@ fn test_cost_bomb_tick() {
 // The same through `TickLibrary::act` (D-222): the whole call, its fixture the same arguments and
 // classes without the call. `act_wait` against `rep_idle` (one idle tick through `run`) prices the
 // action phase's entrypoint per action.
-fn act_words() -> Words {
-    let mut words = rep_words(1);
-    let mut member = *words.members[0];
-    member.state += two(128);
-    words.members = array![member];
-    words
-}
 
 #[test]
 #[available_gas(l2_gas: 12672568)] // ceil(1.05 × 12069112 measured)
 fn test_cost_act_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let _ = executor();
-    let words = act_words();
-    let content = bomb_content();
-    let (tile, _) = bomb_tile();
-    assert(opaque(words.goblins.len()) > 0 && content.potions.len() == 4 && tile > 0, 'fixture');
+    let _ = Fixture::executor();
+    let words = Fixture::act_words();
+    let content = Fixture::bomb_content();
+    let (tile, _) = Fixture::bomb_tile();
+    assert(
+        Fixture::opaque(words.goblins.len()) > 0 && content.potions.len() == 4 && tile > 0,
+        'fixture',
+    );
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 57119861)] // ceil(1.05 × 54399867 measured)
 fn test_cost_act_bomb() {
-    let (tile, _) = bomb_tile();
-    let words = act_then_ticks(act_words(), Action::Item((0, tile)));
+    let (tile, _) = Fixture::bomb_tile();
+    let words = Fixture::act_then_ticks(Fixture::act_words(), Action::Item((0, tile)));
     assert(words.clock == 41, 'bomb, one tick');
-}
-
-/// The action through `ActionLibrary` (D-233), then its ticks through `TickLibrary` (the segment
-/// that chains the two is ENG-07's, not built yet: two calls here).
-fn act_then_ticks(words: Words, action: Action) -> Words {
-    let class = declare("ActionLibrary").unwrap().contract_class();
-    let library = grimworld_logic::interface::IActionLibraryLibraryDispatcher {
-        class_hash: *class.class_hash,
-    };
-    let content = bomb_content();
-    let (words, _, ticks) = grimworld_logic::interface::IActionLibraryDispatcherTrait::act(
-        library, words, content, board(), executor(), array![], action,
-    );
-    let ticks = match ticks {
-        Ok(ticks) => ticks,
-        Err(_) => core::panic_with_felt252('illegal'),
-    };
-    let class = declare("TickLibrary").unwrap().contract_class();
-    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    ticks_of(library, words, content, board(), ticks)
 }
 
 #[test]
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 30724082)] // ceil(1.05 × 29261030 measured)
 fn test_cost_act_wait() {
-    let (tile, _) = bomb_tile();
+    let (tile, _) = Fixture::bomb_tile();
     let _ = tile;
-    let words = act_then_ticks(rep_words(0), Action::Wait);
+    let words = Fixture::act_then_ticks(Fixture::rep_words(0), Action::Wait);
     assert(words.clock == 41, 'wait, one tick');
 }
 
@@ -4014,24 +4530,6 @@ fn test_cost_act_wait() {
 // Burning 3): the member enters it; the call carries the member alone, the worst content and the
 // chunk's features. Less its fixture: the same arguments and class, no call.
 
-fn trap_args() -> (Words, Content, Array<(u8, grimworld_logic::models::chunk::Features)>) {
-    let words = Words {
-        clock: 40,
-        members: array![member_at(480).store()],
-        goblins: array![],
-        killed: array![],
-        defeated: false,
-    };
-    let terrain = grimworld_logic::models::chunk::Object {
-        tile: AT, kind: grimworld_logic::models::chunk::object::TRAP, state: 0, param: 2,
-    };
-    let features = grimworld_logic::models::chunk::Features {
-        objects: [terrain, Default::default(), Default::default()],
-        ..grimworld_logic::models::chunk::FeaturesTrait::empty(),
-    };
-    (words, rep_content(), array![(0, features)])
-}
-
 #[test]
 #[available_gas(l2_gas: 5809997)] // ceil(1.05 × 5533330 measured)
 fn test_cost_trap_class_fixture() {
@@ -4039,9 +4537,11 @@ fn test_cost_trap_class_fixture() {
     let _ = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {
         class_hash: *class.class_hash,
     };
-    let (words, content, ground) = trap_args();
+    let (words, content, ground) = Fixture::trap_args();
     assert(
-        opaque(words.members.len()) == 1 && content.skills.len() == 38 && ground.len() == 1,
+        Fixture::opaque(words.members.len()) == 1
+            && content.skills.len() == 38
+            && ground.len() == 1,
         'fixture',
     );
 }
@@ -4053,8 +4553,9 @@ fn test_cost_trap_class() {
     let library = grimworld_logic::interface::ITrapLibraryLibraryDispatcher {
         class_hash: *class.class_hash,
     };
-    let (words, content, ground) = trap_args();
-    let (out, ground, triggered) = library.trigger(words, content, board(), ground, 0, AT, 10);
+    let (words, content, ground) = Fixture::trap_args();
+    let (out, ground, triggered) = library
+        .trigger(words, content, Fixture::board(), ground, 0, AT, 10);
     let (_, features) = *ground.at(0);
     let [used, _, _] = features.objects;
     assert(triggered && used.state == 1 && out.members.len() == 1, 'triggered');
@@ -4066,44 +4567,6 @@ fn test_cost_trap_class() {
 // alone. Engaged (3) ones each attack the member with their weapon of reach 6 through
 // `ExecutorLibrary`. Busy ones (recovering until tick 100) make no call (D-225).
 
-fn ai_words(state: u8, busy: bool) -> Words {
-    ai_words_of(state, busy, false)
-}
-
-/// The same, every caste skill recharging until tick 100 when `recharging`: each Engaged goblin
-/// attacks with its weapon.
-fn ai_words_of(state: u8, busy: bool, recharging: bool) -> Words {
-    let words = rep_words(0);
-    let mut goblins = array![];
-    for goblin in words.goblins.span() {
-        let mut goblin = *goblin;
-        goblin.state = goblin.state + (state.into() - ai::ENGAGED.into()) * two(24);
-        if busy {
-            goblin.timers = goblin.timers - 1 + 100 * two(24);
-        }
-        if recharging {
-            goblin.state = goblin.state + 100 * (two(128) + two(156) + two(184) + two(212));
-        }
-        goblins.append(goblin);
-    }
-    Words { goblins, ..words }
-}
-
-fn ai_call(state: u8) -> Words {
-    ai_call_of(ai_words(state, false))
-}
-
-fn ai_call_of(words: Words) -> Words {
-    let class = declare("AiLibrary").unwrap().contract_class();
-    let library = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
-        class_hash: *class.class_hash,
-    };
-    let (out, _) = grimworld_logic::interface::IAiLibraryDispatcherTrait::act(
-        library, words, rep_content(), board(), executor(), trap(), array![], 10, 0, 0, 0,
-    );
-    out
-}
-
 #[test]
 #[available_gas(l2_gas: 10460084)] // ceil(1.05 × 9961984 measured)
 fn test_cost_ai_fixture() {
@@ -4111,51 +4574,45 @@ fn test_cost_ai_fixture() {
     let _ = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
         class_hash: *class.class_hash,
     };
-    let _ = executor();
-    let _ = trap();
-    let words = ai_words(5, false);
-    let content = rep_content();
-    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+    let _ = Fixture::executor();
+    let _ = Fixture::trap();
+    let words = Fixture::ai_words(5, false);
+    let content = Fixture::rep_content();
+    assert(Fixture::opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
 }
 
 #[test]
 #[available_gas(l2_gas: 15010231)] // ceil(1.05 × 14295458 measured)
 fn test_cost_ai_call_returning() {
-    let out = ai_call(5);
+    let out = Fixture::ai_call(5);
     assert(out.goblins.len() == 8, 'eight');
 }
 
 #[test]
 #[available_gas(l2_gas: 18357808)] // ceil(1.05 × 17483626 measured)
 fn test_cost_ai_call_engaged() {
-    let out = ai_call(ai::ENGAGED);
+    let out = Fixture::ai_call(ai::ENGAGED);
     assert(out.goblins.len() == 8 && !out.defeated, 'eight attacks');
-}
-
-fn ai_tick(state: u8, busy: bool) -> Words {
-    let class = declare("TickLibrary").unwrap().contract_class();
-    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    ticks_of(library, ai_words(state, busy), rep_content(), board(), 1)
 }
 
 #[test]
 #[available_gas(l2_gas: 16475253)] // ceil(1.05 × 15690717 measured)
 fn test_cost_ai_tick_busy() {
-    let words = ai_tick(5, true);
+    let words = Fixture::ai_tick(5, true);
     assert(words.clock == 41, 'one tick');
 }
 
 #[test]
 #[available_gas(l2_gas: 21648411)] // ceil(1.05 × 20617534 measured)
 fn test_cost_ai_tick_returning() {
-    let words = ai_tick(5, false);
+    let words = Fixture::ai_tick(5, false);
     assert(words.clock == 41, 'one tick');
 }
 
 #[test]
 #[available_gas(l2_gas: 24987840)] // ceil(1.05 × 23797942 measured)
 fn test_cost_ai_tick_engaged() {
-    let words = ai_tick(ai::ENGAGED, false);
+    let words = Fixture::ai_tick(ai::ENGAGED, false);
     assert(words.clock == 41, 'one tick');
 }
 
@@ -4163,9 +4620,9 @@ fn test_cost_ai_tick_engaged() {
 #[test]
 #[available_gas(l2_gas: 49628786)] // ceil(1.05 × 47265510 measured)
 fn test_cost_ai_call_attacks() {
-    let before = ai_words_of(ai::ENGAGED, false, true);
+    let before = Fixture::ai_words_of(ai::ENGAGED, false, true);
     let state = (*before.members[0]).state;
-    let out = ai_call_of(before);
+    let out = Fixture::ai_call_of(before);
     assert((*out.members[0]).state != state, 'eight attacks');
 }
 
@@ -4176,11 +4633,11 @@ fn test_cost_ai_fixture_attacks() {
     let _ = grimworld_logic::interface::IAiLibraryLibraryDispatcher {
         class_hash: *class.class_hash,
     };
-    let _ = executor();
-    let _ = trap();
-    let words = ai_words_of(ai::ENGAGED, false, true);
-    let content = rep_content();
-    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+    let _ = Fixture::executor();
+    let _ = Fixture::trap();
+    let words = Fixture::ai_words_of(ai::ENGAGED, false, true);
+    let content = Fixture::rep_content();
+    assert(Fixture::opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
 }
 
 #[test]
@@ -4188,7 +4645,13 @@ fn test_cost_ai_fixture_attacks() {
 fn test_cost_ai_tick_attacks() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let words = ticks_of(library, ai_words_of(ai::ENGAGED, false, true), rep_content(), board(), 1);
+    let words = Fixture::ticks_of(
+        library,
+        Fixture::ai_words_of(ai::ENGAGED, false, true),
+        Fixture::rep_content(),
+        Fixture::board(),
+        1,
+    );
     assert(words.clock == 41, 'one tick');
 }
 
@@ -4198,127 +4661,18 @@ fn test_cost_ai_tick_attacks() {
 // `TrapLibrary`. The area: 3 × 3 chunks, every one revealed and walkable. Each figure less its
 // fixture (the same arguments and classes, no segment).
 
-fn open_area() -> grimworld_logic::types::play::Area {
-    let mut known: felt252 = 0;
-    let mut chunks: Array<(u8, felt252)> = array![];
-    let all = two(225) - 1;
-    for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
-        known += two(chunk.into());
-        chunks.append((chunk, all));
-    }
-    grimworld_logic::types::play::Area {
-        width: 3,
-        height: 3,
-        known,
-        revealed: known,
-        chunks: chunks.span(),
-        changed: array![].span(),
-        ran: false,
-    }
-}
-
-fn segment_of(words: Words, actions: Span<Action>) -> (Words, grimworld_logic::types::play::Done) {
-    let content = rep_content();
-    let classes = classes();
-    let area = open_area();
-    let (mut world, sheets, index) = words.indexed(@content);
-    let mut rules = grimworld_logic::types::executor::Delegate {
-        board: board(),
-        cache: Default::default(),
-        executor: classes.executor,
-        content,
-        index,
-        placed: array![],
-        ground: array![],
-        ai: classes.ai,
-        trap: classes.trap,
-        level: 10,
-        frozen: 0,
-        listed: 0,
-        memo: None,
-    };
-    let done = grimworld_logic::types::play::SegmentTrait::run(
-        ref world, @sheets, ref rules, @area, @classes, actions, 0, 10,
-    );
-    (world.store(), done)
-}
-
-/// Ten Moves, East then West in turn: no goblin, every tick on the fast path.
-fn exploration() -> (Words, Span<Action>) {
-    let words = Fixture::world(40, array![member_at(400)], array![]).store();
-    let mut actions = array![];
-    let mut k: u8 = 0;
-    while k < 10 {
-        actions.append(Action::Move(if k % 2 == 0 {
-            0
-        } else {
-            3
-        }));
-        k += 1;
-    }
-    (words, actions.span())
-}
-
-/// Ten weapon attacks of the member on goblins 10, 11 and 12 (on its ring), the 8 goblins Engaged
-/// around it, each attacking with its weapon (its skills recharging): every tick has a fight.
-fn fight() -> (Words, Span<Action>) {
-    let mut words = ai_words_of(ai::ENGAGED, false, true);
-    // The member's weapon (the executor's tests' melee one): class 1, damage 27, range 1,
-    // strength 60, slashing, its requirement met.
-    let mut member = *words.members[0];
-    member.stats += two(88) + 27 * two(96) + two(112) + 60 * two(120) + two(160) + two(176);
-    words.members = array![member];
-    (words, attacks())
-}
-
-/// The same, the member's health and max health raised from 480 to 20,000 (`MemberState` 64–79,
-/// `MemberStats` 0–15) so that it stands
-/// through the ten ticks: the batch whole.
-fn fight_whole() -> (Words, Span<Action>) {
-    let (mut words, actions) = fight();
-    let mut member = *words.members[0];
-    member.state += 19520 * two(64);
-    member.stats += 19520;
-    words.members = array![member];
-    (words, actions)
-}
-
-fn attacks() -> Span<Action> {
-    let mut actions = array![];
-    let mut k: u8 = 0;
-    // Goblin 10 falls to 4 hits: then 11, then 12, each on the member's ring.
-    while k < 10 {
-        actions.append(Action::Attack(10 + (k / 4).into()));
-        k += 1;
-    }
-    actions.span()
-}
-
-fn segment_fixture(words: Words, actions: Span<Action>) {
-    let _ = classes();
-    let area = open_area();
-    let content = rep_content();
-    assert(
-        opaque(words.members.len()) == 1
-            && actions.len() == 10
-            && area.chunks.len() == 9
-            && content.skills.len() == 38,
-        'fixture',
-    );
-}
-
 #[test]
 #[available_gas(l2_gas: 6491772)] // ceil(1.05 × 6182640 measured)
 fn test_cost_segment_exploration_fixture() {
-    let (words, actions) = exploration();
-    segment_fixture(words, actions);
+    let (words, actions) = Fixture::exploration();
+    Fixture::segment_fixture(words, actions);
 }
 
 #[test]
 #[available_gas(l2_gas: 17796192)] // ceil(1.05 × 16948754 measured)
 fn test_cost_segment_exploration() {
-    let (words, actions) = exploration();
-    let (out, done) = segment_of(words, actions);
+    let (words, actions) = Fixture::exploration();
+    let (out, done) = Fixture::segment_of(words, actions);
     println!("exploration: played {} weight {} clock {}", done.played, done.weight, out.clock);
     assert(done.played == 10 && out.clock == 50, 'ten moves');
 }
@@ -4326,15 +4680,15 @@ fn test_cost_segment_exploration() {
 #[test]
 #[available_gas(l2_gas: 19468958)] // ceil(1.05 × 18541864 measured)
 fn test_cost_segment_fight_fixture() {
-    let (words, actions) = fight();
-    segment_fixture(words, actions);
+    let (words, actions) = Fixture::fight();
+    Fixture::segment_fixture(words, actions);
 }
 
 #[test]
 #[available_gas(l2_gas: 198479841)] // ceil(1.05 × 189028420 measured)
 fn test_cost_segment_fight() {
-    let (words, actions) = fight();
-    let (out, done) = segment_of(words, actions);
+    let (words, actions) = Fixture::fight();
+    let (out, done) = Fixture::segment_of(words, actions);
     println!(
         "fight: played {} weight {} clock {} defeated {} killed {} illegal {:?}",
         done.played,
@@ -4353,20 +4707,20 @@ fn test_cost_segment_fight() {
 #[test]
 #[available_gas(l2_gas: 12291456)] // ceil(1.05 × 11706148 measured)
 fn test_segment_fast_path_equals_tick_library() {
-    let mut member = member_at(400);
+    let mut member = Fixture::member_at(400);
     member.bleeding = 45;
     let mut far = Fixture::goblin(8, HOB);
-    far.state += 100 + 100 * two(8);
+    far.state += 100 + 100 * Fixture::two(8);
     far.awake = false;
     let words = Fixture::world(40, array![member], array![far]).store();
-    let content = rep_content();
+    let content = Fixture::rep_content();
     let (mut world, sheets) = words.clone().load(@content);
     let mut idle = Idle {};
     TickTrait::run(ref world, @sheets, 3, ref idle);
     let fast = world.store();
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let slow = ticks_of(library, words, content, board(), 3);
+    let slow = Fixture::ticks_of(library, words, content, Fixture::board(), 3);
     assert(fast == slow, 'fast path differs');
     assert(fast.clock == 43, 'three ticks');
 }
@@ -4374,15 +4728,15 @@ fn test_segment_fast_path_equals_tick_library() {
 #[test]
 #[available_gas(l2_gas: 19562954)] // ceil(1.05 × 18631384 measured)
 fn test_cost_segment_fight_whole_fixture() {
-    let (words, actions) = fight_whole();
-    segment_fixture(words, actions);
+    let (words, actions) = Fixture::fight_whole();
+    Fixture::segment_fixture(words, actions);
 }
 
 #[test]
 #[available_gas(l2_gas: 475937478)] // ceil(1.05 × 453273788 measured)
 fn test_cost_segment_fight_whole() {
-    let (words, actions) = fight_whole();
-    let (out, done) = segment_of(words, actions);
+    let (words, actions) = Fixture::fight_whole();
+    let (out, done) = Fixture::segment_of(words, actions);
     println!(
         "fight whole: played {} weight {} clock {} defeated {} killed {} illegal {:?}",
         done.played,
@@ -4399,24 +4753,16 @@ fn test_cost_segment_fight_whole() {
 // ring) lands in step 1 of the tick in which the 8 Engaged goblins, their skills recharging, attack
 // it with their weapons in step 2 (the ring's goblins at 250 health survive the ring). One tick
 // through `TickLibrary`, less the same arguments without the call.
-fn landing_words() -> Words {
-    let mut words = ai_words_of(ai::ENGAGED, false, true);
-    let mut member = *words.members[0];
-    // Its activation field (`MemberTimers`), as scenario 2 starts it: due at tick 41.
-    member.timers = (*rep_words(2).members[0]).timers;
-    words.members = array![member];
-    words
-}
 
 #[test]
 #[available_gas(l2_gas: 27245598)] // ceil(1.05 × 25948188 measured)
 fn test_cost_landing_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let _ = classes();
-    let words = landing_words();
-    let content = rep_content();
-    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+    let _ = Fixture::classes();
+    let words = Fixture::landing_words();
+    let content = Fixture::rep_content();
+    assert(Fixture::opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
 }
 
 #[test]
@@ -4424,7 +4770,9 @@ fn test_cost_landing_fixture() {
 fn test_cost_landing() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let words = ticks_of(library, landing_words(), rep_content(), board(), 1);
+    let words = Fixture::ticks_of(
+        library, Fixture::landing_words(), Fixture::rep_content(), Fixture::board(), 1,
+    );
     println!(
         "landing: clock {} defeated {} killed {}", words.clock, words.defeated, words.killed.len(),
     );
@@ -4437,52 +4785,22 @@ fn test_cost_landing() {
 // the cap would leave them, and they are the member's targets (12, 13, 14 × 3 each, 15), so the 4
 // attackers stand through the batch. The cap's own selection is not built: its cost is not in.
 
-fn lever_words(health: u16) -> Words {
-    let (words, _) = fight();
-    let mut goblins = array![];
-    let mut k: u32 = 0;
-    for goblin in words.goblins.span() {
-        let mut goblin = *goblin;
-        if k >= 4 {
-            goblin.state = goblin.state + 2 * two(24);
-        }
-        goblins.append(goblin);
-        k += 1;
-    }
-    let mut member = *words.members[0];
-    if health > 480 {
-        member.state += (health - 480).into() * two(64);
-        member.stats += (health - 480).into();
-    }
-    Words { goblins, members: array![member], ..words }
-}
-
-fn lever_actions() -> Span<Action> {
-    let mut actions = array![];
-    let mut k: u8 = 0;
-    while k < 10 {
-        actions.append(Action::Attack(12 + (k / 3).into()));
-        k += 1;
-    }
-    actions.span()
-}
-
 #[test]
 #[available_gas(l2_gas: 19695201)] // ceil(1.05 × 18757334 measured)
 fn test_cost_lever_fixture() {
-    segment_fixture(lever_words(480), lever_actions());
+    Fixture::segment_fixture(Fixture::lever_words(480), Fixture::lever_actions());
 }
 
 #[test]
 #[available_gas(l2_gas: 19784472)] // ceil(1.05 × 18842354 measured)
 fn test_cost_lever_fixture_whole() {
-    segment_fixture(lever_words(20000), lever_actions());
+    Fixture::segment_fixture(Fixture::lever_words(20000), Fixture::lever_actions());
 }
 
 #[test]
 #[available_gas(l2_gas: 268218297)] // ceil(1.05 × 255445997 measured)
 fn test_cost_lever_batch_real() {
-    let (out, done) = segment_of(lever_words(480), lever_actions());
+    let (out, done) = Fixture::segment_of(Fixture::lever_words(480), Fixture::lever_actions());
     println!(
         "lever real: played {} clock {} defeated {} killed {} illegal {:?}",
         done.played,
@@ -4497,7 +4815,7 @@ fn test_cost_lever_batch_real() {
 #[test]
 #[available_gas(l2_gas: 378781635)] // ceil(1.05 × 360744414 measured)
 fn test_cost_lever_batch_whole() {
-    let (out, done) = segment_of(lever_words(20000), lever_actions());
+    let (out, done) = Fixture::segment_of(Fixture::lever_words(20000), Fixture::lever_actions());
     println!(
         "lever whole: played {} clock {} defeated {} killed {} illegal {:?}",
         done.played,
@@ -4515,10 +4833,10 @@ fn test_cost_lever_batch_whole() {
 fn test_cost_lever_tick_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let _ = classes();
-    let words = lever_words(480);
-    let content = rep_content();
-    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+    let _ = Fixture::classes();
+    let words = Fixture::lever_words(480);
+    let content = Fixture::rep_content();
+    assert(Fixture::opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
 }
 
 #[test]
@@ -4526,7 +4844,9 @@ fn test_cost_lever_tick_fixture() {
 fn test_cost_lever_tick() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let words = ticks_of(library, lever_words(480), rep_content(), board(), 1);
+    let words = Fixture::ticks_of(
+        library, Fixture::lever_words(480), Fixture::rep_content(), Fixture::board(), 1,
+    );
     assert(words.clock == 41, 'one tick');
 }
 
@@ -4536,10 +4856,10 @@ fn test_cost_lever_tick() {
 fn test_cost_lever_tick_uncapped_fixture() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let _ = classes();
-    let (words, _) = fight();
-    let content = rep_content();
-    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+    let _ = Fixture::classes();
+    let (words, _) = Fixture::fight();
+    let content = Fixture::rep_content();
+    assert(Fixture::opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
 }
 
 #[test]
@@ -4547,47 +4867,21 @@ fn test_cost_lever_tick_uncapped_fixture() {
 fn test_cost_lever_tick_uncapped() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (words, _) = fight();
-    let words = ticks_of(library, words, rep_content(), board(), 1);
+    let (words, _) = Fixture::fight();
+    let words = Fixture::ticks_of(library, words, Fixture::rep_content(), Fixture::board(), 1);
     assert(words.clock == 41, 'one tick');
 }
 
 // The attackers' cap (`MAX_ATTACKERS`, CBT-05d's lever 1): the 8 Engaged goblins of the fight, each
 // able to attack with its weapon, make as many attacks as the cap allows and never more; with the
 // constant (8, no cap until the owner sets it, R-2) all 8 attack.
-fn cap_step(cap: u8) -> u8 {
-    let (words, _) = fight();
-    let content = rep_content();
-    let classes = classes();
-    let (mut world, sheets, index) = words.indexed(@content);
-    world.clock += 1;
-    let mut rules = grimworld_logic::types::executor::Delegate {
-        board: board(),
-        cache: Default::default(),
-        executor: classes.executor,
-        content,
-        index,
-        placed: array![],
-        ground: array![],
-        ai: classes.ai,
-        trap: classes.trap,
-        level: 10,
-        frozen: 0,
-        listed: 0,
-        memo: None,
-    };
-    let (_, attacks) = grimworld_logic::types::ai::AiTrait::capped(
-        ref world, @sheets, ref rules, 0, cap,
-    );
-    attacks
-}
 
 #[test]
 #[available_gas(l2_gas: 111127277)] // ceil(1.05 × 105835501 measured)
 fn test_attackers_cap() {
-    assert(cap_step(4) == 4, 'four attack');
-    assert(cap_step(1) == 1, 'one attacks');
-    let all = cap_step(grimworld_logic::types::ai::MAX_ATTACKERS);
+    assert(Fixture::cap_step(4) == 4, 'four attack');
+    assert(Fixture::cap_step(1) == 1, 'one attacks');
+    let all = Fixture::cap_step(grimworld_logic::types::ai::MAX_ATTACKERS);
     assert(all <= grimworld_logic::types::ai::MAX_ATTACKERS && all == 8, 'eight attack');
 }
 
@@ -4596,14 +4890,14 @@ fn test_attackers_cap() {
 #[test]
 #[available_gas(l2_gas: 11950292)] // ceil(1.05 × 11381230 measured)
 fn test_segment_window_open() {
-    let mut member = member_at(400);
+    let mut member = Fixture::member_at(400);
     member.words.state += 0; // placed below
     let mut spec = Fixture::spec();
     spec.health = 400;
     let mut m = Fixture::member(spec);
-    m.words.state += 16 * two(32) + 16 * two(40);
+    m.words.state += 16 * Fixture::two(32) + 16 * Fixture::two(40);
     let world = Fixture::world(40, array![m], array![]);
-    let area = open_area();
+    let area = Fixture::open_area();
     let board = grimworld_logic::types::play::SegmentTrait::board(@area, @world);
     let (x, y, _) = grimworld_logic::models::member::MemberSnapshotTrait::place(@world.member(0));
     let at = board.position(x, y);
@@ -4622,32 +4916,20 @@ fn test_segment_window_open() {
 
 // D-236 #3: the batch's call to `SegmentLibrary`, with the whole words, against the same segment in
 // process (`segment_of`): the exploration batch and the whole fight batch, each less its fixture.
-fn segment_call(
-    words: Words, actions: Span<Action>,
-) -> (Words, grimworld_logic::types::play::Done) {
-    let class = declare("SegmentLibrary").unwrap().contract_class();
-    let library = grimworld_logic::interface::ISegmentLibraryLibraryDispatcher {
-        class_hash: *class.class_hash,
-    };
-    let (out, _, done) = grimworld_logic::interface::ISegmentLibraryDispatcherTrait::segment(
-        library, words, rep_content(), open_area(), classes(), 10, array![], actions, 0, 10,
-    );
-    (out, done)
-}
 
 #[test]
 #[available_gas(l2_gas: 6504278)] // ceil(1.05 × 6194550 measured)
 fn test_cost_segment_call_exploration_fixture() {
     let _ = declare("SegmentLibrary").unwrap().contract_class();
-    let (words, actions) = exploration();
-    segment_fixture(words, actions);
+    let (words, actions) = Fixture::exploration();
+    Fixture::segment_fixture(words, actions);
 }
 
 #[test]
 #[available_gas(l2_gas: 19286531)] // ceil(1.05 × 18368124 measured)
 fn test_cost_segment_call_exploration() {
-    let (words, actions) = exploration();
-    let (out, done) = segment_call(words, actions);
+    let (words, actions) = Fixture::exploration();
+    let (out, done) = Fixture::segment_call(words, actions);
     assert(done.played == 10 && out.clock == 50, 'ten moves');
 }
 
@@ -4655,15 +4937,15 @@ fn test_cost_segment_call_exploration() {
 #[available_gas(l2_gas: 19576299)] // ceil(1.05 × 18644094 measured)
 fn test_cost_segment_call_fight_fixture() {
     let _ = declare("SegmentLibrary").unwrap().contract_class();
-    let (words, actions) = fight_whole();
-    segment_fixture(words, actions);
+    let (words, actions) = Fixture::fight_whole();
+    Fixture::segment_fixture(words, actions);
 }
 
 #[test]
 #[available_gas(l2_gas: 477483634)] // ceil(1.05 × 454746318 measured)
 fn test_cost_segment_call_fight() {
-    let (words, actions) = fight_whole();
-    let (out, done) = segment_call(words, actions);
+    let (words, actions) = Fixture::fight_whole();
+    let (out, done) = Fixture::segment_call(words, actions);
     assert(done.played == 10 && out.clock == 50, 'ten attacks');
 }
 
@@ -4672,7 +4954,7 @@ fn test_cost_segment_call_fight() {
 #[test]
 #[available_gas(l2_gas: 10366455)] // ceil(1.05 × 9872814 measured)
 fn test_segment_turn_heavy() {
-    let (words, _) = exploration();
+    let (words, _) = Fixture::exploration();
     let before: u256 = (*words.members[0]).state.into();
     let mut actions = array![];
     let mut k: u8 = 0;
@@ -4681,7 +4963,7 @@ fn test_segment_turn_heavy() {
         k += 1;
     }
     actions.append(Action::Turn(4));
-    let (out, done) = segment_of(words, actions.span());
+    let (out, done) = Fixture::segment_of(words, actions.span());
     assert(done.heavy && done.played == 10 && done.weight == 0, 'stopped for weight');
     // The facing, `MemberState` 48–55.
     let after: u256 = (*out.members[0]).state.into();
@@ -4695,66 +4977,23 @@ fn test_segment_turn_heavy() {
 // goblin, chunk 0's (entity 8), Engaged on (7, 14), the member on (7, 17): its step toward the
 // member enters chunk 15. The 60 (or 59) others, of chunks 1 to 6, stand far outside the window,
 // away from theirs. A 2-tick run equals two 1-tick runs (a batch and its singles).
-fn roster_world(away: u16) -> (World, Sheets) {
-    let mut member = member_at(400);
-    member.words.state = member.words.state - place(AT) * two(32) + (7 + 17 * 256) * two(32);
-    let mut goblins = array![];
-    let mut first = Fixture::goblin(8, HOB);
-    // Its skills recharging until tick 100: its act is a step.
-    first.state += 7 + 14 * two(8) + 100 * (two(128) + two(156) + two(184) + two(212));
-    goblins.append(first);
-    let mut n: u16 = 0;
-    while n < away {
-        let mut goblin = Fixture::goblin(8 + 16 * (1 + n / 10) + n % 10, HOB);
-        goblin.awake = false;
-        goblin.state += 100 + 100 * two(8);
-        goblins.append(goblin);
-        n += 1;
-    }
-    let world = Fixture::world(40, array![member], goblins);
-    (world, Fixture::sheets())
-}
-
-fn roster_run(away: u16, splits: u8) -> Words {
-    let (mut world, sheets) = roster_world(away);
-    let board = BoardTrait::new(
-        WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), 0, 8,
-    );
-    if splits == 1 {
-        let mut rules = ExecutorTrait::new(board);
-        TickTrait::run(ref world, @sheets, 2, ref rules);
-        return world.store();
-    }
-    let mut rules = ExecutorTrait::new(board);
-    TickTrait::run(ref world, @sheets, 1, ref rules);
-    let words = world.store();
-    let (mut world, sheets) = words.load(@Fixture::content());
-    let mut rules = ExecutorTrait::new(board);
-    TickTrait::run(ref world, @sheets, 1, ref rules);
-    world.store()
-}
-
-fn first_place(words: @Words) -> (u8, u8) {
-    let state: u256 = (*words.goblins[0].state).into();
-    ((state.low % 256).try_into().unwrap(), ((state.low / 256) % 256).try_into().unwrap())
-}
 
 #[test]
 #[available_gas(l2_gas: 116005353)] // ceil(1.05 × 110481288 measured)
 fn test_roster_full_holds() {
-    let full = roster_run(60, 1);
-    let (x, y) = first_place(@full);
+    let full = Fixture::roster_run(60, 1);
+    let (x, y) = Fixture::first_place(@full);
     assert(y == 14 && x == 7, 'held in its chunk');
-    assert(full == roster_run(60, 2), 'batch = singles');
+    assert(full == Fixture::roster_run(60, 2), 'batch = singles');
 }
 
 #[test]
 #[available_gas(l2_gas: 115281729)] // ceil(1.05 × 109792122 measured)
 fn test_roster_free_steps() {
-    let free = roster_run(59, 1);
-    let (_, y) = first_place(@free);
+    let free = Fixture::roster_run(59, 1);
+    let (_, y) = Fixture::first_place(@free);
     assert(y >= 15, 'left its chunk');
-    assert(free == roster_run(59, 2), 'batch = singles');
+    assert(free == Fixture::roster_run(59, 2), 'batch = singles');
 }
 
 // D-238: how often the representative fight reaches 60 (expected never): its 8 goblins away from
@@ -4762,8 +5001,8 @@ fn test_roster_free_steps() {
 #[test]
 #[available_gas(l2_gas: 475872010)] // ceil(1.05 × 453211438 measured)
 fn test_fight_roster_count() {
-    let (words, actions) = fight_whole();
-    let (out, _) = segment_of(words, actions);
+    let (words, actions) = Fixture::fight_whole();
+    let (out, _) = Fixture::segment_of(words, actions);
     let mut away: u32 = 0;
     for goblin in out.goblins.span() {
         let state: u256 = (*goblin.state).into();
@@ -4785,74 +5024,16 @@ fn test_fight_roster_count() {
 // whole content under the same key, the whole content is still there after the second hit when the
 // memo was taken, and the hit's own records when it missed.
 
-/// The words after the second hit, and how many skill records the memo holds then. `effect`: the
-/// member holds skill 2's effect before the second hit (what a carrier's hold writes); `keep`: the
-/// memo of the first hit stays; `swap`: its records are replaced by the whole content.
-fn memo_hits(
-    first: u32, second: u32, effect: bool, keep: bool, swap: bool,
-) -> (Words, u32, Span<felt252>, Span<felt252>) {
-    let content = rep_content();
-    let words = ai_words_of(ai::ENGAGED, false, true);
-    let mut goblins = array![];
-    let mut k: u32 = 0;
-    for goblin in words.goblins.span() {
-        let mut goblin = *goblin;
-        if k == 1 {
-            goblin.state = goblin.state + (RUNT.into() - HOB.into()) * two(64);
-        }
-        goblins.append(goblin);
-        k += 1;
-    }
-    let words = Words { goblins, ..words };
-    let (mut world, sheets, index) = words.indexed(@content);
-    let mut rules = grimworld_logic::types::executor::Delegate {
-        board: board(),
-        cache: Default::default(),
-        executor: executor(),
-        content,
-        index,
-        placed: array![],
-        ground: array![],
-        ai: ai_class(),
-        trap: trap(),
-        level: 10,
-        frozen: 0,
-        listed: 0,
-        memo: None,
-    };
-    let t = world.clock;
-    let weapon = grimworld_logic::types::executor::Carrier::Weapon;
-    let _ = rules.carry(ref world, @sheets, Actor::Goblin(first), 0, weapon, 0, t);
-    let (key, _) = rules.memo.unwrap().unbox();
-    if effect {
-        let mut member = world.member(0);
-        let at = rules.index.skill(2);
-        let held = grimworld_logic::types::tick::Held {
-            carrier: 2, potion: false, charges: 0, deadline: 100, rank: 1,
-        };
-        let _ = member.hold(held, at, false, t, @sheets);
-        world.set_member(0, member);
-    }
-    if !keep {
-        rules.memo = None;
-    } else if swap {
-        rules.memo = Some(BoxTrait::new((key, content)));
-    }
-    let _ = rules.carry(ref world, @sheets, Actor::Goblin(second), 0, weapon, 0, t);
-    let (after, records) = rules.memo.unwrap().unbox();
-    (world.store(), records.skills.len(), key, after)
-}
-
 // The same key (two `HOB` goblins, the member unchanged): the second hit takes the memo.
 #[test]
 #[available_gas(l2_gas: 83091771)] // ceil(1.05 × 79135020 measured)
 fn test_memo_taken_on_the_same_key() {
-    let (kept, _, key, after) = memo_hits(0, 2, false, true, false);
-    let (fresh, _, _, _) = memo_hits(0, 2, false, false, false);
+    let (kept, _, key, after) = Fixture::memo_hits(0, 2, false, true, false);
+    let (fresh, _, _, _) = Fixture::memo_hits(0, 2, false, false, false);
     assert(kept == fresh, 'memo = no memo');
     assert(key == after, 'the same key');
-    let (_, records, _, _) = memo_hits(0, 2, false, true, true);
-    assert(records == rep_content().skills.len(), 'the memo taken');
+    let (_, records, _, _) = Fixture::memo_hits(0, 2, false, true, true);
+    assert(records == Fixture::rep_content().skills.len(), 'the memo taken');
 }
 
 // A changed key misses the memo: the member holds an effect after the first hit, or the second
@@ -4860,16 +5041,16 @@ fn test_memo_taken_on_the_same_key() {
 #[test]
 #[available_gas(l2_gas: 167540184)] // ceil(1.05 × 159562080 measured)
 fn test_memo_missed_on_a_changed_key() {
-    let (kept, _, key, after) = memo_hits(0, 2, true, true, false);
-    let (fresh, _, _, _) = memo_hits(0, 2, true, false, false);
+    let (kept, _, key, after) = Fixture::memo_hits(0, 2, true, true, false);
+    let (fresh, _, _, _) = Fixture::memo_hits(0, 2, true, false, false);
     assert(kept == fresh, 'effect: memo = no memo');
     assert(key != after, 'effect: the key changed');
-    let (_, records, _, _) = memo_hits(0, 2, true, true, true);
-    assert(records < rep_content().skills.len(), 'effect: the memo missed');
-    let (kept, _, key, after) = memo_hits(0, 1, false, true, false);
-    let (fresh, _, _, _) = memo_hits(0, 1, false, false, false);
+    let (_, records, _, _) = Fixture::memo_hits(0, 2, true, true, true);
+    assert(records < Fixture::rep_content().skills.len(), 'effect: the memo missed');
+    let (kept, _, key, after) = Fixture::memo_hits(0, 1, false, true, false);
+    let (fresh, _, _, _) = Fixture::memo_hits(0, 1, false, false, false);
     assert(kept == fresh, 'caste: memo = no memo');
     assert(key != after, 'caste: the key changed');
-    let (_, records, _, _) = memo_hits(0, 1, false, true, true);
-    assert(records < rep_content().skills.len(), 'caste: the memo missed');
+    let (_, records, _, _) = Fixture::memo_hits(0, 1, false, true, true);
+    assert(records < Fixture::rep_content().skills.len(), 'caste: the memo missed');
 }

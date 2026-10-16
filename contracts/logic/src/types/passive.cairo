@@ -508,14 +508,10 @@ mod tests {
         fn passive(id: u8, param: u8, value: i16) -> Passive {
             PassiveTrait::new(id, param, 0, 0, value, value)
         }
-    }
 
-    fn passive(id: u8, param: u8, value: i16) -> Passive {
-        PassiveTrait::new(id, param, 0, 0, value, value)
-    }
-
-    fn fits(p: Passive, source: Source) -> bool {
-        p.allows(source) && PassiveTrait::fits_source(array![p].span(), source)
+        fn fits(p: Passive, source: Source) -> bool {
+            p.allows(source) && PassiveTrait::fits_source(array![p].span(), source)
+        }
     }
 
     // §4: 53 bits; signed range; two in a limb of 106.
@@ -813,10 +809,10 @@ mod tests {
             (id::KNOCKDOWN_FLAT, 0, Source::SetBonus, 0, 1),
         ];
         for (i, param, source, lo, hi) in rows {
-            assert(fits(passive(i, param, lo), source), 'at lo');
-            assert(fits(passive(i, param, hi), source), 'at hi');
-            assert(!fits(passive(i, param, hi + 1), source), 'above hi');
-            assert(!fits(passive(i, param, lo - 1), source), 'below lo');
+            assert(Fixture::fits(Fixture::passive(i, param, lo), source), 'at lo');
+            assert(Fixture::fits(Fixture::passive(i, param, hi), source), 'at hi');
+            assert(!Fixture::fits(Fixture::passive(i, param, hi + 1), source), 'above hi');
+            assert(!Fixture::fits(Fixture::passive(i, param, lo - 1), source), 'below lo');
         }
         // Sources that may not hold them (DS-4; rows 2–4, 8, 13, 14).
         let refused = array![
@@ -828,16 +824,22 @@ mod tests {
             (id::ENERGY_REGEN, Source::Rune), (id::HEALTH_REGEN, Source::Insignia),
         ];
         for (i, source) in refused {
-            assert(!passive(i, 0, 0).allows(source), 'source refused');
+            assert(!Fixture::passive(i, 0, 0).allows(source), 'source refused');
         }
         // A modifier's benefit and cost on one statistic are summed: +50 and −75 on a rune,
         // −25.
-        let pair = array![passive(id::MAX_HEALTH, 0, 50), passive(id::MAX_HEALTH, 0, -75)];
+        let pair = array![
+            Fixture::passive(id::MAX_HEALTH, 0, 50), Fixture::passive(id::MAX_HEALTH, 0, -75),
+        ];
         assert(PassiveTrait::fits_source(pair.span(), Source::Rune), 'summed within');
-        let pair = array![passive(id::MAX_HEALTH, 0, 30), passive(id::MAX_HEALTH, 0, 30)];
+        let pair = array![
+            Fixture::passive(id::MAX_HEALTH, 0, 30), Fixture::passive(id::MAX_HEALTH, 0, 30),
+        ];
         assert(!PassiveTrait::fits_source(pair.span(), Source::Prefix), 'summed above');
         // Two types of armor are two statistics: 7 + 7.
-        let pair = array![passive(id::ARMOR_VS, 1, 7), passive(id::ARMOR_VS, 2, 7)];
+        let pair = array![
+            Fixture::passive(id::ARMOR_VS, 1, 7), Fixture::passive(id::ARMOR_VS, 2, 7),
+        ];
         assert(PassiveTrait::fits_source(pair.span(), Source::Rune), 'per type');
     }
 }

@@ -244,33 +244,36 @@ mod tests {
         set.pack();
     }
 
-    fn set(first: Quota) -> QuotaSet {
-        QuotaSet {
-            quotas: [
-                first, Default::default(), Default::default(), Default::default(),
-                Default::default(), Default::default(),
-            ],
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn set(first: Quota) -> QuotaSet {
+            QuotaSet {
+                quotas: [
+                    first, Default::default(), Default::default(), Default::default(),
+                    Default::default(), Default::default(),
+                ],
+            }
         }
     }
 
     #[test]
     #[available_gas(l2_gas: 62496)] // ceil(1.05 × 59520 measured)
     fn test_quotas_legal() {
-        set(Quota { kind: kind::EXIT, param: 5, count: 1 }).assert_legal();
-        set(Default::default()).assert_legal();
+        Fixture::set(Quota { kind: kind::EXIT, param: 5, count: 1 }).assert_legal();
+        Fixture::set(Default::default()).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'quotas: empty with a value')]
     #[available_gas(l2_gas: 23300)] // ceil(1.05 × 22190 measured)
     fn test_quotas_empty_with_a_count_refused() {
-        set(Quota { kind: 0, param: 0, count: 2 }).assert_legal();
+        Fixture::set(Quota { kind: 0, param: 0, count: 2 }).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'quotas: count 0')]
     #[available_gas(l2_gas: 24423)] // ceil(1.05 × 23260 measured)
     fn test_quotas_count_zero_refused() {
-        set(Quota { kind: kind::VEIN, param: 0, count: 0 }).assert_legal();
+        Fixture::set(Quota { kind: kind::VEIN, param: 0, count: 0 }).assert_legal();
     }
 }

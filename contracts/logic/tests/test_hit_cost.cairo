@@ -25,50 +25,84 @@ use grimworld_logic::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BASE
 /// The hits a tick can compute at most: 8 awake goblins and a bomb's 7 (FX-35).
 const HITS_PER_TICK: u32 = 15;
 
-/// The costliest path: a weapon hit that lands, with an axe from the back on a target whose every
-/// armor term and guard counts, penetration, both percent sums, and FX-19's halving triggering.
-fn costliest() -> (Hit, HitTarget) {
-    (
-        Hit {
-            class: HitClass::Weapon,
-            weapon: weapon::AXE,
-            melee: true,
-            arc: Arc::Back,
-            in_front: false,
-            strength: 75,
-            base: MAX_BASE,
-            percent: 18,
-            percent_above_half: 18,
-            penetration: 30,
-            health: 480,
-            max_health: 480,
-            weakened: true,
-            blind: false,
-        },
-        HitTarget {
-            armor: 120,
-            armor_effects: 30,
-            armor_stance: 10,
-            armor_enchanted: 10,
-            in_stance: true,
-            enchanted: true,
-            armor_vs: 20,
-            block: 3,
-            evade: true,
-            knocked_down: true,
-            asleep: false,
-            halve: true,
-            health: 30000,
-            max_health: 50000,
-        },
-    )
+#[generate_trait]
+impl FixtureImpl of Fixture {
+    /// The costliest path: a weapon hit that lands, with an axe from the back on a target whose
+    /// every armor term and guard counts, penetration, both percent sums, and FX-19's halving
+    /// triggering.
+    fn costliest() -> (Hit, HitTarget) {
+        (
+            Hit {
+                class: HitClass::Weapon,
+                weapon: weapon::AXE,
+                melee: true,
+                arc: Arc::Back,
+                in_front: false,
+                strength: 75,
+                base: MAX_BASE,
+                percent: 18,
+                percent_above_half: 18,
+                penetration: 30,
+                health: 480,
+                max_health: 480,
+                weakened: true,
+                blind: false,
+            },
+            HitTarget {
+                armor: 120,
+                armor_effects: 30,
+                armor_stance: 10,
+                armor_enchanted: 10,
+                in_stance: true,
+                enchanted: true,
+                armor_vs: 20,
+                block: 3,
+                evade: true,
+                knocked_down: true,
+                asleep: false,
+                halve: true,
+                health: 30000,
+                max_health: 50000,
+            },
+        )
+    }
+
+    /// `n` hits of `hit` on `target`, the loop alone (`get_available_gas` around it: each iteration
+    /// withdraws its body, the call included); the outcomes that landed. Never inlined: inlined
+    /// into a test, its constant inputs would let the compiler fold the hit away, which no
+    /// executor's inputs allow (measured: a constant blocked hit "cost" 1,106).
+    #[inline(never)]
+    fn hits(hit: @Hit, target: @HitTarget, n: u32) -> (u128, u32) {
+        let mut landed: u32 = 0;
+        let before = get_available_gas();
+        for _ in 0..n {
+            if let HitOutcome::Landed(_) = hit.resolve(target) {
+                landed += 1;
+            }
+        }
+        (before - get_available_gas(), landed)
+    }
+
+    /// One hit, never inlined (the pair's call).
+    #[inline(never)]
+    fn one(hit: @Hit, target: @HitTarget) -> HitOutcome {
+        hit.resolve(target)
+    }
+
+    /// One hit's withdrawal inside a loop: `(hits(n + 1) − hits(1)) / n`, the loop's own entry
+    /// apart.
+    fn each(hit: @Hit, target: @HitTarget) -> u128 {
+        let (more, _) = Self::hits(hit, target, 3);
+        let (single, _) = Self::hits(hit, target, 1);
+        (more - single) / 2
+    }
 }
 
 // The pair's base: the inputs built, no hit.
 #[test]
 #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_cost_pair_hit_none() {
-    let (hit, target) = costliest();
+    let (hit, target) = Fixture::costliest();
     assert(hit.base == MAX_BASE && target.halve, 'inputs');
 }
 
@@ -77,42 +111,13 @@ fn test_cost_pair_hit_none() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 55073)] // ceil(1.05 × 52450 measured)
 fn test_cost_pair_hit_one() {
-    let (hit, target) = costliest();
+    let (hit, target) = Fixture::costliest();
     assert(hit.base == MAX_BASE && target.halve, 'inputs');
-    let outcome = one(@hit, @target);
+    let outcome = Fixture::one(@hit, @target);
     match outcome {
         HitOutcome::Landed(landed) => assert(landed.critical && landed.halved, 'costliest path'),
         _ => core::panic_with_felt252('landed'),
     }
-}
-
-/// `n` hits of `hit` on `target`, the loop alone (`get_available_gas` around it: each iteration
-/// withdraws its body, the call included); the outcomes that landed. Never inlined: inlined into a
-/// test, its constant inputs would let the compiler fold the hit away, which no executor's inputs
-/// allow (measured: a constant blocked hit "cost" 1,106).
-#[inline(never)]
-fn hits(hit: @Hit, target: @HitTarget, n: u32) -> (u128, u32) {
-    let mut landed: u32 = 0;
-    let before = get_available_gas();
-    for _ in 0..n {
-        if let HitOutcome::Landed(_) = hit.resolve(target) {
-            landed += 1;
-        }
-    }
-    (before - get_available_gas(), landed)
-}
-
-/// One hit, never inlined (the pair's call).
-#[inline(never)]
-fn one(hit: @Hit, target: @HitTarget) -> HitOutcome {
-    hit.resolve(target)
-}
-
-/// One hit's withdrawal inside a loop: `(hits(n + 1) − hits(1)) / n`, the loop's own entry apart.
-fn each(hit: @Hit, target: @HitTarget) -> u128 {
-    let (more, _) = hits(hit, target, 3);
-    let (single, _) = hits(hit, target, 1);
-    (more - single) / 2
 }
 
 // A tick's most hits, 15, on the costliest path.
@@ -120,9 +125,11 @@ fn each(hit: @Hit, target: @HitTarget) -> u128 {
 // gas: raised, 15 hits a tick instead of 14 (FX-35 counts a bomb's 7; fix loop 1, minor 1)
 #[available_gas(l2_gas: 1123794)] // ceil(1.05 × 1070280 measured)
 fn test_cost_hits_per_tick() {
-    let (hit, target) = costliest();
-    let (used, landed) = hits(@hit, @target, HITS_PER_TICK);
-    println!("{} hits: {}; one hit in a loop: {}", HITS_PER_TICK, used, each(@hit, @target));
+    let (hit, target) = Fixture::costliest();
+    let (used, landed) = Fixture::hits(@hit, @target, HITS_PER_TICK);
+    println!(
+        "{} hits: {}; one hit in a loop: {}", HITS_PER_TICK, used, Fixture::each(@hit, @target),
+    );
     assert(landed == HITS_PER_TICK, 'every hit landed');
 }
 
@@ -132,16 +139,16 @@ fn test_cost_hits_per_tick() {
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1955216)] // ceil(1.05 × 1862110 measured)
 fn test_cost_hit_paths() {
-    let (hit, target) = costliest();
-    let landed = each(@hit, @target);
+    let (hit, target) = Fixture::costliest();
+    let landed = Fixture::each(@hit, @target);
     let front = Hit { arc: Arc::Front, ..hit };
     let open = HitTarget { knocked_down: false, ..target };
-    let blocked = each(@front, @open);
-    let evaded = each(@hit, @open);
+    let blocked = Fixture::each(@front, @open);
+    let evaded = Fixture::each(@hit, @open);
     let blind = Hit { blind: true, ..hit };
-    let missed = each(@blind, @target);
-    let spell = each(@Hit { class: HitClass::Spell, ..hit }, @target);
-    let bomb = each(@Hit { class: HitClass::Item, ..hit }, @target);
+    let missed = Fixture::each(@blind, @target);
+    let spell = Fixture::each(@Hit { class: HitClass::Spell, ..hit }, @target);
+    let bomb = Fixture::each(@Hit { class: HitClass::Item, ..hit }, @target);
     println!(
         "one hit: landed {}, blocked {}, evaded {}, missed {}, spell {}, bomb {}",
         landed,
@@ -151,9 +158,9 @@ fn test_cost_hit_paths() {
         spell,
         bomb,
     );
-    assert(one(@front, @open) == HitOutcome::Blocked, 'blocked');
-    assert(one(@hit, @open) == HitOutcome::Evaded, 'evaded');
-    assert(one(@blind, @target) == HitOutcome::Missed, 'missed');
+    assert(Fixture::one(@front, @open) == HitOutcome::Blocked, 'blocked');
+    assert(Fixture::one(@hit, @open) == HitOutcome::Evaded, 'evaded');
+    assert(Fixture::one(@blind, @target) == HitOutcome::Missed, 'missed');
     // The loop's own body branches on the outcome: the paths differ by its match alone, at most
     // 110 measured, under 1 %.
     let mut low = landed;

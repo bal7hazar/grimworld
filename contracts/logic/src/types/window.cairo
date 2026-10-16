@@ -735,6 +735,98 @@ mod tests {
             digest.append(core::poseidon::poseidon_hash_span(ok));
             id += 1;
         }
+
+        /// The pairs of `sight` and `reach` cases.
+        fn vector_pairs() -> Array<(u8, u8)> {
+            // `sight` and `reach` (range 6): from both row parities to every tile within 7, and the
+            // edges (outside, a line leaving the window, the same tile)
+            let mut pairs: Array<(u8, u8)> = array![];
+            let froms: [u8; 2] = [Self::at(7, 8), Self::at(7, 7)];
+            for from in froms.span() {
+                let mut to: u8 = 0;
+                while to != SIZE {
+                    if WindowTrait::distance(*from, to) <= 7 {
+                        pairs.append((*from, to));
+                    }
+                    to += 1;
+                }
+            }
+            pairs.append((Self::at(0, 0), Self::at(0, 2)));
+            pairs.append((Self::at(0, 2), Self::at(0, 0)));
+            pairs.append((Self::at(14, 15), Self::at(14, 13)));
+            pairs.append((SIZE, Self::at(7, 8)));
+            pairs.append((Self::at(7, 8), 255));
+            // `from` on a wall of the fixture (D-174): at range, adjacent, the same tile
+            pairs.append((Self::at(9, 8), Self::at(7, 8)));
+            pairs.append((Self::at(9, 8), Self::at(10, 8)));
+            pairs.append((Self::at(9, 8), Self::at(9, 8)));
+            pairs.append((Self::at(6, 9), Self::at(3, 9)));
+            pairs.append((Self::at(6, 9), Self::at(7, 9)));
+            pairs.append((Self::at(5, 6), Self::at(5, 6)));
+            pairs
+        }
+
+        /// The triples of `arc` and `facing` cases.
+        fn vector_triples() -> Array<(u8, u8, u8)> {
+            // `arc` and `facing`: every source within 6 of the targets (7, 8), an even row, and (7,
+            // 7), an odd one, the facing turning with the source; the edges
+            let mut triples: Array<(u8, u8, u8)> = array![];
+            let mut k: u8 = 0;
+            let targets: [u8; 2] = [Self::at(7, 8), Self::at(7, 7)];
+            for target in targets.span() {
+                let mut source: u8 = 0;
+                while source != SIZE {
+                    if WindowTrait::distance(source, *target) <= 6 {
+                        triples.append((source, *target, k % 6));
+                        k += 1;
+                    }
+                    source += 1;
+                }
+            }
+            triples.append((Self::at(0, 2), Self::at(0, 0), 0));
+            triples.append((Self::at(0, 0), Self::at(0, 2), 3));
+            triples.append((SIZE, Self::at(7, 8), 1));
+            triples.append((Self::at(7, 8), Self::at(7, 15), 2));
+            triples
+        }
+
+        /// The first table part's cases: each pair (two ids), then each triple (two ids). Items
+        /// `first..last` of the part, split in four for snforge's step limit and memory (FND-23).
+        fn check_vectors_items(first: u32, last: u32, expected: felt252) {
+            let window = Self::fixture();
+            let pairs = Self::vector_pairs();
+            let triples = Self::vector_triples();
+            assert(pairs.len() + triples.len() == ITEMS, 'vectors: part 0 moved');
+            let mut digest: Array<felt252> = array![];
+            let mut id: u32 = 2 * first;
+            let mut item: u32 = first;
+            while item != last {
+                if item < pairs.len() {
+                    let (from, to) = *pairs.at(item);
+                    let case = array![window.open, from.into(), to.into()];
+                    let ok = array![window.sight(from, to).into()];
+                    Self::emit(ref digest, ref id, "sight", case.span(), ok.span());
+                    let case = array![window.open, from.into(), to.into(), range::RANGED.into()];
+                    let ok = array![window.reach(from, to, range::RANGED).into()];
+                    Self::emit(ref digest, ref id, "reach", case.span(), ok.span());
+                } else {
+                    let (source, target, facing) = *triples.at(item - pairs.len());
+                    let case = array![source.into(), target.into(), facing.into()];
+                    let mut ok: Array<felt252> = array![];
+                    WindowTrait::arc(source, target, facing).serialize(ref ok);
+                    Self::emit(ref digest, ref id, "arc", case.span(), ok.span());
+                    let ok = array![WindowTrait::facing(source, target, facing).into()];
+                    Self::emit(ref digest, ref id, "facing", case.span(), ok.span());
+                }
+                item += 1;
+            }
+            if last == ITEMS {
+                assert(id == PART_1, 'vectors: part 1 moved');
+            }
+            let digest = core::poseidon::poseidon_hash_span(digest.span());
+            println!("digest {}", digest);
+            assert(digest == expected, 'vectors moved: regenerate');
+        }
     }
 
     // ---- Oracles, written from the design's sentences ------------------------------------------
@@ -1827,121 +1919,30 @@ mod tests {
     // here until `contracts/logic/vectors/window.jsonl` is regenerated, and
     // `vectors/check.py` fails while the committed file differs from what these print
     // (`vectors/README.md`).
-    /// The pairs of `sight` and `reach` cases.
-    fn vector_pairs() -> Array<(u8, u8)> {
-        // `sight` and `reach` (range 6): from both row parities to every tile within 7, and the
-        // edges (outside, a line leaving the window, the same tile)
-        let mut pairs: Array<(u8, u8)> = array![];
-        let froms: [u8; 2] = [Fixture::at(7, 8), Fixture::at(7, 7)];
-        for from in froms.span() {
-            let mut to: u8 = 0;
-            while to != SIZE {
-                if WindowTrait::distance(*from, to) <= 7 {
-                    pairs.append((*from, to));
-                }
-                to += 1;
-            }
-        }
-        pairs.append((Fixture::at(0, 0), Fixture::at(0, 2)));
-        pairs.append((Fixture::at(0, 2), Fixture::at(0, 0)));
-        pairs.append((Fixture::at(14, 15), Fixture::at(14, 13)));
-        pairs.append((SIZE, Fixture::at(7, 8)));
-        pairs.append((Fixture::at(7, 8), 255));
-        // `from` on a wall of the fixture (D-174): at range, adjacent, the same tile
-        pairs.append((Fixture::at(9, 8), Fixture::at(7, 8)));
-        pairs.append((Fixture::at(9, 8), Fixture::at(10, 8)));
-        pairs.append((Fixture::at(9, 8), Fixture::at(9, 8)));
-        pairs.append((Fixture::at(6, 9), Fixture::at(3, 9)));
-        pairs.append((Fixture::at(6, 9), Fixture::at(7, 9)));
-        pairs.append((Fixture::at(5, 6), Fixture::at(5, 6)));
-        pairs
-    }
-
-    /// The triples of `arc` and `facing` cases.
-    fn vector_triples() -> Array<(u8, u8, u8)> {
-        // `arc` and `facing`: every source within 6 of the targets (7, 8), an even row, and (7, 7),
-        // an odd one, the facing turning with the source; the edges
-        let mut triples: Array<(u8, u8, u8)> = array![];
-        let mut k: u8 = 0;
-        let targets: [u8; 2] = [Fixture::at(7, 8), Fixture::at(7, 7)];
-        for target in targets.span() {
-            let mut source: u8 = 0;
-            while source != SIZE {
-                if WindowTrait::distance(source, *target) <= 6 {
-                    triples.append((source, *target, k % 6));
-                    k += 1;
-                }
-                source += 1;
-            }
-        }
-        triples.append((Fixture::at(0, 2), Fixture::at(0, 0), 0));
-        triples.append((Fixture::at(0, 0), Fixture::at(0, 2), 3));
-        triples.append((SIZE, Fixture::at(7, 8), 1));
-        triples.append((Fixture::at(7, 8), Fixture::at(7, 15), 2));
-        triples
-    }
-
-    /// The first table part's cases: each pair (two ids), then each triple (two ids). Items
-    /// `first..last` of the part, split in four for snforge's step limit and memory (FND-23).
-    fn check_vectors_items(first: u32, last: u32, expected: felt252) {
-        let window = Fixture::fixture();
-        let pairs = vector_pairs();
-        let triples = vector_triples();
-        assert(pairs.len() + triples.len() == ITEMS, 'vectors: part 0 moved');
-        let mut digest: Array<felt252> = array![];
-        let mut id: u32 = 2 * first;
-        let mut item: u32 = first;
-        while item != last {
-            if item < pairs.len() {
-                let (from, to) = *pairs.at(item);
-                let case = array![window.open, from.into(), to.into()];
-                let ok = array![window.sight(from, to).into()];
-                Fixture::emit(ref digest, ref id, "sight", case.span(), ok.span());
-                let case = array![window.open, from.into(), to.into(), range::RANGED.into()];
-                let ok = array![window.reach(from, to, range::RANGED).into()];
-                Fixture::emit(ref digest, ref id, "reach", case.span(), ok.span());
-            } else {
-                let (source, target, facing) = *triples.at(item - pairs.len());
-                let case = array![source.into(), target.into(), facing.into()];
-                let mut ok: Array<felt252> = array![];
-                WindowTrait::arc(source, target, facing).serialize(ref ok);
-                Fixture::emit(ref digest, ref id, "arc", case.span(), ok.span());
-                let ok = array![WindowTrait::facing(source, target, facing).into()];
-                Fixture::emit(ref digest, ref id, "facing", case.span(), ok.span());
-            }
-            item += 1;
-        }
-        if last == ITEMS {
-            assert(id == PART_1, 'vectors: part 1 moved');
-        }
-        let digest = core::poseidon::poseidon_hash_span(digest.span());
-        println!("digest {}", digest);
-        assert(digest == expected, 'vectors moved: regenerate');
-    }
 
     #[test]
     #[available_gas(l2_gas: 441428181)] // ceil(1.05 × 420407791 measured)
     fn test_vectors_0() {
-        check_vectors_items(0, 152, DIGEST_0);
+        Fixture::check_vectors_items(0, 152, DIGEST_0);
     }
 
     #[test]
     // gas: raised, FND-23: a new slice of part 0 (the old `test_vectors_1` is `test_vectors_4`)
     #[available_gas(l2_gas: 442288822)] // ceil(1.05 × 421227449 measured)
     fn test_vectors_1() {
-        check_vectors_items(152, 304, DIGEST_1);
+        Fixture::check_vectors_items(152, 304, DIGEST_1);
     }
 
     #[test]
     #[available_gas(l2_gas: 258703728)] // ceil(1.05 × 246384502 measured)
     fn test_vectors_2() {
-        check_vectors_items(304, 456, DIGEST_2);
+        Fixture::check_vectors_items(304, 456, DIGEST_2);
     }
 
     #[test]
     #[available_gas(l2_gas: 183241200)] // ceil(1.05 × 174515428 measured)
     fn test_vectors_3() {
-        check_vectors_items(456, ITEMS, DIGEST_3);
+        Fixture::check_vectors_items(456, ITEMS, DIGEST_3);
     }
 
     /// The table's second part, its ids following the first's (snforge's step limit splits it).

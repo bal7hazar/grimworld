@@ -262,106 +262,217 @@ mod tests {
     const ENTRY: u8 = 112;
     const INSTANCE: felt252 = 0x100000001;
 
-    /// The chunks of `set`, by index.
-    fn chunks(set: felt252) -> Array<u8> {
-        let mut out: Array<u8> = array![];
-        let count = BoardTrait::count(set);
-        let mut i: u8 = 0;
-        while i != count {
-            out.append(BoardTrait::nth(set, i));
-            i += 1;
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        /// The chunks of `set`, by index.
+        fn chunks(set: felt252) -> Array<u8> {
+            let mut out: Array<u8> = array![];
+            let count = BoardTrait::count(set);
+            let mut i: u8 = 0;
+            while i != count {
+                out.append(BoardTrait::nth(set, i));
+                i += 1;
+            }
+            out
         }
-        out
-    }
 
-    /// An outline's properties: `n` chunks with the entry; seams between two of its chunks only;
-    /// connected through its open seams; its farthest layer not the entry, at the depth, and the
-    /// layers (`layers`) the chunks by distance, the farthest first, the entry's left out.
-    /// Returns the depth.
-    fn check(outline: @Outline, n: u8) -> u8 {
-        let set = *outline.chunks;
-        assert(BoardTrait::count(set) == n, 'N chunks');
-        assert(BoardTrait::has(set, ENTRY), 'the entry in it');
-        for c in chunks(*outline.west) {
-            let (_, cx) = DivRem::div_rem(c, 15);
-            assert(cx != 14, 'west seam on the row');
-            assert(BoardTrait::has(set, c) && BoardTrait::has(set, c + 1), 'west seam inside');
-        }
-        for c in chunks(*outline.north) {
-            assert(BoardTrait::has(set, c) && BoardTrait::has(set, c + 15), 'north seam inside');
-        }
-        for c in chunks(set) {
-            assert(outline.distance(ENTRY, c) != 255, 'connected');
-        }
-        let (far, depth) = outline.far(ENTRY);
-        assert(far != 0 && !BoardTrait::has(far, ENTRY), 'far not the entry');
-        assert(depth >= 1 && depth <= n - 1, 'depth in [1, N-1]');
-        for c in chunks(far) {
-            assert(outline.distance(ENTRY, c) == depth, 'far at the depth');
-        }
-        let layers = outline.layers(ENTRY);
-        assert(layers.len() == depth.into(), 'a layer a distance');
-        assert(*layers[0] == far, 'the farthest first');
-        let mut all = BoardTrait::pow(ENTRY);
-        let mut d = depth;
-        for layer in layers.span() {
-            for c in chunks(*layer) {
-                assert(outline.distance(ENTRY, c) == d, 'a layer at its distance');
+        /// An outline's properties: `n` chunks with the entry; seams between two of its chunks
+        /// only;
+        /// connected through its open seams; its farthest layer not the entry, at the depth, and
+        /// the layers (`layers`) the chunks by distance, the farthest first, the entry's left out.
+        /// Returns the depth.
+        fn check(outline: @Outline, n: u8) -> u8 {
+            let set = *outline.chunks;
+            assert(BoardTrait::count(set) == n, 'N chunks');
+            assert(BoardTrait::has(set, ENTRY), 'the entry in it');
+            for c in Self::chunks(*outline.west) {
+                let (_, cx) = DivRem::div_rem(c, 15);
+                assert(cx != 14, 'west seam on the row');
+                assert(BoardTrait::has(set, c) && BoardTrait::has(set, c + 1), 'west seam inside');
             }
-            all = BoardTrait::or(all, *layer);
-            d -= 1;
+            for c in Self::chunks(*outline.north) {
+                assert(
+                    BoardTrait::has(set, c) && BoardTrait::has(set, c + 15), 'north seam inside',
+                );
+            }
+            for c in Self::chunks(set) {
+                assert(outline.distance(ENTRY, c) != 255, 'connected');
+            }
+            let (far, depth) = outline.far(ENTRY);
+            assert(far != 0 && !BoardTrait::has(far, ENTRY), 'far not the entry');
+            assert(depth >= 1 && depth <= n - 1, 'depth in [1, N-1]');
+            for c in Self::chunks(far) {
+                assert(outline.distance(ENTRY, c) == depth, 'far at the depth');
+            }
+            let layers = outline.layers(ENTRY);
+            assert(layers.len() == depth.into(), 'a layer a distance');
+            assert(*layers[0] == far, 'the farthest first');
+            let mut all = BoardTrait::pow(ENTRY);
+            let mut d = depth;
+            for layer in layers.span() {
+                for c in Self::chunks(*layer) {
+                    assert(outline.distance(ENTRY, c) == d, 'a layer at its distance');
+                }
+                all = BoardTrait::or(all, *layer);
+                d -= 1;
+            }
+            assert(all == set, 'the layers cover the outline');
+            depth
         }
-        assert(all == set, 'the layers cover the outline');
-        depth
-    }
 
-    /// Over `seeds` entropies, outlines of `n` chunks: each checked, the same draw twice.
-    fn sweep(n: u8, seeds: u32) {
-        let mut low: u8 = 255;
-        let mut high: u8 = 0;
-        let mut sum: u32 = 0;
-        let mut i: u32 = 0;
-        while i != seeds {
-            let entropy = poseidon_hash_span(['eng10b outline', i.into()].span());
-            let seed = EntropyTrait::outline(entropy, INSTANCE);
-            let outline = OutlineTrait::draw(ENTRY, n, 15, 15, seed);
-            assert(outline == OutlineTrait::draw(ENTRY, n, 15, 15, seed), 'the same draw');
-            let depth = check(@outline, n);
-            if depth < low {
-                low = depth;
+        /// Over `seeds` entropies, outlines of `n` chunks: each checked, the same draw twice.
+        fn sweep(n: u8, seeds: u32) {
+            let mut low: u8 = 255;
+            let mut high: u8 = 0;
+            let mut sum: u32 = 0;
+            let mut i: u32 = 0;
+            while i != seeds {
+                let entropy = poseidon_hash_span(['eng10b outline', i.into()].span());
+                let seed = EntropyTrait::outline(entropy, INSTANCE);
+                let outline = OutlineTrait::draw(ENTRY, n, 15, 15, seed);
+                assert(outline == OutlineTrait::draw(ENTRY, n, 15, 15, seed), 'the same draw');
+                let depth = Self::check(@outline, n);
+                if depth < low {
+                    low = depth;
+                }
+                if depth > high {
+                    high = depth;
+                }
+                sum += depth.into();
+                i += 1;
             }
-            if depth > high {
-                high = depth;
-            }
-            sum += depth.into();
-            i += 1;
+            println!(
+                "N = {}: the farthest distance over {} entropies: min {}, max {}, sum {}",
+                n,
+                seeds,
+                low,
+                high,
+                sum,
+            );
         }
-        println!(
-            "N = {}: the farthest distance over {} entropies: min {}, max {}, sum {}",
-            n,
-            seeds,
-            low,
-            high,
-            sum,
-        );
+
+        fn seeds() -> Array<felt252> {
+            let mut out: Array<felt252> = array![];
+            let mut i: u32 = 0;
+            while i != 16 {
+                out
+                    .append(
+                        EntropyTrait::outline(
+                            poseidon_hash_span(['eng10b cost', i.into()].span()), INSTANCE,
+                        ),
+                    );
+                i += 1;
+            }
+            out
+        }
+
+        /// The lever of D-223, ruling 4, measured and not kept unless cheaper: `draw` with each
+        /// step's draws from its own word (`RngTrait::mix(seed, step)`) instead of one stream.
+        fn draw_stepped(entry: u8, n: u8, width: u8, height: u8, seed: felt252) -> Outline {
+            let rectangle = OutlineTrait::rectangle(width, height);
+            let area = BoardTrait::count(rectangle);
+            let target = if n < area {
+                n
+            } else {
+                area
+            };
+            let mut members: Array<u8> = array![entry];
+            let mut chunks = BoardTrait::pow(entry);
+            let mut west: felt252 = 0;
+            let mut north: felt252 = 0;
+            let mut count: u8 = 1;
+            while count < target {
+                // The lever: a step's draws from its own word, `mix(seed, step)`
+                let mut rng = RngTrait::new(RngTrait::mix(seed, count.into()));
+                let mut found: Option<(u8, u8)> = Option::None;
+                let mut tries: u8 = 0;
+                while found.is_none() && tries != TRIES {
+                    let k = if rng.draw_byte(2) == 0 {
+                        count - 1
+                    } else {
+                        rng.draw_byte(count.try_into().unwrap())
+                    };
+                    let side = rng.draw_byte(4);
+                    let member = *members[k.into()];
+                    if let Option::Some(next) = OutlineTrait::beside(member, side, width, height) {
+                        if !BoardTrait::has(chunks, next) {
+                            found = Option::Some((next, member));
+                        }
+                    }
+                    tries += 1;
+                }
+                let (chunk, parent) = match found {
+                    Option::Some(pair) => pair,
+                    Option::None => {
+                        let frontier = BoardTrait::minus(
+                            BoardTrait::and(OutlineTrait::around(chunks), rectangle), chunks,
+                        );
+                        let chunk = BoardTrait::nth(
+                            frontier,
+                            rng.draw_byte(BoardTrait::count(frontier).try_into().unwrap()),
+                        );
+                        // Its parent: its first neighbour in the floor (ENG-01's order of the
+                        // sides)
+                        let mut parent: u8 = 255;
+                        let mut side: u8 = 0;
+                        while side != 4 {
+                            if let Option::Some(next) =
+                                OutlineTrait::beside(chunk, side, width, height) {
+                                if parent == 255 && BoardTrait::has(chunks, next) {
+                                    parent = next;
+                                }
+                            }
+                            side += 1;
+                        }
+                        (chunk, parent)
+                    },
+                };
+                // [Compute] Its seams toward the floor: the parent's open, each other but a border
+                // in 7
+                let mut side: u8 = 0;
+                while side != 4 {
+                    if let Option::Some(next) = OutlineTrait::beside(chunk, side, width, height) {
+                        if BoardTrait::has(chunks, next) {
+                            let border = rng.draw_byte(7) == 0;
+                            if next == parent || !border {
+                                if side == 0 {
+                                    west += BoardTrait::pow(chunk);
+                                } else if side == 1 {
+                                    west += BoardTrait::pow(next);
+                                } else if side == 2 {
+                                    north += BoardTrait::pow(next);
+                                } else {
+                                    north += BoardTrait::pow(chunk);
+                                }
+                            }
+                        }
+                    }
+                    side += 1;
+                }
+                chunks += BoardTrait::pow(chunk);
+                members.append(chunk);
+                count += 1;
+            }
+            Outline { chunks, west, north }
+        }
     }
 
     #[test]
     #[available_gas(l2_gas: 609523253)] // ceil(1.05 × 580498336 measured)
     fn test_outline_n6() {
-        sweep(6, 64);
+        Fixture::sweep(6, 64);
     }
 
     #[test]
     #[available_gas(l2_gas: 948137184)] // ceil(1.05 × 902987794 measured)
     fn test_outline_n9() {
-        sweep(9, 64);
+        Fixture::sweep(9, 64);
     }
 
     #[test]
     #[available_gas(l2_gas: 1322695790)] // ceil(1.05 × 1259710276 measured)
     fn test_outline_n12() {
-        sweep(12, 64);
+        Fixture::sweep(12, 64);
     }
 
     // A rectangle smaller than `N`: the floor is the whole rectangle, connected (no panic, D-140).
@@ -372,7 +483,7 @@ mod tests {
         while i != 8 {
             let outline = OutlineTrait::draw(0, 12, 3, 2, i);
             assert(outline.chunks == OutlineTrait::rectangle(3, 2), 'the whole rectangle');
-            for c in chunks(outline.chunks) {
+            for c in Fixture::chunks(outline.chunks) {
                 assert(outline.distance(0, c) != 255, 'connected');
             }
             i += 1;
@@ -387,25 +498,11 @@ mod tests {
     // (`test_cost_outline_baseline`)
     // divided by 16: the figure the D-144 table reads, against the lever of D-223, ruling 4 (one
     // word a step, `test_cost_outline_stepped`), on the same 16 seeds.
-    fn seeds() -> Array<felt252> {
-        let mut out: Array<felt252> = array![];
-        let mut i: u32 = 0;
-        while i != 16 {
-            out
-                .append(
-                    EntropyTrait::outline(
-                        poseidon_hash_span(['eng10b cost', i.into()].span()), INSTANCE,
-                    ),
-                );
-            i += 1;
-        }
-        out
-    }
 
     #[test]
     #[available_gas(l2_gas: 39683107)] // ceil(1.05 × 37793435 measured)
     fn test_cost_outline_n12() {
-        for seed in seeds() {
+        for seed in Fixture::seeds() {
             OutlineTrait::draw(ENTRY, 12, 15, 15, seed);
         }
     }
@@ -413,101 +510,14 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 449491)] // ceil(1.05 × 428086 measured)
     fn test_cost_outline_baseline() {
-        let _seeds = seeds();
-    }
-
-    /// The lever of D-223, ruling 4, measured and not kept unless cheaper: `draw` with each step's
-    /// draws from its own word (`RngTrait::mix(seed, step)`) instead of one stream.
-    fn draw_stepped(entry: u8, n: u8, width: u8, height: u8, seed: felt252) -> Outline {
-        let rectangle = OutlineTrait::rectangle(width, height);
-        let area = BoardTrait::count(rectangle);
-        let target = if n < area {
-            n
-        } else {
-            area
-        };
-        let mut members: Array<u8> = array![entry];
-        let mut chunks = BoardTrait::pow(entry);
-        let mut west: felt252 = 0;
-        let mut north: felt252 = 0;
-        let mut count: u8 = 1;
-        while count < target {
-            // The lever: a step's draws from its own word, `mix(seed, step)`
-            let mut rng = RngTrait::new(RngTrait::mix(seed, count.into()));
-            let mut found: Option<(u8, u8)> = Option::None;
-            let mut tries: u8 = 0;
-            while found.is_none() && tries != TRIES {
-                let k = if rng.draw_byte(2) == 0 {
-                    count - 1
-                } else {
-                    rng.draw_byte(count.try_into().unwrap())
-                };
-                let side = rng.draw_byte(4);
-                let member = *members[k.into()];
-                if let Option::Some(next) = OutlineTrait::beside(member, side, width, height) {
-                    if !BoardTrait::has(chunks, next) {
-                        found = Option::Some((next, member));
-                    }
-                }
-                tries += 1;
-            }
-            let (chunk, parent) = match found {
-                Option::Some(pair) => pair,
-                Option::None => {
-                    let frontier = BoardTrait::minus(
-                        BoardTrait::and(OutlineTrait::around(chunks), rectangle), chunks,
-                    );
-                    let chunk = BoardTrait::nth(
-                        frontier, rng.draw_byte(BoardTrait::count(frontier).try_into().unwrap()),
-                    );
-                    // Its parent: its first neighbour in the floor (ENG-01's order of the sides)
-                    let mut parent: u8 = 255;
-                    let mut side: u8 = 0;
-                    while side != 4 {
-                        if let Option::Some(next) =
-                            OutlineTrait::beside(chunk, side, width, height) {
-                            if parent == 255 && BoardTrait::has(chunks, next) {
-                                parent = next;
-                            }
-                        }
-                        side += 1;
-                    }
-                    (chunk, parent)
-                },
-            };
-            // [Compute] Its seams toward the floor: the parent's open, each other but a border in 7
-            let mut side: u8 = 0;
-            while side != 4 {
-                if let Option::Some(next) = OutlineTrait::beside(chunk, side, width, height) {
-                    if BoardTrait::has(chunks, next) {
-                        let border = rng.draw_byte(7) == 0;
-                        if next == parent || !border {
-                            if side == 0 {
-                                west += BoardTrait::pow(chunk);
-                            } else if side == 1 {
-                                west += BoardTrait::pow(next);
-                            } else if side == 2 {
-                                north += BoardTrait::pow(next);
-                            } else {
-                                north += BoardTrait::pow(chunk);
-                            }
-                        }
-                    }
-                }
-                side += 1;
-            }
-            chunks += BoardTrait::pow(chunk);
-            members.append(chunk);
-            count += 1;
-        }
-        Outline { chunks, west, north }
+        let _seeds = Fixture::seeds();
     }
 
     #[test]
     #[available_gas(l2_gas: 40038737)] // ceil(1.05 × 38132130 measured)
     fn test_cost_outline_stepped() {
-        for seed in seeds() {
-            draw_stepped(ENTRY, 12, 15, 15, seed);
+        for seed in Fixture::seeds() {
+            Fixture::draw_stepped(ENTRY, 12, 15, 15, seed);
         }
     }
 }

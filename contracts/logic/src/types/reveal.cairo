@@ -797,213 +797,805 @@ pub mod tests {
 
     pub const INSTANCE: felt252 = 0x100000001;
 
-    pub fn no_quotas() -> QuotaSet {
-        QuotaSet { quotas: [Default::default(); 6] }
-    }
-
-    pub fn packs() -> Span<(u16, Pack)> {
-        array![
-            (
-                1,
-                Pack {
-                    castes: [
-                        PackCaste { caste: 1, min: 1, max: 2 },
-                        PackCaste { caste: 2, min: 1, max: 3 }, Default::default(),
-                        Default::default(), Default::default(),
-                    ],
-                    level: 0,
-                },
-            ),
-            (
-                2,
-                Pack {
-                    castes: [
-                        PackCaste { caste: 3, min: 1, max: 1 }, Default::default(),
-                        Default::default(), Default::default(), Default::default(),
-                    ],
-                    level: 2,
-                },
-            ),
-        ]
-            .span()
-    }
-
-    pub fn spawn(density: u8) -> SpawnTable {
-        SpawnTable {
-            spawns: [
-                Spawn { template: 1, weight: 3 }, Spawn { template: 2, weight: 1 },
-                Default::default(), Default::default(), Default::default(), Default::default(),
-                Default::default(),
-            ],
-            density,
-            trap: 0,
+    #[generate_trait]
+    pub impl RevealFixtureImpl of RevealFixture {
+        fn no_quotas() -> QuotaSet {
+            QuotaSet { quotas: [Default::default(); 6] }
         }
-    }
 
-    /// A zone of `width` × `height` chunks, every chunk in it, entered at chunk 0.
-    pub fn zone(kind: u8, width: u8, height: u8, quotas: QuotaSet) -> Site {
-        Site {
-            target: 0,
-            biome: kind,
-            level_min: 1,
-            level_max: 5,
-            width,
-            height,
-            entry_chunk: 0,
-            chunk_set: 0,
-            west: 0,
-            north: 0,
-            masks: array![].span(),
-            anchors: array![].span(),
-            quotas,
-            tasks: array![].span(),
-            spawn: spawn(160),
-            packs: packs(),
-            pieces: array![].span(),
+        fn packs() -> Span<(u16, Pack)> {
+            array![
+                (
+                    1,
+                    Pack {
+                        castes: [
+                            PackCaste { caste: 1, min: 1, max: 2 },
+                            PackCaste { caste: 2, min: 1, max: 3 }, Default::default(),
+                            Default::default(), Default::default(),
+                        ],
+                        level: 0,
+                    },
+                ),
+                (
+                    2,
+                    Pack {
+                        castes: [
+                            PackCaste { caste: 3, min: 1, max: 1 }, Default::default(),
+                            Default::default(), Default::default(), Default::default(),
+                        ],
+                        level: 2,
+                    },
+                ),
+            ]
+                .span()
         }
-    }
 
-    /// A dungeon floor of `n` chunks entered at chunk 112, tile 112, as `create` makes it from
-    /// `entropy` (ENG-10b; `HostsLibrary::floor`'s computation): its outline drawn
-    /// (`EntropyTrait::outline`), its quotas' hosts over it (`EntropyTrait::hosts`, the exit and
-    /// the Heart first, among its farthest chunks), each chunk of it with its hosts above its mask.
-    pub fn dungeon(n: u8, quotas: QuotaSet, entropy: felt252) -> Site {
-        let outline = OutlineTrait::draw(112, n, 15, 15, EntropyTrait::outline(entropy, INSTANCE));
-        let mut site = Site {
-            target: n,
-            biome: biome::CAVE,
-            level_min: 3,
-            level_max: 5,
-            width: 15,
-            height: 15,
-            entry_chunk: 112,
-            chunk_set: outline.chunks,
-            west: outline.west,
-            north: outline.north,
-            masks: array![].span(),
-            anchors: array![(112, 112)].span(),
-            quotas,
-            tasks: array![].span(),
-            spawn: spawn(160),
-            packs: packs(),
-            pieces: array![].span(),
-        };
-        let progress = ProgressTrait::new(@site, entropy);
-        let hosts = PlacementTrait::floor_hosts(
-            outline.chunks,
-            PlacementTrait::plan(@site, progress.left.span()),
-            site.pieces,
-            EntropyTrait::hosts(entropy, INSTANCE),
-            outline.layers(112).span(),
-        )
-            .span();
-        let mut masks: Array<(u8, felt252)> = array![];
-        let count = BoardTrait::count(outline.chunks);
-        let mut i: u8 = 0;
-        while i != count {
-            let chunk = BoardTrait::nth(outline.chunks, i);
-            masks.append((chunk, PlacementTrait::with_hosts(0, hosts, chunk)));
-            i += 1;
-        }
-        site.masks = masks.span();
-        site
-    }
-
-    /// A dungeon site's outline.
-    pub fn outline_of(site: @Site) -> Outline {
-        Outline { chunks: *site.chunk_set, west: *site.west, north: *site.north }
-    }
-
-    pub fn exit_quota() -> QuotaSet {
-        QuotaSet {
-            quotas: [
-                Quota { kind: quota::EXIT, param: 5, count: 1 },
-                Quota { kind: quota::VEIN, param: 0, count: 1 }, Default::default(),
-                Default::default(), Default::default(), Default::default(),
-            ],
-        }
-    }
-
-    pub fn floor(terrain: @Terrain) -> felt252 {
-        BOARD - *terrain.walls
-    }
-
-    fn odd(chunk: u8) -> bool {
-        let (cy, _) = DivRem::div_rem(chunk, 15);
-        let (_, parity) = DivRem::div_rem(cy, 2);
-        parity == 1
-    }
-
-    /// The invariants of one revealed chunk (ENG-05 *Scope*, tests): corners wall; the interior
-    /// floor one component that holds the centre; every ring opening next to it; nothing placed on
-    /// a wall, on the ring or within 2 of an opening; E-3.
-    pub fn check_chunk(revealed: @Revealed) {
-        let ground = floor(revealed.terrain);
-        let corners = 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224);
-        assert(BoardTrait::and(ground, corners) == 0, 'corners are wall');
-        let odd = odd(*revealed.chunk);
-        let interior = BoardTrait::and(ground, INTERIOR);
-        let ring = ground - interior;
-        if BoardTrait::has(interior, CENTRE) {
-            assert(BoardTrait::component(interior, CENTRE, odd) == interior, 'one component');
-        }
-        // Each opening's next tile inward is floor (its line).
-        let mut tile: u8 = 0;
-        while tile != 225 {
-            if BoardTrait::has(ring, tile) {
-                let (row, column) = DivRem::div_rem(tile, 15);
-                let inward = if column == 0 {
-                    tile + 1
-                } else if column == 14 {
-                    tile - 1
-                } else if row == 0 {
-                    tile + 15
-                } else {
-                    tile - 15
-                };
-                assert(BoardTrait::has(interior, inward), 'opening reaches inside');
+        fn spawn(density: u8) -> SpawnTable {
+            SpawnTable {
+                spawns: [
+                    Spawn { template: 1, weight: 3 }, Spawn { template: 2, weight: 1 },
+                    Default::default(), Default::default(), Default::default(), Default::default(),
+                    Default::default(),
+                ],
+                density,
+                trap: 0,
             }
-            tile += 1;
         }
-        let near = BoardTrait::near_openings(ring, array![].span(), odd);
-        let features = *revealed.features;
-        assert(features.touched == 0, 'touched cleared');
-        for pack in features.packs.span() {
-            assert(*pack.count <= 5, 'E-3 pack size');
-            if *pack.count != 0 {
-                let (row, _) = DivRem::div_rem(*pack.tile, 15);
-                let (_, parity) = DivRem::div_rem(row, 2);
-                let row_odd = (parity == 1) != odd;
-                let mut k: u8 = 0;
-                let mut offsets = *pack.offsets;
-                while k != *pack.count {
-                    let (rest, index) = DivRem::div_rem(offsets, 32);
-                    offsets = rest;
-                    let member = PackPlacementTrait::member(
-                        *pack.tile, index.try_into().unwrap(), row_odd,
-                    )
-                        .unwrap();
-                    assert(BoardTrait::has(interior, member), 'member on floor');
-                    assert(!BoardTrait::has(near, member), 'member near an opening');
-                    k += 1;
+
+        /// A zone of `width` × `height` chunks, every chunk in it, entered at chunk 0.
+        fn zone(kind: u8, width: u8, height: u8, quotas: QuotaSet) -> Site {
+            Site {
+                target: 0,
+                biome: kind,
+                level_min: 1,
+                level_max: 5,
+                width,
+                height,
+                entry_chunk: 0,
+                chunk_set: 0,
+                west: 0,
+                north: 0,
+                masks: array![].span(),
+                anchors: array![].span(),
+                quotas,
+                tasks: array![].span(),
+                spawn: Self::spawn(160),
+                packs: Self::packs(),
+                pieces: array![].span(),
+            }
+        }
+
+        /// A dungeon floor of `n` chunks entered at chunk 112, tile 112, as `create` makes it from
+        /// `entropy` (ENG-10b; `HostsLibrary::floor`'s computation): its outline drawn
+        /// (`EntropyTrait::outline`), its quotas' hosts over it (`EntropyTrait::hosts`, the exit
+        /// and the Heart first, among its farthest chunks), each chunk of it with its hosts above
+        /// its mask.
+        fn dungeon(n: u8, quotas: QuotaSet, entropy: felt252) -> Site {
+            let outline = OutlineTrait::draw(
+                112, n, 15, 15, EntropyTrait::outline(entropy, INSTANCE),
+            );
+            let mut site = Site {
+                target: n,
+                biome: biome::CAVE,
+                level_min: 3,
+                level_max: 5,
+                width: 15,
+                height: 15,
+                entry_chunk: 112,
+                chunk_set: outline.chunks,
+                west: outline.west,
+                north: outline.north,
+                masks: array![].span(),
+                anchors: array![(112, 112)].span(),
+                quotas,
+                tasks: array![].span(),
+                spawn: Self::spawn(160),
+                packs: Self::packs(),
+                pieces: array![].span(),
+            };
+            let progress = ProgressTrait::new(@site, entropy);
+            let hosts = PlacementTrait::floor_hosts(
+                outline.chunks,
+                PlacementTrait::plan(@site, progress.left.span()),
+                site.pieces,
+                EntropyTrait::hosts(entropy, INSTANCE),
+                outline.layers(112).span(),
+            )
+                .span();
+            let mut masks: Array<(u8, felt252)> = array![];
+            let count = BoardTrait::count(outline.chunks);
+            let mut i: u8 = 0;
+            while i != count {
+                let chunk = BoardTrait::nth(outline.chunks, i);
+                masks.append((chunk, PlacementTrait::with_hosts(0, hosts, chunk)));
+                i += 1;
+            }
+            site.masks = masks.span();
+            site
+        }
+
+        /// A dungeon site's outline.
+        fn outline_of(site: @Site) -> Outline {
+            Outline { chunks: *site.chunk_set, west: *site.west, north: *site.north }
+        }
+
+        fn exit_quota() -> QuotaSet {
+            QuotaSet {
+                quotas: [
+                    Quota { kind: quota::EXIT, param: 5, count: 1 },
+                    Quota { kind: quota::VEIN, param: 0, count: 1 }, Default::default(),
+                    Default::default(), Default::default(), Default::default(),
+                ],
+            }
+        }
+
+        fn floor(terrain: @Terrain) -> felt252 {
+            BOARD - *terrain.walls
+        }
+
+        fn odd(chunk: u8) -> bool {
+            let (cy, _) = DivRem::div_rem(chunk, 15);
+            let (_, parity) = DivRem::div_rem(cy, 2);
+            parity == 1
+        }
+
+        /// The invariants of one revealed chunk (ENG-05 *Scope*, tests): corners wall; the interior
+        /// floor one component that holds the centre; every ring opening next to it; nothing placed
+        /// on a wall, on the ring or within 2 of an opening; E-3.
+        fn check_chunk(revealed: @Revealed) {
+            let ground = Self::floor(revealed.terrain);
+            let corners = 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224);
+            assert(BoardTrait::and(ground, corners) == 0, 'corners are wall');
+            let odd = Self::odd(*revealed.chunk);
+            let interior = BoardTrait::and(ground, INTERIOR);
+            let ring = ground - interior;
+            if BoardTrait::has(interior, CENTRE) {
+                assert(BoardTrait::component(interior, CENTRE, odd) == interior, 'one component');
+            }
+            // Each opening's next tile inward is floor (its line).
+            let mut tile: u8 = 0;
+            while tile != 225 {
+                if BoardTrait::has(ring, tile) {
+                    let (row, column) = DivRem::div_rem(tile, 15);
+                    let inward = if column == 0 {
+                        tile + 1
+                    } else if column == 14 {
+                        tile - 1
+                    } else if row == 0 {
+                        tile + 15
+                    } else {
+                        tile - 15
+                    };
+                    assert(BoardTrait::has(interior, inward), 'opening reaches inside');
+                }
+                tile += 1;
+            }
+            let near = BoardTrait::near_openings(ring, array![].span(), odd);
+            let features = *revealed.features;
+            assert(features.touched == 0, 'touched cleared');
+            for pack in features.packs.span() {
+                assert(*pack.count <= 5, 'E-3 pack size');
+                if *pack.count != 0 {
+                    let (row, _) = DivRem::div_rem(*pack.tile, 15);
+                    let (_, parity) = DivRem::div_rem(row, 2);
+                    let row_odd = (parity == 1) != odd;
+                    let mut k: u8 = 0;
+                    let mut offsets = *pack.offsets;
+                    while k != *pack.count {
+                        let (rest, index) = DivRem::div_rem(offsets, 32);
+                        offsets = rest;
+                        let member = PackPlacementTrait::member(
+                            *pack.tile, index.try_into().unwrap(), row_odd,
+                        )
+                            .unwrap();
+                        assert(BoardTrait::has(interior, member), 'member on floor');
+                        assert(!BoardTrait::has(near, member), 'member near an opening');
+                        k += 1;
+                    }
+                }
+            }
+            for item in features.objects.span() {
+                if *item.kind != 0 {
+                    assert(BoardTrait::has(interior, *item.tile), 'object on floor');
+                    assert(!BoardTrait::has(near, *item.tile), 'object near an opening');
                 }
             }
         }
-        for item in features.objects.span() {
-            if *item.kind != 0 {
-                assert(BoardTrait::has(interior, *item.tile), 'object on floor');
-                assert(!BoardTrait::has(near, *item.tile), 'object near an opening');
+
+        /// Reveals one chunk with the given terrains known; it must be revealed.
+        fn one(
+            site: @Site, ref progress: Progress, known: Span<(u8, Terrain)>, chunk: u8,
+        ) -> Revealed {
+            let out = RevealTrait::reveal(
+                site, ref progress, INSTANCE, known, array![chunk].span(),
+            );
+            assert(out.len() == 1, 'revealed');
+            *out[0]
+        }
+
+        fn check_zone_words(kind: u8, first: felt252, words: felt252) {
+            let site = Self::zone(kind, 15, 3, Self::no_quotas());
+            let mut seed = first;
+            while seed != first + words {
+                let mut progress = ProgressTrait::new(@site, seed);
+                // A chunk with nothing known (four sides drawn; East at the location's edge), then
+                // its West and North neighbours, then the chunk between them (two sides copied).
+                let a = Self::one(@site, ref progress, array![].span(), 16);
+                Self::check_chunk(@a);
+                let b = Self::one(@site, ref progress, array![(16, a.terrain)].span(), 17);
+                Self::check_chunk(@b);
+                let c = Self::one(@site, ref progress, array![(16, a.terrain)].span(), 31);
+                Self::check_chunk(@c);
+                let d = Self::one(
+                    @site, ref progress, array![(17, b.terrain), (31, c.terrain)].span(), 32,
+                );
+                Self::check_chunk(@d);
+                // Every shared edge open across its seam, from both sides (`hexx`'s seams, N-2).
+                assert(
+                    SeamTrait::is_open_across(
+                        15, 15, Self::floor(@b.terrain), Self::floor(@a.terrain), Side::East, true,
+                    ),
+                    'a-b from b',
+                );
+                assert(
+                    SeamTrait::is_open_across(
+                        15, 15, Self::floor(@a.terrain), Self::floor(@b.terrain), Side::West, true,
+                    ),
+                    'a-b from a',
+                );
+                assert(
+                    SeamTrait::is_open_across(
+                        15,
+                        15,
+                        Self::floor(@c.terrain),
+                        Self::floor(@a.terrain),
+                        Side::South,
+                        false,
+                    ),
+                    'a-c from c',
+                );
+                assert(
+                    SeamTrait::is_open_across(
+                        15, 15, Self::floor(@a.terrain), Self::floor(@c.terrain), Side::North, true,
+                    ),
+                    'a-c from a',
+                );
+                assert(
+                    SeamTrait::is_open_across(
+                        15,
+                        15,
+                        Self::floor(@d.terrain),
+                        Self::floor(@b.terrain),
+                        Side::South,
+                        false,
+                    ),
+                    'b-d from d',
+                );
+                assert(
+                    SeamTrait::is_open_across(
+                        15, 15, Self::floor(@d.terrain), Self::floor(@c.terrain), Side::East, false,
+                    ),
+                    'c-d from d',
+                );
+                // A side at the location's edge (chunk 16's East is chunk 15, inside; chunk 0's
+                // East is outside): closed.
+                seed += 1;
             }
         }
-    }
 
-    /// Reveals one chunk with the given terrains known; it must be revealed.
-    pub fn one(
-        site: @Site, ref progress: Progress, known: Span<(u8, Terrain)>, chunk: u8,
-    ) -> Revealed {
-        let out = RevealTrait::reveal(site, ref progress, INSTANCE, known, array![chunk].span());
-        assert(out.len() == 1, 'revealed');
-        *out[0]
+        fn check_dungeon(n: u8, first: felt252, words: felt252) {
+            let sides = [Side::West, Side::East, Side::South, Side::North];
+            let mut seed = first;
+            while seed != first + words {
+                let site = Self::dungeon(n, Self::exit_quota(), seed);
+                let (far, _) = Self::outline_of(@site).far(112);
+                let mut progress = ProgressTrait::new(@site, seed);
+                let mut known: Array<(u8, Terrain)> = array![];
+                let mut exits: u8 = 0;
+                let mut veins: u8 = 0;
+                let mut chunk: u8 = 0;
+                while chunk != 225 {
+                    let inside = BoardTrait::has(site.chunk_set, chunk);
+                    assert(
+                        RevealTrait::revealable(@site, @progress, known.span(), chunk) == inside,
+                        'revealable: the outline',
+                    );
+                    if inside {
+                        let r = Self::one(@site, ref progress, known.span(), chunk);
+                        Self::check_chunk(@r);
+                        for item in r.features.objects.span() {
+                            if *item.kind == object::EXIT {
+                                exits += 1;
+                                assert(BoardTrait::has(far, chunk), 'the exit at the farthest');
+                                assert(BoardTrait::has(CORE, *item.tile), 'the exit on the core');
+                            }
+                            if *item.kind == object::VEIN {
+                                veins += 1;
+                            }
+                        }
+                        known.append((chunk, r.terrain));
+                    } else {
+                        assert(
+                            RevealTrait::kind(
+                                @site, @progress, known.span(), chunk,
+                            ) == ChunkKind::Void,
+                            'void outside the outline',
+                        );
+                    }
+                    chunk += 1;
+                }
+                assert(progress.count == n, 'N revealed');
+                assert(progress.revealed == site.chunk_set, 'the outline revealed');
+                assert(progress.open_edges == 0, 'no open edges');
+                assert(exits == 1 && veins == 1, 'quotas placed');
+                assert(progress.left == [0; 14], 'nothing owed');
+                let mut chunk: u8 = 0;
+                while chunk != 225 {
+                    assert(
+                        !RevealTrait::revealable(@site, @progress, known.span(), chunk),
+                        'nothing more at N',
+                    );
+                    chunk += 1;
+                }
+                for entry in known.span() {
+                    let (chunk, terrain) = *entry;
+                    let mut s: u8 = 0;
+                    while s != 4 {
+                        let open = RevealTrait::is_open(terrain.edges, s);
+                        match site.neighbour(chunk, s) {
+                            Option::Some(next) => {
+                                if BoardTrait::has(site.chunk_set, next) {
+                                    assert(open == site.seam(chunk, s, next), 'edges: the seams');
+                                    let other = RevealTrait::known(known.span(), next);
+                                    let ground = Self::floor(@terrain);
+                                    assert(
+                                        BoardTrait::and(
+                                            ground, BoardTrait::side(s),
+                                        ) == BoardTrait::copy(s, Self::floor(@other)),
+                                        'the same openings',
+                                    );
+                                    if open {
+                                        assert(
+                                            SeamTrait::is_open_across(
+                                                15,
+                                                15,
+                                                ground,
+                                                Self::floor(@other),
+                                                *sides.span()[s.into()],
+                                                Self::odd(chunk),
+                                            ),
+                                            'open across the seam',
+                                        );
+                                    }
+                                } else {
+                                    assert(!open, 'closed outside the outline');
+                                }
+                            },
+                            Option::None => { assert(!open, 'closed at the border'); },
+                        }
+                        s += 1;
+                    }
+                }
+                seed += 1;
+            }
+        }
+
+        fn seams_life(site: @Site, entropy: felt252) {
+            let count = BoardTrait::count(*site.chunk_set);
+            let mut i: u8 = 0;
+            while i != count {
+                let _seed = EntropyTrait::outline(entropy, INSTANCE);
+                i += 1;
+            }
+            let seams = EntropyTrait::outline(entropy, INSTANCE);
+            let mut i: u8 = 0;
+            let west = BoardTrait::count(*site.west);
+            while i != west {
+                let low = BoardTrait::nth(*site.west, i);
+                let mut rng = RngTrait::new(poseidon_hash_span([seams, low.into(), 0].span()));
+                RevealTrait::openings(BoardTrait::side(side::WEST), side::WEST, ref rng);
+                i += 1;
+            }
+            let mut i: u8 = 0;
+            let north = BoardTrait::count(*site.north);
+            while i != north {
+                let low = BoardTrait::nth(*site.north, i);
+                let mut rng = RngTrait::new(poseidon_hash_span([seams, low.into(), 1].span()));
+                RevealTrait::openings(BoardTrait::side(side::NORTH), side::NORTH, ref rng);
+                i += 1;
+            }
+        }
+
+        /// A zone's hosts as `Instances` draws them at `create` (D-208, D-210), from the progress's
+        /// entropy `entropy`: `site`'s masks rebuilt for every chunk of the zone, each carrying the
+        /// quotas the chunk hosts. Returns the hosts.
+        fn hosted(ref site: Site, entropy: felt252) -> Array<felt252> {
+            let start = ProgressTrait::new(@site, entropy);
+            let hosts = PlacementTrait::hosts(
+                site.chunk_set,
+                site.width,
+                site.height,
+                PlacementTrait::plan(@site, start.left.span()),
+                site.pieces,
+                EntropyTrait::hosts(entropy, INSTANCE),
+            );
+            let mut masks: Array<(u8, felt252)> = array![];
+            let mut cy: u8 = 0;
+            while cy != site.height {
+                let mut cx: u8 = 0;
+                while cx != site.width {
+                    let chunk = 15 * cy + cx;
+                    if site.chunk_set == 0 || BoardTrait::has(site.chunk_set, chunk) {
+                        let mut mask: felt252 = 0;
+                        for entry in site.masks {
+                            let (at, value) = *entry;
+                            if at == chunk {
+                                mask = value;
+                            }
+                        }
+                        masks
+                            .append((chunk, PlacementTrait::with_hosts(mask, hosts.span(), chunk)));
+                    }
+                    cx += 1;
+                }
+                cy += 1;
+            }
+            site.masks = masks.span();
+            hosts
+        }
+
+        /// The quota objects each chunk of `order` holds (collector, landmark, vein: bits 1, 2, 4),
+        /// revealed in that order, each knowing the ones before it; and the progress at the end.
+        fn zone_objects(
+            site: @Site, seed: felt252, order: Span<u8>,
+        ) -> (Felt252Dict<u8>, Progress) {
+            let mut progress = ProgressTrait::new(site, seed);
+            let mut known: Array<(u8, Terrain)> = array![];
+            let mut held: Felt252Dict<u8> = Default::default();
+            for chunk in order {
+                let r = Self::one(site, ref progress, known.span(), *chunk);
+                let mut bits: u8 = 0;
+                for item in r.features.objects.span() {
+                    if *item.kind == object::COLLECTOR {
+                        bits += 1;
+                    } else if *item.kind == object::LANDMARK {
+                        bits += 2;
+                    } else if *item.kind == object::VEIN {
+                        bits += 4;
+                    }
+                }
+                held.insert((*chunk).into(), bits);
+                known.append((*chunk, r.terrain));
+            }
+            (held, progress)
+        }
+
+        /// A 15 × 15 zone with six collector quotas of `count` and eight landmark tasks.
+        fn crowded(count: u8) -> Array<felt252> {
+            let full = Quota { kind: quota::COLLECTOR, param: 1, count };
+            let quotas = QuotaSet { quotas: [full; 6] };
+            let mut site = Self::zone(biome::MEADOW, 15, 15, quotas);
+            let mut tasks: Array<TaskEntry> = array![];
+            let mut k: u32 = 0;
+            while k != 8 {
+                tasks.append(TaskEntry { task: k, kind: 2, param: 1 });
+                k += 1;
+            }
+            site.tasks = tasks.span();
+            let start = ProgressTrait::new(@site, 'worst');
+            PlacementTrait::hosts(
+                0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+            )
+        }
+
+        fn mixed(count: u8) -> Array<felt252> {
+            let quotas = QuotaSet {
+                quotas: [
+                    Quota { kind: quota::COLLECTOR, param: 1, count },
+                    Quota { kind: quota::VEIN, param: 0, count },
+                    Quota { kind: quota::EXIT, param: 1, count },
+                    Quota { kind: quota::HEART, param: 1, count },
+                    Quota { kind: quota::HEART, param: 2, count },
+                    Quota { kind: quota::SET_PIECE, param: 9, count },
+                ],
+            };
+            let site = Self::zone(biome::MEADOW, 15, 15, quotas);
+            let start = ProgressTrait::new(@site, 'worst');
+            PlacementTrait::hosts(
+                0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
+            )
+        }
+
+        fn share(kind: u8, words: u32) -> u32 {
+            let site = Self::zone(kind, 15, 15, Self::no_quotas());
+            let mut total: u32 = 0;
+            let mut seed: u32 = 0;
+            while seed != words {
+                let mut progress = ProgressTrait::new(@site, seed.into());
+                let chunk: u8 = if seed % 2 == 0 {
+                    112
+                } else {
+                    97
+                };
+                let r = Self::one(@site, ref progress, array![].span(), chunk);
+                total += BoardTrait::count(BoardTrait::and(Self::floor(@r.terrain), INTERIOR))
+                    .into();
+                seed += 1;
+            }
+            // Per thousand.
+            total * 1000 / (169 * words)
+        }
+
+        fn distance(x0: i32, y0: i32, x1: i32, y1: i32) -> i32 {
+            let q0 = x0 - Self::floor_half(y0);
+            let q1 = x1 - Self::floor_half(y1);
+            let dq = q1 - q0;
+            let dr = y1 - y0;
+            let ds = dq + dr;
+            let m = if Self::abs(dq) > Self::abs(dr) {
+                Self::abs(dq)
+            } else {
+                Self::abs(dr)
+            };
+            if Self::abs(ds) > m {
+                Self::abs(ds)
+            } else {
+                m
+            }
+        }
+
+        fn abs(v: i32) -> i32 {
+            if v < 0 {
+                -v
+            } else {
+                v
+            }
+        }
+
+        fn floor_half(y: i32) -> i32 {
+            if y >= 0 {
+                y / 2
+            } else {
+                (y - 1) / 2
+            }
+        }
+
+        fn oracle(x: u8, y: u8, width: u8, height: u8) -> felt252 {
+            let mut touched: felt252 = 0;
+            let (x, y): (i32, i32) = (x.into(), y.into());
+            let mut ty = y - 6;
+            while ty <= y + 6 {
+                let mut tx = x - 9;
+                while tx <= x + 9 {
+                    if tx >= 0 && ty >= 0 && tx < 15
+                        * width.into() && ty < 15
+                        * height.into() && Self::distance(x, y, tx, ty) <= 6 {
+                        let chunk: u8 = ((ty / 15) * 15 + tx / 15).try_into().unwrap();
+                        if !BoardTrait::has(touched, chunk) {
+                            touched += Bits::pow(chunk);
+                        }
+                    }
+                    tx += 1;
+                }
+                ty += 1;
+            }
+            touched
+        }
+
+        /// A chunk's walls as `generate` computes them (no set piece), its interior anchors joined
+        /// by their line (`fixed`, ENG-05c) and by ENG-05's `pow(tile) + anchor_line(tile)`, which
+        /// carries (`carried`): `(fixed, carried)`.
+        fn walls_both(
+            site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8,
+        ) -> (felt252, felt252) {
+            let word = EntropyTrait::word(*progress.entropy, INSTANCE, chunk);
+            let odd = Self::odd(chunk);
+            let mask = BoardTrait::and(site.mask(chunk), BOARD);
+            let mut draws = RngTrait::new(RngTrait::mix(word, 4));
+            let (ring, _, _) = RevealTrait::decide(
+                site, progress, INSTANCE, known, chunk, mask, ref draws,
+            );
+            let mut ring = ring;
+            let mut fixed: felt252 = 0;
+            let mut carried: felt252 = 0;
+            let mut anchors: Array<u8> = array![];
+            for entry in *site.anchors {
+                let (at, tile) = *entry;
+                if at == chunk && tile < 225 {
+                    if BoardTrait::has(INTERIOR, tile) {
+                        fixed = BoardTrait::or(fixed, BoardTrait::anchor_line(tile));
+                        carried =
+                            BoardTrait::or(
+                                carried, BoardTrait::pow(tile) + BoardTrait::anchor_line(tile),
+                            );
+                        anchors.append(tile);
+                    } else if BoardTrait::has(BOARD - INTERIOR, tile)
+                        && !RevealTrait::corner(tile) {
+                        ring = BoardTrait::or(ring, BoardTrait::pow(tile));
+                    }
+                }
+            }
+            let grid = BoardTrait::base(word, *site.biome) + ring;
+            let interior = BoardTrait::and(BoardTrait::smooth(grid, odd), INTERIOR);
+            let joined = BoardTrait::or(interior, BoardTrait::lines(ring));
+            let grid = BoardTrait::or(joined, fixed);
+            let walls = Self::finish(grid, ring, mask, anchors.span(), odd);
+            let old = BoardTrait::or(joined, carried);
+            if old == grid {
+                (walls, walls)
+            } else {
+                (walls, Self::finish(old, ring, mask, anchors.span(), odd))
+            }
+        }
+
+        /// `generate`'s step 4 on a joined grid: the cut, the component of the root; the walls.
+        fn finish(
+            grid: felt252, ring: felt252, mask: felt252, anchors: Span<u8>, odd: bool,
+        ) -> felt252 {
+            let cut = BoardTrait::cut(grid + ring, mask);
+            let ring = BoardTrait::minus(cut, INTERIOR);
+            let mut interior = BoardTrait::and(cut, INTERIOR);
+            if let Option::Some(root) = RevealTrait::root(interior, anchors) {
+                interior = BoardTrait::component(interior, root, odd);
+            }
+            BOARD - interior - ring
+        }
+
+        /// The site of one measured generation: a 3 × 2 zone (the seed's location 2) or a dungeon
+        /// floor of `n` (the seed's locations 3 and 4), of biome `kind`, its entry anchor at
+        /// `(chunk, tile)`.
+        fn measured(kind: u8, n: u8, chunk: u8, tile: u8, seed: felt252) -> Site {
+            let mut site = if n == 0 {
+                Self::zone(kind, 3, 2, Self::no_quotas())
+            } else {
+                Self::dungeon(n, Self::no_quotas(), seed)
+            };
+            site.biome = kind;
+            site.entry_chunk = chunk;
+            site.anchors = array![(chunk, tile)].span();
+            site
+        }
+
+        /// ENG-05c's measure of the fix's reach: `count` generations from entropy `first`, each its
+        /// entry chunk, the first a generation reveals (nothing known) and the only one with an
+        /// anchor, so the only one the fix can change: `inner` is 0 in a chunk without one. The
+        /// anchor at `(chunk, tile)`, or at an interior tile drawn from the entropy when `tile` is
+        /// 0. Returns how many chunks' walls the fix changes. Each chunk's walls with the fix are
+        /// `generate`'s (`test_walls_both_is_generate`); in a dungeon its interior is one component
+        /// that holds the centre and the anchor: the floor stays connected from entry to exit (its
+        /// other chunks unchanged, `check_dungeon`).
+        fn reach(kind: u8, n: u8, chunk: u8, tile: u8, first: felt252, count: u32) -> u32 {
+            let mut changed: u32 = 0;
+            let mut seed = first;
+            while seed != first + count.into() {
+                let anchor = if tile == 0 {
+                    let wide: u256 = poseidon_hash_span([seed, 'anchor'].span()).into();
+                    let (_, k) = DivRem::div_rem(wide.low, 169);
+                    BoardTrait::nth(INTERIOR, k.try_into().unwrap())
+                } else {
+                    tile
+                };
+                let site = Self::measured(kind, n, chunk, anchor, seed);
+                let progress = ProgressTrait::new(@site, seed);
+                let (fixed, carried) = Self::walls_both(@site, @progress, array![].span(), chunk);
+                if fixed != carried {
+                    changed += 1;
+                }
+                if n != 0 {
+                    let interior = BoardTrait::minus(INTERIOR, fixed);
+                    assert(BoardTrait::has(interior, anchor), 'the anchor is floor');
+                    assert(
+                        BoardTrait::component(interior, CENTRE, Self::odd(chunk)) == interior,
+                        'one component',
+                    );
+                }
+                seed += 1;
+            }
+            changed
+        }
+
+        fn measure_zones(kind: u8) {
+            let zone_110 = Self::reach(kind, 0, 16, 110, 0, 250);
+            let zone_105 = Self::reach(kind, 0, 0, 105, 1000, 250);
+            let any = Self::reach(kind, 0, 16, 0, 4000, 250);
+            println!(
+                "reach biome {}: zone (16, 110) {}/250, zone (0, 105) {}/250, zone at a random interior tile {}/250",
+                kind,
+                zone_110,
+                zone_105,
+                any,
+            );
+        }
+
+        fn measure_floors(kind: u8) {
+            let floor_6 = Self::reach(kind, 6, 112, 112, 2000, 250);
+            let floor_8 = Self::reach(kind, 8, 112, 112, 3000, 250);
+            println!(
+                "reach biome {}: floor 6 (112, 112) {}/250, floor 8 (112, 112) {}/250",
+                kind,
+                floor_6,
+                floor_8,
+            );
+        }
+
+        fn hex(felts: Span<felt252>) -> ByteArray {
+            let mut out: ByteArray = "[";
+            let mut first = true;
+            for felt in felts {
+                if !first {
+                    out.append(@",");
+                }
+                first = false;
+                let wide: u256 = (*felt).into();
+                out.append(@format!("\"0x{:x}\"", wide));
+            }
+            out.append(@"]");
+            out
+        }
+
+        /// Prints one vector and adds it to the digest.
+        fn emit(
+            ref digest: Array<felt252>,
+            ref id: u32,
+            name: ByteArray,
+            case: Span<felt252>,
+            ok: Span<felt252>,
+        ) {
+            println!(
+                "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}",
+                id,
+                name,
+                Self::hex(case),
+                Self::hex(ok),
+            );
+            digest.append(poseidon_hash_span(case));
+            digest.append(poseidon_hash_span(ok));
+            id += 1;
+        }
+
+        /// One `reveal` vector: the call's arguments and its results, in Cairo `Serde`.
+        fn emit_reveal(
+            ref digest: Array<felt252>,
+            ref id: u32,
+            site: @Site,
+            ref progress: Progress,
+            known: Span<(u8, Terrain)>,
+            chunks: Span<u8>,
+        ) -> Array<Revealed> {
+            let mut case: Array<felt252> = array![];
+            site.serialize(ref case);
+            progress.serialize(ref case);
+            INSTANCE.serialize(ref case);
+            known.serialize(ref case);
+            chunks.serialize(ref case);
+            let out = RevealTrait::reveal(site, ref progress, INSTANCE, known, chunks);
+            let mut ok: Array<felt252> = array![];
+            progress.serialize(ref ok);
+            out.span().serialize(ref ok);
+            Self::emit(ref digest, ref id, "reveal", case.span(), ok.span());
+            out
+        }
+
+        /// Whether a dungeon's outline holds two neighbouring chunks with their seam closed.
+        fn closed_seam(site: @Site) -> bool {
+            let set = *site.chunk_set;
+            let mut found = false;
+            let mut chunk: u8 = 0;
+            while chunk != 225 {
+                if BoardTrait::has(set, chunk) {
+                    if let Option::Some(next) = site.neighbour(chunk, side::WEST) {
+                        found = found
+                            || (BoardTrait::has(set, next) && !site.seam(chunk, side::WEST, next));
+                    }
+                    if let Option::Some(next) = site.neighbour(chunk, side::NORTH) {
+                        found = found
+                            || (BoardTrait::has(set, next) && !site.seam(chunk, side::NORTH, next));
+                    }
+                }
+                chunk += 1;
+            }
+            found
+        }
     }
 
     // The order of the edges (ENG-01: West, East, South, North) against `hexx`'s sides: a dungeon
@@ -1015,10 +1607,10 @@ pub mod tests {
         let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed: felt252 = 0;
         while seed != 12 {
-            let site = dungeon(12, no_quotas(), seed);
+            let site = RevealFixture::dungeon(12, RevealFixture::no_quotas(), seed);
             let mut progress = ProgressTrait::new(@site, seed);
-            let revealed = one(@site, ref progress, array![].span(), 112);
-            let ground = floor(@revealed.terrain);
+            let revealed = RevealFixture::one(@site, ref progress, array![].span(), 112);
+            let ground = RevealFixture::floor(@revealed.terrain);
             let mut s: u8 = 0;
             for hexx_side in sides.span() {
                 let mask = SeamTrait::side(15, 15, *hexx_side);
@@ -1032,86 +1624,29 @@ pub mod tests {
     }
 
     // The invariants over many words, each biome, both parities, 0 to 4 known sides.
-    fn check_zone_words(kind: u8, first: felt252, words: felt252) {
-        let site = zone(kind, 15, 3, no_quotas());
-        let mut seed = first;
-        while seed != first + words {
-            let mut progress = ProgressTrait::new(@site, seed);
-            // A chunk with nothing known (four sides drawn; East at the location's edge), then its
-            // West and North neighbours, then the chunk between them (two sides copied).
-            let a = one(@site, ref progress, array![].span(), 16);
-            check_chunk(@a);
-            let b = one(@site, ref progress, array![(16, a.terrain)].span(), 17);
-            check_chunk(@b);
-            let c = one(@site, ref progress, array![(16, a.terrain)].span(), 31);
-            check_chunk(@c);
-            let d = one(@site, ref progress, array![(17, b.terrain), (31, c.terrain)].span(), 32);
-            check_chunk(@d);
-            // Every shared edge open across its seam, from both sides (`hexx`'s seams, N-2).
-            assert(
-                SeamTrait::is_open_across(
-                    15, 15, floor(@b.terrain), floor(@a.terrain), Side::East, true,
-                ),
-                'a-b from b',
-            );
-            assert(
-                SeamTrait::is_open_across(
-                    15, 15, floor(@a.terrain), floor(@b.terrain), Side::West, true,
-                ),
-                'a-b from a',
-            );
-            assert(
-                SeamTrait::is_open_across(
-                    15, 15, floor(@c.terrain), floor(@a.terrain), Side::South, false,
-                ),
-                'a-c from c',
-            );
-            assert(
-                SeamTrait::is_open_across(
-                    15, 15, floor(@a.terrain), floor(@c.terrain), Side::North, true,
-                ),
-                'a-c from a',
-            );
-            assert(
-                SeamTrait::is_open_across(
-                    15, 15, floor(@d.terrain), floor(@b.terrain), Side::South, false,
-                ),
-                'b-d from d',
-            );
-            assert(
-                SeamTrait::is_open_across(
-                    15, 15, floor(@d.terrain), floor(@c.terrain), Side::East, false,
-                ),
-                'c-d from d',
-            );
-            // A side at the location's edge (chunk 16's East is chunk 15, inside; chunk 0's East is
-            // outside): closed.
-            seed += 1;
-        }
-    }
 
     #[test]
     #[available_gas(l2_gas: 174093178)] // ceil(1.05 × 165803026 measured)
     fn test_invariants_meadow() {
-        check_zone_words(biome::MEADOW, 0, 6);
+        RevealFixture::check_zone_words(biome::MEADOW, 0, 6);
     }
 
     #[test]
     #[available_gas(l2_gas: 178061873)] // ceil(1.05 × 169582736 measured)
     fn test_invariants_forest() {
-        check_zone_words(biome::FOREST, 100, 6);
+        RevealFixture::check_zone_words(biome::FOREST, 100, 6);
     }
 
     #[test]
     #[available_gas(l2_gas: 179421533)] // ceil(1.05 × 170877650 measured)
     fn test_invariants_cave() {
-        check_zone_words(biome::CAVE, 200, 6);
+        RevealFixture::check_zone_words(biome::CAVE, 200, 6);
     }
 
     #[test]
     #[available_gas(l2_gas: 182237334)] // ceil(1.05 × 173559365 measured)
     fn test_invariants_ruin() {
-        check_zone_words(biome::RUIN, 300, 6);
+        RevealFixture::check_zone_words(biome::RUIN, 300, 6);
     }
 
     // The location's border and a void chunk close a side (D-134); an anchor on it stays open.
@@ -1119,23 +1654,26 @@ pub mod tests {
     #[available_gas(l2_gas: 58145701)] // ceil(1.05 × 55376858 measured)
     fn test_border_and_void_closed_but_anchors() {
         // Chunks (0, 0), (1, 0) and (0, 1) of a 2 × 2 zone; (1, 1) is outside the outline.
-        let mut site = zone(biome::FOREST, 2, 2, no_quotas());
+        let mut site = RevealFixture::zone(biome::FOREST, 2, 2, RevealFixture::no_quotas());
         site.chunk_set = 1 + 2 + Bits::pow(15);
         site.anchors = array![(0, 105)].span();
         let mut seed: felt252 = 0;
         while seed != 6 {
             let mut progress = ProgressTrait::new(@site, seed);
-            let a = one(@site, ref progress, array![].span(), 0);
-            check_chunk(@a);
-            let ground = floor(@a.terrain);
+            let a = RevealFixture::one(@site, ref progress, array![].span(), 0);
+            RevealFixture::check_chunk(@a);
+            let ground = RevealFixture::floor(@a.terrain);
             // East (outside) and South (outside) closed, but the anchor (row 7, column 0).
             assert(
                 BoardTrait::and(ground, super::board::EAST) == Bits::pow(105), 'east: the anchor',
             );
             assert(BoardTrait::and(ground, super::board::SOUTH) == 0, 'south closed');
-            let b = one(@site, ref progress, array![(0, a.terrain)].span(), 1);
+            let b = RevealFixture::one(@site, ref progress, array![(0, a.terrain)].span(), 1);
             // (1, 0)'s North faces (1, 1), void: closed.
-            assert(BoardTrait::and(floor(@b.terrain), super::board::NORTH) == 0, 'north void');
+            assert(
+                BoardTrait::and(RevealFixture::floor(@b.terrain), super::board::NORTH) == 0,
+                'north void',
+            );
             assert(
                 RevealTrait::kind(@site, @progress, array![].span(), 16) == ChunkKind::Void,
                 'void outside the outline',
@@ -1164,14 +1702,14 @@ pub mod tests {
             mask += Bits::pow(row * 15) * 0xfff;
             row += 1;
         }
-        let mut site = zone(biome::MEADOW, 3, 1, no_quotas());
+        let mut site = RevealFixture::zone(biome::MEADOW, 3, 1, RevealFixture::no_quotas());
         site.masks = array![(2, mask)].span();
         let mut seed: felt252 = 0;
         while seed != 6 {
             let mut progress = ProgressTrait::new(@site, seed);
-            let a = one(@site, ref progress, array![].span(), 2);
-            check_chunk(@a);
-            assert(BoardTrait::minus(floor(@a.terrain), mask) == 0, 'cut');
+            let a = RevealFixture::one(@site, ref progress, array![].span(), 2);
+            RevealFixture::check_chunk(@a);
+            assert(BoardTrait::minus(RevealFixture::floor(@a.terrain), mask) == 0, 'cut');
             assert(a.terrain.edges == 0, 'a zone has no edges');
             seed += 1;
         }
@@ -1182,111 +1720,17 @@ pub mod tests {
     // farthest layer, on the spine's core; nothing is owed; each chunk's edge toward a chunk of the
     // outline is open exactly when its seam is, every other edge closed; across each open seam the
     // two chunks carry the same opening tiles, each facing the other's (`hexx`'s seams, N-2).
-    fn check_dungeon(n: u8, first: felt252, words: felt252) {
-        let sides = [Side::West, Side::East, Side::South, Side::North];
-        let mut seed = first;
-        while seed != first + words {
-            let site = dungeon(n, exit_quota(), seed);
-            let (far, _) = outline_of(@site).far(112);
-            let mut progress = ProgressTrait::new(@site, seed);
-            let mut known: Array<(u8, Terrain)> = array![];
-            let mut exits: u8 = 0;
-            let mut veins: u8 = 0;
-            let mut chunk: u8 = 0;
-            while chunk != 225 {
-                let inside = BoardTrait::has(site.chunk_set, chunk);
-                assert(
-                    RevealTrait::revealable(@site, @progress, known.span(), chunk) == inside,
-                    'revealable: the outline',
-                );
-                if inside {
-                    let r = one(@site, ref progress, known.span(), chunk);
-                    check_chunk(@r);
-                    for item in r.features.objects.span() {
-                        if *item.kind == object::EXIT {
-                            exits += 1;
-                            assert(BoardTrait::has(far, chunk), 'the exit at the farthest');
-                            assert(BoardTrait::has(CORE, *item.tile), 'the exit on the core');
-                        }
-                        if *item.kind == object::VEIN {
-                            veins += 1;
-                        }
-                    }
-                    known.append((chunk, r.terrain));
-                } else {
-                    assert(
-                        RevealTrait::kind(@site, @progress, known.span(), chunk) == ChunkKind::Void,
-                        'void outside the outline',
-                    );
-                }
-                chunk += 1;
-            }
-            assert(progress.count == n, 'N revealed');
-            assert(progress.revealed == site.chunk_set, 'the outline revealed');
-            assert(progress.open_edges == 0, 'no open edges');
-            assert(exits == 1 && veins == 1, 'quotas placed');
-            assert(progress.left == [0; 14], 'nothing owed');
-            let mut chunk: u8 = 0;
-            while chunk != 225 {
-                assert(
-                    !RevealTrait::revealable(@site, @progress, known.span(), chunk),
-                    'nothing more at N',
-                );
-                chunk += 1;
-            }
-            for entry in known.span() {
-                let (chunk, terrain) = *entry;
-                let mut s: u8 = 0;
-                while s != 4 {
-                    let open = RevealTrait::is_open(terrain.edges, s);
-                    match site.neighbour(chunk, s) {
-                        Option::Some(next) => {
-                            if BoardTrait::has(site.chunk_set, next) {
-                                assert(open == site.seam(chunk, s, next), 'edges: the seams');
-                                let other = RevealTrait::known(known.span(), next);
-                                let ground = floor(@terrain);
-                                assert(
-                                    BoardTrait::and(
-                                        ground, BoardTrait::side(s),
-                                    ) == BoardTrait::copy(s, floor(@other)),
-                                    'the same openings',
-                                );
-                                if open {
-                                    assert(
-                                        SeamTrait::is_open_across(
-                                            15,
-                                            15,
-                                            ground,
-                                            floor(@other),
-                                            *sides.span()[s.into()],
-                                            odd(chunk),
-                                        ),
-                                        'open across the seam',
-                                    );
-                                }
-                            } else {
-                                assert(!open, 'closed outside the outline');
-                            }
-                        },
-                        Option::None => { assert(!open, 'closed at the border'); },
-                    }
-                    s += 1;
-                }
-            }
-            seed += 1;
-        }
-    }
 
     #[test]
     #[available_gas(l2_gas: 340149737)] // ceil(1.05 × 323952130 measured)
     fn test_dungeon_revealed_whole_n_6() {
-        check_dungeon(6, 0, 4);
+        RevealFixture::check_dungeon(6, 0, 4);
     }
 
     #[test]
     #[available_gas(l2_gas: 276837866)] // ceil(1.05 × 263655110 measured)
     fn test_dungeon_revealed_whole_n_12() {
-        check_dungeon(12, 50, 2);
+        RevealFixture::check_dungeon(12, 50, 2);
     }
 
     // ENG-10b: a dungeon's revealable chunks are its outline's, whatever is revealed: a chunk of
@@ -1297,7 +1741,7 @@ pub mod tests {
     fn test_dungeon_revealable_is_the_outline() {
         let mut seed: felt252 = 0;
         while seed != 8 {
-            let site = dungeon(12, no_quotas(), seed);
+            let site = RevealFixture::dungeon(12, RevealFixture::no_quotas(), seed);
             let progress = ProgressTrait::new(@site, seed);
             let mut chunk: u8 = 0;
             while chunk != 225 {
@@ -1324,37 +1768,12 @@ pub mod tests {
     // copies them): `N` seeds and one stream a seam. Storing them instead would draw the same
     // streams at `create`, then write and read a slot: this test, less its baseline (the floor
     // built, nothing derived), is the derivation's whole cost on a floor of 12.
-    fn seams_life(site: @Site, entropy: felt252) {
-        let count = BoardTrait::count(*site.chunk_set);
-        let mut i: u8 = 0;
-        while i != count {
-            let _seed = EntropyTrait::outline(entropy, INSTANCE);
-            i += 1;
-        }
-        let seams = EntropyTrait::outline(entropy, INSTANCE);
-        let mut i: u8 = 0;
-        let west = BoardTrait::count(*site.west);
-        while i != west {
-            let low = BoardTrait::nth(*site.west, i);
-            let mut rng = RngTrait::new(poseidon_hash_span([seams, low.into(), 0].span()));
-            RevealTrait::openings(BoardTrait::side(side::WEST), side::WEST, ref rng);
-            i += 1;
-        }
-        let mut i: u8 = 0;
-        let north = BoardTrait::count(*site.north);
-        while i != north {
-            let low = BoardTrait::nth(*site.north, i);
-            let mut rng = RngTrait::new(poseidon_hash_span([seams, low.into(), 1].span()));
-            RevealTrait::openings(BoardTrait::side(side::NORTH), side::NORTH, ref rng);
-            i += 1;
-        }
-    }
 
     #[test]
     #[available_gas(l2_gas: 9388375)] // ceil(1.05 × 8941309 measured)
     fn test_cost_seams_derived_n12() {
-        let site = dungeon(12, no_quotas(), 'seams');
-        seams_life(@site, 'seams');
+        let site = RevealFixture::dungeon(12, RevealFixture::no_quotas(), 'seams');
+        RevealFixture::seams_life(@site, 'seams');
         println!(
             "seams: {} West and {} North open",
             BoardTrait::count(site.west),
@@ -1366,7 +1785,7 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 5880783)] // ceil(1.05 × 5600745 measured)
     fn test_cost_seams_seeds_n12() {
-        let site = dungeon(12, no_quotas(), 'seams');
+        let site = RevealFixture::dungeon(12, RevealFixture::no_quotas(), 'seams');
         let count = BoardTrait::count(site.chunk_set);
         let mut i: u8 = 0;
         while i != count {
@@ -1378,7 +1797,7 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 5628650)] // ceil(1.05 × 5360619 measured)
     fn test_cost_seams_baseline_n12() {
-        let _site = dungeon(12, no_quotas(), 'seams');
+        let _site = RevealFixture::dungeon(12, RevealFixture::no_quotas(), 'seams');
     }
 
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
@@ -1395,15 +1814,15 @@ pub mod tests {
         };
         let mut seed: felt252 = 0;
         while seed != 3 {
-            let mut site = zone(biome::MEADOW, 3, 2, quotas);
-            let _hosts = hosted(ref site, seed);
+            let mut site = RevealFixture::zone(biome::MEADOW, 3, 2, quotas);
+            let _hosts = RevealFixture::hosted(ref site, seed);
             let mut progress = ProgressTrait::new(@site, seed);
             assert(progress.left == [1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'start');
             let mut known: Array<(u8, Terrain)> = array![];
             let mut collectors: u8 = 0;
             let mut landmarks: u8 = 0;
             for chunk in array![16_u8, 0, 2, 15, 1, 17].span() {
-                let r = one(@site, ref progress, known.span(), *chunk);
+                let r = RevealFixture::one(@site, ref progress, known.span(), *chunk);
                 for item in r.features.objects.span() {
                     if *item.kind == object::COLLECTOR {
                         assert(*item.param == 9, 'collector id');
@@ -1426,7 +1845,7 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 199668)] // ceil(1.05 × 190160 measured)
     fn test_task_quotas() {
-        let mut site = zone(biome::MEADOW, 3, 2, no_quotas());
+        let mut site = RevealFixture::zone(biome::MEADOW, 3, 2, RevealFixture::no_quotas());
         site
             .tasks =
                 array![
@@ -1466,13 +1885,16 @@ pub mod tests {
                 Default::default(), Default::default(), Default::default(), Default::default(),
             ],
         };
-        let mut site = zone(biome::RUIN, 1, 1, quotas);
+        let mut site = RevealFixture::zone(biome::RUIN, 1, 1, quotas);
         site.pieces = array![(4, piece)].span();
-        let _hosts = hosted(ref site, 7);
+        let _hosts = RevealFixture::hosted(ref site, 7);
         let mut progress = ProgressTrait::new(@site, 7);
-        let a = one(@site, ref progress, array![].span(), 0);
-        check_chunk(@a);
-        assert(BoardTrait::and(floor(@a.terrain), walls - (BOARD - INTERIOR)) == 0, 'block kept');
+        let a = RevealFixture::one(@site, ref progress, array![].span(), 0);
+        RevealFixture::check_chunk(@a);
+        assert(
+            BoardTrait::and(RevealFixture::floor(@a.terrain), walls - (BOARD - INTERIOR)) == 0,
+            'block kept',
+        );
         let [first, _, _] = a.features.objects;
         assert(first.tile == 100 && first.kind == object::LANDMARK, 'landmark kept');
         assert(progress.left == [0; 14], 'laid');
@@ -1485,16 +1907,17 @@ pub mod tests {
         let mut seed: felt252 = 0;
         while seed != 12 {
             let mask = poseidon_hash_span([seed, 'mask'].span());
-            let mut site = zone(biome::CAVE, 2, 2, exit_quota());
+            let mut site = RevealFixture::zone(biome::CAVE, 2, 2, RevealFixture::exit_quota());
             site.masks = array![(0, mask), (1, BoardTrait::and(mask, INTERIOR))].span();
             site.anchors = array![(0, 0), (0, 7), (1, 112)].span();
             let mut progress = ProgressTrait::new(@site, seed);
-            let a = one(@site, ref progress, array![].span(), 0);
-            let b = one(@site, ref progress, array![(0, a.terrain)].span(), 1);
-            assert(BoardTrait::minus(floor(@a.terrain), mask) == 0, 'cut');
+            let a = RevealFixture::one(@site, ref progress, array![].span(), 0);
+            let b = RevealFixture::one(@site, ref progress, array![(0, a.terrain)].span(), 1);
+            assert(BoardTrait::minus(RevealFixture::floor(@a.terrain), mask) == 0, 'cut');
             assert(
                 BoardTrait::and(
-                    floor(@b.terrain), 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224),
+                    RevealFixture::floor(@b.terrain),
+                    1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224),
                 ) == 0,
                 'corners',
             );
@@ -1507,16 +1930,16 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 8008222)] // ceil(1.05 × 7626878 measured)
     fn test_word_and_feed() {
-        let site = zone(biome::FOREST, 3, 2, no_quotas());
+        let site = RevealFixture::zone(biome::FOREST, 3, 2, RevealFixture::no_quotas());
         let mut first = ProgressTrait::new(@site, 'entropy');
         let mut second = ProgressTrait::new(@site, 'entropy');
-        let a = one(@site, ref first, array![].span(), 1);
-        let b = one(@site, ref second, array![].span(), 1);
+        let a = RevealFixture::one(@site, ref first, array![].span(), 1);
+        let b = RevealFixture::one(@site, ref second, array![].span(), 1);
         assert(a == b, 'same entropy, same words');
         assert(first == second, 'same progress');
         // Another entropy, another chunk.
         let mut other = ProgressTrait::new(@site, 'other');
-        let c = one(@site, ref other, array![].span(), 1);
+        let c = RevealFixture::one(@site, ref other, array![].span(), 1);
         assert(c.terrain != a.terrain, 'another entropy');
         // A reveal feeds nothing: the entropy is the entry draw's (audit #348, major 1).
         assert(first.entropy == 'entropy', 'not fed');
@@ -1550,79 +1973,22 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 13833381)] // ceil(1.05 × 13174648 measured)
     fn test_reveal_order_free() {
-        let site = zone(biome::CAVE, 3, 1, no_quotas());
+        let site = RevealFixture::zone(biome::CAVE, 3, 1, RevealFixture::no_quotas());
         let mut ab = ProgressTrait::new(@site, 'order');
-        let a = one(@site, ref ab, array![].span(), 0);
-        let b = one(@site, ref ab, array![].span(), 2);
-        let middle = one(@site, ref ab, array![(0, a.terrain), (2, b.terrain)].span(), 1);
+        let a = RevealFixture::one(@site, ref ab, array![].span(), 0);
+        let b = RevealFixture::one(@site, ref ab, array![].span(), 2);
+        let middle = RevealFixture::one(
+            @site, ref ab, array![(0, a.terrain), (2, b.terrain)].span(), 1,
+        );
         let mut ba = ProgressTrait::new(@site, 'order');
-        let b2 = one(@site, ref ba, array![].span(), 2);
-        let a2 = one(@site, ref ba, array![].span(), 0);
-        let middle2 = one(@site, ref ba, array![(2, b2.terrain), (0, a2.terrain)].span(), 1);
+        let b2 = RevealFixture::one(@site, ref ba, array![].span(), 2);
+        let a2 = RevealFixture::one(@site, ref ba, array![].span(), 0);
+        let middle2 = RevealFixture::one(
+            @site, ref ba, array![(2, b2.terrain), (0, a2.terrain)].span(), 1,
+        );
         assert(a == a2 && b == b2, 'the first two');
         assert(middle == middle2, 'the one between');
         assert(ab == ba, 'the same progress');
-    }
-
-    /// A zone's hosts as `Instances` draws them at `create` (D-208, D-210), from the progress's
-    /// entropy `entropy`: `site`'s masks rebuilt for every chunk of the zone, each carrying the
-    /// quotas the chunk hosts. Returns the hosts.
-    pub fn hosted(ref site: Site, entropy: felt252) -> Array<felt252> {
-        let start = ProgressTrait::new(@site, entropy);
-        let hosts = PlacementTrait::hosts(
-            site.chunk_set,
-            site.width,
-            site.height,
-            PlacementTrait::plan(@site, start.left.span()),
-            site.pieces,
-            EntropyTrait::hosts(entropy, INSTANCE),
-        );
-        let mut masks: Array<(u8, felt252)> = array![];
-        let mut cy: u8 = 0;
-        while cy != site.height {
-            let mut cx: u8 = 0;
-            while cx != site.width {
-                let chunk = 15 * cy + cx;
-                if site.chunk_set == 0 || BoardTrait::has(site.chunk_set, chunk) {
-                    let mut mask: felt252 = 0;
-                    for entry in site.masks {
-                        let (at, value) = *entry;
-                        if at == chunk {
-                            mask = value;
-                        }
-                    }
-                    masks.append((chunk, PlacementTrait::with_hosts(mask, hosts.span(), chunk)));
-                }
-                cx += 1;
-            }
-            cy += 1;
-        }
-        site.masks = masks.span();
-        hosts
-    }
-
-    /// The quota objects each chunk of `order` holds (collector, landmark, vein: bits 1, 2, 4),
-    /// revealed in that order, each knowing the ones before it; and the progress at the end.
-    fn zone_objects(site: @Site, seed: felt252, order: Span<u8>) -> (Felt252Dict<u8>, Progress) {
-        let mut progress = ProgressTrait::new(site, seed);
-        let mut known: Array<(u8, Terrain)> = array![];
-        let mut held: Felt252Dict<u8> = Default::default();
-        for chunk in order {
-            let r = one(site, ref progress, known.span(), *chunk);
-            let mut bits: u8 = 0;
-            for item in r.features.objects.span() {
-                if *item.kind == object::COLLECTOR {
-                    bits += 1;
-                } else if *item.kind == object::LANDMARK {
-                    bits += 2;
-                } else if *item.kind == object::VEIN {
-                    bits += 4;
-                }
-            }
-            held.insert((*chunk).into(), bits);
-            known.append((*chunk, r.terrain));
-        }
-        (held, progress)
     }
 
     // D-208 (the project manager, 2026-10-03): a zone's quotas land exactly on their hosts, drawn
@@ -1645,13 +2011,13 @@ pub mod tests {
         let backward = array![32_u8, 31, 30, 17, 16, 15, 2, 1, 0].span();
         let mut seed: felt252 = 0;
         while seed != 6 {
-            let mut site = zone(biome::MEADOW, 3, 3, quotas);
-            let hosts = hosted(ref site, seed);
+            let mut site = RevealFixture::zone(biome::MEADOW, 3, 3, quotas);
+            let hosts = RevealFixture::hosted(ref site, seed);
             assert(BoardTrait::count(*hosts[0]) == 6, 'six collector hosts');
             assert(BoardTrait::count(*hosts[1]) == 2, 'two landmark hosts');
             assert(BoardTrait::count(*hosts[2]) == 1, 'one vein host');
-            let (mut a, end_a) = zone_objects(@site, seed, forward);
-            let (mut b, end_b) = zone_objects(@site, seed, backward);
+            let (mut a, end_a) = RevealFixture::zone_objects(@site, seed, forward);
+            let (mut b, end_b) = RevealFixture::zone_objects(@site, seed, backward);
             for chunk in forward {
                 let key: felt252 = (*chunk).into();
                 let mut expected: u8 = 0;
@@ -1693,12 +2059,12 @@ pub mod tests {
         let mut spent: u32 = 0;
         let mut seed: felt252 = 0;
         while seed != 6 {
-            let mut site = zone(biome::MEADOW, 3, 3, quotas);
-            let hosts = hosted(ref site, seed);
+            let mut site = RevealFixture::zone(biome::MEADOW, 3, 3, quotas);
+            let hosts = RevealFixture::hosted(ref site, seed);
             let mut progress = ProgressTrait::new(@site, seed);
             let mut known: Array<(u8, Terrain)> = array![];
             for chunk in first {
-                let r = one(@site, ref progress, known.span(), *chunk);
+                let r = RevealFixture::one(@site, ref progress, known.span(), *chunk);
                 known.append((*chunk, r.terrain));
             }
             // The hosts as `PlayLibrary` reads them now: those of the quotas still owed
@@ -1715,7 +2081,7 @@ pub mod tests {
                 }
                 i += 1;
             }
-            let mut unread = zone(biome::MEADOW, 3, 3, quotas);
+            let mut unread = RevealFixture::zone(biome::MEADOW, 3, 3, quotas);
             let mut masks: Array<(u8, felt252)> = array![];
             for (chunk, _) in site.masks {
                 masks.append((*chunk, PlacementTrait::with_hosts(0, owed.span(), *chunk)));
@@ -1726,8 +2092,8 @@ pub mod tests {
             let mut known_all = known.clone();
             let mut known_some = known;
             for chunk in rest {
-                let a = one(@site, ref all, known_all.span(), *chunk);
-                let b = one(@unread, ref some, known_some.span(), *chunk);
+                let a = RevealFixture::one(@site, ref all, known_all.span(), *chunk);
+                let b = RevealFixture::one(@unread, ref some, known_some.span(), *chunk);
                 assert(a == b, 'a spent host was read');
                 known_all.append((*chunk, a.terrain));
                 known_some.append((*chunk, b.terrain));
@@ -1771,9 +2137,9 @@ pub mod tests {
         };
         let mut seed: felt252 = 0;
         while seed != 8 {
-            let mut site = zone(biome::RUIN, 2, 1, quotas);
+            let mut site = RevealFixture::zone(biome::RUIN, 2, 1, quotas);
             site.pieces = array![(4, piece)].span();
-            let hosts = hosted(ref site, seed);
+            let hosts = RevealFixture::hosted(ref site, seed);
             assert(*hosts[0] != 0 && *hosts[1] != 0, 'both hosted');
             assert(*hosts[0] != *hosts[1], 'not on the set piece');
             let collector: u8 = if BoardTrait::has(*hosts[1], 0) {
@@ -1785,7 +2151,7 @@ pub mod tests {
                 let mut progress = ProgressTrait::new(@site, seed);
                 let mut known: Array<(u8, Terrain)> = array![];
                 for chunk in order {
-                    let r = one(@site, ref progress, known.span(), *chunk);
+                    let r = RevealFixture::one(@site, ref progress, known.span(), *chunk);
                     let mut collectors: u8 = 0;
                     for item in r.features.objects.span() {
                         if *item.kind == object::COLLECTOR {
@@ -1828,9 +2194,9 @@ pub mod tests {
         }
         let mut seed: felt252 = 0;
         while seed != 8 {
-            let mut site = zone(biome::MEADOW, 15, 15, quotas);
+            let mut site = RevealFixture::zone(biome::MEADOW, 15, 15, quotas);
             site.chunk_set = set;
-            let hosts = hosted(ref site, seed);
+            let hosts = RevealFixture::hosted(ref site, seed);
             assert(BoardTrait::count(*hosts[0]) == 4, 'four hosts');
             assert(BoardTrait::minus(*hosts[0], set) == 0, 'in the set');
             seed += 1;
@@ -1860,16 +2226,16 @@ pub mod tests {
         };
         let mut seed: felt252 = 0;
         while seed != 6 {
-            let mut site = zone(biome::MEADOW, 2, 1, quotas);
+            let mut site = RevealFixture::zone(biome::MEADOW, 2, 1, quotas);
             site.packs = array![(3, empty)].span();
-            let hosts = hosted(ref site, seed);
+            let hosts = RevealFixture::hosted(ref site, seed);
             assert(BoardTrait::count(*hosts[1]) == 1, 'one Heart host');
             for order in array![array![0_u8, 1].span(), array![1_u8, 0].span()] {
                 let mut progress = ProgressTrait::new(@site, seed);
                 let mut known: Array<(u8, Terrain)> = array![];
                 let mut hearts: u8 = 0;
                 for chunk in order {
-                    let r = one(@site, ref progress, known.span(), *chunk);
+                    let r = RevealFixture::one(@site, ref progress, known.span(), *chunk);
                     for pack in r.features.packs.span() {
                         if *pack.template == 3 && *pack.count != 0 {
                             hearts += 1;
@@ -1896,28 +2262,10 @@ pub mod tests {
                 Default::default(), Default::default(), Default::default(), Default::default(),
             ],
         };
-        let mut site = zone(biome::MEADOW, 3, 1, quotas);
+        let mut site = RevealFixture::zone(biome::MEADOW, 3, 1, quotas);
         site.chunk_set = BoardTrait::pow(0) + BoardTrait::pow(1) + BoardTrait::pow(5);
-        let hosts = hosted(ref site, 'above');
+        let hosts = RevealFixture::hosted(ref site, 'above');
         assert(*hosts[0] == BoardTrait::pow(0) + BoardTrait::pow(1), 'the two members');
-    }
-
-    /// A 15 × 15 zone with six collector quotas of `count` and eight landmark tasks.
-    fn crowded(count: u8) -> Array<felt252> {
-        let full = Quota { kind: quota::COLLECTOR, param: 1, count };
-        let quotas = QuotaSet { quotas: [full; 6] };
-        let mut site = zone(biome::MEADOW, 15, 15, quotas);
-        let mut tasks: Array<TaskEntry> = array![];
-        let mut k: u32 = 0;
-        while k != 8 {
-            tasks.append(TaskEntry { task: k, kind: 2, param: 1 });
-            k += 1;
-        }
-        site.tasks = tasks.span();
-        let start = ProgressTrait::new(@site, 'worst');
-        PlacementTrait::hosts(
-            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
-        )
     }
 
     // The re-audit t-0079 (note 6) and the review t-0078 (note 4): the draw's worst plans on a
@@ -1929,7 +2277,7 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 2075561)] // ceil(1.05 × 1976724 measured)
     fn test_hosts_worst_plan() {
-        let hosts = crowded(255);
+        let hosts = RevealFixture::crowded(255);
         assert(BoardTrait::count(*hosts[0]) == 225, 'every chunk');
         assert(*hosts[3] == 0, 'no room left');
     }
@@ -1937,7 +2285,7 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 2761322)] // ceil(1.05 × 2629830 measured)
     fn test_hosts_worst_draws() {
-        let hosts = crowded(224);
+        let hosts = RevealFixture::crowded(224);
         assert(BoardTrait::count(*hosts[0]) == 224, 'all but one');
         let mut objects: u32 = 0;
         for mask in hosts.span() {
@@ -1948,30 +2296,13 @@ pub mod tests {
 
     // Every cap at once: three object quotas, two Hearts (packs) and a set piece, each of 224:
     // six passes of 224 draws, the caps of objects, packs and set pieces being apart.
-    fn mixed(count: u8) -> Array<felt252> {
-        let quotas = QuotaSet {
-            quotas: [
-                Quota { kind: quota::COLLECTOR, param: 1, count },
-                Quota { kind: quota::VEIN, param: 0, count },
-                Quota { kind: quota::EXIT, param: 1, count },
-                Quota { kind: quota::HEART, param: 1, count },
-                Quota { kind: quota::HEART, param: 2, count },
-                Quota { kind: quota::SET_PIECE, param: 9, count },
-            ],
-        };
-        let site = zone(biome::MEADOW, 15, 15, quotas);
-        let start = ProgressTrait::new(@site, 'worst');
-        PlacementTrait::hosts(
-            0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
-        )
-    }
 
     // Under D-220's complement draw the most draws a pass asks is at half the members: six
     // passes of 112 draws, the mixed plan at 112.
     #[test]
     #[available_gas(l2_gas: 103052507)] // ceil(1.05 × 98145244 measured)
     fn test_hosts_worst_half() {
-        let hosts = mixed(112);
+        let hosts = RevealFixture::mixed(112);
         assert(BoardTrait::count(*hosts[5]) == 112, 'six passes');
     }
 
@@ -1988,7 +2319,7 @@ pub mod tests {
                 Quota { kind: quota::SET_PIECE, param: 9, count: 224 },
             ],
         };
-        let site = zone(biome::MEADOW, 15, 15, quotas);
+        let site = RevealFixture::zone(biome::MEADOW, 15, 15, quotas);
         let start = ProgressTrait::new(@site, 'worst');
         let hosts = PlacementTrait::hosts(
             0, 15, 15, PlacementTrait::plan(@site, start.left.span()), array![].span(), 'worst',
@@ -2060,8 +2391,8 @@ pub mod tests {
         };
         let mut seed: felt252 = 0;
         while seed != 4 {
-            let site = dungeon(6, quotas, seed);
-            let (far, _) = outline_of(@site).far(112);
+            let site = RevealFixture::dungeon(6, quotas, seed);
+            let (far, _) = RevealFixture::outline_of(@site).far(112);
             // The Heart's host: the chunk whose mask carries quota 0 (bit 225)
             let mut host: u8 = 255;
             for entry in site.masks {
@@ -2077,7 +2408,7 @@ pub mod tests {
             let mut chunk: u8 = 0;
             while chunk != 225 {
                 if RevealTrait::revealable(@site, @progress, known.span(), chunk) {
-                    let r = one(@site, ref progress, known.span(), chunk);
+                    let r = RevealFixture::one(@site, ref progress, known.span(), chunk);
                     if chunk == host {
                         let heart = *r.features.packs.span()[0];
                         assert(heart.template == 2 && heart.count != 0, 'the Heart first');
@@ -2094,32 +2425,14 @@ pub mod tests {
 
     // Each biome's walkable share of the interior (design/18 *Biomes*) on the mean of 24 words, a
     // chunk with nothing known: meadow 80–90 %, forest 60–70 %, cave 45–55 %, ruin 40–50 %.
-    fn share(kind: u8, words: u32) -> u32 {
-        let site = zone(kind, 15, 15, no_quotas());
-        let mut total: u32 = 0;
-        let mut seed: u32 = 0;
-        while seed != words {
-            let mut progress = ProgressTrait::new(@site, seed.into());
-            let chunk: u8 = if seed % 2 == 0 {
-                112
-            } else {
-                97
-            };
-            let r = one(@site, ref progress, array![].span(), chunk);
-            total += BoardTrait::count(BoardTrait::and(floor(@r.terrain), INTERIOR)).into();
-            seed += 1;
-        }
-        // Per thousand.
-        total * 1000 / (169 * words)
-    }
 
     #[test]
     #[available_gas(l2_gas: 138279157)] // ceil(1.05 × 131694435 measured)
     fn test_biome_shares_meadow_forest() {
-        let meadow = share(biome::MEADOW, 24);
+        let meadow = RevealFixture::share(biome::MEADOW, 24);
         println!("meadow {}", meadow);
         assert(meadow >= 800 && meadow <= 900, 'meadow');
-        let forest = share(biome::FOREST, 24);
+        let forest = RevealFixture::share(biome::FOREST, 24);
         println!("forest {}", forest);
         assert(forest >= 600 && forest <= 700, 'forest');
     }
@@ -2127,71 +2440,16 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 140905480)] // ceil(1.05 × 134195695 measured)
     fn test_biome_shares_cave_ruin() {
-        let cave = share(biome::CAVE, 24);
+        let cave = RevealFixture::share(biome::CAVE, 24);
         println!("cave {}", cave);
         assert(cave >= 450 && cave <= 550, 'cave');
-        let ruin = share(biome::RUIN, 24);
+        let ruin = RevealFixture::share(biome::RUIN, 24);
         println!("ruin {}", ruin);
         assert(ruin >= 400 && ruin <= 500, 'ruin');
     }
 
     // The chunks sight touches, against a scan of every tile within 6 (axial distance on global
     // coordinates), for positions across a chunk and its corners.
-    fn distance(x0: i32, y0: i32, x1: i32, y1: i32) -> i32 {
-        let q0 = x0 - floor_half(y0);
-        let q1 = x1 - floor_half(y1);
-        let dq = q1 - q0;
-        let dr = y1 - y0;
-        let ds = dq + dr;
-        let m = if abs(dq) > abs(dr) {
-            abs(dq)
-        } else {
-            abs(dr)
-        };
-        if abs(ds) > m {
-            abs(ds)
-        } else {
-            m
-        }
-    }
-
-    fn abs(v: i32) -> i32 {
-        if v < 0 {
-            -v
-        } else {
-            v
-        }
-    }
-
-    fn floor_half(y: i32) -> i32 {
-        if y >= 0 {
-            y / 2
-        } else {
-            (y - 1) / 2
-        }
-    }
-
-    fn oracle(x: u8, y: u8, width: u8, height: u8) -> felt252 {
-        let mut touched: felt252 = 0;
-        let (x, y): (i32, i32) = (x.into(), y.into());
-        let mut ty = y - 6;
-        while ty <= y + 6 {
-            let mut tx = x - 9;
-            while tx <= x + 9 {
-                if tx >= 0 && ty >= 0 && tx < 15
-                    * width.into() && ty < 15
-                    * height.into() && distance(x, y, tx, ty) <= 6 {
-                    let chunk: u8 = ((ty / 15) * 15 + tx / 15).try_into().unwrap();
-                    if !BoardTrait::has(touched, chunk) {
-                        touched += Bits::pow(chunk);
-                    }
-                }
-                tx += 1;
-            }
-            ty += 1;
-        }
-        touched
-    }
 
     #[test]
     #[available_gas(l2_gas: 123959335)] // ceil(1.05 × 118056509 measured)
@@ -2207,123 +2465,12 @@ pub mod tests {
             for chunk in chunks.span() {
                 got += Bits::pow(*chunk);
             }
-            assert(got == oracle(x, y, 3, 3), 'sight');
+            assert(got == RevealFixture::oracle(x, y, 3, 3), 'sight');
             assert(*chunks[0] == (y / 15) * 15 + x / 15, 'own chunk first');
         }
     }
 
     // ---- ENG-05c: the reach of the anchor's fix -------------------------------------------------
-
-    /// A chunk's walls as `generate` computes them (no set piece), its interior anchors joined by
-    /// their line (`fixed`, ENG-05c) and by ENG-05's `pow(tile) + anchor_line(tile)`, which
-    /// carries (`carried`): `(fixed, carried)`.
-    fn walls_both(
-        site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8,
-    ) -> (felt252, felt252) {
-        let word = EntropyTrait::word(*progress.entropy, INSTANCE, chunk);
-        let odd = odd(chunk);
-        let mask = BoardTrait::and(site.mask(chunk), BOARD);
-        let mut draws = RngTrait::new(RngTrait::mix(word, 4));
-        let (ring, _, _) = RevealTrait::decide(
-            site, progress, INSTANCE, known, chunk, mask, ref draws,
-        );
-        let mut ring = ring;
-        let mut fixed: felt252 = 0;
-        let mut carried: felt252 = 0;
-        let mut anchors: Array<u8> = array![];
-        for entry in *site.anchors {
-            let (at, tile) = *entry;
-            if at == chunk && tile < 225 {
-                if BoardTrait::has(INTERIOR, tile) {
-                    fixed = BoardTrait::or(fixed, BoardTrait::anchor_line(tile));
-                    carried =
-                        BoardTrait::or(
-                            carried, BoardTrait::pow(tile) + BoardTrait::anchor_line(tile),
-                        );
-                    anchors.append(tile);
-                } else if BoardTrait::has(BOARD - INTERIOR, tile) && !RevealTrait::corner(tile) {
-                    ring = BoardTrait::or(ring, BoardTrait::pow(tile));
-                }
-            }
-        }
-        let grid = BoardTrait::base(word, *site.biome) + ring;
-        let interior = BoardTrait::and(BoardTrait::smooth(grid, odd), INTERIOR);
-        let joined = BoardTrait::or(interior, BoardTrait::lines(ring));
-        let grid = BoardTrait::or(joined, fixed);
-        let walls = finish(grid, ring, mask, anchors.span(), odd);
-        let old = BoardTrait::or(joined, carried);
-        if old == grid {
-            (walls, walls)
-        } else {
-            (walls, finish(old, ring, mask, anchors.span(), odd))
-        }
-    }
-
-    /// `generate`'s step 4 on a joined grid: the cut, the component of the root; the walls.
-    fn finish(
-        grid: felt252, ring: felt252, mask: felt252, anchors: Span<u8>, odd: bool,
-    ) -> felt252 {
-        let cut = BoardTrait::cut(grid + ring, mask);
-        let ring = BoardTrait::minus(cut, INTERIOR);
-        let mut interior = BoardTrait::and(cut, INTERIOR);
-        if let Option::Some(root) = RevealTrait::root(interior, anchors) {
-            interior = BoardTrait::component(interior, root, odd);
-        }
-        BOARD - interior - ring
-    }
-
-    /// The site of one measured generation: a 3 × 2 zone (the seed's location 2) or a dungeon
-    /// floor of `n` (the seed's locations 3 and 4), of biome `kind`, its entry anchor at
-    /// `(chunk, tile)`.
-    fn measured(kind: u8, n: u8, chunk: u8, tile: u8, seed: felt252) -> Site {
-        let mut site = if n == 0 {
-            zone(kind, 3, 2, no_quotas())
-        } else {
-            dungeon(n, no_quotas(), seed)
-        };
-        site.biome = kind;
-        site.entry_chunk = chunk;
-        site.anchors = array![(chunk, tile)].span();
-        site
-    }
-
-    /// ENG-05c's measure of the fix's reach: `count` generations from entropy `first`, each its
-    /// entry chunk, the first a generation reveals (nothing known) and the only one with an anchor,
-    /// so the only one the fix can change: `inner` is 0 in a chunk without one. The anchor at
-    /// `(chunk, tile)`, or at an interior tile drawn from the entropy when `tile` is 0. Returns
-    /// how many chunks' walls the fix changes. Each chunk's walls with the fix are `generate`'s
-    /// (`test_walls_both_is_generate`); in a dungeon its interior is one component that holds the
-    /// centre and the anchor: the floor stays connected from entry to exit (its other chunks
-    /// unchanged, `check_dungeon`).
-    fn reach(kind: u8, n: u8, chunk: u8, tile: u8, first: felt252, count: u32) -> u32 {
-        let mut changed: u32 = 0;
-        let mut seed = first;
-        while seed != first + count.into() {
-            let anchor = if tile == 0 {
-                let wide: u256 = poseidon_hash_span([seed, 'anchor'].span()).into();
-                let (_, k) = DivRem::div_rem(wide.low, 169);
-                BoardTrait::nth(INTERIOR, k.try_into().unwrap())
-            } else {
-                tile
-            };
-            let site = measured(kind, n, chunk, anchor, seed);
-            let progress = ProgressTrait::new(@site, seed);
-            let (fixed, carried) = walls_both(@site, @progress, array![].span(), chunk);
-            if fixed != carried {
-                changed += 1;
-            }
-            if n != 0 {
-                let interior = BoardTrait::minus(INTERIOR, fixed);
-                assert(BoardTrait::has(interior, anchor), 'the anchor is floor');
-                assert(
-                    BoardTrait::component(interior, CENTRE, odd(chunk)) == interior,
-                    'one component',
-                );
-            }
-            seed += 1;
-        }
-        changed
-    }
 
     // `walls_both`'s fixed walls are `generate`'s, in zones and floors, with anchors on the ring,
     // on the spine and off it.
@@ -2337,10 +2484,10 @@ pub mod tests {
         let mut seed: felt252 = 0;
         for config in configs.span() {
             let (kind, n, chunk, tile) = *config;
-            let site = measured(kind, n, chunk, tile, seed);
+            let site = RevealFixture::measured(kind, n, chunk, tile, seed);
             let mut progress = ProgressTrait::new(@site, seed);
-            let (fixed, _) = walls_both(@site, @progress, array![].span(), chunk);
-            let r = one(@site, ref progress, array![].span(), chunk);
+            let (fixed, _) = RevealFixture::walls_both(@site, @progress, array![].span(), chunk);
+            let r = RevealFixture::one(@site, ref progress, array![].span(), chunk);
             assert(r.terrain.walls == fixed, 'generate');
             seed += 1;
         }
@@ -2352,140 +2499,66 @@ pub mod tests {
     // entered at (16, 110) (gate 4) and at (0, 105) (gate 1), a floor of 6 at (112, 112) (gates 3
     // and 5), 250 generations each, 250 floors of 8; and 250 zones entered at a tile of the
     // interior drawn at random (no gate has one yet).
-    fn measure_zones(kind: u8) {
-        let zone_110 = reach(kind, 0, 16, 110, 0, 250);
-        let zone_105 = reach(kind, 0, 0, 105, 1000, 250);
-        let any = reach(kind, 0, 16, 0, 4000, 250);
-        println!(
-            "reach biome {}: zone (16, 110) {}/250, zone (0, 105) {}/250, zone at a random interior tile {}/250",
-            kind,
-            zone_110,
-            zone_105,
-            any,
-        );
-    }
 
     // The floors, apart from the zones: 1,250 generations in one test exceed the VM's memory.
-    fn measure_floors(kind: u8) {
-        let floor_6 = reach(kind, 6, 112, 112, 2000, 250);
-        let floor_8 = reach(kind, 8, 112, 112, 3000, 250);
-        println!(
-            "reach biome {}: floor 6 (112, 112) {}/250, floor 8 (112, 112) {}/250",
-            kind,
-            floor_6,
-            floor_8,
-        );
-    }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 1037050979)] // ceil(1.05 × 987667599 measured)
     fn test_reach_meadow_zones() {
-        measure_zones(biome::MEADOW);
+        RevealFixture::measure_zones(biome::MEADOW);
     }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 2541333578)] // ceil(1.05 × 2420317693 measured)
     fn test_reach_meadow_floors() {
-        measure_floors(biome::MEADOW);
+        RevealFixture::measure_floors(biome::MEADOW);
     }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 1066416521)] // ceil(1.05 × 1015634781 measured)
     fn test_reach_forest_zones() {
-        measure_zones(biome::FOREST);
+        RevealFixture::measure_zones(biome::FOREST);
     }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 2552140451)] // ceil(1.05 × 2430609953 measured)
     fn test_reach_forest_floors() {
-        measure_floors(biome::FOREST);
+        RevealFixture::measure_floors(biome::FOREST);
     }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 1077574459)] // ceil(1.05 × 1026261389 measured)
     fn test_reach_cave_zones() {
-        measure_zones(biome::CAVE);
+        RevealFixture::measure_zones(biome::CAVE);
     }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 2555512333)] // ceil(1.05 × 2433821269 measured)
     fn test_reach_cave_floors() {
-        measure_floors(biome::CAVE);
+        RevealFixture::measure_floors(biome::CAVE);
     }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 1081886402)] // ceil(1.05 × 1030368001 measured)
     fn test_reach_ruin_zones() {
-        measure_zones(biome::RUIN);
+        RevealFixture::measure_zones(biome::RUIN);
     }
 
     #[test]
     #[ignore]
     #[available_gas(l2_gas: 2554478978)] // ceil(1.05 × 2432837121 measured)
     fn test_reach_ruin_floors() {
-        measure_floors(biome::RUIN);
+        RevealFixture::measure_floors(biome::RUIN);
     }
 
     // ---- The vector table, `contracts/logic/vectors/reveal.jsonl` (README) --------------------
-
-    fn hex(felts: Span<felt252>) -> ByteArray {
-        let mut out: ByteArray = "[";
-        let mut first = true;
-        for felt in felts {
-            if !first {
-                out.append(@",");
-            }
-            first = false;
-            let wide: u256 = (*felt).into();
-            out.append(@format!("\"0x{:x}\"", wide));
-        }
-        out.append(@"]");
-        out
-    }
-
-    /// Prints one vector and adds it to the digest.
-    fn emit(
-        ref digest: Array<felt252>,
-        ref id: u32,
-        name: ByteArray,
-        case: Span<felt252>,
-        ok: Span<felt252>,
-    ) {
-        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
-        digest.append(poseidon_hash_span(case));
-        digest.append(poseidon_hash_span(ok));
-        id += 1;
-    }
-
-    /// One `reveal` vector: the call's arguments and its results, in Cairo `Serde`.
-    fn emit_reveal(
-        ref digest: Array<felt252>,
-        ref id: u32,
-        site: @Site,
-        ref progress: Progress,
-        known: Span<(u8, Terrain)>,
-        chunks: Span<u8>,
-    ) -> Array<Revealed> {
-        let mut case: Array<felt252> = array![];
-        site.serialize(ref case);
-        progress.serialize(ref case);
-        INSTANCE.serialize(ref case);
-        known.serialize(ref case);
-        chunks.serialize(ref case);
-        let out = RevealTrait::reveal(site, ref progress, INSTANCE, known, chunks);
-        let mut ok: Array<felt252> = array![];
-        progress.serialize(ref ok);
-        out.span().serialize(ref ok);
-        emit(ref digest, ref id, "reveal", case.span(), ok.span());
-        out
-    }
 
     /// Part 0: the word, the feed, the base, sight, a pack's member tiles (ids from 0).
     #[test]
@@ -2501,7 +2574,7 @@ pub mod tests {
             for instance in ids.span() {
                 for chunk in chunks.span() {
                     let ok = EntropyTrait::word(*entropy, *instance, *chunk);
-                    emit(
+                    RevealFixture::emit(
                         ref digest,
                         ref id,
                         "word",
@@ -2515,7 +2588,7 @@ pub mod tests {
             let mut s: u8 = 0;
             while s != 5 {
                 let ok = EntropyTrait::feed(*entropy, ['fact:test', 17, s.into()].span());
-                emit(
+                RevealFixture::emit(
                     ref digest,
                     ref id,
                     "feed",
@@ -2530,7 +2603,9 @@ pub mod tests {
             let mut kind: u8 = 1;
             while kind != 5 {
                 let ok = BoardTrait::base(*word, kind);
-                emit(ref digest, ref id, "base", [*word, kind.into()].span(), [ok].span());
+                RevealFixture::emit(
+                    ref digest, ref id, "base", [*word, kind.into()].span(), [ok].span(),
+                );
                 kind += 1;
             }
         }
@@ -2545,7 +2620,9 @@ pub mod tests {
             for chunk in touched.span() {
                 ok.append((*chunk).into());
             }
-            emit(ref digest, ref id, "sight", [x.into(), y.into(), 15, 15].span(), ok.span());
+            RevealFixture::emit(
+                ref digest, ref id, "sight", [x.into(), y.into(), 15, 15].span(), ok.span(),
+            );
         }
         let tiles: [u8; 3] = [112, 97, 16];
         for tile in tiles.span() {
@@ -2556,7 +2633,7 @@ pub mod tests {
                     let member = PackPlacementTrait::member(*tile, k, parity == 1);
                     let mut ok: Array<felt252> = array![];
                     member.serialize(ref ok);
-                    emit(
+                    RevealFixture::emit(
                         ref digest,
                         ref id,
                         "member",
@@ -2583,12 +2660,12 @@ pub mod tests {
         let mut id: u32 = PART_1;
         let mut kind: u8 = 1;
         while kind != 5 {
-            let site = zone(kind, 3, 3, no_quotas());
+            let site = RevealFixture::zone(kind, 3, 3, RevealFixture::no_quotas());
             let mut progress = ProgressTrait::new(@site, kind.into());
-            let out = emit_reveal(
+            let out = RevealFixture::emit_reveal(
                 ref digest, ref id, @site, ref progress, array![].span(), array![16].span(),
             );
-            emit_reveal(
+            RevealFixture::emit_reveal(
                 ref digest,
                 ref id,
                 @site,
@@ -2599,22 +2676,24 @@ pub mod tests {
             kind += 1;
         }
         // Chunk 16 after its South, East, West and North neighbours, one at a time.
-        let site = zone(biome::FOREST, 3, 3, no_quotas());
+        let site = RevealFixture::zone(biome::FOREST, 3, 3, RevealFixture::no_quotas());
         let mut progress = ProgressTrait::new(@site, 'sides');
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in array![1_u8, 15, 17, 31].span() {
-            let out = emit_reveal(
+            let out = RevealFixture::emit_reveal(
                 ref digest, ref id, @site, ref progress, known.span(), array![(*chunk)].span(),
             );
             known.append((*chunk, *out[0].terrain));
         }
-        emit_reveal(ref digest, ref id, @site, ref progress, known.span(), array![16].span());
+        RevealFixture::emit_reveal(
+            ref digest, ref id, @site, ref progress, known.span(), array![16].span(),
+        );
         // The edge of a 2 × 2 zone with (1, 1) outside its outline, an anchor on the East side.
-        let mut site = zone(biome::MEADOW, 2, 2, no_quotas());
+        let mut site = RevealFixture::zone(biome::MEADOW, 2, 2, RevealFixture::no_quotas());
         site.chunk_set = 1 + 2 + Bits::pow(15);
         site.anchors = array![(0, 105)].span();
         let mut progress = ProgressTrait::new(@site, 'edge');
-        let out = emit_reveal(
+        let out = RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![(0), (16), (1)].span(),
         );
         assert(out.len() == 2, 'void skipped');
@@ -2625,10 +2704,10 @@ pub mod tests {
             mask += Bits::pow(row * 15) * 0xfff;
             row += 1;
         }
-        let mut site = zone(biome::RUIN, 3, 1, no_quotas());
+        let mut site = RevealFixture::zone(biome::RUIN, 3, 1, RevealFixture::no_quotas());
         site.masks = array![(2, mask)].span();
         let mut progress = ProgressTrait::new(@site, 'cut');
-        emit_reveal(
+        RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![(2), (1)].span(),
         );
         let digest = poseidon_hash_span(digest.span());
@@ -2643,7 +2722,7 @@ pub mod tests {
     fn test_vectors_2() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_2;
-        let site = dungeon(6, exit_quota(), 'dungeon');
+        let site = RevealFixture::dungeon(6, RevealFixture::exit_quota(), 'dungeon');
         let mut progress = ProgressTrait::new(@site, 'dungeon');
         let mut known: Array<(u8, Terrain)> = array![];
         let mut grew = true;
@@ -2652,7 +2731,7 @@ pub mod tests {
             let mut chunk: u8 = 0;
             while chunk != 225 && !grew {
                 if RevealTrait::revealable(@site, @progress, known.span(), chunk) {
-                    let out = emit_reveal(
+                    let out = RevealFixture::emit_reveal(
                         ref digest, ref id, @site, ref progress, known.span(), array![chunk].span(),
                     );
                     known.append((chunk, *out[0].terrain));
@@ -2670,14 +2749,14 @@ pub mod tests {
                 Default::default(), Default::default(),
             ],
         };
-        let mut site = zone(biome::MEADOW, 2, 2, quotas);
+        let mut site = RevealFixture::zone(biome::MEADOW, 2, 2, quotas);
         site.tasks = array![TaskEntry { task: 1, kind: 2, param: 12 }].span();
         // The zone's hosts above each chunk's mask (D-208), as `Instances` gives them
-        let _hosts = hosted(ref site, 'quotas');
+        let _hosts = RevealFixture::hosted(ref site, 'quotas');
         let mut progress = ProgressTrait::new(@site, 'quotas');
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in array![0_u8, 1, 15, 16].span() {
-            let out = emit_reveal(
+            let out = RevealFixture::emit_reveal(
                 ref digest, ref id, @site, ref progress, known.span(), array![(*chunk)].span(),
             );
             known.append((*chunk, *out[0].terrain));
@@ -2703,12 +2782,12 @@ pub mod tests {
                 Default::default(), Default::default(), Default::default(), Default::default(),
             ],
         };
-        let mut site = zone(biome::RUIN, 2, 1, quotas);
+        let mut site = RevealFixture::zone(biome::RUIN, 2, 1, quotas);
         site.pieces = array![(4, piece)].span();
         // ENG-05c: its host above a chunk's mask (D-208), so that the piece is laid
-        let _hosts = hosted(ref site, 'piece');
+        let _hosts = RevealFixture::hosted(ref site, 'piece');
         let mut progress = ProgressTrait::new(@site, 'piece');
-        emit_reveal(
+        RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![(0), (1)].span(),
         );
         assert(progress.left == [0; 14], 'the piece laid');
@@ -2735,37 +2814,42 @@ pub mod tests {
             for chunk in touched.span() {
                 ok.append((*chunk).into());
             }
-            emit(ref digest, ref id, "sight", [x.into(), y.into(), 15, 15].span(), ok.span());
+            RevealFixture::emit(
+                ref digest, ref id, "sight", [x.into(), y.into(), 15, 15].span(), ok.span(),
+            );
         }
         let mut ok: Array<felt252> = array![];
         PackPlacementTrait::member(13, 11, false).serialize(ref ok);
-        emit(ref digest, ref id, "member", [13, 11, 0].span(), ok.span());
+        RevealFixture::emit(ref digest, ref id, "member", [13, 11, 0].span(), ok.span());
         // A chunk asked twice in one call: revealed once.
-        let site = zone(biome::MEADOW, 3, 3, no_quotas());
+        let site = RevealFixture::zone(biome::MEADOW, 3, 3, RevealFixture::no_quotas());
         let mut progress = ProgressTrait::new(@site, 'twice');
-        let out = emit_reveal(
+        let out = RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![16, 16].span(),
         );
         assert(out.len() == 1, 'revealed once');
         // An anchor on a corner (tile 14): wall (D-134).
-        let mut site = zone(biome::MEADOW, 2, 2, no_quotas());
+        let mut site = RevealFixture::zone(biome::MEADOW, 2, 2, RevealFixture::no_quotas());
         site.anchors = array![(0, 14)].span();
         let mut progress = ProgressTrait::new(@site, 'corner');
-        let out = emit_reveal(
+        let out = RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![0].span(),
         );
         assert(BoardTrait::has(*out[0].terrain.walls, 14), 'the corner walled');
         // An interior anchor off row 7 and column 7 (tile 48: row 3, column 3), joined to the spine
         // by its line, the tiles within 2 of it kept clear of a spawn of density 255.
-        let mut site = zone(biome::CAVE, 3, 3, no_quotas());
+        let mut site = RevealFixture::zone(biome::CAVE, 3, 3, RevealFixture::no_quotas());
         site.anchors = array![(16, 48)].span();
-        site.spawn = spawn(255);
+        site.spawn = RevealFixture::spawn(255);
         let mut progress = ProgressTrait::new(@site, 'anchor');
-        let out = emit_reveal(
+        let out = RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![16].span(),
         );
         let line = BoardTrait::anchor_line(48);
-        assert(BoardTrait::and(floor(out[0].terrain), line) == line, 'the anchor joined');
+        assert(
+            BoardTrait::and(RevealFixture::floor(out[0].terrain), line) == line,
+            'the anchor joined',
+        );
         // The same anchor in a chunk whose mask keeps columns 0 to 5: its centre cut, the flood
         // from the anchor, a pocket of floor outside its component dropped (the entropy chosen for
         // it); its West side cut whole, its South and North sides kept in part.
@@ -2775,15 +2859,15 @@ pub mod tests {
             mask += Bits::pow(row * 15) * 0x3f;
             row += 1;
         }
-        let mut site = zone(biome::RUIN, 3, 3, no_quotas());
+        let mut site = RevealFixture::zone(biome::RUIN, 3, 3, RevealFixture::no_quotas());
         site.masks = array![(16, mask)].span();
         site.anchors = array![(16, 48)].span();
         let mut progress = ProgressTrait::new(@site, 'cut centre11');
-        let out = emit_reveal(
+        let out = RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![16].span(),
         );
-        assert(!BoardTrait::has(floor(out[0].terrain), CENTRE), 'the centre cut');
-        assert(BoardTrait::has(floor(out[0].terrain), 48), 'the anchor kept');
+        assert(!BoardTrait::has(RevealFixture::floor(out[0].terrain), CENTRE), 'the centre cut');
+        assert(BoardTrait::has(RevealFixture::floor(out[0].terrain), 48), 'the anchor kept');
         // A set piece on an odd chunk row (chunk 15, its host drawn there), its floor two tiles
         // that the global row parity joins or not: (8, 4), next to the spine, and (9, 3), its
         // neighbour on the odd layout only, so (9, 3) is not kept.
@@ -2799,7 +2883,7 @@ pub mod tests {
                 Default::default(), Default::default(), Default::default(), Default::default(),
             ],
         };
-        let mut site = zone(biome::RUIN, 1, 2, quotas);
+        let mut site = RevealFixture::zone(biome::RUIN, 1, 2, quotas);
         site.pieces = array![(5, piece)].span();
         let hosts = array![Bits::pow(15)].span();
         site
@@ -2810,14 +2894,16 @@ pub mod tests {
                 ]
             .span();
         let mut progress = ProgressTrait::new(@site, 'odd piece');
-        let out = emit_reveal(
+        let out = RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![15].span(),
         );
-        assert(BoardTrait::has(floor(out[0].terrain), 8 * 15 + 4), 'the piece laid');
-        assert(!BoardTrait::has(floor(out[0].terrain), 9 * 15 + 3), 'the global parity');
+        assert(BoardTrait::has(RevealFixture::floor(out[0].terrain), 8 * 15 + 4), 'the piece laid');
+        assert(
+            !BoardTrait::has(RevealFixture::floor(out[0].terrain), 9 * 15 + 3), 'the global parity',
+        );
         // Pack templates whose minimums are all 0 (3) and whose maximums sum to 6 (4), every
         // spawn roll passing.
-        let mut site = zone(biome::MEADOW, 2, 1, no_quotas());
+        let mut site = RevealFixture::zone(biome::MEADOW, 2, 1, RevealFixture::no_quotas());
         site
             .packs =
                 array![
@@ -2857,7 +2943,9 @@ pub mod tests {
                     trap: 0,
                 };
         let mut progress = ProgressTrait::new(@site, 'templates');
-        emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![0, 1].span());
+        RevealFixture::emit_reveal(
+            ref digest, ref id, @site, ref progress, array![].span(), array![0, 1].span(),
+        );
         // A Heart on a template of offset 0 (template 1), hosted below the band's farthest chunk,
         // with both spawn rolls passing: its pack at the band's top, a third pack refused (E-3).
         let quotas = QuotaSet {
@@ -2866,13 +2954,13 @@ pub mod tests {
                 Default::default(), Default::default(), Default::default(), Default::default(),
             ],
         };
-        let mut site = zone(biome::MEADOW, 3, 3, quotas);
-        site.spawn = spawn(255);
-        let hosts = hosted(ref site, 'heart1');
+        let mut site = RevealFixture::zone(biome::MEADOW, 3, 3, quotas);
+        site.spawn = RevealFixture::spawn(255);
+        let hosts = RevealFixture::hosted(ref site, 'heart1');
         let host = BoardTrait::nth(*hosts[0], 0);
         assert(PlacementTrait::level(@site, host) < 5, 'the Heart below the top');
         let mut progress = ProgressTrait::new(@site, 'heart1');
-        let out = emit_reveal(
+        let out = RevealFixture::emit_reveal(
             ref digest, ref id, @site, ref progress, array![].span(), array![host].span(),
         );
         let heart = *out[0].features.packs.span()[0];
@@ -2880,12 +2968,14 @@ pub mod tests {
         // A spawn roll equal to the density: the density set to the first roll of chunk 0's
         // placement stream (`mix(word, 3)`, its first draw with no quota), so that it places
         // nothing there.
-        let mut site = zone(biome::MEADOW, 1, 1, no_quotas());
+        let mut site = RevealFixture::zone(biome::MEADOW, 1, 1, RevealFixture::no_quotas());
         let word = EntropyTrait::word('roll', INSTANCE, 0);
         let roll: u8 = RngTrait::new(RngTrait::mix(word, 3)).draw(256).try_into().unwrap();
-        site.spawn = spawn(roll);
+        site.spawn = RevealFixture::spawn(roll);
         let mut progress = ProgressTrait::new(@site, 'roll');
-        emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![0].span());
+        RevealFixture::emit_reveal(
+            ref digest, ref id, @site, ref progress, array![].span(), array![0].span(),
+        );
         let digest = poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == DIGEST_3, 'vectors moved: regenerate');
@@ -2900,15 +2990,15 @@ pub mod tests {
     fn test_vectors_4() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_4;
-        let site = dungeon(6, exit_quota(), FLOOR_SEED);
-        assert(closed_seam(@site), 'a closed seam');
+        let site = RevealFixture::dungeon(6, RevealFixture::exit_quota(), FLOOR_SEED);
+        assert(RevealFixture::closed_seam(@site), 'a closed seam');
         let mut progress = ProgressTrait::new(@site, FLOOR_SEED);
         let mut known: Array<(u8, Terrain)> = array![];
         let mut chunk: u8 = 225;
         while chunk != 0 {
             chunk -= 1;
             if RevealTrait::revealable(@site, @progress, known.span(), chunk) {
-                let out = emit_reveal(
+                let out = RevealFixture::emit_reveal(
                     ref digest, ref id, @site, ref progress, known.span(), array![chunk].span(),
                 );
                 known.append((chunk, *out[0].terrain));
@@ -2929,10 +3019,10 @@ pub mod tests {
         // set (Rockfall 5, Spike pit 6), the 9 chunks revealed in one call: every generated
         // terrain trap takes the table's skill (214, 215, in a part of their own).
         for (kind, skill) in array![(biome::CAVE, 5_u16), (biome::RUIN, 6)] {
-            let mut site = zone(kind, 3, 3, no_quotas());
+            let mut site = RevealFixture::zone(kind, 3, 3, RevealFixture::no_quotas());
             site.spawn.trap = skill;
             let mut progress = ProgressTrait::new(@site, 'traps');
-            let out = emit_reveal(
+            let out = RevealFixture::emit_reveal(
                 ref digest,
                 ref id,
                 @site,
@@ -2954,27 +3044,6 @@ pub mod tests {
         let digest = poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == DIGEST_5, 'vectors moved: regenerate');
-    }
-
-    /// Whether a dungeon's outline holds two neighbouring chunks with their seam closed.
-    fn closed_seam(site: @Site) -> bool {
-        let set = *site.chunk_set;
-        let mut found = false;
-        let mut chunk: u8 = 0;
-        while chunk != 225 {
-            if BoardTrait::has(set, chunk) {
-                if let Option::Some(next) = site.neighbour(chunk, side::WEST) {
-                    found = found
-                        || (BoardTrait::has(set, next) && !site.seam(chunk, side::WEST, next));
-                }
-                if let Option::Some(next) = site.neighbour(chunk, side::NORTH) {
-                    found = found
-                        || (BoardTrait::has(set, next) && !site.seam(chunk, side::NORTH, next));
-                }
-            }
-            chunk += 1;
-        }
-        found
     }
 
     const PART_1: u32 = 171;

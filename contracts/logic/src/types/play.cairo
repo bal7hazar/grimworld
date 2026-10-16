@@ -656,107 +656,618 @@ mod tests {
     use crate::types::executor::{BoardTrait, Delegate};
     use crate::types::tick::{Content, ContentTrait, SkillSheet, ai, status};
     use crate::types::window::{HEIGHT, WIDTH, WindowAssert, WindowTrait};
-    use crate::types::world::fixtures::{Fixture, HOB, MemberSpec, two};
+    use crate::types::world::fixtures::{Fixture, HOB, MemberSpec};
     use crate::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait, WorldTrait};
     use super::{Area, Classes, Done, SegmentTrait};
 
     mod recorder;
 
-    /// The area of every chunk of a 15 × 15 location, revealed and walkable.
-    fn open_area() -> Area {
-        let mut known: felt252 = 0;
-        let mut chunks: Array<(u8, felt252)> = array![];
-        let mut chunk: u8 = 0;
-        while chunk < 225 {
-            known += two(chunk.into());
-            chunks.append((chunk, two(225) - 1));
-            chunk += 1;
-        }
-        Area {
-            width: 15,
-            height: 15,
-            known,
-            revealed: known,
-            chunks: chunks.span(),
-            changed: array![].span(),
-            ran: false,
-        }
-    }
-
-    fn hex(felts: Span<felt252>) -> ByteArray {
-        let mut out: ByteArray = "[";
-        let mut first = true;
-        for felt in felts {
-            if !first {
-                out.append(@",");
+    #[generate_trait]
+    impl PlayFixtureImpl of PlayFixture {
+        /// The area of every chunk of a 15 × 15 location, revealed and walkable.
+        fn open_area() -> Area {
+            let mut known: felt252 = 0;
+            let mut chunks: Array<(u8, felt252)> = array![];
+            let mut chunk: u8 = 0;
+            while chunk < 225 {
+                known += Fixture::two(chunk.into());
+                chunks.append((chunk, Fixture::two(225) - 1));
+                chunk += 1;
             }
-            first = false;
-            let wide: u256 = (*felt).into();
-            out.append(@format!("\"0x{:x}\"", wide));
-        }
-        out.append(@"]");
-        out
-    }
-
-    fn emit(
-        ref digest: Array<felt252>,
-        ref id: u32,
-        name: ByteArray,
-        case: Span<felt252>,
-        ok: Span<felt252>,
-    ) {
-        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
-        digest.append(core::poseidon::poseidon_hash_span(case));
-        digest.append(core::poseidon::poseidon_hash_span(ok));
-        id += 1;
-    }
-
-    /// The window's position `15 y + x` of `(x, y)`.
-    fn at(x: u8, y: u8) -> u8 {
-        WIDTH * y + x
-    }
-
-    /// The bitmap of the window tiles `(x, y)`.
-    fn bitmap(list: Array<(u8, u8)>) -> felt252 {
-        let mut grid: felt252 = 0;
-        for (x, y) in list {
-            grid += two(at(x, y).into());
-        }
-        grid
-    }
-
-    /// Every interior tile of the window open.
-    fn room() -> Array<(u8, u8)> {
-        let mut list = array![];
-        for y in 1..15_u8 {
-            for x in 1..14_u8 {
-                list.append((x, y));
+            Area {
+                width: 15,
+                height: 15,
+                known,
+                revealed: known,
+                chunks: chunks.span(),
+                changed: array![].span(),
+                ran: false,
             }
         }
-        list
-    }
 
-    /// One `flood` row a walker: the flood of `grid` from `source` capped at 15 layers.
-    fn flood_rows(
-        ref digest: Array<felt252>, ref id: u32, grid: felt252, source: u8, walkers: Span<u8>,
-    ) {
-        let flood = Bfs::flood(grid, WIDTH, HEIGHT, source, 0, 15);
-        for walker in walkers {
-            let step = match flood.next_step(*walker, 0) {
-                Some(step) => step,
-                None => 255,
+        fn hex(felts: Span<felt252>) -> ByteArray {
+            let mut out: ByteArray = "[";
+            let mut first = true;
+            for felt in felts {
+                if !first {
+                    out.append(@",");
+                }
+                first = false;
+                let wide: u256 = (*felt).into();
+                out.append(@format!("\"0x{:x}\"", wide));
+            }
+            out.append(@"]");
+            out
+        }
+
+        fn emit(
+            ref digest: Array<felt252>,
+            ref id: u32,
+            name: ByteArray,
+            case: Span<felt252>,
+            ok: Span<felt252>,
+        ) {
+            println!(
+                "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}",
+                id,
+                name,
+                Self::hex(case),
+                Self::hex(ok),
+            );
+            digest.append(core::poseidon::poseidon_hash_span(case));
+            digest.append(core::poseidon::poseidon_hash_span(ok));
+            id += 1;
+        }
+
+        /// The window's position `15 y + x` of `(x, y)`.
+        fn at(x: u8, y: u8) -> u8 {
+            WIDTH * y + x
+        }
+
+        /// The bitmap of the window tiles `(x, y)`.
+        fn bitmap(list: Array<(u8, u8)>) -> felt252 {
+            let mut grid: felt252 = 0;
+            for (x, y) in list {
+                grid += Fixture::two(Self::at(x, y).into());
+            }
+            grid
+        }
+
+        /// Every interior tile of the window open.
+        fn room() -> Array<(u8, u8)> {
+            let mut list = array![];
+            for y in 1..15_u8 {
+                for x in 1..14_u8 {
+                    list.append((x, y));
+                }
+            }
+            list
+        }
+
+        /// One `flood` row a walker: the flood of `grid` from `source` capped at 15 layers.
+        fn flood_rows(
+            ref digest: Array<felt252>, ref id: u32, grid: felt252, source: u8, walkers: Span<u8>,
+        ) {
+            let flood = Bfs::flood(grid, WIDTH, HEIGHT, source, 0, 15);
+            for walker in walkers {
+                let step = match flood.next_step(*walker, 0) {
+                    Some(step) => step,
+                    None => 255,
+                };
+                let distance = match flood.distance(*walker) {
+                    Some(d) => d,
+                    None => 255,
+                };
+                Self::emit(
+                    ref digest,
+                    ref id,
+                    "flood",
+                    array![grid, source.into(), (*walker).into()].span(),
+                    array![step.into(), distance.into()].span(),
+                );
+            }
+        }
+
+        /// Whether `position` is the window's centre, local (7, 7) (112) or (7, 8) (127), with each
+        /// of its six neighbours in the window.
+        fn centred(position: u8) -> bool {
+            if position != 112 && position != 127 {
+                return false;
+            }
+            let mut d: u8 = 0;
+            while d < 6 {
+                if LayoutTrait::neighbor(WIDTH, HEIGHT, position, WindowAssert::direction(d))
+                    .is_none() {
+                    return false;
+                }
+                d += 1;
+            }
+            true
+        }
+
+        /// RV-02 (D-255): `LayoutTrait::neighbor` never returns `None` in `step`. The board a Move
+        /// starts from is `SegmentTrait::board` of the adventurer's tile (set when the segment
+        /// starts and after every Move that does not end it), its origin hexx's
+        /// `AssemblyTrait::origin`
+        /// (`board/assembly.cairo`, hexx 0.2.0): `(x − 7, y − 7)` on an odd row, `(x − 7, y
+        /// −
+        /// 8)` on an even one, Euclidean. On every tile of the chunk at `(x0, y0)`, rows `from..to`
+        /// of it, the adventurer stands on the window's centre and its six neighbours are in the
+        /// window.
+        /// Each chunk is three tests, for snforge's step limit.
+        fn centred_rows(x0: u8, y0: u8, from: u8, to: u8) {
+            let area = Self::open_area();
+            for dy in from..to {
+                for dx in 0..15_u8 {
+                    let (x, y) = (x0 + dx, y0 + dy);
+                    let mut member = Fixture::member(Fixture::spec());
+                    member.words.state += x.into() * Fixture::two(32) + y.into() * Fixture::two(40);
+                    let world = Fixture::world(40, array![member], array![]);
+                    let board = SegmentTrait::board(@area, @world);
+                    assert(Self::centred(board.position(x, y)), 'the adventurer is centred');
+                }
+            }
+        }
+
+        /// RV-02 (D-255): through `SegmentTrait::run`, after every Move that does not end the
+        /// segment the segment's board holds the adventurer on its centre: walks of 1 to 6 Moves
+        /// from `(x, y)`
+        /// in each direction, inside its chunk, none ending the segment.
+        fn walks(x: u8, y: u8) {
+            let area = Self::open_area();
+            let content = Fixture::content();
+            let mut d: u8 = 0;
+            while d < 6 {
+                let mut actions: Array<Action> = array![];
+                let mut k: u8 = 1;
+                while k <= 6 {
+                    actions.append(Action::Move(d));
+                    let mut member = Fixture::member(Fixture::spec());
+                    member.words.state += x.into() * Fixture::two(32) + y.into() * Fixture::two(40);
+                    let mut world = Fixture::world(40, array![member], array![]);
+                    let (sheets, index) = content.index();
+                    let mut rules = Delegate {
+                        board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+                        cache: Default::default(),
+                        executor: Zero::zero(),
+                        content,
+                        index,
+                        placed: array![],
+                        ground: array![],
+                        ai: Zero::zero(),
+                        trap: Zero::zero(),
+                        level: 1,
+                        frozen: 0,
+                        listed: 0,
+                        memo: None,
+                    };
+                    let classes = Classes {
+                        executor: Zero::zero(),
+                        ai: Zero::zero(),
+                        trap: Zero::zero(),
+                        action: Zero::zero(),
+                        tick: Zero::zero(),
+                    };
+                    let done = SegmentTrait::run(
+                        ref world, @sheets, ref rules, @area, @classes, actions.span(), 0, 20,
+                    );
+                    assert(!done.reveal && done.played == k, 'every Move ran');
+                    let (x, y, _) = world.member(0).place();
+                    assert(Self::centred(rules.board.position(x, y)), 'the board followed');
+                    k += 1;
+                }
+                d += 1;
+            }
+        }
+
+        /// One `owed` row: a Move's owed ticks (`owed` records, `owed_firsts` first ones) counted
+        /// with the next segment's first action (`next`: whether there is one; its `fresh` records,
+        /// `firsts` and `cost`), as `SegmentTrait::run` counts them; the owed ticks run either way.
+        fn owed_row(ref digest: Array<felt252>, ref id: u32, case: [u32; 8]) {
+            let [changed, owed, owed_firsts, fresh, firsts, cost, weight, next] = case;
+            let (stopped, written, left) = if next == 0 {
+                (0, changed + owed, weight)
+            } else {
+                match SegmentTrait::admit(
+                    changed,
+                    owed + fresh,
+                    (owed_firsts + firsts).try_into().unwrap(),
+                    cost.try_into().unwrap(),
+                    true,
+                    weight.try_into().unwrap(),
+                ) {
+                    Some(left) => (0, changed + owed + fresh, left.into()),
+                    None => (1, changed + owed, weight),
+                }
             };
-            let distance = match flood.distance(*walker) {
-                Some(d) => d,
-                None => 255,
-            };
-            emit(
+            let mut row: Array<felt252> = array![];
+            for v in case.span() {
+                row.append((*v).into());
+            }
+            Self::emit(
                 ref digest,
                 ref id,
-                "flood",
-                array![grid, source.into(), (*walker).into()].span(),
-                array![step.into(), distance.into()].span(),
+                "owed",
+                row.span(),
+                array![stopped.into(), written.into(), left.into()].span(),
             );
+        }
+
+        fn start(x: u8, y: u8) -> Start {
+            Start {
+                clock: 40,
+                x,
+                y,
+                facing: 0,
+                status: status::INSIDE,
+                health: 400,
+                crippled: 0,
+                knocked: 0,
+            }
+        }
+
+        /// A 3 × 3 location (chunks 0–2, 15–17, 30–32, all known) with the chunks of
+        /// `revealed`
+        /// walkable but for the tiles of `walls`, `(chunk, bits)` in place of the full chunk.
+        fn region(
+            revealed: Array<u8>, walls: Array<(u8, felt252)>, changed: Array<u16>, ran: bool,
+        ) -> Area {
+            let all: Array<u8> = array![0, 1, 2, 15, 16, 17, 30, 31, 32];
+            let mut known: felt252 = 0;
+            for chunk in all.span() {
+                known += Fixture::two((*chunk).into());
+            }
+            let mut seen: felt252 = 0;
+            let mut chunks: Array<(u8, felt252)> = array![];
+            for chunk in revealed.span() {
+                seen += Fixture::two((*chunk).into());
+                let mut bits = Fixture::two(225) - 1;
+                for (wall, kept) in walls.span() {
+                    if *wall == *chunk {
+                        bits = *kept;
+                    }
+                }
+                chunks.append((*chunk, bits));
+            }
+            Area {
+                width: 3,
+                height: 3,
+                known,
+                revealed: seen,
+                chunks: chunks.span(),
+                changed: changed.span(),
+                ran,
+            }
+        }
+
+        fn everything() -> Array<u8> {
+            array![0, 1, 2, 15, 16, 17, 30, 31, 32]
+        }
+
+        /// Every chunk revealed but the East neighbour of chunk 16.
+        fn but_east() -> Array<u8> {
+            array![0, 1, 2, 15, 16, 30, 31, 32]
+        }
+
+        /// `n` goblin records from entity 8 on.
+        fn records(n: u16) -> Array<u16> {
+            let mut list = array![];
+            for k in 0..n {
+                list.append(8 + k);
+            }
+            list
+        }
+
+        /// One `segment` row: `SegmentTrait::run` on the adventurer of `at`, the location `area`,
+        /// the ticks `owed` and the `weight`, no goblin (every tick on the fast path, no class
+        /// called).
+        /// The case: the start (clock, x, y, facing, status, health, Crippled's deadline, the
+        /// knock's end), `Area`, `owed`, `weight`, the actions, all as Cairo `Serde`; the outcome:
+        /// the clock, the adventurer's x, y, facing and flags after, then `Done`.
+        fn segment_row(
+            ref digest: Array<felt252>,
+            ref id: u32,
+            name: ByteArray,
+            at: Start,
+            area: Area,
+            owed: u8,
+            weight: u8,
+            actions: Array<Action>,
+        ) {
+            let mut spec = Fixture::spec();
+            spec.status = at.status;
+            spec.health = at.health;
+            spec.conditions = [0, 0, 0, at.knocked];
+            let mut member = Fixture::member(spec);
+            member.words.state += at.x.into() * Fixture::two(32)
+                + at.y.into() * Fixture::two(40)
+                + at.facing.into() * Fixture::two(48);
+            if at.crippled != 0 {
+                member.set_crippled(at.crippled);
+            }
+            let mut world = Fixture::world(at.clock, array![member], array![]);
+            let content = Fixture::content();
+            let (sheets, index) = content.index();
+            let mut rules = Delegate {
+                board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+                cache: Default::default(),
+                executor: Zero::zero(),
+                content,
+                index,
+                placed: array![],
+                ground: array![],
+                ai: Zero::zero(),
+                trap: Zero::zero(),
+                level: 1,
+                frozen: 0,
+                listed: 0,
+                memo: None,
+            };
+            let classes = Classes {
+                executor: Zero::zero(),
+                ai: Zero::zero(),
+                trap: Zero::zero(),
+                action: Zero::zero(),
+                tick: Zero::zero(),
+            };
+            let mut case: Array<felt252> = array![
+                at.clock.into(), at.x.into(), at.y.into(), at.facing.into(), at.status.into(),
+                at.health.into(), at.crippled.into(), at.knocked.into(),
+            ];
+            Serde::serialize(@area, ref case);
+            case.append(owed.into());
+            case.append(weight.into());
+            Serde::serialize(@actions.span(), ref case);
+            let done = SegmentTrait::run(
+                ref world, @sheets, ref rules, @area, @classes, actions.span(), owed, weight,
+            );
+            let (x, y, facing) = world.member(0).place();
+            let mut ok: Array<felt252> = array![
+                world.clock.into(), x.into(), y.into(), facing.into(), world.member(0).flags.into(),
+            ];
+            Serde::serialize(@done, ref ok);
+            Self::emit(ref digest, ref id, name, case.span(), ok.span());
+        }
+
+        fn class(name: ByteArray) -> ClassHash {
+            *declare(name).unwrap().contract_class().class_hash
+        }
+
+        fn declared() -> Declared {
+            Declared {
+                executor: Self::class("ExecutorLibrary"),
+                ai: Self::class("AiLibrary"),
+                tick: Self::class("TickLibrary"),
+                action: Self::class("ActionLibrary"),
+                trap: Self::class("TrapLibrary"),
+                tick_recorder: Self::class("TickRecorder"),
+                action_recorder: Self::class("ActionRecorder"),
+                trap_recorder: Self::class("TrapRecorder"),
+            }
+        }
+
+        /// One `segment2` row: `SegmentTrait::run` as `SegmentLibrary::segment` runs it (the words
+        /// loaded through the table's content), the real executor and AI, the recorders for the
+        /// classes the segment calls. The case: the words, `Area`, the level, the ground, `owed`,
+        /// `weight`, the actions, then the calls the segment made (`recorder::Call`, in order), all
+        /// as Cairo `Serde`; the outcome: the words, the ground and `Done`.
+        fn segment2_row(
+            ref digest: Array<felt252>,
+            ref id: u32,
+            name: ByteArray,
+            classes: @Declared,
+            content: @Content,
+            words: Words,
+            area: Area,
+            ground: Array<(u8, Features)>,
+            owed: u8,
+            weight: u8,
+            actions: Array<Action>,
+        ) {
+            recorder::Recorder::reset(*classes.tick, *classes.action, *classes.trap);
+            let level: u8 = 1;
+            let mut case: Array<felt252> = array![];
+            Serde::serialize(@words, ref case);
+            Serde::serialize(@area, ref case);
+            case.append(level.into());
+            Serde::serialize(@ground, ref case);
+            case.append(owed.into());
+            case.append(weight.into());
+            Serde::serialize(@actions.span(), ref case);
+            let (mut world, sheets, index) = words.indexed(content);
+            let mut rules = Delegate {
+                board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+                cache: Default::default(),
+                executor: *classes.executor,
+                content: *content,
+                index,
+                placed: array![],
+                ground,
+                ai: *classes.ai,
+                trap: *classes.trap_recorder,
+                level,
+                frozen: 0,
+                listed: 0,
+                memo: None,
+            };
+            let segment = Classes {
+                executor: *classes.executor,
+                ai: *classes.ai,
+                trap: *classes.trap_recorder,
+                action: *classes.action_recorder,
+                tick: *classes.tick_recorder,
+            };
+            let done = SegmentTrait::run(
+                ref world, @sheets, ref rules, @area, @segment, actions.span(), owed, weight,
+            );
+            case.append_span(recorder::Recorder::calls().span());
+            let mut ok: Array<felt252> = array![];
+            Serde::serialize(@world.store(), ref ok);
+            Serde::serialize(@rules.ground, ref ok);
+            Serde::serialize(@done, ref ok);
+            Self::emit(ref digest, ref id, name, case.span(), ok.span());
+        }
+
+        /// The words of the adventurer of `spec` on `(x, y)` facing `facing`, Crippled until
+        /// `crippled` (0: none), two potions 101 in belt slot 1.
+        fn adventurer(spec: MemberSpec, x: u8, y: u8, facing: u8, crippled: u32) -> MemberWords {
+            let mut member = Fixture::member(spec);
+            member.words.state += x.into() * Fixture::two(32)
+                + y.into() * Fixture::two(40)
+                + facing.into() * Fixture::two(48);
+            if crippled != 0 {
+                member.set_crippled(crippled);
+            }
+            member.set_belt_count(1, 2);
+            member.words
+        }
+
+        /// The fixture's adventurer on `(x, y)`.
+        fn standing(x: u8, y: u8) -> MemberWords {
+            Self::adventurer(Fixture::spec(), x, y, 0, 0)
+        }
+
+        /// The words of a goblin of `caste` (the fixture's: Engaged, awake, health 100) on `(x,
+        /// y)`, in AI state `state`.
+        fn goblin(entity: u16, caste: u16, x: u8, y: u8, state: u8) -> GoblinWords {
+            let mut words = Fixture::goblin(entity, caste).store();
+            let engaged: felt252 = ai::ENGAGED.into();
+            words.state += x.into()
+                + y.into() * Fixture::two(8)
+                + (state.into() - engaged) * Fixture::two(24);
+            words.awake = state != ai::ASLEEP && state != ai::WATCH && state < ai::DEAD;
+            words
+        }
+
+        fn words(clock: u32, members: Array<MemberWords>, goblins: Array<GoblinWords>) -> Words {
+            Words { clock, members, goblins, killed: array![], defeated: false }
+        }
+
+        /// The table's content: the fixture's, skill 8 instant (0 ticks), and skill 9, an
+        /// enchantment holding `MOVEMENT` (FX-18).
+        fn segment2_content() -> Content {
+            let base = Fixture::content();
+            let mut skills: Array<SkillSheet> = array![];
+            for sheet in base.skills {
+                let mut sheet = *sheet;
+                if sheet.id == 8 {
+                    sheet.activation = 0;
+                }
+                skills.append(sheet);
+            }
+            let mut haste = Fixture::skill(9, skill_kind::ENCHANTMENT, 1, 10);
+            haste
+                .entry1 =
+                    Entry {
+                        kind: kind::MOVEMENT,
+                        target: target::SELF,
+                        shape: shape::SINGLE,
+                        d0: 5,
+                        d12: 5,
+                        ..Default::default(),
+                    }
+                .pack();
+            skills.append(haste);
+            // Skill 10: an instant trap skill (range 3, a TRAP entry, Snare's earth payload)
+            let none: Entry = Default::default();
+            let trap = EntryTrait::new(
+                kind::TRAP, 0, 0, 0, 0, 0, 0, target::TILE, shape::SINGLE, 0, 0, 0,
+            );
+            let earth = EntryTrait::new(
+                kind::DAMAGE,
+                damage::EARTH,
+                10,
+                40,
+                0,
+                0,
+                0,
+                target::FOE,
+                shape::SINGLE,
+                filter::FOES,
+                0,
+                0,
+            );
+            let mut snare = Fixture::skill(10, skill_kind::TRAP, 0, 20);
+            snare.range = 3;
+            snare.entry1 = trap.pack();
+            snare.entry2 = earth.pack();
+            snare.entry3 = none.pack();
+            skills.append(snare);
+            Content { skills: skills.span(), ..base }
+        }
+
+        /// The fixture's adventurer on (22, 22) with the instant trap skill (10) on bar slot 0.
+        fn trapper() -> MemberWords {
+            let mut member = Self::standing(22, 22);
+            member.bar += 9;
+            member
+        }
+
+        /// The ground `SegmentTrait::run` leaves after `actions` on `weight`, through the real
+        /// classes (no recorders), as `Serde` felts, and its `Done`.
+        fn ground_after(
+            content: @Content, ground: Array<(u8, Features)>, weight: u8, actions: Array<Action>,
+        ) -> (Array<felt252>, Done) {
+            let classes = Self::declared();
+            let (mut world, sheets, index) = Self::words(40, array![Self::trapper()], array![])
+                .indexed(content);
+            let mut rules = Delegate {
+                board: BoardTrait::new(WindowTrait::new(0), 0, 0),
+                cache: Default::default(),
+                executor: classes.executor,
+                content: *content,
+                index,
+                placed: array![],
+                ground,
+                ai: classes.ai,
+                trap: classes.trap,
+                level: 1,
+                frozen: 0,
+                listed: 0,
+                memo: None,
+            };
+            let segment = Classes {
+                executor: classes.executor,
+                ai: classes.ai,
+                trap: classes.trap,
+                action: classes.action,
+                tick: classes.tick,
+            };
+            let open = Self::region(Self::everything(), array![], array![], false);
+            let done = SegmentTrait::run(
+                ref world, @sheets, ref rules, @open, @segment, actions.span(), 0, weight,
+            );
+            let mut felts: Array<felt252> = array![];
+            Serde::serialize(@rules.ground, ref felts);
+            (felts, done)
+        }
+
+        fn serialized(ground: @Array<(u8, Features)>) -> Array<felt252> {
+            let mut felts: Array<felt252> = array![];
+            Serde::serialize(ground, ref felts);
+            felts
+        }
+
+        /// The ground of chunk `chunk`: no pack, `objects`, the goblins of `touched` with a record.
+        fn ground(chunk: u8, objects: [Object; 3], touched: u16) -> Array<(u8, Features)> {
+            array![(chunk, Features { objects, touched, ..FeaturesTrait::empty() })]
+        }
+
+        /// An object of `kind` on the chunk's tile `(lx, ly)`.
+        fn trap_on(lx: u8, ly: u8, kind: u8, state: u8, param: u16) -> Object {
+            Object { tile: 15 * ly + lx, kind, state, param }
+        }
+
+        /// The location's tile `(x, y)` walled in chunk 16 (`region`'s walls).
+        fn walled(x: u8, y: u8) -> (u8, felt252) {
+            (16, Fixture::two(225) - 1 - Fixture::two(15 * (y.into() - 15) + (x.into() - 15)))
+        }
+
+        /// A `segment2` part's digest, against the one its constant holds.
+        fn finish(digest: Array<felt252>, expected: felt252) {
+            let digest = core::poseidon::poseidon_hash_span(digest.span());
+            println!("digest {}", digest);
+            assert(digest == expected, 'vectors moved: regenerate');
         }
     }
 
@@ -769,24 +1280,26 @@ mod tests {
         // `origin`: the board of an adventurer on `(x, y)`: its origin held plus 15 (`Board.x`,
         // `Board.y`) and its window position, both row parities, the West and South edges
         // (a negative origin, D-134) and the far side
-        let area = open_area();
+        let area = PlayFixture::open_area();
         let tiles: Array<(u8, u8)> = array![
             (7, 7), (7, 8), (0, 0), (0, 1), (3, 5), (6, 6), (16, 16), (17, 17), (100, 101),
             (224, 224), (224, 0), (0, 224), (112, 113),
         ];
         for (x, y) in tiles.span() {
             let mut member = Fixture::member(Fixture::spec());
-            member.words.state += (*x).into() * two(32) + (*y).into() * two(40);
+            member.words.state += (*x).into() * Fixture::two(32) + (*y).into() * Fixture::two(40);
             let world = Fixture::world(40, array![member], array![]);
             let board = SegmentTrait::board(@area, @world);
             let case = array![(*x).into(), (*y).into()];
             let ok = array![board.x.into(), board.y.into(), board.position(*x, *y).into()];
-            emit(ref digest, ref id, "origin", case.span(), ok.span());
+            PlayFixture::emit(ref digest, ref id, "origin", case.span(), ok.span());
         }
         // `move`: the tile a Move of each direction reaches from both row parities and the edges
         // (255: none, the window's edge)
         let froms: Array<u8> = array![
-            at(7, 7), at(7, 8), at(0, 0), at(14, 0), at(0, 15), at(14, 15), at(0, 7), at(14, 8),
+            PlayFixture::at(7, 7), PlayFixture::at(7, 8), PlayFixture::at(0, 0),
+            PlayFixture::at(14, 0), PlayFixture::at(0, 15), PlayFixture::at(14, 15),
+            PlayFixture::at(0, 7), PlayFixture::at(14, 8),
         ];
         for from in froms.span() {
             let mut d: u8 = 0;
@@ -796,7 +1309,7 @@ mod tests {
                     Some(to) => to,
                     None => 255,
                 };
-                emit(
+                PlayFixture::emit(
                     ref digest,
                     ref id,
                     "move",
@@ -813,7 +1326,7 @@ mod tests {
         ];
         for (crippled, t0, movement) in cases.span() {
             let ticks = TickMathTrait::move_ticks(*crippled, *t0, *movement);
-            emit(
+            PlayFixture::emit(
                 ref digest,
                 ref id,
                 "ticks",
@@ -831,16 +1344,18 @@ mod tests {
             while x < 14 {
                 let open = y % 2 == 1 || (y % 4 == 2 && x == 13) || (y % 4 == 0 && x == 1);
                 if open {
-                    grid += two(at(x, y).into());
+                    grid += Fixture::two(PlayFixture::at(x, y).into());
                 }
                 x += 1;
             }
             y += 1;
         }
-        let flood = Bfs::flood(grid, WIDTH, HEIGHT, at(1, 1), 0, 15);
+        let flood = Bfs::flood(grid, WIDTH, HEIGHT, PlayFixture::at(1, 1), 0, 15);
         let walkers: Array<u8> = array![
-            at(2, 1), at(13, 1), at(13, 2), at(13, 3), at(3, 3), at(1, 3), at(1, 4), at(1, 5),
-            at(13, 7), at(7, 9),
+            PlayFixture::at(2, 1), PlayFixture::at(13, 1), PlayFixture::at(13, 2),
+            PlayFixture::at(13, 3), PlayFixture::at(3, 3), PlayFixture::at(1, 3),
+            PlayFixture::at(1, 4), PlayFixture::at(1, 5), PlayFixture::at(13, 7),
+            PlayFixture::at(7, 9),
         ];
         for walker in walkers.span() {
             let step = match flood.next_step(*walker, 0) {
@@ -851,11 +1366,11 @@ mod tests {
                 Some(d) => d,
                 None => 255,
             };
-            emit(
+            PlayFixture::emit(
                 ref digest,
                 ref id,
                 "flood",
-                array![grid, at(1, 1).into(), (*walker).into()].span(),
+                array![grid, PlayFixture::at(1, 1).into(), (*walker).into()].span(),
                 array![step.into(), distance.into()].span(),
             );
         }
@@ -866,33 +1381,47 @@ mod tests {
         // - a walker with two candidate steps in its least layer takes the lowest index;
         // - an open tile of the window's ring is never in a layer: the pocket reached only through
         //   the ring is not reached.
-        let corridor_end = bitmap(
+        let corridor_end = PlayFixture::bitmap(
             array![
                 (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1), (10, 1),
                 (11, 1), (12, 1), (13, 1), (13, 2), (10, 3), (11, 3), (12, 3), (13, 3), (11, 4),
             ],
         );
-        let open_room = bitmap(room());
-        let ring = bitmap(
+        let open_room = PlayFixture::bitmap(PlayFixture::room());
+        let ring = PlayFixture::bitmap(
             array![(0, 3), (1, 3), (2, 3), (0, 4), (0, 5), (1, 5), (2, 5), (14, 8), (13, 8)],
         );
-        flood_rows(ref digest, ref id, grid, at(1, 1), array![at(10, 3), at(9, 3)].span());
-        flood_rows(
+        PlayFixture::flood_rows(
+            ref digest,
+            ref id,
+            grid,
+            PlayFixture::at(1, 1),
+            array![PlayFixture::at(10, 3), PlayFixture::at(9, 3)].span(),
+        );
+        PlayFixture::flood_rows(
             ref digest,
             ref id,
             corridor_end,
-            at(1, 1),
-            array![at(10, 3), at(10, 4), at(11, 4)].span(),
+            PlayFixture::at(1, 1),
+            array![PlayFixture::at(10, 3), PlayFixture::at(10, 4), PlayFixture::at(11, 4)].span(),
         );
-        flood_rows(
-            ref digest, ref id, open_room, at(7, 7), array![at(9, 8), at(9, 9), at(5, 6)].span(),
+        PlayFixture::flood_rows(
+            ref digest,
+            ref id,
+            open_room,
+            PlayFixture::at(7, 7),
+            array![PlayFixture::at(9, 8), PlayFixture::at(9, 9), PlayFixture::at(5, 6)].span(),
         );
-        flood_rows(
+        PlayFixture::flood_rows(
             ref digest,
             ref id,
             ring,
-            at(1, 3),
-            array![at(2, 3), at(0, 3), at(1, 5), at(0, 4), at(14, 8)].span(),
+            PlayFixture::at(1, 3),
+            array![
+                PlayFixture::at(2, 3), PlayFixture::at(0, 3), PlayFixture::at(1, 5),
+                PlayFixture::at(0, 4), PlayFixture::at(14, 8),
+            ]
+                .span(),
         );
         // `awake`: the set among goblins of distances `d` (entity `8 + k`), the 8 nearest, ties by
         // the lowest entity id, the asleep ones left out
@@ -922,203 +1451,115 @@ mod tests {
             for index in world.woken() {
                 ok.append((8 + *index).into());
             }
-            emit(ref digest, ref id, "awake", case.span(), ok.span());
+            PlayFixture::emit(ref digest, ref id, "awake", case.span(), ok.span());
         }
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == DIGEST, 'vectors moved: regenerate');
     }
 
-    /// Whether `position` is the window's centre, local (7, 7) (112) or (7, 8) (127), with each
-    /// of its six neighbours in the window.
-    fn centred(position: u8) -> bool {
-        if position != 112 && position != 127 {
-            return false;
-        }
-        let mut d: u8 = 0;
-        while d < 6 {
-            if LayoutTrait::neighbor(WIDTH, HEIGHT, position, WindowAssert::direction(d))
-                .is_none() {
-                return false;
-            }
-            d += 1;
-        }
-        true
-    }
-
-    /// RV-02 (D-255): `LayoutTrait::neighbor` never returns `None` in `step`. The board a Move
-    /// starts from is `SegmentTrait::board` of the adventurer's tile (set when the segment starts
-    /// and after every Move that does not end it), its origin hexx's `AssemblyTrait::origin`
-    /// (`board/assembly.cairo`, hexx 0.2.0): `(x − 7, y − 7)` on an odd row, `(x − 7, y −
-    /// 8)` on an even one, Euclidean. On every tile of the chunk at `(x0, y0)`, rows `from..to` of
-    /// it, the adventurer stands on the window's centre and its six neighbours are in the window.
-    /// Each chunk is three tests, for snforge's step limit.
-    fn centred_rows(x0: u8, y0: u8, from: u8, to: u8) {
-        let area = open_area();
-        for dy in from..to {
-            for dx in 0..15_u8 {
-                let (x, y) = (x0 + dx, y0 + dy);
-                let mut member = Fixture::member(Fixture::spec());
-                member.words.state += x.into() * two(32) + y.into() * two(40);
-                let world = Fixture::world(40, array![member], array![]);
-                let board = SegmentTrait::board(@area, @world);
-                assert(centred(board.position(x, y)), 'the adventurer is centred');
-            }
-        }
-    }
-
     // Chunk 16, (15..30, 15..30): every residue of `x` and `y` modulo 15.
     #[test]
     #[available_gas(l2_gas: 505928178)] // ceil(1.05 × 481836360 measured)
     fn test_board_centred_0() {
-        centred_rows(15, 15, 0, 5);
+        PlayFixture::centred_rows(15, 15, 0, 5);
     }
 
     #[test]
     #[available_gas(l2_gas: 508898471)] // ceil(1.05 × 484665210 measured)
     fn test_board_centred_1() {
-        centred_rows(15, 15, 5, 10);
+        PlayFixture::centred_rows(15, 15, 5, 10);
     }
 
     #[test]
     #[available_gas(l2_gas: 513346428)] // ceil(1.05 × 488901360 measured)
     fn test_board_centred_2() {
-        centred_rows(15, 15, 10, 15);
+        PlayFixture::centred_rows(15, 15, 10, 15);
     }
 
     // Chunk 31, (15..30, 30..45): each residue of `y` on the other row parity (15 is odd).
     #[test]
     #[available_gas(l2_gas: 513349421)] // ceil(1.05 × 488904210 measured)
     fn test_board_centred_3() {
-        centred_rows(15, 30, 0, 5);
+        PlayFixture::centred_rows(15, 30, 0, 5);
     }
 
     #[test]
     #[available_gas(l2_gas: 517797378)] // ceil(1.05 × 493140360 measured)
     fn test_board_centred_4() {
-        centred_rows(15, 30, 5, 10);
+        PlayFixture::centred_rows(15, 30, 5, 10);
     }
 
     #[test]
     #[available_gas(l2_gas: 520767671)] // ceil(1.05 × 495969210 measured)
     fn test_board_centred_5() {
-        centred_rows(15, 30, 10, 15);
+        PlayFixture::centred_rows(15, 30, 10, 15);
     }
 
     // Chunk 0, (0..15, 0..15): `x` or `y` below 7, the origin negative (D-134).
     #[test]
     #[available_gas(l2_gas: 495362490)] // ceil(1.05 × 471773800 measured)
     fn test_board_centred_6() {
-        centred_rows(0, 0, 0, 5);
+        PlayFixture::centred_rows(0, 0, 0, 5);
     }
 
     #[test]
     #[available_gas(l2_gas: 499482054)] // ceil(1.05 × 475697194 measured)
     fn test_board_centred_7() {
-        centred_rows(0, 0, 5, 10);
+        PlayFixture::centred_rows(0, 0, 5, 10);
     }
 
     #[test]
     #[available_gas(l2_gas: 502233417)] // ceil(1.05 × 478317540 measured)
     fn test_board_centred_8() {
-        centred_rows(0, 0, 10, 15);
+        PlayFixture::centred_rows(0, 0, 10, 15);
     }
 
     // Chunk 224, (210..225, 210..225): the last chunk of a 15 × 15-chunk location.
     #[test]
     #[available_gas(l2_gas: 577380647)] // ceil(1.05 × 549886330 measured)
     fn test_board_centred_9() {
-        centred_rows(210, 210, 0, 5);
+        PlayFixture::centred_rows(210, 210, 0, 5);
     }
 
     #[test]
     #[available_gas(l2_gas: 552464550)] // ceil(1.05 × 526156714 measured)
     fn test_board_centred_10() {
-        centred_rows(210, 210, 5, 10);
+        PlayFixture::centred_rows(210, 210, 5, 10);
     }
 
     #[test]
     #[available_gas(l2_gas: 535855488)] // ceil(1.05 × 510338560 measured)
     fn test_board_centred_11() {
-        centred_rows(210, 210, 10, 15);
-    }
-
-    /// RV-02 (D-255): through `SegmentTrait::run`, after every Move that does not end the segment
-    /// the segment's board holds the adventurer on its centre: walks of 1 to 6 Moves from `(x, y)`
-    /// in each direction, inside its chunk, none ending the segment.
-    fn walks(x: u8, y: u8) {
-        let area = open_area();
-        let content = Fixture::content();
-        let mut d: u8 = 0;
-        while d < 6 {
-            let mut actions: Array<Action> = array![];
-            let mut k: u8 = 1;
-            while k <= 6 {
-                actions.append(Action::Move(d));
-                let mut member = Fixture::member(Fixture::spec());
-                member.words.state += x.into() * two(32) + y.into() * two(40);
-                let mut world = Fixture::world(40, array![member], array![]);
-                let (sheets, index) = content.index();
-                let mut rules = Delegate {
-                    board: BoardTrait::new(WindowTrait::new(0), 0, 0),
-                    cache: Default::default(),
-                    executor: Zero::zero(),
-                    content,
-                    index,
-                    placed: array![],
-                    ground: array![],
-                    ai: Zero::zero(),
-                    trap: Zero::zero(),
-                    level: 1,
-                    frozen: 0,
-                    listed: 0,
-                    memo: None,
-                };
-                let classes = Classes {
-                    executor: Zero::zero(),
-                    ai: Zero::zero(),
-                    trap: Zero::zero(),
-                    action: Zero::zero(),
-                    tick: Zero::zero(),
-                };
-                let done = SegmentTrait::run(
-                    ref world, @sheets, ref rules, @area, @classes, actions.span(), 0, 20,
-                );
-                assert(!done.reveal && done.played == k, 'every Move ran');
-                let (x, y, _) = world.member(0).place();
-                assert(centred(rules.board.position(x, y)), 'the board followed');
-                k += 1;
-            }
-            d += 1;
-        }
+        PlayFixture::centred_rows(210, 210, 10, 15);
     }
 
     // From (22, 22), chunk 16.
     #[test]
     #[available_gas(l2_gas: 457436610)] // ceil(1.05 × 435653914 measured)
     fn test_move_keeps_board_centred_0() {
-        walks(22, 22);
+        PlayFixture::walks(22, 22);
     }
 
     // From (22, 37), chunk 31, the other row parity.
     #[test]
     #[available_gas(l2_gas: 481251744)] // ceil(1.05 × 458334994 measured)
     fn test_move_keeps_board_centred_1() {
-        walks(22, 37);
+        PlayFixture::walks(22, 37);
     }
 
     // From (7, 7), chunk 0, the origin negative.
     #[test]
     #[available_gas(l2_gas: 439526680)] // ceil(1.05 × 418596838 measured)
     fn test_move_keeps_board_centred_2() {
-        walks(7, 7);
+        PlayFixture::walks(7, 7);
     }
 
     // From (217, 217), chunk 224, the location's last.
     #[test]
     #[available_gas(l2_gas: 525057664)] // ceil(1.05 × 500054918 measured)
     fn test_move_keeps_board_centred_3() {
-        walks(217, 217);
+        PlayFixture::walks(217, 217);
     }
 
     /// ENG-07b, reading 8 (t-0115, minor 1): a Move of 2 ticks (Crippled) against the weight
@@ -1130,7 +1571,7 @@ mod tests {
     #[available_gas(l2_gas: 111111543)] // ceil(1.05 × 105820517 measured)
     fn test_segment_slow_move_heavy() {
         let mut member = Fixture::member(Fixture::spec());
-        member.words.state += 20 * two(32) + 22 * two(40);
+        member.words.state += 20 * Fixture::two(32) + 22 * Fixture::two(40);
         member.set_crippled(100);
         let mut world = Fixture::world(40, array![member], array![]);
         let content = Fixture::content();
@@ -1164,46 +1605,13 @@ mod tests {
             k += 1;
         }
         actions.append(Action::Move(0));
-        let area = open_area();
+        let area = PlayFixture::open_area();
         let done = SegmentTrait::run(
             ref world, @sheets, ref rules, @area, @classes, actions.span(), 0, 10,
         );
         let (x, y, _) = world.member(0).place();
         assert(done.heavy && done.played == 9 && done.weight == 1, 'stopped for weight');
         assert(x == 20 && y == 22 && world.clock == 49, 'the member did not move');
-    }
-
-    /// One `owed` row: a Move's owed ticks (`owed` records, `owed_firsts` first ones) counted with
-    /// the next segment's first action (`next`: whether there is one; its `fresh` records,
-    /// `firsts` and `cost`), as `SegmentTrait::run` counts them; the owed ticks run either way.
-    fn owed_row(ref digest: Array<felt252>, ref id: u32, case: [u32; 8]) {
-        let [changed, owed, owed_firsts, fresh, firsts, cost, weight, next] = case;
-        let (stopped, written, left) = if next == 0 {
-            (0, changed + owed, weight)
-        } else {
-            match SegmentTrait::admit(
-                changed,
-                owed + fresh,
-                (owed_firsts + firsts).try_into().unwrap(),
-                cost.try_into().unwrap(),
-                true,
-                weight.try_into().unwrap(),
-            ) {
-                Some(left) => (0, changed + owed + fresh, left.into()),
-                None => (1, changed + owed, weight),
-            }
-        };
-        let mut row: Array<felt252> = array![];
-        for v in case.span() {
-            row.append((*v).into());
-        }
-        emit(
-            ref digest,
-            ref id,
-            "owed",
-            row.span(),
-            array![stopped.into(), written.into(), left.into()].span(),
-        );
     }
 
     // `vectors/batch.jsonl` (CBT-05d): where a batch stops, for the client's mirror. `records`:
@@ -1239,21 +1647,21 @@ mod tests {
                 Some(left) => array![0, (*changed + *fresh).into(), left.into()],
                 None => array![1, (*changed).into(), (*weight).into()],
             };
-            emit(ref digest, ref id, "records", case.span(), ok.span());
+            PlayFixture::emit(ref digest, ref id, "records", case.span(), ok.span());
         }
         // `owed`: (changed, owed, owed firsts, next fresh, next firsts, next cost, weight, next)
         // → (the next action stopped, records written, weight left). The owed ticks' 7 records
         // after 10 stop a next action that adds none (`test_play_records_owed_ticks`: 17
         // written); 6 do not; with no next action, nothing stops and every owed record is
         // written: 16 + 40 (the window's goblins) and E-16's 16 + 2 × 40 = 96
-        owed_row(ref digest, ref id, [10, 7, 0, 0, 0, 1, 4, 1]);
-        owed_row(ref digest, ref id, [10, 6, 0, 0, 0, 1, 4, 1]);
-        owed_row(ref digest, ref id, [10, 6, 0, 1, 0, 1, 4, 1]);
-        owed_row(ref digest, ref id, [10, 7, 0, 0, 0, 1, 4, 0]);
-        owed_row(ref digest, ref id, [0, 8, 8, 0, 0, 1, 9, 1]);
-        owed_row(ref digest, ref id, [0, 8, 8, 0, 0, 1, 8, 1]);
-        owed_row(ref digest, ref id, [16, 40, 0, 0, 0, 1, 4, 0]);
-        owed_row(ref digest, ref id, [16, 80, 0, 0, 0, 1, 4, 0]);
+        PlayFixture::owed_row(ref digest, ref id, [10, 7, 0, 0, 0, 1, 4, 1]);
+        PlayFixture::owed_row(ref digest, ref id, [10, 6, 0, 0, 0, 1, 4, 1]);
+        PlayFixture::owed_row(ref digest, ref id, [10, 6, 0, 1, 0, 1, 4, 1]);
+        PlayFixture::owed_row(ref digest, ref id, [10, 7, 0, 0, 0, 1, 4, 0]);
+        PlayFixture::owed_row(ref digest, ref id, [0, 8, 8, 0, 0, 1, 9, 1]);
+        PlayFixture::owed_row(ref digest, ref id, [0, 8, 8, 0, 0, 1, 8, 1]);
+        PlayFixture::owed_row(ref digest, ref id, [16, 40, 0, 0, 0, 1, 4, 0]);
+        PlayFixture::owed_row(ref digest, ref id, [16, 80, 0, 0, 0, 1, 4, 0]);
         // `reveal`: (weight, the Move's ticks, its first records, chunks revealed) → (weight
         // after the Move, after the reveal): the Move counted first, then 2 a chunk, floored at 0,
         // so a Move that reveals more than the weight left is played
@@ -1264,7 +1672,7 @@ mod tests {
             let after = SegmentTrait::admit(0, (*firsts).into(), *firsts, *ticks, true, *weight)
                 .unwrap();
             let left = SegmentTrait::revealed(after, *chunks);
-            emit(
+            PlayFixture::emit(
                 ref digest,
                 ref id,
                 "reveal",
@@ -1292,140 +1700,6 @@ mod tests {
         knocked: u32,
     }
 
-    fn start(x: u8, y: u8) -> Start {
-        Start {
-            clock: 40,
-            x,
-            y,
-            facing: 0,
-            status: status::INSIDE,
-            health: 400,
-            crippled: 0,
-            knocked: 0,
-        }
-    }
-
-    /// A 3 × 3 location (chunks 0–2, 15–17, 30–32, all known) with the chunks of `revealed`
-    /// walkable but for the tiles of `walls`, `(chunk, bits)` in place of the full chunk.
-    fn region(
-        revealed: Array<u8>, walls: Array<(u8, felt252)>, changed: Array<u16>, ran: bool,
-    ) -> Area {
-        let all: Array<u8> = array![0, 1, 2, 15, 16, 17, 30, 31, 32];
-        let mut known: felt252 = 0;
-        for chunk in all.span() {
-            known += two((*chunk).into());
-        }
-        let mut seen: felt252 = 0;
-        let mut chunks: Array<(u8, felt252)> = array![];
-        for chunk in revealed.span() {
-            seen += two((*chunk).into());
-            let mut bits = two(225) - 1;
-            for (wall, kept) in walls.span() {
-                if *wall == *chunk {
-                    bits = *kept;
-                }
-            }
-            chunks.append((*chunk, bits));
-        }
-        Area {
-            width: 3,
-            height: 3,
-            known,
-            revealed: seen,
-            chunks: chunks.span(),
-            changed: changed.span(),
-            ran,
-        }
-    }
-
-    fn everything() -> Array<u8> {
-        array![0, 1, 2, 15, 16, 17, 30, 31, 32]
-    }
-
-    /// Every chunk revealed but the East neighbour of chunk 16.
-    fn but_east() -> Array<u8> {
-        array![0, 1, 2, 15, 16, 30, 31, 32]
-    }
-
-    /// `n` goblin records from entity 8 on.
-    fn records(n: u16) -> Array<u16> {
-        let mut list = array![];
-        for k in 0..n {
-            list.append(8 + k);
-        }
-        list
-    }
-
-    /// One `segment` row: `SegmentTrait::run` on the adventurer of `at`, the location `area`, the
-    /// ticks `owed` and the `weight`, no goblin (every tick on the fast path, no class called).
-    /// The case: the start (clock, x, y, facing, status, health, Crippled's deadline, the knock's
-    /// end), `Area`, `owed`, `weight`, the actions, all as Cairo `Serde`; the outcome: the clock,
-    /// the adventurer's x, y, facing and flags after, then `Done`.
-    fn segment_row(
-        ref digest: Array<felt252>,
-        ref id: u32,
-        name: ByteArray,
-        at: Start,
-        area: Area,
-        owed: u8,
-        weight: u8,
-        actions: Array<Action>,
-    ) {
-        let mut spec = Fixture::spec();
-        spec.status = at.status;
-        spec.health = at.health;
-        spec.conditions = [0, 0, 0, at.knocked];
-        let mut member = Fixture::member(spec);
-        member.words.state += at.x.into() * two(32)
-            + at.y.into() * two(40)
-            + at.facing.into() * two(48);
-        if at.crippled != 0 {
-            member.set_crippled(at.crippled);
-        }
-        let mut world = Fixture::world(at.clock, array![member], array![]);
-        let content = Fixture::content();
-        let (sheets, index) = content.index();
-        let mut rules = Delegate {
-            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
-            cache: Default::default(),
-            executor: Zero::zero(),
-            content,
-            index,
-            placed: array![],
-            ground: array![],
-            ai: Zero::zero(),
-            trap: Zero::zero(),
-            level: 1,
-            frozen: 0,
-            listed: 0,
-            memo: None,
-        };
-        let classes = Classes {
-            executor: Zero::zero(),
-            ai: Zero::zero(),
-            trap: Zero::zero(),
-            action: Zero::zero(),
-            tick: Zero::zero(),
-        };
-        let mut case: Array<felt252> = array![
-            at.clock.into(), at.x.into(), at.y.into(), at.facing.into(), at.status.into(),
-            at.health.into(), at.crippled.into(), at.knocked.into(),
-        ];
-        Serde::serialize(@area, ref case);
-        case.append(owed.into());
-        case.append(weight.into());
-        Serde::serialize(@actions.span(), ref case);
-        let done = SegmentTrait::run(
-            ref world, @sheets, ref rules, @area, @classes, actions.span(), owed, weight,
-        );
-        let (x, y, facing) = world.member(0).place();
-        let mut ok: Array<felt252> = array![
-            world.clock.into(), x.into(), y.into(), facing.into(), world.member(0).flags.into(),
-        ];
-        Serde::serialize(@done, ref ok);
-        emit(ref digest, ref id, name, case.span(), ok.span());
-    }
-
     // `vectors/segment.jsonl` (RV-01, D-248): `SegmentTrait::run` for the client's mirror, no
     // goblin (the ticks of the fast path; the goblin records of a fight are `TickLibrary`'s, held
     // by the ephemeral tests). One family a branch of `run`, listed in `vectors/README.md`.
@@ -1438,23 +1712,23 @@ mod tests {
         let wait = Action::Wait;
         // `fold`: the last Move's owed ticks run first, whatever the actions
         for owed in array![0_u8, 3] {
-            segment_row(
+            PlayFixture::segment_row(
                 ref digest,
                 ref id,
                 "fold",
-                start(22, 22),
-                region(everything(), array![], array![], false),
+                PlayFixture::start(22, 22),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], false),
                 owed,
                 10,
                 array![wait],
             );
         }
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "fold",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             3,
             10,
             array![],
@@ -1462,26 +1736,28 @@ mod tests {
         // the owed ticks before the Move: Crippled lasts to 42, a Move at tick 41 takes 2, one at
         // 43 takes 1
         for owed in array![0_u8, 2] {
-            let mut crippled = start(22, 22);
+            let mut crippled = PlayFixture::start(22, 22);
             crippled.crippled = 42;
-            segment_row(
+            PlayFixture::segment_row(
                 ref digest,
                 ref id,
                 "fold",
                 crippled,
-                region(everything(), array![], array![], false),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], false),
                 owed,
                 10,
                 array![Action::Move(0)],
             );
         }
         // the records of the invocation so far come through
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "fold",
-            start(22, 22),
-            region(everything(), array![], records(3), false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(3), false,
+            ),
             3,
             10,
             array![wait],
@@ -1489,168 +1765,168 @@ mod tests {
         // `reveal`: a Move ends the segment when sight touches a chunk to reveal (East of chunk 16
         // not revealed; from (24, 22) sight reaches x = 30). Direction 0 takes x − 1, 3 takes x +
         // 1, 1 and 2 take y + 1, 4 and 5 take y − 1 ...
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "reveal",
-            start(23, 22),
-            region(but_east(), array![], array![], false),
+            PlayFixture::start(23, 22),
+            PlayFixture::region(PlayFixture::but_east(), array![], array![], false),
             0,
             10,
             array![Action::Move(3), wait, wait],
         );
         // ... or when the adventurer changes chunk (every chunk revealed; x = 29 to 30) ...
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "reveal",
-            start(29, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(29, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             10,
             array![Action::Move(3), wait, wait],
         );
         // ... after actions that ran, the Move's owed ticks 2 while Crippled
-        let mut slow = start(23, 22);
+        let mut slow = PlayFixture::start(23, 22);
         slow.crippled = 100;
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "reveal",
             slow,
-            region(but_east(), array![], array![], false),
+            PlayFixture::region(PlayFixture::but_east(), array![], array![], false),
             2,
             10,
             array![wait, Action::Turn(2), Action::Move(3), wait],
         );
         // a Move that reveals nothing: the window follows, the next Moves run
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "reveal",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             10,
             array![Action::Move(0), Action::Move(0), Action::Move(1), wait],
         );
         // the chunk changed West and North
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "reveal",
-            start(15, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(15, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             10,
             array![Action::Move(0), wait],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "reveal",
-            start(22, 15),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 15),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             10,
             array![Action::Move(4), wait],
         );
         // `cost`: `max(1, ticks)` an action: a Turn (0 ticks, none run) is charged 1, a Wait 1, a
         // Move 1 or 2 (Crippled)
-        let mut crippled = start(22, 22);
+        let mut crippled = PlayFixture::start(22, 22);
         crippled.crippled = 100;
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "cost",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             5,
             array![Action::Turn(2)],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "cost",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             5,
             array![wait],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "cost",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             5,
             array![Action::Move(0)],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "cost",
             crippled,
-            region(everything(), array![], array![], false),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             5,
             array![Action::Move(0)],
         );
         // the weight fits exactly, and is over by 1 (nothing written)
         for weight in array![1_u8, 0] {
-            segment_row(
+            PlayFixture::segment_row(
                 ref digest,
                 ref id,
                 "cost",
-                start(22, 22),
-                region(everything(), array![], array![], false),
+                PlayFixture::start(22, 22),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], false),
                 0,
                 weight,
                 array![wait],
             );
-            segment_row(
+            PlayFixture::segment_row(
                 ref digest,
                 ref id,
                 "cost",
-                start(22, 22),
-                region(everything(), array![], array![], false),
+                PlayFixture::start(22, 22),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], false),
                 0,
                 weight,
                 array![Action::Turn(2)],
             );
         }
         for weight in array![2_u8, 1] {
-            segment_row(
+            PlayFixture::segment_row(
                 ref digest,
                 ref id,
                 "cost",
                 crippled,
-                region(everything(), array![], array![], false),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], false),
                 0,
                 weight,
                 array![Action::Move(0)],
             );
         }
         // the weight spent over several actions, the stop before the one that passes
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "cost",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             2,
             array![wait, wait, wait, wait],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "cost",
             crippled,
-            region(everything(), array![], array![], false),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             3,
             array![wait, Action::Move(0), wait],
@@ -1659,97 +1935,115 @@ mod tests {
         // goblins of the earlier segments) the first action of the invocation is not bound (E-21),
         // the others stop before it (`heavy`, `undo`) with its words kept
         // - neither: the first action runs;
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "ran",
-            start(22, 22),
-            region(everything(), array![], records(17), false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(17), false,
+            ),
             0,
             10,
             array![wait],
         );
         // - `area.ran` alone: the first action is refused;
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "ran",
-            start(22, 22),
-            region(everything(), array![], records(17), true),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(17), true,
+            ),
             0,
             10,
             array![wait],
         );
         // - `done.played` alone: the second is;
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "ran",
-            start(22, 22),
-            region(everything(), array![], records(17), false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(17), false,
+            ),
             0,
             10,
             array![wait, wait],
         );
         // - both, 16 records (not over the cap): both run;
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "ran",
-            start(22, 22),
-            region(everything(), array![], records(16), true),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(16), true,
+            ),
             0,
             10,
             array![wait, wait],
         );
         // `fits` through `run`: 16 records accepted, 17 refused, after a Move, a Turn, with a
         // reveal Move (the last two)
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "fits",
-            start(22, 22),
-            region(everything(), array![], records(16), true),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(16), true,
+            ),
             0,
             10,
             array![Action::Move(0), Action::Turn(1)],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "fits",
-            start(22, 22),
-            region(everything(), array![], records(17), true),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(17), true,
+            ),
             0,
             10,
             array![Action::Move(0), Action::Turn(1)],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "fits",
-            start(22, 22),
-            region(everything(), array![], records(17), true),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(17), true,
+            ),
             0,
             10,
             array![Action::Turn(1), wait],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "fits",
-            start(29, 22),
-            region(everything(), array![], records(16), true),
+            PlayFixture::start(29, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(16), true,
+            ),
             0,
             10,
             array![Action::Move(3)],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "fits",
-            start(29, 22),
-            region(everything(), array![], records(17), true),
+            PlayFixture::start(29, 22),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(17), true,
+            ),
             0,
             10,
             array![Action::Move(3)],
@@ -1757,13 +2051,13 @@ mod tests {
         // `halt`: the illegal actions `step`, `turn` and `wait` return, and Interact; nothing of
         // the action is written, the ones before it are kept
         let late = LAST_TICK + 1;
-        let mut after = start(22, 22);
+        let mut after = PlayFixture::start(22, 22);
         after.clock = late;
-        let mut dead = start(22, 22);
+        let mut dead = PlayFixture::start(22, 22);
         dead.health = 0;
-        let mut down = start(22, 22);
+        let mut down = PlayFixture::start(22, 22);
         down.status = status::DOWN;
-        let mut knocked = start(22, 22);
+        let mut knocked = PlayFixture::start(22, 22);
         knocked.knocked = 100;
         for (at, actions) in array![
             (after, array![Action::Move(0)]), (after, array![Action::Turn(1)]),
@@ -1772,12 +2066,12 @@ mod tests {
             (knocked, array![Action::Turn(1)]), (knocked, array![wait, Action::Move(0)]),
         ]
             .span() {
-            segment_row(
+            PlayFixture::segment_row(
                 ref digest,
                 ref id,
                 "halt",
                 *at,
-                region(everything(), array![], array![], false),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], false),
                 0,
                 10,
                 actions.clone(),
@@ -1785,43 +2079,43 @@ mod tests {
         }
         // a Move onto a wall (the West tile of (22, 22), local (6, 7) of chunk 16), the second
         // Turn, Interact, an illegal one after actions that ran
-        let wall = (16_u8, two(225) - 1 - two(15 * 7 + 6));
-        segment_row(
+        let wall = (16_u8, Fixture::two(225) - 1 - Fixture::two(15 * 7 + 6));
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "halt",
-            start(22, 22),
-            region(everything(), array![wall], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![wall], array![], false),
             0,
             10,
             array![wait, Action::Move(0), wait],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "halt",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             10,
             array![Action::Turn(1), Action::Turn(2), wait],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "halt",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             10,
             array![Action::Interact(7), wait],
         );
-        segment_row(
+        PlayFixture::segment_row(
             ref digest,
             ref id,
             "halt",
-            start(22, 22),
-            region(everything(), array![], array![], false),
+            PlayFixture::start(22, 22),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], false),
             0,
             10,
             array![wait, wait, Action::Interact(7)],
@@ -1845,220 +2139,6 @@ mod tests {
         trap_recorder: ClassHash,
     }
 
-    fn class(name: ByteArray) -> ClassHash {
-        *declare(name).unwrap().contract_class().class_hash
-    }
-
-    fn declared() -> Declared {
-        Declared {
-            executor: class("ExecutorLibrary"),
-            ai: class("AiLibrary"),
-            tick: class("TickLibrary"),
-            action: class("ActionLibrary"),
-            trap: class("TrapLibrary"),
-            tick_recorder: class("TickRecorder"),
-            action_recorder: class("ActionRecorder"),
-            trap_recorder: class("TrapRecorder"),
-        }
-    }
-
-    /// One `segment2` row: `SegmentTrait::run` as `SegmentLibrary::segment` runs it (the words
-    /// loaded through the table's content), the real executor and AI, the recorders for the
-    /// classes the segment calls. The case: the words, `Area`, the level, the ground, `owed`,
-    /// `weight`, the actions, then the calls the segment made (`recorder::Call`, in order), all as
-    /// Cairo `Serde`; the outcome: the words, the ground and `Done`.
-    fn segment2_row(
-        ref digest: Array<felt252>,
-        ref id: u32,
-        name: ByteArray,
-        classes: @Declared,
-        content: @Content,
-        words: Words,
-        area: Area,
-        ground: Array<(u8, Features)>,
-        owed: u8,
-        weight: u8,
-        actions: Array<Action>,
-    ) {
-        recorder::reset(*classes.tick, *classes.action, *classes.trap);
-        let level: u8 = 1;
-        let mut case: Array<felt252> = array![];
-        Serde::serialize(@words, ref case);
-        Serde::serialize(@area, ref case);
-        case.append(level.into());
-        Serde::serialize(@ground, ref case);
-        case.append(owed.into());
-        case.append(weight.into());
-        Serde::serialize(@actions.span(), ref case);
-        let (mut world, sheets, index) = words.indexed(content);
-        let mut rules = Delegate {
-            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
-            cache: Default::default(),
-            executor: *classes.executor,
-            content: *content,
-            index,
-            placed: array![],
-            ground,
-            ai: *classes.ai,
-            trap: *classes.trap_recorder,
-            level,
-            frozen: 0,
-            listed: 0,
-            memo: None,
-        };
-        let segment = Classes {
-            executor: *classes.executor,
-            ai: *classes.ai,
-            trap: *classes.trap_recorder,
-            action: *classes.action_recorder,
-            tick: *classes.tick_recorder,
-        };
-        let done = SegmentTrait::run(
-            ref world, @sheets, ref rules, @area, @segment, actions.span(), owed, weight,
-        );
-        case.append_span(recorder::calls().span());
-        let mut ok: Array<felt252> = array![];
-        Serde::serialize(@world.store(), ref ok);
-        Serde::serialize(@rules.ground, ref ok);
-        Serde::serialize(@done, ref ok);
-        emit(ref digest, ref id, name, case.span(), ok.span());
-    }
-
-    /// The words of the adventurer of `spec` on `(x, y)` facing `facing`, Crippled until
-    /// `crippled` (0: none), two potions 101 in belt slot 1.
-    fn adventurer(spec: MemberSpec, x: u8, y: u8, facing: u8, crippled: u32) -> MemberWords {
-        let mut member = Fixture::member(spec);
-        member.words.state += x.into() * two(32) + y.into() * two(40) + facing.into() * two(48);
-        if crippled != 0 {
-            member.set_crippled(crippled);
-        }
-        member.set_belt_count(1, 2);
-        member.words
-    }
-
-    /// The fixture's adventurer on `(x, y)`.
-    fn standing(x: u8, y: u8) -> MemberWords {
-        adventurer(Fixture::spec(), x, y, 0, 0)
-    }
-
-    /// The words of a goblin of `caste` (the fixture's: Engaged, awake, health 100) on `(x, y)`,
-    /// in AI state `state`.
-    fn goblin(entity: u16, caste: u16, x: u8, y: u8, state: u8) -> GoblinWords {
-        let mut words = Fixture::goblin(entity, caste).store();
-        let engaged: felt252 = ai::ENGAGED.into();
-        words.state += x.into() + y.into() * two(8) + (state.into() - engaged) * two(24);
-        words.awake = state != ai::ASLEEP && state != ai::WATCH && state < ai::DEAD;
-        words
-    }
-
-    fn words(clock: u32, members: Array<MemberWords>, goblins: Array<GoblinWords>) -> Words {
-        Words { clock, members, goblins, killed: array![], defeated: false }
-    }
-
-    /// The table's content: the fixture's, skill 8 instant (0 ticks), and skill 9, an enchantment
-    /// holding `MOVEMENT` (FX-18).
-    fn segment2_content() -> Content {
-        let base = Fixture::content();
-        let mut skills: Array<SkillSheet> = array![];
-        for sheet in base.skills {
-            let mut sheet = *sheet;
-            if sheet.id == 8 {
-                sheet.activation = 0;
-            }
-            skills.append(sheet);
-        }
-        let mut haste = Fixture::skill(9, skill_kind::ENCHANTMENT, 1, 10);
-        haste
-            .entry1 =
-                Entry {
-                    kind: kind::MOVEMENT,
-                    target: target::SELF,
-                    shape: shape::SINGLE,
-                    d0: 5,
-                    d12: 5,
-                    ..Default::default(),
-                }
-            .pack();
-        skills.append(haste);
-        // Skill 10: an instant trap skill (range 3, a TRAP entry, Snare's earth payload)
-        let none: Entry = Default::default();
-        let trap = EntryTrait::new(
-            kind::TRAP, 0, 0, 0, 0, 0, 0, target::TILE, shape::SINGLE, 0, 0, 0,
-        );
-        let earth = EntryTrait::new(
-            kind::DAMAGE,
-            damage::EARTH,
-            10,
-            40,
-            0,
-            0,
-            0,
-            target::FOE,
-            shape::SINGLE,
-            filter::FOES,
-            0,
-            0,
-        );
-        let mut snare = Fixture::skill(10, skill_kind::TRAP, 0, 20);
-        snare.range = 3;
-        snare.entry1 = trap.pack();
-        snare.entry2 = earth.pack();
-        snare.entry3 = none.pack();
-        skills.append(snare);
-        Content { skills: skills.span(), ..base }
-    }
-
-    /// The fixture's adventurer on (22, 22) with the instant trap skill (10) on bar slot 0.
-    fn trapper() -> MemberWords {
-        let mut member = standing(22, 22);
-        member.bar += 9;
-        member
-    }
-
-    /// The ground `SegmentTrait::run` leaves after `actions` on `weight`, through the real
-    /// classes (no recorders), as `Serde` felts, and its `Done`.
-    fn ground_after(
-        content: @Content, ground: Array<(u8, Features)>, weight: u8, actions: Array<Action>,
-    ) -> (Array<felt252>, Done) {
-        let classes = declared();
-        let (mut world, sheets, index) = words(40, array![trapper()], array![]).indexed(content);
-        let mut rules = Delegate {
-            board: BoardTrait::new(WindowTrait::new(0), 0, 0),
-            cache: Default::default(),
-            executor: classes.executor,
-            content: *content,
-            index,
-            placed: array![],
-            ground,
-            ai: classes.ai,
-            trap: classes.trap,
-            level: 1,
-            frozen: 0,
-            listed: 0,
-            memo: None,
-        };
-        let segment = Classes {
-            executor: classes.executor,
-            ai: classes.ai,
-            trap: classes.trap,
-            action: classes.action,
-            tick: classes.tick,
-        };
-        let open = region(everything(), array![], array![], false);
-        let done = SegmentTrait::run(
-            ref world, @sheets, ref rules, @open, @segment, actions.span(), 0, weight,
-        );
-        let mut felts: Array<felt252> = array![];
-        Serde::serialize(@rules.ground, ref felts);
-        (felts, done)
-    }
-
-    fn serialized(ground: @Array<(u8, Features)>) -> Array<felt252> {
-        let mut felts: Array<felt252> = array![];
-        Serde::serialize(ground, ref felts);
-        felts
-    }
-
     /// The tile west of the adventurer: location (21, 22).
     const WEST: u16 = 21 + 256 * 22;
 
@@ -2068,14 +2148,16 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 25373161)] // ceil(1.05 × 24164915 measured)
     fn test_heavy_trap_keeps_the_ground() {
-        let content = segment2_content();
-        let before = ground(16, FeaturesTrait::empty().objects, 0);
+        let content = PlayFixture::segment2_content();
+        let before = PlayFixture::ground(16, FeaturesTrait::empty().objects, 0);
         let trap = Action::Skill((0, Target::Tile(WEST)));
-        let (placed, done) = ground_after(@content, before.clone(), 5, array![trap]);
-        assert(placed != serialized(@before), 'control: trap placed');
+        let (placed, done) = PlayFixture::ground_after(@content, before.clone(), 5, array![trap]);
+        assert(placed != PlayFixture::serialized(@before), 'control: trap placed');
         assert(!done.heavy && done.illegal.is_none() && done.played == 1, 'control: played');
-        let (kept, done) = ground_after(@content, before.clone(), 1, array![Action::Wait, trap]);
-        assert(kept == serialized(@before), 'heavy: ground kept');
+        let (kept, done) = PlayFixture::ground_after(
+            @content, before.clone(), 1, array![Action::Wait, trap],
+        );
+        assert(kept == PlayFixture::serialized(@before), 'heavy: ground kept');
         // The refusal is `Heavy` (#433's review, note 2): the trap skill stopped, not refused.
         assert(done.heavy && done.illegal.is_none() && done.played == 1, 'heavy: refused heavy');
     }
@@ -2085,30 +2167,15 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 12242556)] // ceil(1.05 × 11659577 measured)
     fn test_illegal_trap_keeps_the_ground() {
-        let content = segment2_content();
-        let before = ground(16, FeaturesTrait::empty().objects, 0);
-        let (kept, done) = ground_after(
+        let content = PlayFixture::segment2_content();
+        let before = PlayFixture::ground(16, FeaturesTrait::empty().objects, 0);
+        let (kept, done) = PlayFixture::ground_after(
             @content, before.clone(), 5, array![Action::Skill((0, Target::Entity(264)))],
         );
-        assert(kept == serialized(@before), 'illegal: ground kept');
+        assert(kept == PlayFixture::serialized(@before), 'illegal: ground kept');
         // The refusal is `Illegal::Target` (#433's review, note 2), not `Heavy`.
         assert(done.illegal == Some(Illegal::Target) && !done.heavy, 'illegal: refused target');
         assert(done.played == 0, 'illegal: nothing played');
-    }
-
-    /// The ground of chunk `chunk`: no pack, `objects`, the goblins of `touched` with a record.
-    fn ground(chunk: u8, objects: [Object; 3], touched: u16) -> Array<(u8, Features)> {
-        array![(chunk, Features { objects, touched, ..FeaturesTrait::empty() })]
-    }
-
-    /// An object of `kind` on the chunk's tile `(lx, ly)`.
-    fn trap_on(lx: u8, ly: u8, kind: u8, state: u8, param: u16) -> Object {
-        Object { tile: 15 * ly + lx, kind, state, param }
-    }
-
-    /// The location's tile `(x, y)` walled in chunk 16 (`region`'s walls).
-    fn walled(x: u8, y: u8) -> (u8, felt252) {
-        (16, two(225) - 1 - two(15 * (y.into() - 15) + (x.into() - 15)))
     }
 
     // `vectors/segment2.jsonl` (RV-02, D-254): `SegmentTrait::run` where it calls a class, or meets
@@ -2120,17 +2187,17 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 763239800)] // ceil(1.05 × 726895047 measured)
     fn test_segment2_vectors_0() {
-        let classes = declared();
-        let content = segment2_content();
+        let classes = PlayFixture::declared();
+        let content = PlayFixture::segment2_content();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
-        let open = region(everything(), array![], array![], false);
+        let open = PlayFixture::region(PlayFixture::everything(), array![], array![], false);
         let wait = Action::Wait;
         let none: Array<(u8, Features)> = array![];
-        let east = goblin(264, HOB, 23, 22, ai::ENGAGED);
+        let east = PlayFixture::goblin(264, HOB, 23, 22, ai::ENGAGED);
         let mut ok: Array<felt252> = array![];
         Serde::serialize(@content, ref ok);
-        emit(ref digest, ref id, "content", array![].span(), ok.span());
+        PlayFixture::emit(ref digest, ref id, "content", array![].span(), ok.span());
         // `combat`: the `_` arm, through `ActionLibrary`: an Attack, Skills, an Item, an illegal
         // target (the words kept), its `Heavy` (ticks past the weight, or 0 ticks with none
         // left), and an action with no goblin near (its ticks on the fast path)
@@ -2142,13 +2209,13 @@ mod tests {
             (Action::Skill((1, Target::Entity(0))), 1), (Action::Item((1, 0)), 0),
         ];
         for (action, weight) in combats {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "combat",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22)], array![east]),
+                PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![east]),
                 open,
                 none.clone(),
                 0,
@@ -2157,13 +2224,13 @@ mod tests {
             );
         }
         for action in array![Action::Skill((2, Target::Entity(0))), Action::Item((1, 0))] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "combat",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22)], array![]),
+                PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![]),
                 open,
                 none.clone(),
                 0,
@@ -2171,43 +2238,43 @@ mod tests {
                 array![wait, action, wait],
             );
         }
-        finish(digest, SEGMENT2_DIGEST_0);
+        PlayFixture::finish(digest, SEGMENT2_DIGEST_0);
     }
 
     #[test]
     #[available_gas(l2_gas: 709107244)] // ceil(1.05 × 675340232 measured)
     fn test_segment2_vectors_1() {
-        let classes = declared();
-        let content = segment2_content();
+        let classes = PlayFixture::declared();
+        let content = PlayFixture::segment2_content();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = SEGMENT2_PART_1;
-        let open = region(everything(), array![], array![], false);
+        let open = PlayFixture::region(PlayFixture::everything(), array![], array![], false);
         let wait = Action::Wait;
         let none: Array<(u8, Features)> = array![];
-        let east = goblin(264, HOB, 23, 22, ai::ENGAGED);
+        let east = PlayFixture::goblin(264, HOB, 23, 22, ai::ENGAGED);
         // `ticks`: `Self::ticks` through `TickLibrary`: a goblin in the window; the owed ticks
         // with one; a world not calm (a goblin awake outside the window); one asleep outside it
         // (calm: the fast path, no call)
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "ticks",
             @classes,
             @content,
-            words(40, array![standing(22, 22)], array![east]),
+            PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![east]),
             open,
             none.clone(),
             0,
             10,
             array![wait, wait],
         );
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "ticks",
             @classes,
             @content,
-            words(40, array![standing(22, 22)], array![east]),
+            PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![east]),
             open,
             none.clone(),
             2,
@@ -2215,13 +2282,17 @@ mod tests {
             array![],
         );
         for state in array![ai::ENGAGED, ai::ASLEEP] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "ticks",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22)], array![goblin(520, HOB, 40, 40, state)]),
+                PlayFixture::words(
+                    40,
+                    array![PlayFixture::standing(22, 22)],
+                    array![PlayFixture::goblin(520, HOB, 40, 40, state)],
+                ),
                 open,
                 none.clone(),
                 0,
@@ -2236,44 +2307,46 @@ mod tests {
         for (touched, ran, weight) in array![
             (0_u16, true, 1_u8), (0, true, 2), (0, false, 1), (1, true, 1),
         ] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "fits",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22)], array![east]),
-                region(everything(), array![], array![], ran),
-                ground(16, [Default::default(); 3], touched),
+                PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![east]),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], ran),
+                PlayFixture::ground(16, [Default::default(); 3], touched),
                 0,
                 weight,
                 array![wait],
             );
         }
         // one an earlier segment of the invocation changed: already held, it adds nothing
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "fits",
             @classes,
             @content,
-            words(40, array![standing(22, 22)], array![east]),
-            region(everything(), array![], array![264], true),
-            ground(16, [Default::default(); 3], 0),
+            PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![east]),
+            PlayFixture::region(PlayFixture::everything(), array![], array![264], true),
+            PlayFixture::ground(16, [Default::default(); 3], 0),
             0,
             1,
             array![wait],
         );
         // E-16's cap: 16 records already, the goblin's would be the 17th
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "fits",
             @classes,
             @content,
-            words(40, array![standing(22, 22)], array![east]),
-            region(everything(), array![], records(16), true),
-            ground(16, [Default::default(); 3], 1),
+            PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![east]),
+            PlayFixture::region(
+                PlayFixture::everything(), array![], PlayFixture::records(16), true,
+            ),
+            PlayFixture::ground(16, [Default::default(); 3], 1),
             0,
             10,
             array![wait],
@@ -2281,50 +2354,53 @@ mod tests {
         // the untouched one engaged: goblin 248 (chunk 15's first, asleep beside the adventurer)
         // notices it and engages its pack; 249, of the same pack, outside the window and not
         // awake, changes only its AI state to Engaged: no record (its pack's `alert` holds it)
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "fits",
             @classes,
             @content,
-            words(
+            PlayFixture::words(
                 40,
-                array![standing(22, 22)],
-                array![goblin(248, HOB, 21, 22, ai::ASLEEP), goblin(249, HOB, 2, 22, ai::WATCH)],
+                array![PlayFixture::standing(22, 22)],
+                array![
+                    PlayFixture::goblin(248, HOB, 21, 22, ai::ASLEEP),
+                    PlayFixture::goblin(249, HOB, 2, 22, ai::WATCH),
+                ],
             ),
-            region(everything(), array![], array![], true),
-            ground(15, [Default::default(); 3], 0),
+            PlayFixture::region(PlayFixture::everything(), array![], array![], true),
+            PlayFixture::ground(15, [Default::default(); 3], 0),
             0,
             10,
             array![wait],
         );
-        finish(digest, SEGMENT2_DIGEST_1);
+        PlayFixture::finish(digest, SEGMENT2_DIGEST_1);
     }
 
     #[test]
     #[available_gas(l2_gas: 132104920)] // ceil(1.05 × 125814209 measured)
     fn test_segment2_vectors_2() {
-        let classes = declared();
-        let content = segment2_content();
+        let classes = PlayFixture::declared();
+        let content = PlayFixture::segment2_content();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = SEGMENT2_PART_2;
-        let open = region(everything(), array![], array![], false);
+        let open = PlayFixture::region(PlayFixture::everything(), array![], array![], false);
         let wait = Action::Wait;
         let none: Array<(u8, Features)> = array![];
-        let east = goblin(264, HOB, 23, 22, ai::ENGAGED);
+        let east = PlayFixture::goblin(264, HOB, 23, 22, ai::ENGAGED);
         // `defeated`: `world.defeated` breaks the loop before the next action. The adventurer at
         // 0 health is defeated by the owed tick (step 5), before the first action; at 1 health,
         // Bleeding, Poison and Burning take it on an action's tick, on the fast path, and through
         // `TickLibrary` (goblin 264 beside it)
         let mut down = Fixture::spec();
         down.health = 0;
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "defeated",
             @classes,
             @content,
-            words(40, array![adventurer(down, 22, 22, 0, 0)], array![]),
+            PlayFixture::words(40, array![PlayFixture::adventurer(down, 22, 22, 0, 0)], array![]),
             open,
             none.clone(),
             1,
@@ -2335,13 +2411,15 @@ mod tests {
         weak.health = 1;
         weak.conditions = [100, 100, 100, 0];
         for goblins in array![array![], array![east]] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "defeated",
                 @classes,
                 @content,
-                words(40, array![adventurer(weak, 22, 22, 0, 0)], goblins),
+                PlayFixture::words(
+                    40, array![PlayFixture::adventurer(weak, 22, 22, 0, 0)], goblins,
+                ),
                 open,
                 none.clone(),
                 0,
@@ -2349,17 +2427,17 @@ mod tests {
                 array![wait, wait, wait, wait],
             );
         }
-        finish(digest, SEGMENT2_DIGEST_2);
+        PlayFixture::finish(digest, SEGMENT2_DIGEST_2);
     }
 
     #[test]
     #[available_gas(l2_gas: 271171845)] // ceil(1.05 × 258258900 measured)
     fn test_segment2_vectors_3() {
-        let classes = declared();
-        let content = segment2_content();
+        let classes = PlayFixture::declared();
+        let content = PlayFixture::segment2_content();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = SEGMENT2_PART_3;
-        let open = region(everything(), array![], array![], false);
+        let open = PlayFixture::region(PlayFixture::everything(), array![], array![], false);
         let wait = Action::Wait;
         let none: Array<(u8, Features)> = array![];
         // `trap`: `Self::trap` in `step`, a trap on the tile entered (21, 22), local (6, 7) of
@@ -2367,18 +2445,23 @@ mod tests {
         // trap (its placer's words go with the call)
         let placer = PlacerTrait::param(@Placer::Goblin((264, 0)));
         for trap in array![
-            trap_on(6, 7, object::TRAP, 0, 2), trap_on(6, 7, object::TRAP, 1, 2),
-            trap_on(6, 7, object::PLACED_TRAP, 0, placer),
+            PlayFixture::trap_on(6, 7, object::TRAP, 0, 2),
+            PlayFixture::trap_on(6, 7, object::TRAP, 1, 2),
+            PlayFixture::trap_on(6, 7, object::PLACED_TRAP, 0, placer),
         ] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "trap",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22)], array![goblin(264, HOB, 40, 40, ai::ASLEEP)]),
+                PlayFixture::words(
+                    40,
+                    array![PlayFixture::standing(22, 22)],
+                    array![PlayFixture::goblin(264, HOB, 40, 40, ai::ASLEEP)],
+                ),
                 open,
-                ground(16, [trap, Default::default(), Default::default()], 0),
+                PlayFixture::ground(16, [trap, Default::default(), Default::default()], 0),
                 0,
                 10,
                 array![Action::Move(0), wait],
@@ -2387,13 +2470,17 @@ mod tests {
         // `occupied`: `Blocked` from `TrapTrait::occupied`, a living goblin on the tile (after a
         // Wait that ran); a dead one does not block
         for state in array![ai::ENGAGED, ai::DEAD] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "occupied",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22)], array![goblin(264, HOB, 21, 22, state)]),
+                PlayFixture::words(
+                    40,
+                    array![PlayFixture::standing(22, 22)],
+                    array![PlayFixture::goblin(264, HOB, 21, 22, state)],
+                ),
                 open,
                 none.clone(),
                 0,
@@ -2401,18 +2488,18 @@ mod tests {
                 array![wait, Action::Move(0), wait],
             );
         }
-        finish(digest, SEGMENT2_DIGEST_3);
+        PlayFixture::finish(digest, SEGMENT2_DIGEST_3);
     }
 
     #[test]
     // gas: raised, FIX-02b: row 45, a terrain trap whose skill only the trap names (D-266)
     #[available_gas(l2_gas: 662441015)] // ceil(1.05 × 630896204 measured)
     fn test_segment2_vectors_4() {
-        let classes = declared();
-        let content = segment2_content();
+        let classes = PlayFixture::declared();
+        let content = PlayFixture::segment2_content();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = SEGMENT2_PART_4;
-        let open = region(everything(), array![], array![], false);
+        let open = PlayFixture::region(PlayFixture::everything(), array![], array![], false);
         let wait = Action::Wait;
         let none: Array<(u8, Features)> = array![];
         // `companions`: a second member on (23, 22) blocks a Move East; down, it does not; it
@@ -2423,14 +2510,16 @@ mod tests {
         let mut fallen = Fixture::spec();
         fallen.health = 0;
         fallen.status = status::DOWN;
-        for companion in array![standing(23, 22), adventurer(fallen, 23, 22, 0, 0)] {
-            segment2_row(
+        for companion in array![
+            PlayFixture::standing(23, 22), PlayFixture::adventurer(fallen, 23, 22, 0, 0),
+        ] {
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "companions",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22), companion], array![]),
+                PlayFixture::words(40, array![PlayFixture::standing(22, 22), companion], array![]),
                 open,
                 none.clone(),
                 0,
@@ -2438,13 +2527,17 @@ mod tests {
                 array![Action::Move(3), wait],
             );
         }
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "companions",
             @classes,
             @content,
-            words(40, array![standing(22, 22), adventurer(hurt, 25, 22, 0, 0)], array![]),
+            PlayFixture::words(
+                40,
+                array![PlayFixture::standing(22, 22), PlayFixture::adventurer(hurt, 25, 22, 0, 0)],
+                array![],
+            ),
             open,
             none.clone(),
             1,
@@ -2460,13 +2553,15 @@ mod tests {
         let mut bleeding = Fixture::spec();
         bleeding.conditions = [42, 0, 0, 0];
         for spec in array![regen, full, bleeding] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "regeneration",
                 @classes,
                 @content,
-                words(40, array![adventurer(spec, 22, 22, 0, 0)], array![]),
+                PlayFixture::words(
+                    40, array![PlayFixture::adventurer(spec, 22, 22, 0, 0)], array![],
+                ),
                 open,
                 none.clone(),
                 1,
@@ -2481,13 +2576,15 @@ mod tests {
             hasted
                 .effects =
                     [(9, false, deadline, 1), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "movement",
                 @classes,
                 @content,
-                words(40, array![adventurer(hasted, 22, 22, 0, 100)], array![]),
+                PlayFixture::words(
+                    40, array![PlayFixture::adventurer(hasted, 22, 22, 0, 100)], array![],
+                ),
                 open,
                 none.clone(),
                 0,
@@ -2501,13 +2598,13 @@ mod tests {
             array![Action::Turn(1), wait, Action::Turn(2)],
             array![Action::Turn(1), wait, Action::Turn(2), Action::Turn(3)],
         ] {
-            segment2_row(
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "turn",
                 @classes,
                 @content,
-                words(40, array![standing(22, 22)], array![]),
+                PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![]),
                 open,
                 none.clone(),
                 0,
@@ -2527,27 +2624,29 @@ mod tests {
         further.append(Action::Move(0));
         further.append(wait);
         west.append(wait);
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "follow",
             @classes,
             @content,
-            words(40, array![standing(22, 22)], array![]),
+            PlayFixture::words(40, array![PlayFixture::standing(22, 22)], array![]),
             open,
             none.clone(),
             0,
             20,
             west,
         );
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "follow",
             @classes,
             @content,
-            words(40, array![standing(29, 22)], array![]),
-            region(everything(), array![walled(21, 22)], array![], false),
+            PlayFixture::words(40, array![PlayFixture::standing(29, 22)], array![]),
+            PlayFixture::region(
+                PlayFixture::everything(), array![PlayFixture::walled(21, 22)], array![], false,
+            ),
             none.clone(),
             0,
             20,
@@ -2556,8 +2655,8 @@ mod tests {
         // `trap`, appended (id 43): the call sends `killed` empty and `defeated` false whatever the
         // world holds. Goblin 265 was killed earlier in the invocation (dead, in `killed`); the
         // Move West enters the terrain trap of (21, 22): the call's digest is over `killed` empty
-        let dead = goblin(265, HOB, 40, 41, ai::DEAD);
-        segment2_row(
+        let dead = PlayFixture::goblin(265, HOB, 40, 41, ai::DEAD);
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "trap",
@@ -2565,14 +2664,19 @@ mod tests {
             @content,
             Words {
                 clock: 40,
-                members: array![standing(22, 22)],
-                goblins: array![goblin(264, HOB, 40, 40, ai::ASLEEP), dead],
+                members: array![PlayFixture::standing(22, 22)],
+                goblins: array![PlayFixture::goblin(264, HOB, 40, 40, ai::ASLEEP), dead],
                 killed: array![265],
                 defeated: false,
             },
             open,
-            ground(
-                16, [trap_on(6, 7, object::TRAP, 0, 2), Default::default(), Default::default()], 0,
+            PlayFixture::ground(
+                16,
+                [
+                    PlayFixture::trap_on(6, 7, object::TRAP, 0, 2), Default::default(),
+                    Default::default(),
+                ],
+                0,
             ),
             0,
             10,
@@ -2581,15 +2685,15 @@ mod tests {
         // `combat`, appended (D-259, FIX-01): an instant trap skill (10, on bar slot 0) left no
         // weight by a Wait, refused as `Heavy`: the trap is not placed, the ground in `ok` is the
         // one given
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "combat",
             @classes,
             @content,
-            words(40, array![trapper()], array![]),
+            PlayFixture::words(40, array![PlayFixture::trapper()], array![]),
             open,
-            ground(16, FeaturesTrait::empty().objects, 0),
+            PlayFixture::ground(16, FeaturesTrait::empty().objects, 0),
             0,
             1,
             array![wait, Action::Skill((0, Target::Tile(WEST)))],
@@ -2599,22 +2703,31 @@ mod tests {
         // others): on chain the content holds it only because `play` reads the unused terrain
         // traps' skills (`GoblinsLibrary`, FIX-02b), and the client's content must too. The Move
         // West enters the trap, the class fires it
-        segment2_row(
+        PlayFixture::segment2_row(
             ref digest,
             ref id,
             "trap",
             @classes,
             @content,
-            words(40, array![standing(22, 22)], array![goblin(264, HOB, 40, 40, ai::ASLEEP)]),
+            PlayFixture::words(
+                40,
+                array![PlayFixture::standing(22, 22)],
+                array![PlayFixture::goblin(264, HOB, 40, 40, ai::ASLEEP)],
+            ),
             open,
-            ground(
-                16, [trap_on(6, 7, object::TRAP, 0, 10), Default::default(), Default::default()], 0,
+            PlayFixture::ground(
+                16,
+                [
+                    PlayFixture::trap_on(6, 7, object::TRAP, 0, 10), Default::default(),
+                    Default::default(),
+                ],
+                0,
             ),
             0,
             10,
             array![Action::Move(0), wait],
         );
-        finish(digest, SEGMENT2_DIGEST_4);
+        PlayFixture::finish(digest, SEGMENT2_DIGEST_4);
     }
 
     // Appended (RV-03c): two actions of one segment changing the same goblin, and E-1's exception
@@ -2629,41 +2742,34 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 224194950)] // ceil(1.05 × 213519000 measured)
     fn test_segment2_vectors_5() {
-        let classes = declared();
-        let content = segment2_content();
+        let classes = PlayFixture::declared();
+        let content = PlayFixture::segment2_content();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = SEGMENT2_PART_5;
         let wait = Action::Wait;
         for knocked in array![41_u32, 42] {
-            let mut late = goblin(249, HOB, 19, 22, ai::ASLEEP);
-            late.state += 30 * two(48);
-            late.timers += knocked.into() * two(184);
-            segment2_row(
+            let mut late = PlayFixture::goblin(249, HOB, 19, 22, ai::ASLEEP);
+            late.state += 30 * Fixture::two(48);
+            late.timers += knocked.into() * Fixture::two(184);
+            PlayFixture::segment2_row(
                 ref digest,
                 ref id,
                 "fits",
                 @classes,
                 @content,
-                words(
+                PlayFixture::words(
                     40,
-                    array![standing(22, 22)],
-                    array![goblin(248, HOB, 21, 22, ai::ASLEEP), late],
+                    array![PlayFixture::standing(22, 22)],
+                    array![PlayFixture::goblin(248, HOB, 21, 22, ai::ASLEEP), late],
                 ),
-                region(everything(), array![], array![], true),
-                ground(15, [Default::default(); 3], 0),
+                PlayFixture::region(PlayFixture::everything(), array![], array![], true),
+                PlayFixture::ground(15, [Default::default(); 3], 0),
                 0,
                 10,
                 array![wait, wait],
             );
         }
-        finish(digest, SEGMENT2_DIGEST_5);
-    }
-
-    /// A `segment2` part's digest, against the one its constant holds.
-    fn finish(digest: Array<felt252>, expected: felt252) {
-        let digest = core::poseidon::poseidon_hash_span(digest.span());
-        println!("digest {}", digest);
-        assert(digest == expected, 'vectors moved: regenerate');
+        PlayFixture::finish(digest, SEGMENT2_DIGEST_5);
     }
 
     /// The first id of each `segment2` part (a table too long for snforge's step limit is printed

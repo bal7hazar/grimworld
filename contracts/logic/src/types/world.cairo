@@ -989,7 +989,7 @@ mod tests {
     use crate::types::tick::{
         Content, ContentTrait, NO_SLOT, PotionSheet, Sheets, SkillSheet, ai, flag, status,
     };
-    use super::fixtures::{Fixture, HOB, RUNT, Script, activation_of, run};
+    use super::fixtures::{Fixture, HOB, RUNT, Script};
     use super::{
         Actor, Idle, Rules, TickTrait, Words, WordsTrait, World, WorldAssert, WorldStoreTrait,
         WorldTrait,
@@ -1006,9 +1006,9 @@ mod tests {
         spec.conditions = [77, 72, 0, 0];
         let member = Fixture::member(spec);
         let mut world = Fixture::world(69, array![member], array![Fixture::goblin(17, HOB)]);
-        run(ref world, 3);
+        Fixture::run(ref world, 3);
         assert(*world.members.at(0).health == 400 - 42, 'ticks 70-72: -14 each');
-        run(ref world, 3);
+        Fixture::run(ref world, 3);
         assert(*world.members.at(0).health == 400 - 60, 'ticks 73-75: -6 each');
         assert(world.clock == 75, 'clock');
     }
@@ -1049,33 +1049,71 @@ mod tests {
         fn objectives(ref self: Dressing, ref world: World) {}
     }
 
-    /// §10.3 from tick 70 to 76 with goblin 17's hits `hits`: the member's health after each
-    /// tick and its Bleeding deadline after ticks 70, 74 and 76. Field Dressing (bar slot 2, a
-    /// spell of activation 1) starts at clock 75 and resolves in step 1 of tick 76.
-    fn dressing(hits: Span<(u32, i32)>) -> (Array<u16>, Array<u32>) {
-        let sheets = Fixture::sheets();
-        let mut spec = Fixture::spec();
-        spec.conditions = [0, 72, 0, 0];
-        let mut world = Fixture::world(
-            69, array![Fixture::member(spec)], array![Fixture::goblin(17, HOB)],
-        );
-        let mut rules = Dressing { hits };
-        let mut health = array![];
-        let mut bleeding = array![];
-        while world.clock < 75 {
+    #[generate_trait]
+    impl WorldFixtureImpl of WorldFixture {
+        /// §10.3 from tick 70 to 76 with goblin 17's hits `hits`: the member's health after each
+        /// tick and its Bleeding deadline after ticks 70, 74 and 76. Field Dressing (bar slot 2, a
+        /// spell of activation 1) starts at clock 75 and resolves in step 1 of tick 76.
+        fn dressing(hits: Span<(u32, i32)>) -> (Array<u16>, Array<u32>) {
+            let sheets = Fixture::sheets();
+            let mut spec = Fixture::spec();
+            spec.conditions = [0, 72, 0, 0];
+            let mut world = Fixture::world(
+                69, array![Fixture::member(spec)], array![Fixture::goblin(17, HOB)],
+            );
+            let mut rules = Dressing { hits };
+            let mut health = array![];
+            let mut bleeding = array![];
+            while world.clock < 75 {
+                TickTrait::run(ref world, @sheets, 1, ref rules);
+                health.append(*world.members.at(0).health);
+                if world.clock == 70 || world.clock == 74 {
+                    bleeding.append(*world.members.at(0).bleeding);
+                }
+            }
+            let mut member = *world.members.at(0);
+            member.start(2, 0, 1, 75);
+            world.set_member(0, member);
             TickTrait::run(ref world, @sheets, 1, ref rules);
             health.append(*world.members.at(0).health);
-            if world.clock == 70 || world.clock == 74 {
-                bleeding.append(*world.members.at(0).bleeding);
+            bleeding.append(*world.members.at(0).bleeding);
+            (health, bleeding)
+        }
+
+        /// Nine goblins flagged awake, the member concluding bar slot 1 at 1.
+        fn nine_awake() -> (Array<MemberWords>, Array<GoblinWords>) {
+            let mut member = Fixture::member(Fixture::spec());
+            member.start(1, 0, 1, 0);
+            let mut goblins = array![];
+            let mut i: u16 = 0;
+            while i < 9 {
+                goblins.append(Fixture::goblin(8 + i, HOB).store());
+                i += 1;
+            }
+            (array![member.store()], goblins)
+        }
+
+        fn calm_world(case: u8) -> World {
+            let mut spec = Fixture::spec();
+            if case == 0 {
+                spec.health = 300;
+                spec.energy = 10;
+                spec.conditions = [7, 9, 0, 6];
+                spec
+                    .effects =
+                        [(1, false, 10, 12), (0, false, 0, 0), (1, false, 6, 12), (0, false, 0, 0)];
+                spec.effect_regen = [3, 0, -2, 0];
+                spec.health_regen = 2;
+                spec.energy_regen = 4;
+                let mut far = Fixture::goblin(8, HOB);
+                far.awake = false;
+                far.ai = ai::WATCH;
+                Fixture::world(4, array![Fixture::member(spec)], array![far])
+            } else {
+                spec.health = 0;
+                Fixture::world(4, array![Fixture::member(spec)], array![])
             }
         }
-        let mut member = *world.members.at(0);
-        member.start(2, 0, 1, 75);
-        world.set_member(0, member);
-        TickTrait::run(ref world, @sheets, 1, ref rules);
-        health.append(*world.members.at(0).health);
-        bleeding.append(*world.members.at(0).bleeding);
-        (health, bleeding)
     }
 
     // design/19 §10.3 to the unit (CBT-04, AC-3), through the rules a hit and the executor will
@@ -1087,7 +1125,7 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7893252)] // ceil(1.05 × 7517382 measured)
     fn test_example_condition_refreshed() {
-        let (health, bleeding) = dressing(array![(70, 8), (74, 8)].span());
+        let (health, bleeding) = WorldFixture::dressing(array![(70, 8), (74, 8)].span());
         assert(health == array![386, 372, 358, 352, 346, 340, 340], 'health 70-76');
         assert(bleeding == array![77, 81, 75], 'D: 77, 81, cured to 75');
     }
@@ -1098,7 +1136,7 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 7893252)] // ceil(1.05 × 7517382 measured)
     fn test_example_condition_refreshed_variant() {
-        let (health, bleeding) = dressing(array![(70, 8), (74, 2)].span());
+        let (health, bleeding) = WorldFixture::dressing(array![(70, 8), (74, 2)].span());
         assert(health == array![386, 372, 358, 352, 346, 340, 340], 'health 70-76');
         assert(bleeding == array![77, 77, 75], 'D: 77 kept');
     }
@@ -1113,11 +1151,11 @@ mod tests {
         goblin.health = 87;
         goblin.burning = 44;
         let mut world = Fixture::only(41, goblin);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(world.goblin(0).health == 73, 'tick 42');
-        run(ref world, 2);
+        Fixture::run(ref world, 2);
         assert(world.goblin(0).health == 45, 'tick 44');
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(world.goblin(0).health == 45, 'tick 45: burning over');
     }
 
@@ -1132,11 +1170,11 @@ mod tests {
         let sheets = Fixture::sheets();
         let mut goblin = Fixture::goblin(40, HOB);
         goblin.start(0, 0, 3, 50);
-        assert(activation_of(@goblin) == (0, 0, 53), 'A = 53');
+        assert(Fixture::activation_of(@goblin) == (0, 0, 53), 'A = 53');
         // Clock 51: the knock-down (t0 = 52, D = 53) interrupts.
         goblin.knocked = 53;
         goblin.interrupt(52, @sheets);
-        assert(activation_of(@goblin) == (activation::NONE, 0, 0), 'field none');
+        assert(Fixture::activation_of(@goblin) == (activation::NONE, 0, 0), 'field none');
         assert(goblin.recharge(0) == 61, 'R = 61');
         let mut world = Fixture::only(51, goblin);
         let mut rules: Script = Default::default();
@@ -1165,7 +1203,7 @@ mod tests {
         goblin.bleeding = 105;
         let frozen = goblin;
         let mut world = Fixture::only(102, goblin);
-        run(ref world, 4);
+        Fixture::run(ref world, 4);
         assert(world.goblin(0) == frozen, 'frozen: nothing read or written');
         let mut goblin = world.goblin(0);
         goblin.awake = true;
@@ -1173,7 +1211,7 @@ mod tests {
         let mut rules: Script = Default::default();
         TickTrait::run(ref world, @Fixture::sheets(), 1, ref rules);
         let goblin = @world.goblin(0);
-        assert(activation_of(goblin) == (activation::NONE, 0, 0), 'lapsed');
+        assert(Fixture::activation_of(goblin) == (activation::NONE, 0, 0), 'lapsed');
         assert(goblin.recharge(0) == 112, 'R = 103 + 10 - 1');
         assert(*goblin.health == 50, 'bleeding lost while frozen');
         assert(rules.resolved.len() == 0, 'a lapse does not resolve');
@@ -1183,7 +1221,7 @@ mod tests {
         goblin.start(0, 0, 3, 100);
         goblin.set_recharge(0, 200);
         let mut world = Fixture::only(106, goblin);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(world.goblin(0).recharge(0) == 200, 'later recharge kept');
     }
 
@@ -1199,12 +1237,15 @@ mod tests {
         // Plain attack, k = 2.
         let mut goblin = Fixture::goblin(9, RUNT);
         goblin.recover(2, 50);
-        assert(activation_of(@goblin) == (activation::RECOVERING, 0, 51), 'B = 51');
+        assert(Fixture::activation_of(@goblin) == (activation::RECOVERING, 0, 51), 'B = 51');
         let mut world = Fixture::only(50, goblin);
         let mut rules: Script = Default::default();
         TickTrait::run(ref world, @sheets, 2, ref rules);
         assert(rules.acts.span() == array![(52, 9)].span(), 'plain: acts at 52');
-        assert(activation_of(@world.goblin(0)) == (activation::NONE, 0, 0), 'recovery cleared');
+        assert(
+            Fixture::activation_of(@world.goblin(0)) == (activation::NONE, 0, 0),
+            'recovery cleared',
+        );
         // Attack skill with activation 1 (caste 2's slot 1), k = 2.
         let mut goblin = Fixture::goblin(9, RUNT);
         goblin.start(1, 0, 1, 50);
@@ -1225,7 +1266,9 @@ mod tests {
         let mut world = Fixture::only(50, goblin);
         let mut rules: Script = Default::default();
         TickTrait::run(ref world, @sheets, 1, ref rules);
-        assert(activation_of(@world.goblin(0)) == (activation::RECOVERING, 0, 52), 'B = 52');
+        assert(
+            Fixture::activation_of(@world.goblin(0)) == (activation::RECOVERING, 0, 52), 'B = 52',
+        );
         TickTrait::run(ref world, @sheets, 2, ref rules);
         assert(rules.acts.span() == array![(53, 9)].span(), 'n = 1, k = 3: acts at 53');
     }
@@ -1330,7 +1373,7 @@ mod tests {
         spec.health = 479;
         spec.health_regen = 10;
         let mut world = Fixture::world(0, array![Fixture::member(spec)], array![]);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(*world.members.at(0).health == 480, 'max health');
     }
 
@@ -1347,7 +1390,7 @@ mod tests {
         spec.effects = [(1, false, 99, 0); 4];
         spec.conditions = [99, 99, 99, 0];
         let mut world = Fixture::world(0, array![Fixture::member(spec)], array![]);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(*world.members.at(0).health == 380, '-64 pips: -20');
         let mut spec = Fixture::spec();
         spec.health = 300;
@@ -1355,7 +1398,7 @@ mod tests {
         spec.effect_regen = [10; 4];
         spec.effects = [(1, false, 99, 0); 4];
         let mut world = Fixture::world(0, array![Fixture::member(spec)], array![]);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(*world.members.at(0).health == 320, '+50 pips: +20');
     }
 
@@ -1376,14 +1419,14 @@ mod tests {
         let mut world = Fixture::world(
             0, array![Fixture::member(spec)], array![alerted, frozen_engaged],
         );
-        run(ref world, 2);
+        Fixture::run(ref world, 2);
         assert(*world.members.at(0).adrenaline == 3, 'member: -1 a tick');
         assert(world.goblin(0).adrenaline == 0, 'goblin: floored at 0');
         // In combat: an awake goblin is Engaged.
         let mut engaged = Fixture::goblin(8, HOB);
         engaged.adrenaline = 4;
         let mut world = Fixture::world(0, array![Fixture::member(spec)], array![engaged]);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(*world.members.at(0).adrenaline == 5, 'member in combat keeps');
         assert(world.goblin(0).adrenaline == 4, 'engaged goblin keeps');
     }
@@ -1406,13 +1449,13 @@ mod tests {
         let mut world = Fixture::world(
             0, array![Fixture::member(Fixture::spec())], array![a, b, c],
         );
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(world.killed.span() == array![8, 12].span(), 'killed in id order');
         assert(world.goblin(0).ai == ai::DEAD && world.goblin(1).ai == ai::DEAD, 'dead');
         assert(world.goblin(0).health == 0, 'at 0');
         assert(world.goblin(2).energy == 30, 'energy at 10 x 3');
         let dead = world.goblin(0);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(world.killed.len() == 2 && world.goblin(0) == dead, 'dead untouched');
         // The executor's kill: at once, once.
         world.kill(2);
@@ -1431,7 +1474,7 @@ mod tests {
         spec.health = 6;
         spec.conditions = [9, 9, 9, 0];
         let mut world = Fixture::world(0, array![Fixture::member(spec)], array![]);
-        run(ref world, 3);
+        Fixture::run(ref world, 3);
         let member = world.members.at(0);
         assert(*member.health == 0 && *member.status == status::DOWN, 'down');
         assert(world.defeated && world.clock == 1, 'stopped after the tick');
@@ -1483,7 +1526,7 @@ mod tests {
         let mut spec = Fixture::spec();
         spec.flags = flag::TURNED + flag::INSTANT + flag::HIT + flag::HALVED;
         let mut world = Fixture::world(0, array![Fixture::member(spec)], array![]);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
         assert(*world.members.at(0).flags == flag::HALVED, 'flags');
     }
 
@@ -1612,19 +1655,6 @@ mod tests {
         world.assert_distances(array![].span());
     }
 
-    /// Nine goblins flagged awake, the member concluding bar slot 1 at 1.
-    fn nine_awake() -> (Array<MemberWords>, Array<GoblinWords>) {
-        let mut member = Fixture::member(Fixture::spec());
-        member.start(1, 0, 1, 0);
-        let mut goblins = array![];
-        let mut i: u16 = 0;
-        while i < 9 {
-            goblins.append(Fixture::goblin(8 + i, HOB).store());
-            i += 1;
-        }
-        (array![member.store()], goblins)
-    }
-
     // More than 8 awake goblins is not a state of the game (design/02): the set is refused where it
     // is formed, so no tick runs over it, even one the member's defeat would stop in step 1 before
     // the goblins' turn (CBT-02d, #196's review). The world made of them.
@@ -1640,7 +1670,7 @@ mod tests {
             i += 1;
         }
         let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], goblins);
-        run(ref world, 1);
+        Fixture::run(ref world, 1);
     }
 
     // The same through the library call's load.
@@ -1649,7 +1679,7 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 9036930)] // ceil(1.05 × 8606600 measured)
     fn test_world_assert_awake_loaded() {
-        let (members, goblins) = nine_awake();
+        let (members, goblins) = WorldFixture::nine_awake();
         let words = Words { clock: 0, members, goblins, killed: array![], defeated: false };
         let (mut world, sheets) = words.load(@Fixture::content());
         let mut rules: Script = Default::default();
@@ -1664,7 +1694,7 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 9471613)] // ceil(1.05 × 9020583 measured)
     fn test_world_assert_awake_perceived() {
-        let (members, goblins) = nine_awake();
+        let (members, goblins) = WorldFixture::nine_awake();
         let mut goblins = goblins;
         let mut frozen = goblins.pop_front().unwrap();
         frozen.awake = false;
@@ -1685,7 +1715,7 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 9180112)] // ceil(1.05 × 8742963 measured)
     fn test_defeat_in_step_1_with_eight_awake() {
-        let (members, mut goblins) = nine_awake();
+        let (members, mut goblins) = WorldFixture::nine_awake();
         let _ = goblins.pop_front();
         let words = Words { clock: 0, members, goblins, killed: array![], defeated: false };
         let (mut world, sheets) = words.load(@Fixture::content());
@@ -1700,36 +1730,15 @@ mod tests {
     // world (no goblin awake, no member activating), tick by tick: a member regenerating with its
     // conditions and effects running out beside a frozen goblin, ticks 4 to 14; a member inside at
     // 0 health, defeated at once.
-    fn calm_world(case: u8) -> World {
-        let mut spec = Fixture::spec();
-        if case == 0 {
-            spec.health = 300;
-            spec.energy = 10;
-            spec.conditions = [7, 9, 0, 6];
-            spec
-                .effects =
-                    [(1, false, 10, 12), (0, false, 0, 0), (1, false, 6, 12), (0, false, 0, 0)];
-            spec.effect_regen = [3, 0, -2, 0];
-            spec.health_regen = 2;
-            spec.energy_regen = 4;
-            let mut far = Fixture::goblin(8, HOB);
-            far.awake = false;
-            far.ai = ai::WATCH;
-            Fixture::world(4, array![Fixture::member(spec)], array![far])
-        } else {
-            spec.health = 0;
-            Fixture::world(4, array![Fixture::member(spec)], array![])
-        }
-    }
 
     #[test]
     #[available_gas(l2_gas: 24622962)] // ceil(1.05 × 23450440 measured)
     fn test_idle_equals_run_with_idle() {
         let sheets = Fixture::sheets();
         for case in 0..2_u8 {
-            let mut fast = calm_world(case);
+            let mut fast = WorldFixture::calm_world(case);
             assert(fast.calm(), 'calm');
-            let mut slow = calm_world(case);
+            let mut slow = WorldFixture::calm_world(case);
             let mut rules = Idle {};
             let mut k: u8 = 0;
             while k < 10 {

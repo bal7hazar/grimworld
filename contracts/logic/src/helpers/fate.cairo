@@ -122,33 +122,54 @@ mod tests {
     use crate::helpers::packing::LIVE;
     use super::{FateTrait, LOOT, PURPOSES};
 
-    fn hex(felts: Span<felt252>) -> ByteArray {
-        let mut out: ByteArray = "[";
-        let mut first = true;
-        for felt in felts {
-            if !first {
-                out.append(@",");
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn hex(felts: Span<felt252>) -> ByteArray {
+            let mut out: ByteArray = "[";
+            let mut first = true;
+            for felt in felts {
+                if !first {
+                    out.append(@",");
+                }
+                first = false;
+                let wide: u256 = (*felt).into();
+                out.append(@format!("\"0x{:x}\"", wide));
             }
-            first = false;
-            let wide: u256 = (*felt).into();
-            out.append(@format!("\"0x{:x}\"", wide));
+            out.append(@"]");
+            out
         }
-        out.append(@"]");
-        out
-    }
 
-    /// Prints one vector and adds it to the digest.
-    fn emit(
-        ref digest: Array<felt252>,
-        ref id: u32,
-        name: ByteArray,
-        case: Span<felt252>,
-        ok: Span<felt252>,
-    ) {
-        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
-        digest.append(poseidon_hash_span(case));
-        digest.append(poseidon_hash_span(ok));
-        id += 1;
+        /// Prints one vector and adds it to the digest.
+        fn emit(
+            ref digest: Array<felt252>,
+            ref id: u32,
+            name: ByteArray,
+            case: Span<felt252>,
+            ok: Span<felt252>,
+        ) {
+            println!(
+                "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}",
+                id,
+                name,
+                Self::hex(case),
+                Self::hex(ok),
+            );
+            digest.append(poseidon_hash_span(case));
+            digest.append(poseidon_hash_span(ok));
+            id += 1;
+        }
+
+        fn all_distinct(values: Span<felt252>) -> bool {
+            let n = values.len();
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    if *values.at(i) == *values.at(j) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
     }
 
     // The last felt below the field's prime, `P - 1`.
@@ -169,7 +190,7 @@ mod tests {
         // The purposes, by index.
         let mut i: felt252 = 0;
         for purpose in PURPOSES.span() {
-            emit(ref digest, ref id, "purpose", [i].span(), [*purpose].span());
+            Fixture::emit(ref digest, ref id, "purpose", [i].span(), [*purpose].span());
             i += 1;
         }
         // `domain`: every purpose over a spread of subjects and counters.
@@ -181,7 +202,7 @@ mod tests {
             for pair in pairs.span() {
                 let (subject, counter) = *pair;
                 let ok = FateTrait::domain(subject, counter, *purpose);
-                emit(
+                Fixture::emit(
                     ref digest, ref id, "domain", [subject, counter, *purpose].span(), [ok].span(),
                 );
             }
@@ -193,7 +214,9 @@ mod tests {
         for subject in subjects.span() {
             for counter in counters.span() {
                 let ok = FateTrait::domain(*subject, *counter, entry);
-                emit(ref digest, ref id, "domain", [*subject, *counter, entry].span(), [ok].span());
+                Fixture::emit(
+                    ref digest, ref id, "domain", [*subject, *counter, entry].span(), [ok].span(),
+                );
             }
         }
         // `derive`: words, domains and indices at their edges.
@@ -205,7 +228,7 @@ mod tests {
                 for index in indices.span() {
                     let ok = FateTrait::derive(*word, *dom, *index);
                     let index_felt: felt252 = (*index).into();
-                    emit(
+                    Fixture::emit(
                         ref digest, ref id, "derive", [*word, *dom, index_felt].span(), [ok].span(),
                     );
                 }
@@ -221,17 +244,6 @@ mod tests {
 
     // ADR-0002, rule 2: one domain purpose per use of Fate, all distinct; `derive` gives a distinct
     // value per domain and per index, and is `poseidon(word, domain, index)` (the plain oracle).
-    fn all_distinct(values: Span<felt252>) -> bool {
-        let n = values.len();
-        for i in 0..n {
-            for j in (i + 1)..n {
-                if *values.at(i) == *values.at(j) {
-                    return false;
-                }
-            }
-        }
-        true
-    }
 
     // The nine purposes (ENG-05 added the reveal's) are distinct, and so are their domains for one
     // subject and counter.
@@ -241,12 +253,12 @@ mod tests {
     fn test_purposes_distinct() {
         let purposes = PURPOSES.span();
         assert(purposes.len() == 9, 'nine purposes');
-        assert(all_distinct(purposes), 'purposes distinct');
+        assert(Fixture::all_distinct(purposes), 'purposes distinct');
         let mut domains = array![];
         for purpose in purposes {
             domains.append(FateTrait::domain(0x100000001, 7, *purpose));
         }
-        assert(all_distinct(domains.span()), 'domains distinct');
+        assert(Fixture::all_distinct(domains.span()), 'domains distinct');
     }
 
     // A domain binds its subject, its counter and their order: the same purpose in another
@@ -257,7 +269,7 @@ mod tests {
         let base = FateTrait::domain(1, 2, LOOT);
         assert(base == poseidon_hash_span(array![1, 2, LOOT].span()), 'poseidon(s, c, p)');
         assert(
-            all_distinct(
+            Fixture::all_distinct(
                 array![
                     base, FateTrait::domain(3, 2, LOOT), FateTrait::domain(1, 3, LOOT),
                     FateTrait::domain(2, 1, LOOT),
@@ -299,7 +311,7 @@ mod tests {
             }
         }
         assert(values.len() == 46, 'forty-six');
-        assert(all_distinct(values.span()), 'all distinct');
+        assert(Fixture::all_distinct(values.span()), 'all distinct');
     }
 
     // For any word and index, the next index and another word give other values; the same inputs

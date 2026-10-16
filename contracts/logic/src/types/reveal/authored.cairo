@@ -280,107 +280,110 @@ mod tests {
 
     const INSTANCE: felt252 = 7;
 
-    /// A 3 × 1 authored zone, its chunk set chunks 0 and 1 (chunk 2 void): a vein among both, a
-    /// Heart in chunk 1 only, the band 2 to 6.
-    fn site() -> Site {
-        Site {
-            target: 0,
-            biome: 1,
-            level_min: 2,
-            level_max: 6,
-            width: 3,
-            height: 1,
-            entry_chunk: 0,
-            chunk_set: 3,
-            west: 0,
-            north: 0,
-            masks: array![].span(),
-            anchors: array![].span(),
-            quotas: QuotaSet {
-                quotas: [
-                    Quota { kind: quota::VEIN, param: 0, count: 1 },
-                    Quota { kind: quota::HEART, param: 1, count: 1 }, Default::default(),
-                    Default::default(), Default::default(), Default::default(),
-                ],
-            },
-            tasks: array![].span(),
-            spawn: SpawnTable { spawns: [Default::default(); 7], density: 0, trap: 0 },
-            packs: array![
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        /// A 3 × 1 authored zone, its chunk set chunks 0 and 1 (chunk 2 void): a vein among both,
+        /// a Heart in chunk 1 only, the band 2 to 6.
+        fn site() -> Site {
+            Site {
+                target: 0,
+                biome: 1,
+                level_min: 2,
+                level_max: 6,
+                width: 3,
+                height: 1,
+                entry_chunk: 0,
+                chunk_set: 3,
+                west: 0,
+                north: 0,
+                masks: array![].span(),
+                anchors: array![].span(),
+                quotas: QuotaSet {
+                    quotas: [
+                        Quota { kind: quota::VEIN, param: 0, count: 1 },
+                        Quota { kind: quota::HEART, param: 1, count: 1 }, Default::default(),
+                        Default::default(), Default::default(), Default::default(),
+                    ],
+                },
+                tasks: array![].span(),
+                spawn: SpawnTable { spawns: [Default::default(); 7], density: 0, trap: 0 },
+                packs: array![
+                    (
+                        1,
+                        Pack {
+                            castes: [
+                                PackCaste { caste: 1, min: 1, max: 2 },
+                                PackCaste { caste: 2, min: 1, max: 3 }, Default::default(),
+                                Default::default(), Default::default(),
+                            ],
+                            level: 0,
+                        },
+                    ),
+                ]
+                    .span(),
+                pieces: array![].span(),
+            }
+        }
+
+        fn candidates() -> Span<felt252> {
+            array![3, 2, 0, 0, 0, 0].span()
+        }
+
+        /// Chunk 0: a spawn point and a chest; chunk 1: none; both their interior floor. Candidate
+        /// tiles: the vein's at 100 in both, the Heart's at 112 in chunk 1.
+        fn records() -> Span<(u8, ZoneChunk)> {
+            let walls = BOARD - INTERIOR;
+            array![
                 (
-                    1,
-                    Pack {
-                        castes: [
-                            PackCaste { caste: 1, min: 1, max: 2 },
-                            PackCaste { caste: 2, min: 1, max: 3 }, Default::default(),
+                    0,
+                    ZoneChunk {
+                        walls,
+                        spawns: [SetPack { tile: 32, template: 1 }, Default::default()],
+                        objects: [
+                            Object { tile: 40, kind: object::CHEST, state: 0, param: 0 },
                             Default::default(), Default::default(),
                         ],
-                        level: 0,
+                        tiles: [100, 0, 0, 0, 0, 0],
+                        bridges: 0,
+                        gates: [0, 0],
+                    },
+                ),
+                (
+                    1,
+                    ZoneChunk {
+                        walls,
+                        spawns: [Default::default(), Default::default()],
+                        objects: [Default::default(), Default::default(), Default::default()],
+                        tiles: [100, 112, 0, 0, 0, 0],
+                        bridges: 0,
+                        gates: [0, 0],
                     },
                 ),
             ]
-                .span(),
-            pieces: array![].span(),
+                .span()
         }
-    }
 
-    fn candidates() -> Span<felt252> {
-        array![3, 2, 0, 0, 0, 0].span()
-    }
+        fn reveal(entropy: felt252, chunks: Span<u8>) -> (Progress, Array<Revealed>) {
+            let site = Self::site();
+            let mut progress = ProgressTrait::new(@site, entropy);
+            let hosts = AuthoredTrait::hosts(
+                @site.quotas, Self::candidates(), EntropyTrait::authored_hosts(entropy, INSTANCE),
+            );
+            let out = AuthoredTrait::reveal(
+                @site, ref progress, INSTANCE, Self::records(), hosts.span(), chunks,
+            );
+            (progress, out)
+        }
 
-    /// Chunk 0: a spawn point and a chest; chunk 1: none; both their interior floor. Candidate
-    /// tiles: the vein's at 100 in both, the Heart's at 112 in chunk 1.
-    fn records() -> Span<(u8, ZoneChunk)> {
-        let walls = BOARD - INTERIOR;
-        array![
-            (
-                0,
-                ZoneChunk {
-                    walls,
-                    spawns: [SetPack { tile: 32, template: 1 }, Default::default()],
-                    objects: [
-                        Object { tile: 40, kind: object::CHEST, state: 0, param: 0 },
-                        Default::default(), Default::default(),
-                    ],
-                    tiles: [100, 0, 0, 0, 0, 0],
-                    bridges: 0,
-                    gates: [0, 0],
-                },
-            ),
-            (
-                1,
-                ZoneChunk {
-                    walls,
-                    spawns: [Default::default(), Default::default()],
-                    objects: [Default::default(), Default::default(), Default::default()],
-                    tiles: [100, 112, 0, 0, 0, 0],
-                    bridges: 0,
-                    gates: [0, 0],
-                },
-            ),
-        ]
-            .span()
-    }
-
-    fn reveal(entropy: felt252, chunks: Span<u8>) -> (Progress, Array<Revealed>) {
-        let site = site();
-        let mut progress = ProgressTrait::new(@site, entropy);
-        let hosts = AuthoredTrait::hosts(
-            @site.quotas, candidates(), EntropyTrait::authored_hosts(entropy, INSTANCE),
-        );
-        let out = AuthoredTrait::reveal(
-            @site, ref progress, INSTANCE, records(), hosts.span(), chunks,
-        );
-        (progress, out)
-    }
-
-    fn chunk_of(out: @Array<Revealed>, chunk: u8) -> Revealed {
-        let mut found: Option<Revealed> = None;
-        for entry in out.span() {
-            if *entry.chunk == chunk {
-                found = Some(*entry);
+        fn chunk_of(out: @Array<Revealed>, chunk: u8) -> Revealed {
+            let mut found: Option<Revealed> = None;
+            for entry in out.span() {
+                if *entry.chunk == chunk {
+                    found = Some(*entry);
+                }
             }
+            found.unwrap()
         }
-        found.unwrap()
     }
 
     // D-208: the chunks revealed in either order within one call give the same words and the same
@@ -391,11 +394,13 @@ mod tests {
     fn test_authored_reveal_order_free() {
         let mut entropy: felt252 = 0x1234;
         for _ in 0..8_u8 {
-            let (first, a) = reveal(entropy, array![0, 1].span());
-            let (second, b) = reveal(entropy, array![1, 0].span());
+            let (first, a) = Fixture::reveal(entropy, array![0, 1].span());
+            let (second, b) = Fixture::reveal(entropy, array![1, 0].span());
             assert(first == second, 'progress');
             assert(
-                chunk_of(@a, 0) == chunk_of(@b, 0) && chunk_of(@a, 1) == chunk_of(@b, 1), 'words',
+                Fixture::chunk_of(@a, 0) == Fixture::chunk_of(@b, 0)
+                    && Fixture::chunk_of(@a, 1) == Fixture::chunk_of(@b, 1),
+                'words',
             );
             entropy = entropy * 31 + 17;
         }
@@ -408,7 +413,7 @@ mod tests {
     fn test_authored_reveal_places_as_drawn() {
         let mut entropy: felt252 = 0x77;
         for _ in 0..8_u8 {
-            let (progress, out) = reveal(entropy, array![0, 1, 2].span());
+            let (progress, out) = Fixture::reveal(entropy, array![0, 1, 2].span());
             assert(out.len() == 2 && progress.count == 2 && progress.revealed == 3, 'revealed');
             assert(*progress.left.span()[0] == 0 && *progress.left.span()[1] == 0, 'spent');
             let mut veins: u8 = 0;
@@ -423,11 +428,11 @@ mod tests {
                 }
             }
             assert(veins == 1, 'one vein');
-            let [heart, _] = chunk_of(@out, 1).features.packs;
+            let [heart, _] = Fixture::chunk_of(@out, 1).features.packs;
             assert(heart.tile == 112 && heart.level == 6 && heart.count >= 2, 'heart');
-            let [spawn, _] = chunk_of(@out, 0).features.packs;
+            let [spawn, _] = Fixture::chunk_of(@out, 0).features.packs;
             assert(spawn.tile == 32 && spawn.level >= 2 && spawn.level <= 6, 'spawn');
-            let [chest, _, _] = chunk_of(@out, 0).features.objects;
+            let [chest, _, _] = Fixture::chunk_of(@out, 0).features.objects;
             assert(chest.kind == object::CHEST && chest.tile == 40, 'chest kept');
             entropy = entropy * 31 + 17;
         }
@@ -438,20 +443,27 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 9780031)] // ceil(1.05 × 9314315 measured)
     fn test_authored_reveal_widest_band() {
-        let mut wide = site();
+        let mut wide = Fixture::site();
         wide.level_min = 0;
         wide.level_max = 254;
         let mut entropy: felt252 = 0x99;
         for _ in 0..4_u8 {
             let mut progress = ProgressTrait::new(@wide, entropy);
             let hosts = AuthoredTrait::hosts(
-                @wide.quotas, candidates(), EntropyTrait::authored_hosts(entropy, INSTANCE),
+                @wide.quotas,
+                Fixture::candidates(),
+                EntropyTrait::authored_hosts(entropy, INSTANCE),
             );
             let out = AuthoredTrait::reveal(
-                @wide, ref progress, INSTANCE, records(), hosts.span(), array![0, 1].span(),
+                @wide,
+                ref progress,
+                INSTANCE,
+                Fixture::records(),
+                hosts.span(),
+                array![0, 1].span(),
             );
-            let [spawn, _] = chunk_of(@out, 0).features.packs;
-            let [heart, _] = chunk_of(@out, 1).features.packs;
+            let [spawn, _] = Fixture::chunk_of(@out, 0).features.packs;
+            let [heart, _] = Fixture::chunk_of(@out, 1).features.packs;
             assert(spawn.count != 0 && heart.count != 0 && heart.level == 254, 'packs laid');
             entropy = entropy * 31 + 17;
         }
@@ -461,7 +473,7 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 503099)] // ceil(1.05 × 479141 measured)
     fn test_authored_reveal_missing_record() {
-        let site = site();
+        let site = Fixture::site();
         let mut progress = ProgressTrait::new(@site, 5);
         let out = AuthoredTrait::reveal(
             @site, ref progress, INSTANCE, array![].span(), array![0, 0].span(), array![1].span(),

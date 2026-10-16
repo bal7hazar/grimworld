@@ -372,8 +372,27 @@ mod tests {
     use hexx::board::seams::{SeamTrait, Side};
     use super::{BOARD, BoardTrait, CENTRE, EAST, INTERIOR, NORTH, SOUTH, SPINE, WEST};
 
-    fn at(column: u8, row: u8) -> u8 {
-        row * 15 + column
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn at(column: u8, row: u8) -> u8 {
+            row * 15 + column
+        }
+
+        /// The tiles within 2 of `tile` by `hexx`'s hexagon (N-6), an odd chunk a row up on 15 ×
+        /// 16.
+        fn hexagon(tile: u8, odd: bool) -> felt252 {
+            if odd {
+                let shifted = HexMapTrait::new(0, 15, 16, 0).hexagon(tile + 15, 2);
+                let row: felt252 = 0x7fff;
+                (shifted - BoardTrait::and(shifted, row)) * Bits::inv(15)
+            } else {
+                HexMapTrait::new(0, 15, 15, 0).hexagon(tile, 2)
+            }
+        }
+
+        fn near(tile: u8, odd: bool) -> felt252 {
+            BoardTrait::near_openings(Bits::pow(tile), array![].span(), odd)
+        }
     }
 
     // The sides against `hexx`'s seams (N-2): `Side::West` is column 14, `East` column 0, `South`
@@ -397,22 +416,28 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 543594)] // ceil(1.05 × 517708 measured)
     fn test_lines_reach_the_spine() {
-        let ring = Bits::pow(at(0, 3))
-            + Bits::pow(at(14, 11))
-            + Bits::pow(at(4, 0))
-            + Bits::pow(at(9, 14));
+        let ring = Bits::pow(Fixture::at(0, 3))
+            + Bits::pow(Fixture::at(14, 11))
+            + Bits::pow(Fixture::at(4, 0))
+            + Bits::pow(Fixture::at(9, 14));
         let lines = BoardTrait::lines(ring);
         let mut column: u8 = 1;
         while column != 8 {
-            assert(BoardTrait::has(lines, at(column, 3)), 'east line');
-            assert(BoardTrait::has(lines, at(column + 6, 11)), 'west line');
-            assert(BoardTrait::has(lines, at(4, column)), 'south line');
-            assert(BoardTrait::has(lines, at(9, column + 6)), 'north line');
+            assert(BoardTrait::has(lines, Fixture::at(column, 3)), 'east line');
+            assert(BoardTrait::has(lines, Fixture::at(column + 6, 11)), 'west line');
+            assert(BoardTrait::has(lines, Fixture::at(4, column)), 'south line');
+            assert(BoardTrait::has(lines, Fixture::at(9, column + 6)), 'north line');
             column += 1;
         }
         assert(BoardTrait::and(lines, INTERIOR) == lines, 'interior only');
-        assert(BoardTrait::anchor_line(at(3, 5)) == Bits::pow(at(3, 5)) * 0x1f, 'anchor west');
-        assert(BoardTrait::anchor_line(at(11, 5)) == Bits::pow(at(7, 5)) * 0x1f, 'anchor east');
+        assert(
+            BoardTrait::anchor_line(Fixture::at(3, 5)) == Bits::pow(Fixture::at(3, 5)) * 0x1f,
+            'anchor west',
+        );
+        assert(
+            BoardTrait::anchor_line(Fixture::at(11, 5)) == Bits::pow(Fixture::at(7, 5)) * 0x1f,
+            'anchor east',
+        );
     }
 
     // Every interior anchor's line holds the anchor itself, so `generate` joins it with one or
@@ -435,15 +460,15 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 42099)] // ceil(1.05 × 40094 measured)
     fn test_copy_faces_the_neighbour() {
-        let floor = Bits::pow(at(0, 4))
-            + Bits::pow(at(14, 6))
-            + Bits::pow(at(3, 14))
-            + Bits::pow(at(8, 0))
-            + Bits::pow(at(7, 7));
-        assert(BoardTrait::copy(0, floor) == Bits::pow(at(14, 4)), 'west');
-        assert(BoardTrait::copy(1, floor) == Bits::pow(at(0, 6)), 'east');
-        assert(BoardTrait::copy(2, floor) == Bits::pow(at(3, 0)), 'south');
-        assert(BoardTrait::copy(3, floor) == Bits::pow(at(8, 14)), 'north');
+        let floor = Bits::pow(Fixture::at(0, 4))
+            + Bits::pow(Fixture::at(14, 6))
+            + Bits::pow(Fixture::at(3, 14))
+            + Bits::pow(Fixture::at(8, 0))
+            + Bits::pow(Fixture::at(7, 7));
+        assert(BoardTrait::copy(0, floor) == Bits::pow(Fixture::at(14, 4)), 'west');
+        assert(BoardTrait::copy(1, floor) == Bits::pow(Fixture::at(0, 6)), 'east');
+        assert(BoardTrait::copy(2, floor) == Bits::pow(Fixture::at(3, 0)), 'south');
+        assert(BoardTrait::copy(3, floor) == Bits::pow(Fixture::at(8, 14)), 'north');
     }
 
     // `nth` against a scan of the bits.
@@ -464,21 +489,6 @@ mod tests {
         }
     }
 
-    /// The tiles within 2 of `tile` by `hexx`'s hexagon (N-6), an odd chunk a row up on 15 × 16.
-    fn hexagon(tile: u8, odd: bool) -> felt252 {
-        if odd {
-            let shifted = HexMapTrait::new(0, 15, 16, 0).hexagon(tile + 15, 2);
-            let row: felt252 = 0x7fff;
-            (shifted - BoardTrait::and(shifted, row)) * Bits::inv(15)
-        } else {
-            HexMapTrait::new(0, 15, 15, 0).hexagon(tile, 2)
-        }
-    }
-
-    fn near(tile: u8, odd: bool) -> felt252 {
-        BoardTrait::near_openings(Bits::pow(tile), array![].span(), odd)
-    }
-
     // Two dilations against `hexx`'s hexagon of radius 2, from every tile of the chunk, both
     // parities; and from several tiles at once, the union.
     #[test]
@@ -486,14 +496,14 @@ mod tests {
     fn test_dilation_against_hexagons() {
         let mut tile: u8 = 0;
         while tile != 225 {
-            assert(near(tile, false) == hexagon(tile, false), 'even');
-            assert(near(tile, true) == hexagon(tile, true), 'odd');
+            assert(Fixture::near(tile, false) == Fixture::hexagon(tile, false), 'even');
+            assert(Fixture::near(tile, true) == Fixture::hexagon(tile, true), 'odd');
             tile += 1;
         }
         let tiles = Bits::pow(0) + Bits::pow(29) + Bits::pow(112) + Bits::pow(223);
         let union = BoardTrait::or(
-            BoardTrait::or(hexagon(0, true), hexagon(29, true)),
-            BoardTrait::or(hexagon(112, true), hexagon(223, true)),
+            BoardTrait::or(Fixture::hexagon(0, true), Fixture::hexagon(29, true)),
+            BoardTrait::or(Fixture::hexagon(112, true), Fixture::hexagon(223, true)),
         );
         assert(BoardTrait::near_openings(tiles, array![].span(), true) == union, 'union');
     }
@@ -502,11 +512,17 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 1036455)] // ceil(1.05 × 987100 measured)
     fn test_near() {
-        assert(BoardTrait::count(near(CENTRE, false)) == 19, 'even');
-        assert(BoardTrait::count(near(CENTRE, true)) == 19, 'odd');
-        assert(near(CENTRE, false) != near(CENTRE, true), 'parities');
-        assert(BoardTrait::count(near(at(0, 7), true)) == 11, 'east side, global even');
-        assert(BoardTrait::count(near(at(7, 0), true)) == 12, 'south side');
-        assert(BoardTrait::count(near(at(0, 7), false)) == 13, 'east side, global odd');
+        assert(BoardTrait::count(Fixture::near(CENTRE, false)) == 19, 'even');
+        assert(BoardTrait::count(Fixture::near(CENTRE, true)) == 19, 'odd');
+        assert(Fixture::near(CENTRE, false) != Fixture::near(CENTRE, true), 'parities');
+        assert(
+            BoardTrait::count(Fixture::near(Fixture::at(0, 7), true)) == 11,
+            'east side, global even',
+        );
+        assert(BoardTrait::count(Fixture::near(Fixture::at(7, 0), true)) == 12, 'south side');
+        assert(
+            BoardTrait::count(Fixture::near(Fixture::at(0, 7), false)) == 13,
+            'east side, global odd',
+        );
     }
 }

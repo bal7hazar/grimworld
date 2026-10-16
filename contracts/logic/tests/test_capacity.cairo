@@ -230,6 +230,21 @@ impl FixtureImpl of Fixture {
         );
         (stats, bar, kit)
     }
+
+    /// A loadout whose prefix is `prefix` and whose other slots hold a knock-down tick, which any
+    /// source may carry.
+    fn with_prefix(prefix: Modifier) -> Span<Passive> {
+        let knock = Self::passive(id::KNOCKDOWN_FLAT, 0, 1);
+        let none: Passive = Default::default();
+        Self::loadout(
+            prefix,
+            Self::modifier(slot::SUFFIX, knock, none),
+            Self::modifier(slot::INSCRIPTION, knock, none),
+            Self::modifier(slot::INSIGNIA, knock, none),
+            Self::modifier(slot::RUNE, knock, none),
+            ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]),
+        )
+    }
 }
 
 // Kept in `tests/`: it flattens across `models::modifier`, `models::armor_set` and the snapshot's
@@ -329,21 +344,6 @@ fn test_flatten_saturated_extremes() {
     assert(bar.quick_cast == [pair, pair], 'two pairs');
 }
 
-/// A loadout whose prefix is `prefix` and whose other slots hold a knock-down tick, which any
-/// source may carry.
-fn with_prefix(prefix: Modifier) -> Span<Passive> {
-    let knock = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 1);
-    let none: Passive = Default::default();
-    Fixture::loadout(
-        prefix,
-        Fixture::modifier(slot::SUFFIX, knock, none),
-        Fixture::modifier(slot::INSCRIPTION, knock, none),
-        Fixture::modifier(slot::INSIGNIA, knock, none),
-        Fixture::modifier(slot::RUNE, knock, none),
-        ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]),
-    )
-}
-
 // Kept in `tests/`: it flattens across `models::modifier`, `models::armor_set` and the snapshot's
 // three words (ruling 3).
 // CBT-9 (CBT-01's audit): a prefix whose benefit and cost name the same condition is legal, and
@@ -358,7 +358,7 @@ fn test_same_condition_summed() {
         Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 13),
     );
     prefix.assert_legal();
-    let (_, _, kit) = Fixture::flatten(with_prefix(prefix), 0);
+    let (_, _, kit) = Fixture::flatten(Fixture::with_prefix(prefix), 0);
     assert(kit.condition == condition::BLEEDING && kit.condition_duration == 33, '20 + 13');
 }
 

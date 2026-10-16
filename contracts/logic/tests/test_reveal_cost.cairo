@@ -21,122 +21,126 @@ use snforge_std::{ContractClassTrait, DeclareResultTrait, declare};
 
 const INSTANCE: felt252 = 0x100000001;
 
-fn packs() -> Span<(u16, Pack)> {
-    let five = Pack {
-        castes: [
-            PackCaste { caste: 1, min: 2, max: 2 }, PackCaste { caste: 2, min: 3, max: 3 },
-            Default::default(), Default::default(), Default::default(),
-        ],
-        level: 0,
-    };
-    array![(1, five), (2, five)].span()
-}
+#[generate_trait]
+impl FixtureImpl of Fixture {
+    fn packs() -> Span<(u16, Pack)> {
+        let five = Pack {
+            castes: [
+                PackCaste { caste: 1, min: 2, max: 2 }, PackCaste { caste: 2, min: 3, max: 3 },
+                Default::default(), Default::default(), Default::default(),
+            ],
+            level: 0,
+        };
+        array![(1, five), (2, five)].span()
+    }
 
-/// A 3 × 3 zone (`kind`'s biome), its centre chunk 16 to reveal; `heavy`: every quota due and the
-/// spawn table always full.
-fn site(kind: u8, heavy: bool) -> Site {
-    let (quotas, density) = if heavy {
-        (
-            QuotaSet {
-                quotas: [
-                    Quota { kind: quota::EXIT, param: 5, count: 9 },
-                    Quota { kind: quota::VEIN, param: 0, count: 9 },
-                    Quota { kind: quota::COLLECTOR, param: 1, count: 9 },
-                    Quota { kind: quota::HEART, param: 2, count: 9 }, Default::default(),
-                    Default::default(),
-                ],
-            },
-            255,
-        )
-    } else {
-        (
-            QuotaSet {
-                quotas: [
-                    Quota { kind: quota::COLLECTOR, param: 1, count: 1 }, Default::default(),
+    /// A 3 × 3 zone (`kind`'s biome), its centre chunk 16 to reveal; `heavy`: every quota due and
+    /// the spawn table always full.
+    fn site(kind: u8, heavy: bool) -> Site {
+        let (quotas, density) = if heavy {
+            (
+                QuotaSet {
+                    quotas: [
+                        Quota { kind: quota::EXIT, param: 5, count: 9 },
+                        Quota { kind: quota::VEIN, param: 0, count: 9 },
+                        Quota { kind: quota::COLLECTOR, param: 1, count: 9 },
+                        Quota { kind: quota::HEART, param: 2, count: 9 }, Default::default(),
+                        Default::default(),
+                    ],
+                },
+                255,
+            )
+        } else {
+            (
+                QuotaSet {
+                    quotas: [
+                        Quota { kind: quota::COLLECTOR, param: 1, count: 1 }, Default::default(),
+                        Default::default(), Default::default(), Default::default(),
+                        Default::default(),
+                    ],
+                },
+                128,
+            )
+        };
+        Site {
+            target: 0,
+            biome: kind,
+            level_min: 1,
+            level_max: 5,
+            width: 3,
+            height: 3,
+            entry_chunk: 0,
+            chunk_set: 0,
+            west: 0,
+            north: 0,
+            masks: array![].span(),
+            anchors: array![].span(),
+            quotas,
+            tasks: array![].span(),
+            spawn: SpawnTable {
+                spawns: [
+                    Spawn { template: 1, weight: 1 }, Default::default(), Default::default(),
                     Default::default(), Default::default(), Default::default(), Default::default(),
                 ],
+                density,
+                trap: 0,
             },
-            128,
-        )
-    };
-    Site {
-        target: 0,
-        biome: kind,
-        level_min: 1,
-        level_max: 5,
-        width: 3,
-        height: 3,
-        entry_chunk: 0,
-        chunk_set: 0,
-        west: 0,
-        north: 0,
-        masks: array![].span(),
-        anchors: array![].span(),
-        quotas,
-        tasks: array![].span(),
-        spawn: SpawnTable {
-            spawns: [
-                Spawn { template: 1, weight: 1 }, Default::default(), Default::default(),
-                Default::default(), Default::default(), Default::default(), Default::default(),
-            ],
-            density,
-            trap: 0,
-        },
-        packs: packs(),
-        pieces: array![].span(),
+            packs: Self::packs(),
+            pieces: array![].span(),
+        }
     }
-}
 
-fn progress(site: @Site) -> Progress {
-    ProgressTrait::new(site, 'cost')
-}
+    fn progress(site: @Site) -> Progress {
+        ProgressTrait::new(site, 'cost')
+    }
 
-/// The terrain of chunk 1 (South of 16) and 15 (East of 16), revealed first: the typical case's
-/// known sides.
-fn known(site: @Site) -> Span<(u8, Terrain)> {
-    let mut progress = progress(site);
-    let out = RevealTrait::reveal(
-        site, ref progress, INSTANCE, array![].span(), array![1, 15].span(),
-    );
-    array![(1, *out[0].terrain), (15, *out[1].terrain)].span()
+    /// The terrain of chunk 1 (South of 16) and 15 (East of 16), revealed first: the typical case's
+    /// known sides.
+    fn known(site: @Site) -> Span<(u8, Terrain)> {
+        let mut progress = Self::progress(site);
+        let out = RevealTrait::reveal(
+            site, ref progress, INSTANCE, array![].span(), array![1, 15].span(),
+        );
+        array![(1, *out[0].terrain), (15, *out[1].terrain)].span()
+    }
 }
 
 #[test]
 #[available_gas(l2_gas: 195153)] // ceil(1.05 × 185860 measured)
 fn test_cost_reveal_baseline() {
-    let site = site(biome::CAVE, true);
-    let _progress = progress(@site);
+    let site = Fixture::site(biome::CAVE, true);
+    let _progress = Fixture::progress(@site);
 }
 
 #[test]
 #[available_gas(l2_gas: 3441878)] // ceil(1.05 × 3277979 measured)
 fn test_cost_reveal_worst_meadow() {
-    let site = site(biome::MEADOW, true);
-    let mut progress = progress(@site);
+    let site = Fixture::site(biome::MEADOW, true);
+    let mut progress = Fixture::progress(@site);
     RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 #[test]
 #[available_gas(l2_gas: 4032650)] // ceil(1.05 × 3840619 measured)
 fn test_cost_reveal_worst_forest() {
-    let site = site(biome::FOREST, true);
-    let mut progress = progress(@site);
+    let site = Fixture::site(biome::FOREST, true);
+    let mut progress = Fixture::progress(@site);
     RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 #[test]
 #[available_gas(l2_gas: 4180056)] // ceil(1.05 × 3981005 measured)
 fn test_cost_reveal_worst_cave() {
-    let site = site(biome::CAVE, true);
-    let mut progress = progress(@site);
+    let site = Fixture::site(biome::CAVE, true);
+    let mut progress = Fixture::progress(@site);
     RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 #[test]
 #[available_gas(l2_gas: 4107419)] // ceil(1.05 × 3911827 measured)
 fn test_cost_reveal_worst_ruin() {
-    let site = site(biome::RUIN, true);
-    let mut progress = progress(@site);
+    let site = Fixture::site(biome::RUIN, true);
+    let mut progress = Fixture::progress(@site);
     RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
@@ -145,17 +149,17 @@ fn test_cost_reveal_worst_ruin() {
 // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
 #[available_gas(l2_gas: 4983606)] // ceil(1.05 × 4746291 measured)
 fn test_cost_reveal_typical_baseline() {
-    let site = site(biome::FOREST, false);
-    let _known = known(@site);
-    let _progress = progress(@site);
+    let site = Fixture::site(biome::FOREST, false);
+    let _known = Fixture::known(@site);
+    let _progress = Fixture::progress(@site);
 }
 
 #[test]
 #[available_gas(l2_gas: 7751181)] // ceil(1.05 × 7382077 measured)
 fn test_cost_reveal_typical() {
-    let site = site(biome::FOREST, false);
-    let known = known(@site);
-    let mut progress = progress(@site);
+    let site = Fixture::site(biome::FOREST, false);
+    let known = Fixture::known(@site);
+    let mut progress = Fixture::progress(@site);
     progress.revealed = 2 + 0x8000;
     progress.count = 2;
     RevealTrait::reveal(@site, ref progress, INSTANCE, known, array![16].span());
@@ -164,8 +168,8 @@ fn test_cost_reveal_typical() {
 #[test]
 #[available_gas(l2_gas: 11140876)] // ceil(1.05 × 10610358 measured)
 fn test_cost_reveal_three() {
-    let site = site(biome::CAVE, true);
-    let mut progress = progress(@site);
+    let site = Fixture::site(biome::CAVE, true);
+    let mut progress = Fixture::progress(@site);
     let out = RevealTrait::reveal(
         @site, ref progress, INSTANCE, array![].span(), array![16, 17, 31].span(),
     );
@@ -176,8 +180,8 @@ fn test_cost_reveal_three() {
 #[available_gas(l2_gas: 4192351)] // ceil(1.05 × 3992715 measured)
 fn test_cost_library_baseline() {
     let _class = declare("RevealLibrary").unwrap().contract_class();
-    let site = site(biome::CAVE, true);
-    let mut progress = progress(@site);
+    let site = Fixture::site(biome::CAVE, true);
+    let mut progress = Fixture::progress(@site);
     RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
@@ -186,8 +190,8 @@ fn test_cost_library_baseline() {
 fn test_cost_library_call() {
     let class = declare("RevealLibrary").unwrap().contract_class();
     let library = IRevealLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let site = site(biome::CAVE, true);
-    let progress = progress(@site);
+    let site = Fixture::site(biome::CAVE, true);
+    let progress = Fixture::progress(@site);
     let (_, out) = library.reveal(site, progress, INSTANCE, array![].span(), array![16].span());
     assert(out.len() == 1, 'one');
 }
