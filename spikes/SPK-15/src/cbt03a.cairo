@@ -17,7 +17,7 @@ pub enum Arc {
     Back,
 }
 use grimworld_logic::helpers::exp2::{Exp2, SHIFT};
-use grimworld_logic::snapshot::STRENGTH_PER_RANK;
+use grimworld_logic::models::build::STRENGTH_PER_RANK;
 use grimworld_logic::types::combat::{HitClass, weapon};
 
 /// A critical strike: +40 % (design/04).

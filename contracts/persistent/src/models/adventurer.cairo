@@ -10,8 +10,8 @@ use grimworld_logic::helpers::packing::{
 };
 use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
+use grimworld_logic::models::loadout::Loadout;
 use grimworld_logic::models::skill::SkillTrait;
-use grimworld_logic::snapshot::Loadout;
 use grimworld_logic::types::content::{ITEM, SKILL};
 use grimworld_logic::types::profession::ProfessionTrait;
 use starknet::ContractAddress;

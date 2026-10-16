@@ -25,7 +25,8 @@ use grimworld_logic::models::member_stats::MemberStatsTrait;
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords};
+use grimworld_logic::models::snapshot::SnapshotTrait;
+use grimworld_logic::models::snapshot_words::SnapshotWords;
 use grimworld_logic::types::Outcome;
 use grimworld_logic::types::content::{GATE, ITEM, LOCATION, MODIFIER, QUEST, REGION, SKILL};
 use grimworld_logic::types::identifier::InstanceIdTrait;
@@ -83,8 +84,8 @@ pub trait ICreated<T> {
 #[starknet::contract]
 mod EntryDouble {
     use grimworld_logic::interface::IInstanceEntry;
+    use grimworld_logic::models::snapshot_words::SnapshotWords;
     use grimworld_logic::models::task::TaskEntry;
-    use grimworld_logic::snapshot::SnapshotWords;
     use grimworld_logic::types::InstanceId;
     use grimworld_logic::types::identifier::InstanceIdTrait;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};

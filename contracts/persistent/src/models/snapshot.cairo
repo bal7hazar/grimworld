@@ -1,5 +1,5 @@
 //! The snapshot stored with the adventurer (D-168): the flattening's three packed words
-//! (`MemberStats`, `MemberBar`, `MemberKit`, `grimworld_logic::snapshot`), computed once by
+//! (`MemberStats`, `MemberBar`, `MemberKit`, `grimworld_logic::models::build`), computed once by
 //! `Hub.set_build` through `FlattenLibrary` and copied by `Hub.enter` to `Instances` (ADR-0001:
 //! the ephemeral domain reads a snapshot taken at entry, here the stored one). Three slots under
 //! the adventurer's id: docs/architecture/ENG-01-interfaces.md, *Hub storage*.
@@ -13,7 +13,7 @@
 //! of another level than the adventurer's (D-168 2).
 
 use grimworld_logic::helpers::packing::{LimbTrait, P64, PackingTrait};
-use grimworld_logic::snapshot::SnapshotWords;
+use grimworld_logic::models::snapshot_words::SnapshotWords;
 
 /// `2^208`: the flattening epoch's unit in the kit word (bits 208–249).
 const EPOCH_UNIT: felt252 = 0x10000000000000000000000000000000000000000000000000000;

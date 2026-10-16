@@ -1,10 +1,7 @@
-//! The snapshot an instance takes of an adventurer at entry (ADR-0001: the ephemeral domain never
-//! reads persistent state during play): the build's worn set and loadout, and their flattening into
-//! the member's three words (`models::member_stats`, `models::member_bar`, `models::member_kit`;
-//! the tasks an instance reports are `models::task`'s, D-131). The persistent contract builds them,
-//! the ephemeral contract stores them in the member's record; both use these layouts, which is why
-//! they live in the shared package. Bit offsets are in docs/architecture/ENG-01-interfaces.md,
-//! *Member*.
+//! The production flattening (design/19 §4, §7.2; design/20 §1, D-160): a build's loadout
+//! (`models::loadout`) and the passives it holds (`models::held_passive`, from the items worn,
+//! `models::worn`) into the snapshot's three words (`models::snapshot`). `FlattenLibrary` runs it
+//! for `Hub.set_build` (D-168).
 //!
 //! design/19 §7.2 (FX-24, D-155) flattens every passive the rules read into these three words,
 //! losslessly, with **0 new slots**: `MemberBar`'s free high limb takes the damage and penetration
@@ -15,18 +12,20 @@
 use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
 use crate::helpers::packing::{P16, P32, P48, P64, P80};
 use crate::models::base::slot as base_slot;
-use crate::models::index::Modifier;
+use crate::models::held_passive::HeldPassive;
+use crate::models::loadout::Loadout;
 use crate::models::member_bar::{MemberBar, MemberBarTrait, QuickCast};
 use crate::models::member_kit::{MemberKit, MemberKitTrait, saturate};
 use crate::models::member_stats::{MemberStats, MemberStatsTrait};
-use crate::models::modifier::{ModifierRecord, ModifierTrait};
+use crate::models::snapshot::Snapshot;
+use crate::models::worn::{Worn, WornTrait};
 use crate::types::effect::guard;
 use crate::types::hit::HitTrait;
-use crate::types::passive::{Passive, Source, id};
+use crate::types::passive::{Source, id};
 use crate::types::profession::ProfessionTrait;
 
 pub mod errors {
-    // The production flattening's (`BuildAssert`, `SnapshotBuildTrait::build`).
+    // The production flattening's (`BuildAssert`, `FlattenAssert`, `SnapshotBuildTrait::build`).
     pub const SOURCE_COUNT: felt252 = 'build: too many of a source';
     pub const ORDER: felt252 = 'build: instances out of order';
     pub const MAX_HEALTH: felt252 = 'build: max health below 1';
@@ -38,15 +37,6 @@ pub mod errors {
     pub const QUICK_CAST_ATTRIBUTE: felt252 = 'build: quick-cast attribute';
     pub const OVERFLOW: felt252 = 'build: sum outside its field';
     pub const PIECE_TWICE: felt252 = 'build: two insignias a piece';
-    // The items worn (`WornAssert`, `WornTrait::held`; CBT-02c's wiring, D-168).
-    /// A modifier on the item that the registry does not hold.
-    pub const NO_MODIFIER: felt252 = 'item: no such modifier';
-    /// An insignia made for another piece than the one it is worn on (DS-23, D-160).
-    pub const INSIGNIA_PIECE: felt252 = 'item: insignia piece';
-    /// A modifier in a slot of another type than its record's (ENG-01 §3.3).
-    pub const SLOT_TYPE: felt252 = 'item: modifier slot type';
-    /// A benefit's rolled value outside its record's range (design/19 §4).
-    pub const VALUE: felt252 = 'item: modifier value';
 }
 
 // The production flattening (design/19 §4, §7.2; design/20 §1, D-160): the build and the
@@ -83,178 +73,6 @@ pub const LIGHT_ENERGY_REGEN: i32 = 1;
 /// +30 against elemental (4–7); light gives energy (above).
 pub const HEAVY_VS_PHYSICAL: u32 = 20;
 pub const MEDIUM_VS_ELEMENTAL: u32 = 30;
-
-
-/// A passive the build holds (design/20 §1.2). Its value is `passive.max`: a benefit's rolled
-/// value (the caller writes the roll in), a cost's fixed one. `instance` numbers its source: the
-/// passives of one instance are one modifier on one item (its benefit and cost), or one set bonus.
-/// `modifier` is the `MODIFIER` record's id (0 for a set bonus): health runes of one id count
-/// once (FX-43, D-157 D).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct HeldPassive {
-    pub passive: Passive,
-    pub source: Source,
-    pub instance: u8,
-    pub modifier: u32,
-    /// A modifier's benefit, not its cost; a set bonus is a benefit.
-    pub benefit: bool,
-    /// The armor piece its item is worn on (`base::slot::CHEST` … `FEET`) for an insignia, which
-    /// bounds its health (DS-23); 0 for every other source.
-    pub piece: u8,
-}
-
-/// What the flattening reads besides the passives (design/03, design/15).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct Loadout {
-    pub level: u8,
-    /// A primary profession of the MVP (1–3).
-    pub profession: u8,
-    /// The build's attribute points by attribute id, the primary first (design/03). A
-    /// quick-cast pair's attribute is its index here, the build-local index of D-157 A.
-    pub points: Span<(u8, u8)>,
-    /// The attribute of each bar skill (0 for an empty slot), for `MemberStats.ranks` and the
-    /// attribute mappings (`quick_cast_slots`, `weapon_required`).
-    pub bar_attributes: [u8; 8],
-    /// The bar slots holding an attack skill (design/19 §3.4's kind 1), slot `i` at bit `i`.
-    pub bar_attacks: u8,
-    pub skills: [u16; 8],
-    pub elite_slot: u8,
-    /// The weapon: class, damage at its requirement (before personalisation), ticks, range, type,
-    /// attribute, whether the requirement is met, whether it is personalised.
-    pub weapon: u8,
-    pub weapon_damage: u8,
-    pub weapon_ticks: u8,
-    pub weapon_range: u8,
-    pub damage_type: u8,
-    pub weapon_attribute: u8,
-    pub requirement_met: u8,
-    pub personalised: bool,
-    /// design/04's level cap on weapon strength (DS-9); its curve is BAL-01's (escalated).
-    pub strength_cap: u8,
-    /// The weighted rating of the pieces and the shield, personalised (design/15, F-21).
-    pub rating: u16,
-    pub set_bonuses: u16,
-    pub belt: [u32; 4],
-    pub belt_counts: [u8; 4],
-}
-
-/// An item worn, as `Hub.set_build` reads it (ENG-01 §3.3): its lane of `equipped` (0 the weapon
-/// … 6 the feet), its slot (`base::slot`, copied from its `BASE` at creation, D-158), and its
-/// `ItemMods`: the modifier id and the rolled value of each slot type in order (prefix, suffix,
-/// inscription, insignia, rune), id 0 for an empty slot.
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct Worn {
-    pub lane: u8,
-    pub slot: u8,
-    pub ids: [u16; 5],
-    pub values: [u8; 5],
-}
-
-#[generate_trait]
-pub impl WornImpl of WornTrait {
-    /// The passives the worn items hold, for the flattening (design/19 §4, §7.2; design/20
-    /// §1.2):
-    /// each modifier's benefit, its value the item's rolled byte, and its cost, fixed by its
-    /// record; their source the record's slot type; one instance a modifier, numbered
-    /// `5 × lane + slot`, so upward; an insignia's piece the item's slot (DS-23). `ids` are the
-    /// distinct modifier ids the items hold and `records` their `MODIFIER` records, one part each,
-    /// in the same order (`Hub.set_build` asks the registry for them once, however many items
-    /// hold one). Bound: 7 items, 5 modifiers an item, 15 records.
-    fn held(worn: Span<Worn>, ids: Span<u16>, records: Span<felt252>) -> Array<HeldPassive> {
-        let mut modifiers: Array<Modifier> = array![];
-        for part in records {
-            WornAssert::assert_exists(*part);
-            modifiers.append(ModifierRecord::unpack(array![*part].span()));
-        }
-        let modifiers = modifiers.span();
-        let mut out: Array<HeldPassive> = array![];
-        for item in worn {
-            let first = *item.lane * 5;
-            let values = item.values.span();
-            let mut slot: u8 = 0;
-            for id in item.ids.span() {
-                let id = *id;
-                if id != 0 {
-                    let mut k = 0;
-                    while *ids[k] != id {
-                        k += 1;
-                    }
-                    let record = modifiers[k];
-                    let value = *values[slot.into()];
-                    WornAssert::assert_slot(*record.slot, slot);
-                    WornAssert::assert_value(value, record.benefit);
-                    let source = record.source().unwrap();
-                    let piece = if source == Source::Insignia {
-                        WornAssert::assert_piece(*record.piece, *item.slot);
-                        *item.slot
-                    } else {
-                        0
-                    };
-                    let instance = first + slot;
-                    let benefit = Passive { max: value.into(), ..*record.benefit };
-                    out
-                        .append(
-                            HeldPassive {
-                                passive: benefit,
-                                source,
-                                instance,
-                                modifier: id.into(),
-                                benefit: true,
-                                piece,
-                            },
-                        );
-                    if record.has_cost() {
-                        out
-                            .append(
-                                HeldPassive {
-                                    passive: *record.cost,
-                                    source,
-                                    instance,
-                                    modifier: id.into(),
-                                    benefit: false,
-                                    piece,
-                                },
-                            );
-                    }
-                }
-                slot += 1;
-            }
-        }
-        out
-    }
-}
-
-#[generate_trait]
-pub impl WornAssert of WornAssertTrait {
-    /// A modifier an item holds is a record of the registry (its part 0 is not 0).
-    #[inline(always)]
-    fn assert_exists(part: felt252) {
-        assert(part != 0, errors::NO_MODIFIER);
-    }
-
-    /// A modifier sits in the slot of its record's type: `ItemMods`' five slots are the five
-    /// slot types in order (`modifier::slot::PREFIX` … `RUNE`, ENG-01 §3.3), so an item holds at
-    /// most one of each. `position` is the slot's, from 0.
-    #[inline(always)]
-    fn assert_slot(slot_type: u8, position: u8) {
-        assert(slot_type == position + 1, errors::SLOT_TYPE);
-    }
-
-    /// The benefit's rolled value lies within its record's range (design/19 §4): the per-source
-    /// bounds the registry checked on the record (D-166) then bound it.
-    #[inline(always)]
-    fn assert_value(value: u8, benefit: @Passive) {
-        let value: i16 = value.into();
-        assert(value >= *benefit.min && value <= *benefit.max, errors::VALUE);
-    }
-
-    /// DS-23 (D-160): an insignia is worn on the piece its record names (`base::slot::CHEST` …
-    /// `FEET`), the item's slot.
-    #[inline(always)]
-    fn assert_piece(piece: u8, slot: u8) {
-        assert(piece == slot, errors::INSIGNIA_PIECE);
-    }
-}
 
 /// The most instances of each source an adventurer holds (design/20 §1.2): a prefix, 2 suffixes,
 /// 2 inscriptions, 5 insignias, 5 runes, 2 set bonuses. A free function: a table.
@@ -766,99 +584,24 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
     }
 }
 
-/// What the persistent contract hands to the ephemeral one at entry (the snapshot).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct Snapshot {
-    pub stats: MemberStats,
-    pub bar: MemberBar,
-    pub kit: MemberKit,
-    /// Potions carried in each belt slot: debited from the pack in the entry transaction (the
-    /// reserve), credited back unused by the closing report (`Results.belt`).
-    pub belt_counts: [u8; 4],
-}
-
-/// The snapshot as `Hub.enter` hands it to `Instances.create` (D-168): the three words as
-/// `SnapshotBuildTrait::words` packed them (`MemberStats`, `MemberBar`, `MemberKit`, `LIVE` set),
-/// which `Hub.set_build` stored and `Instances` stores as they are, and the belt's counts.
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct SnapshotWords {
-    pub stats: felt252,
-    pub bar: felt252,
-    pub kit: felt252,
-    pub belt_counts: [u8; 4],
-}
-
-/// Health at level 1, and what each level above adds (design/03, *Base stats*).
-pub const BASE_HEALTH: u16 = 100;
-pub const HEALTH_PER_LEVEL: u16 = 20;
-/// `MemberStats.health_regen` is the pips plus 10: no regeneration nor degeneration.
-pub const NO_HEALTH_REGEN: u8 = 10;
-
-#[generate_trait]
-pub impl SnapshotImpl of SnapshotTrait {
-    /// The snapshot of an adventurer without equipment, from its level and primary profession
-    /// (ENG-06): health, energy, regeneration and armor (design/03); its bar, elite slot and belt
-    /// copied; what equipment, attribute ranks and set bonuses add, 0. The tests' snapshot:
-    /// `Hub.enter` copies the one `set_build` stored (D-168).
-    fn new(
-        level: u8,
-        profession: u8,
-        skills: [u16; 8],
-        elite_slot: u8,
-        belt: [u32; 4],
-        belt_counts: [u8; 4],
-    ) -> Snapshot {
-        let stats = MemberStats {
-            max_health: BASE_HEALTH + HEALTH_PER_LEVEL * (level.into() - 1),
-            max_energy: ProfessionTrait::energy(profession),
-            energy_regen: ProfessionTrait::energy_regen(profession),
-            health_regen: NO_HEALTH_REGEN,
-            level,
-            profession,
-            ..Default::default(),
-        };
-        // The class's armor is the unguarded armor, in `MemberBar` since FX-24 (design/19 §7.2).
-        let armor: u8 = ProfessionTrait::armor(profession);
-        Snapshot {
-            stats,
-            bar: MemberBar {
-                skills,
-                elite_slot,
-                damage: [0; 6],
-                penetration: [0; 3],
-                quick_cast: [Default::default(); 2],
-                armor: armor.into(),
-            },
-            kit: MemberKit { belt, ..Default::default() },
-            belt_counts,
-        }
-    }
-
-    /// The snapshot as `Instances.create` receives it: its three words packed.
-    fn words(self: @Snapshot) -> SnapshotWords {
-        SnapshotWords {
-            stats: MemberStatsTrait::pack(*self.stats),
-            bar: MemberBarTrait::pack(*self.bar),
-            kit: MemberKitTrait::pack(*self.kit),
-            belt_counts: *self.belt_counts,
-        }
-    }
-}
-
 /// The flattening's unit tests (D-167): design/20 §6's extremal builds, floors, saturations and
 /// counts, each compared with the oracle, CBT-02's flattening: every sum a plain pass over the
 /// passives per statistic, obviously correct and quadratic (docs/CAIRO.md §2, *Oracles*). The
 /// validators' tests (the per-source bounds, the records) are in `tests/test_build.cairo`, and the
 /// registry's refusals in the persistent package's `tests/test_registry.cairo`.
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
     use crate::models::base::slot as base_slot;
-    use crate::models::index::Modifier;
+    use crate::models::held_passive::HeldPassive;
+    use crate::models::loadout::Loadout;
     use crate::models::member_bar::{MemberBar, MemberBarTrait, QuickCast};
     use crate::models::member_kit::{MemberKit, MemberKitTrait, saturate};
     use crate::models::member_stats::{MemberStats, MemberStatsTrait};
-    use crate::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
+    use crate::models::snapshot::{Snapshot, SnapshotTrait};
+    use crate::models::snapshot_words::SnapshotWords;
+    use crate::models::worn::WornTrait;
+    use crate::models::worn::tests::{worn_items, worn_records};
     use crate::types::combat::{condition, damage, weapon};
     use crate::types::effect::{guard, scope};
     use crate::types::passive::{
@@ -866,10 +609,9 @@ mod tests {
     };
     use crate::types::profession::ProfessionTrait;
     use super::{
-        BuildAssert, HEAVY_VS_PHYSICAL, HeldPassive, LIGHT_ENERGY, LIGHT_ENERGY_REGEN, Loadout,
-        MAX_ARMOR_VS, MAX_KNOCKDOWN, MEDIUM_VS_ELEMENTAL, PERSONALISED_DAMAGE_PERCENT,
-        STRENGTH_PER_RANK, Snapshot, SnapshotBuildTrait, SnapshotTrait, SnapshotWords,
-        WELLSPRING_ENERGY_PER_RANK, Worn, WornTrait, errors, fit,
+        BuildAssert, HEAVY_VS_PHYSICAL, LIGHT_ENERGY, LIGHT_ENERGY_REGEN, MAX_ARMOR_VS,
+        MAX_KNOCKDOWN, MEDIUM_VS_ELEMENTAL, PERSONALISED_DAMAGE_PERCENT, STRENGTH_PER_RANK,
+        SnapshotBuildTrait, WELLSPRING_ENERGY_PER_RANK, errors, fit,
     };
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
@@ -1229,7 +971,7 @@ mod tests {
     const PRIMARY: u8 = 13;
     const OTHER: u8 = 14;
 
-    fn passive(id: u8, param: u8, value: i16) -> Passive {
+    pub fn passive(id: u8, param: u8, value: i16) -> Passive {
         PassiveTrait::new(id, param, 0, 0, value, value)
     }
 
@@ -1249,13 +991,13 @@ mod tests {
         }
     }
 
-    fn held(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
+    pub fn held(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
         HeldPassive {
             passive, source, instance, modifier, benefit: true, piece: piece(source, instance),
         }
     }
 
-    fn cost(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
+    pub fn cost(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
         HeldPassive {
             passive, source, instance, modifier, benefit: false, piece: piece(source, instance),
         }
@@ -1953,69 +1695,6 @@ mod tests {
         assert(snapshot.stats.max_health == 480, 'no passive');
     }
 
-    // ---- the items worn (CBT-02e, D-168: `WornTrait::held`, `SnapshotBuildTrait::words`) -----
-
-    /// The `MODIFIER` records of the tests below, one part each as the registry stores them: 1 a
-    /// prefix and 2 a suffix (life steal 1…5, costing 7 armor against cold), 3 an insignia made
-    /// for the chest (armor against fire 1…7, no cost), 4 a rune (fire 1…7, costing 7 against
-    /// cold).
-    fn worn_records() -> (Span<u16>, Span<felt252>) {
-        let cold = PassiveTrait::new(id::ARMOR_VS, damage::COLD, 0, 0, 7, 7);
-        let steal = PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5);
-        let fire = PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7);
-        let none: Passive = Default::default();
-        let records: Array<Modifier> = array![
-            ModifierTrait::new(modifier_slot::PREFIX, steal, cold),
-            ModifierTrait::new(modifier_slot::SUFFIX, steal, cold),
-            ModifierTrait::insignia(base_slot::CHEST, fire, none),
-            ModifierTrait::new(modifier_slot::RUNE, fire, cold),
-        ];
-        let mut parts = array![];
-        for record in records.span() {
-            parts.append(*ModifierRecord::pack(record)[0]);
-        }
-        (array![1, 2, 3, 4].span(), parts.span())
-    }
-
-    /// A sword (lane 0) holding modifiers 1 and 2 rolled at 5 and 3, and a chest (lane 2) holding
-    /// the insignia rolled at 6 and the rune at 7.
-    fn worn_items() -> Span<Worn> {
-        array![
-            Worn {
-                lane: 0, slot: base_slot::WEAPON, ids: [1, 2, 0, 0, 0], values: [5, 3, 0, 0, 0],
-            },
-            Worn { lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 3, 4], values: [0, 0, 0, 6, 7] },
-        ]
-            .span()
-    }
-
-    // Each modifier's benefit at its rolled value, then its cost; instances `5 × lane + slot`; the
-    // insignia's piece the chest's slot.
-    #[test]
-    #[available_gas(l2_gas: 710777)] // ceil(1.05 × 676930 measured)
-    fn test_worn_held() {
-        let (ids, records) = worn_records();
-        let held_passives = WornTrait::held(worn_items(), ids, records);
-        let cold = passive(id::ARMOR_VS, damage::COLD, 7);
-        let expected = array![
-            held(PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5), Source::Prefix, 0, 1),
-            cost(cold, Source::Prefix, 0, 1),
-            held(PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 3), Source::Suffix, 1, 2),
-            cost(cold, Source::Suffix, 1, 2),
-            HeldPassive {
-                passive: PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 6),
-                source: Source::Insignia,
-                instance: 13,
-                modifier: 3,
-                benefit: true,
-                piece: base_slot::CHEST,
-            },
-            held(PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7), Source::Rune, 14, 4),
-            cost(cold, Source::Rune, 14, 4),
-        ];
-        assert(held_passives == expected, 'held');
-    }
-
     // The words are the flattening's, packed: of the passives held, and of no item at all.
     #[test]
     #[available_gas(l2_gas: 4034340)] // ceil(1.05 × 3842228 measured)
@@ -2037,74 +1716,5 @@ mod tests {
         assert(stats == MemberStatsTrait::pack(empty.stats), 'empty stats');
         assert(bar == MemberBarTrait::pack(empty.bar), 'empty bar');
         assert(kit == MemberKitTrait::pack(empty.kit), 'empty kit');
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 357903)] // ceil(1.05 × 340860 measured)
-    #[should_panic(expected: 'item: no such modifier')]
-    fn test_worn_unknown_modifier_refused() {
-        let (ids, _) = worn_records();
-        WornTrait::held(worn_items(), ids, array![0, 0, 0, 0].span());
-    }
-
-    // A rune (4) in the insignia's slot.
-    #[test]
-    #[available_gas(l2_gas: 546851)] // ceil(1.05 × 520810 measured)
-    #[should_panic(expected: 'item: modifier slot type')]
-    fn test_worn_slot_type_refused() {
-        let (ids, records) = worn_records();
-        let item = Worn {
-            lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 4, 0], values: [0, 0, 0, 7, 0],
-        };
-        WornTrait::held(array![item].span(), ids, records);
-    }
-
-    // Fire 1…7: 8 is refused, and 0 (`test_worn_value_below_refused`).
-    #[test]
-    #[available_gas(l2_gas: 540120)] // ceil(1.05 × 514400 measured)
-    #[should_panic(expected: 'item: modifier value')]
-    fn test_worn_value_above_refused() {
-        let (ids, records) = worn_records();
-        let item = Worn {
-            lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 0, 4], values: [0, 0, 0, 0, 8],
-        };
-        WornTrait::held(array![item].span(), ids, records);
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 539627)] // ceil(1.05 × 513930 measured)
-    #[should_panic(expected: 'item: modifier value')]
-    fn test_worn_value_below_refused() {
-        let (ids, records) = worn_records();
-        let item = Worn {
-            lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 0, 4], values: [0, 0, 0, 0, 0],
-        };
-        WornTrait::held(array![item].span(), ids, records);
-    }
-
-    // DS-23: the chest's insignia on the legs.
-    #[test]
-    #[available_gas(l2_gas: 544394)] // ceil(1.05 × 518470 measured)
-    #[should_panic(expected: 'item: insignia piece')]
-    fn test_worn_insignia_piece_refused() {
-        let (ids, records) = worn_records();
-        let item = Worn {
-            lane: 3, slot: base_slot::LEGS, ids: [0, 0, 0, 3, 0], values: [0, 0, 0, 6, 0],
-        };
-        WornTrait::held(array![item].span(), ids, records);
-    }
-
-    // `SnapshotTrait::words` packs the three words of a snapshot and keeps the belt's counts.
-    #[test]
-    #[available_gas(l2_gas: 475934)] // ceil(1.05 × 453270 measured)
-    fn test_snapshot_words() {
-        let snapshot = SnapshotTrait::new(
-            3, 1, [1, 2, 0, 0, 0, 0, 0, 0], 255, [7; 4], [1, 2, 3, 4],
-        );
-        let words = snapshot.words();
-        assert(MemberStatsTrait::unpack(words.stats) == snapshot.stats, 'stats');
-        assert(MemberBarTrait::unpack(words.bar) == snapshot.bar, 'bar');
-        assert(MemberKitTrait::unpack(words.kit) == snapshot.kit, 'kit');
-        assert(words.belt_counts == [1, 2, 3, 4], 'counts');
     }
 }

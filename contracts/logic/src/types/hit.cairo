@@ -59,7 +59,7 @@
 //! - 3 `halved` (`Landed` only)
 
 use crate::helpers::exp2::{Exp2, SHIFT};
-use crate::snapshot::STRENGTH_PER_RANK;
+use crate::models::build::STRENGTH_PER_RANK;
 use super::combat::{Arc, HitClass, weapon};
 
 /// A critical strike: +40 % (design/04).

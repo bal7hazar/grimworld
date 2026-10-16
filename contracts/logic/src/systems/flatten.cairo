@@ -9,7 +9,9 @@
 #[starknet::contract]
 pub mod FlattenLibrary {
     use crate::interface::IFlattenLibrary;
-    use crate::snapshot::{Loadout, SnapshotBuildTrait, Worn};
+    use crate::models::build::SnapshotBuildTrait;
+    use crate::models::loadout::Loadout;
+    use crate::models::worn::Worn;
 
     #[storage]
     struct Storage {}

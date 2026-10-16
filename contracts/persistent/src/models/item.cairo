@@ -7,7 +7,7 @@ use grimworld_logic::helpers::packing::{
     PackingTrait,
 };
 use grimworld_logic::models::base::Base;
-use grimworld_logic::snapshot::Worn;
+use grimworld_logic::models::worn::Worn;
 use grimworld_logic::types::content::MODIFIER;
 use super::account::PACK;
 
@@ -196,7 +196,7 @@ pub impl ItemModsStorePacking of starknet::storage_access::StorePacking<ItemMods
 
 #[generate_trait]
 pub impl ItemModsImpl of ItemModsTrait {
-    /// The item as the flattening reads it (`grimworld_logic::snapshot::Worn`): its lane of
+    /// The item as the flattening reads it (`grimworld_logic::models::worn::Worn`): its lane of
     /// `equipped`, its slot, each modifier's id (0 for an empty slot) and rolled value, in
     /// `ItemMods`' order.
     fn worn(self: @ItemMods, lane: u8, slot: u8) -> Worn {

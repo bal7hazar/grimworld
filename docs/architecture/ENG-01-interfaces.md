@@ -38,7 +38,8 @@ L2 gas of a transaction ≈ F + calldata beyond one call's header + computation 
 `grimworld_logic` is not a contract. It holds what both domains share without either package
 depending on the other (ADR-0007): identifiers (`types`), bounds (`constants`), the wire format of a batch
 (`types::batch`), the snapshot's three words and the task page (`models::member_stats`, `member_bar`,
-`member_kit`, `models::task`), the snapshot's build (`snapshot`), the packing rules (`packing`), the kinds of
+`member_kit`, `models::task`), the snapshot and its build (`models::snapshot`, `snapshot_words`, `loadout`,
+`held_passive`, `worn`, and the flattening, `models::build`), the packing rules (`packing`), the kinds of
 registry records (`content`), and the calls between contracts (`interface`: `IResults`,
 `IInstanceEntry`, `IRegistryRead`, `IFate`).
 
@@ -294,7 +295,7 @@ content's checks `Registry` is 24,608 felts, **30.04 %** (with the skills' count
 (`contracts/logic/src/systems/flatten.cairo`), declared as its own class; its one entrypoint,
 `IFlattenLibrary::words(loadout, worn, ids, records) -> (stats, bar, kit)`
 (`grimworld_logic::interface`), takes the build's records as `Hub.set_build` read them (the
-`Loadout`; each worn item's lane, slot and `ItemMods` as `snapshot::Worn`; the distinct modifier
+`Loadout`; each worn item's lane, slot and `ItemMods` as `models::worn::Worn`; the distinct modifier
 ids and their `MODIFIER` parts, one each) and returns the snapshot's three words packed
 (`SnapshotBuildTrait::words`: the passives the items hold, `WornTrait::held`, with every check of
 the items, then the flattening). `Hub` holds its class hash as configuration (`flatten`, set by

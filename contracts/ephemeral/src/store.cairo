@@ -37,8 +37,8 @@
 
 use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes16};
 use grimworld_logic::models::member_stats::MemberStats;
+use grimworld_logic::models::snapshot_words::SnapshotWords;
 use grimworld_logic::models::task::{TaskEntry, TaskPage};
-use grimworld_logic::snapshot::SnapshotWords;
 use grimworld_logic::types::reveal::outline::Outline;
 use starknet::storage::{
     StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersMutForward,
@@ -554,7 +554,7 @@ mod layout_tests {
 #[cfg(test)]
 mod tests {
     use grimworld_logic::helpers::packing::Bitmap;
-    use grimworld_logic::snapshot::SnapshotWords;
+    use grimworld_logic::models::snapshot_words::SnapshotWords;
     use starknet::storage::{StorageAsPointer, StoragePathEntry};
     use starknet::storage_access::{Store, StorePacking};
     use starknet::{ContractAddress, SyscallResultTrait};
@@ -681,7 +681,7 @@ mod tests {
 /// them.
 #[cfg(test)]
 mod note4_tests {
-    use grimworld_logic::snapshot::SnapshotWords;
+    use grimworld_logic::models::snapshot_words::SnapshotWords;
     use starknet::storage::{StorageAsPointer, StoragePathEntry};
     use starknet::storage_access::{StorageBaseAddress, Store};
     use starknet::{ContractAddress, SyscallResultTrait};

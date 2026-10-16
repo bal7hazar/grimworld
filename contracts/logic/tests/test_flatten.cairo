@@ -1,18 +1,20 @@
 // CBT-02e (D-168): the snapshot's flattening as a library class. `FlattenLibrary.words` through a
-// `library_call` is `SnapshotBuildTrait::words`, whose unit tests are in `snapshot.cairo`; here,
-// what needs the declared class: the call's result and its cost on the widest equipment design/20
-// §1.2 counts (the benchmark of `Hub.set_build`'s flattening, D-158 (c)), and design/20 §6 test
-// 2's extremal builds as far as items and a loadout hold them (fix loop 1): the library's words
-// equal the direct flattening's, the field its extremum; what the item model cannot hold yet is
-// said at each test.
+// `library_call` is `SnapshotBuildTrait::words`, whose unit tests are in `models/build.cairo`;
+// here, what needs the declared class: the call's result and its cost on the widest equipment
+// design/20 §1.2 counts (the benchmark of `Hub.set_build`'s flattening, D-158 (c)), and design/20
+// §6 test 2's extremal builds as far as items and a loadout hold them (fix loop 1): the library's
+// words equal the direct flattening's, the field its extremum; what the item model cannot hold yet
+// is said at each test.
 use core::testing::get_available_gas;
 use grimworld_logic::interface::{IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher};
 use grimworld_logic::models::base::slot as base_slot;
+use grimworld_logic::models::build::SnapshotBuildTrait;
 use grimworld_logic::models::index::Modifier;
+use grimworld_logic::models::loadout::Loadout;
 use grimworld_logic::models::member_kit::MemberKitTrait;
 use grimworld_logic::models::member_stats::MemberStatsTrait;
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
-use grimworld_logic::snapshot::{Loadout, SnapshotBuildTrait, Worn};
+use grimworld_logic::models::worn::Worn;
 use grimworld_logic::types::combat::damage;
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id};
 use snforge_std::{DeclareResultTrait, declare};

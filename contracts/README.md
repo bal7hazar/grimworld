@@ -19,7 +19,9 @@ logic/                grimworld_logic: the rules, pure, no storage; and what bot
   src/types.cairo       ids and enums (Stop, Refusal, Outcome, ChunkKind, Target)
   src/constants.cairo   the bounds of the MVP, the layout of entity ids
   src/types/batch.cairo  a played batch in one felt
-  src/snapshot.cairo    the snapshot taken at entry: the build and its flattening
+  src/models/build.cairo  the flattening: a build and its passives into the snapshot's words
+  src/models/{loadout,held_passive,worn}.cairo  what the flattening reads: the build, its passives, the items worn
+  src/models/snapshot{,_words}.cairo  the snapshot taken at entry, and its words packed
   src/models/member_{stats,bar,kit}.cairo  the member's three snapshot words
   src/models/task.cairo  the task pages
   src/helpers/packing.cairo  two limbs, LIVE at bit 250, lanes, bitmaps

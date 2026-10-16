@@ -12,8 +12,6 @@ pub mod helpers;
 pub mod interface;
 /// The world's registry records as models: regions, locations, gates, outlines (D-143).
 pub mod models;
-/// The snapshot of an adventurer taken at entry: the build and its flattening.
-pub mod snapshot;
 /// The library classes (ENG-01 §1.3): the tick's, `TickLibrary`.
 pub mod systems;
 /// Identifiers, bounds and enums shared by the two domains.
