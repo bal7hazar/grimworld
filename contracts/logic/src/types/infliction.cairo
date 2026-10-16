@@ -1,8 +1,9 @@
 //! What a source adds to the conditions it inflicts (CBT-04; design/19 §5.7): its
 //! `CONDITION_DURATION` (one condition and its percent, the weapon's prefix) and its
-//! `KNOCKDOWN_FLAT` (ticks), as the snapshot flattened them (`snapshot::MemberKit`; a member reads
-//! them in its words, `MemberWordsTrait::infliction`). A goblin and a terrain trap hold none
-//! (design/19 §7.3: a caste has no passive), `Default`. Not stored on its own: a value type.
+//! `KNOCKDOWN_FLAT` (ticks), as the snapshot flattened them (`models::member_kit::MemberKit`; a
+//! member reads them in its words, `MemberWordsTrait::infliction`). A goblin and a terrain trap
+//! hold none (design/19 §7.3: a caste has no passive), `Default`. Not stored on its own: a value
+//! type.
 
 use crate::helpers::duration::DurationTrait;
 use crate::types::combat::condition;

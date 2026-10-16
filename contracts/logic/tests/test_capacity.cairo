@@ -12,11 +12,10 @@
 // flattened here.
 use grimworld_logic::models::armor_set::{ArmorSet, ArmorSetAssert, ArmorSetTrait};
 use grimworld_logic::models::base::slot as base_slot;
+use grimworld_logic::models::member_bar::{MemberBar, MemberBarTrait, QuickCast};
+use grimworld_logic::models::member_kit::{MemberKit, MemberKitTrait};
+use grimworld_logic::models::member_stats::{MemberStats, MemberStatsTrait};
 use grimworld_logic::models::modifier::{Modifier, ModifierAssert, ModifierTrait, slot};
-use grimworld_logic::snapshot::{
-    MemberBar, MemberKit, MemberKitTrait, MemberStats, QuickCast, pack_bar, pack_kit, pack_stats,
-    unpack_bar, unpack_kit, unpack_stats,
-};
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::{guard, scope};
 use grimworld_logic::types::passive::{
@@ -220,9 +219,11 @@ impl FixtureImpl of Fixture {
             armor_vs: [vs(1), vs(2), vs(3), vs(4), vs(5), vs(6), vs(7), vs(8), vs(9)],
             ..Default::default(),
         };
-        assert(unpack_bar(pack_bar(bar)) == bar, 'bar round trip');
-        assert(unpack_kit(pack_kit(kit)) == kit, 'kit round trip');
-        assert(unpack_stats(pack_stats(stats)) == stats, 'stats round trip');
+        assert(MemberBarTrait::unpack(MemberBarTrait::pack(bar)) == bar, 'bar round trip');
+        assert(MemberKitTrait::unpack(MemberKitTrait::pack(kit)) == kit, 'kit round trip');
+        assert(
+            MemberStatsTrait::unpack(MemberStatsTrait::pack(stats)) == stats, 'stats round trip',
+        );
         (stats, bar, kit)
     }
 }

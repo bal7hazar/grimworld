@@ -7,7 +7,9 @@ use grimworld_logic::helpers::packing::{
     LimbTrait, N16, N32, N8, P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96,
     PackingAssert, PackingTrait,
 };
-use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
+use grimworld_logic::models::member_bar::MemberBar;
+use grimworld_logic::models::member_kit::MemberKit;
+use grimworld_logic::models::member_stats::MemberStats;
 use starknet::ContractAddress;
 use crate::helpers::stored::Stored;
 

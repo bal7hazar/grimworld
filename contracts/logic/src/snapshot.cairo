@@ -1,8 +1,10 @@
 //! The snapshot an instance takes of an adventurer at entry (ADR-0001: the ephemeral domain never
-//! reads persistent state during play), and the task ids it will report (D-131). The persistent
-//! contract builds them, the ephemeral contract stores them in the member's record; both use these
-//! layouts, which is why they live in the shared package. Bit offsets are in
-//! docs/architecture/ENG-01-interfaces.md, *Member*.
+//! reads persistent state during play): the build's worn set and loadout, and their flattening into
+//! the member's three words (`models::member_stats`, `models::member_bar`, `models::member_kit`;
+//! the tasks an instance reports are `models::task`'s, D-131). The persistent contract builds them,
+//! the ephemeral contract stores them in the member's record; both use these layouts, which is why
+//! they live in the shared package. Bit offsets are in docs/architecture/ENG-01-interfaces.md,
+//! *Member*.
 //!
 //! design/19 §7.2 (FX-24, D-155) flattens every passive the rules read into these three words,
 //! losslessly, with **0 new slots**: `MemberBar`'s free high limb takes the damage and penetration
@@ -11,41 +13,19 @@
 //! elemental armors and the single penetration were.
 
 use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
-use crate::helpers::packing::{
-    LimbTrait, P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80,
-    P84, P88, P96, PackingTrait,
-};
-use crate::helpers::signed::SignedTrait;
+use crate::helpers::packing::{P16, P32, P48, P64, P80};
 use crate::models::base::slot as base_slot;
 use crate::models::index::Modifier;
+use crate::models::member_bar::{MemberBar, MemberBarTrait, QuickCast};
+use crate::models::member_kit::{MemberKit, MemberKitTrait, saturate};
+use crate::models::member_stats::{MemberStats, MemberStatsTrait};
 use crate::models::modifier::{ModifierRecord, ModifierTrait};
 use crate::types::effect::guard;
 use crate::types::hit::HitTrait;
 use crate::types::passive::{Passive, Source, id};
 use crate::types::profession::ProfessionTrait;
 
-/// The widest unguarded armor (design/19 §7.2, F-20; F-21 settled by CBT-01): the weighted rating
-/// of the five pieces (each `u8`, weights summing to 1: at most 255) and the shield's (`u8`, 255),
-/// each raised by personalisation's +10 % of its rating (`RATING_PERCENT`, design/15 D-48: at most
-/// ⌊255 × 10 / 100⌋ = 25 each), and at most 37 unguarded `ARMOR` passives of −255…+255:
-/// `255 + 25 +
-/// 255 + 25 + 37 × 255 = 9,995 < 32,767`. The two 255 limits are the ratings before
-/// personalisation. An `i16` holds it.
-pub const MAX_UNGUARDED_ARMOR: i16 = 9995;
-
-const P92: u128 = 0x100000000000000000000000;
-/// 2^114: `MemberStats`' bit 242 in its high limb (the quick-cast slots 4–7).
-const P114: u128 = 0x40000000000000000000000000000;
-
 pub mod errors {
-    pub const ARMOR_VS: felt252 = 'snapshot: armor vs above 63';
-    pub const ARMOR: felt252 = 'snapshot: armor above bound';
-    pub const QUICK_CAST: felt252 = 'snapshot: quick-cast attribute';
-    pub const CONDITION: felt252 = 'snapshot: condition';
-    pub const PERCENT: felt252 = 'snapshot: percent above 63';
-    pub const KNOCKDOWN: felt252 = 'snapshot: knock-down above 3';
-    pub const CONDITIONS: felt252 = 'snapshot: two conditions';
-    pub const HEALTH_REGEN: felt252 = 'snapshot: health regen';
     // The production flattening's (`BuildAssert`, `SnapshotBuildTrait::build`).
     pub const SOURCE_COUNT: felt252 = 'build: too many of a source';
     pub const ORDER: felt252 = 'build: instances out of order';
@@ -67,464 +47,6 @@ pub mod errors {
     pub const SLOT_TYPE: felt252 = 'item: modifier slot type';
     /// A benefit's rolled value outside its record's range (design/19 §4).
     pub const VALUE: felt252 = 'item: modifier value';
-}
-
-/// Every field of the three snapshot words fits its layout (docs/CAIRO.md §7: checks in
-/// `Assert` impls); the packers call them.
-#[generate_trait]
-pub impl MemberStatsAssert of MemberStatsAssertTrait {
-    /// Each `ARMOR_VS` fits 6 bits; health regeneration 0–20, −10…+10 pips (DS-29, D-160).
-    #[inline(always)]
-    fn assert_valid(self: @MemberStats) {
-        assert(*self.health_regen <= 20, errors::HEALTH_REGEN);
-        let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = *self.armor_vs;
-        assert(
-            v1 < 64
-                && v2 < 64
-                && v3 < 64
-                && v4 < 64
-                && v5 < 64
-                && v6 < 64
-                && v7 < 64
-                && v8 < 64
-                && v9 < 64,
-            errors::ARMOR_VS,
-        );
-    }
-}
-
-#[generate_trait]
-pub impl MemberBarAssert of MemberBarAssertTrait {
-    /// The unguarded armor within ±`MAX_UNGUARDED_ARMOR` (F-21); the quick-cast pairs
-    /// (`QuickCastAssert`, checked as they pack).
-    #[inline(always)]
-    fn assert_valid(self: @MemberBar) {
-        let armor = *self.armor;
-        assert(armor >= -MAX_UNGUARDED_ARMOR && armor <= MAX_UNGUARDED_ARMOR, errors::ARMOR);
-    }
-}
-
-#[generate_trait]
-pub impl MemberKitAssert of MemberKitAssertTrait {
-    /// Condition 4 bits, the two percents 6 bits, knock-down 2 bits.
-    #[inline(always)]
-    fn assert_valid(self: @MemberKit) {
-        assert(*self.condition < 0x10, errors::CONDITION);
-        assert(*self.condition_duration < 0x40, errors::PERCENT);
-        assert(*self.enchantment_duration < 0x40, errors::PERCENT);
-        assert(*self.knockdown < 4, errors::KNOCKDOWN);
-    }
-
-    /// The kit holds one condition's duration ("one prefix"): the passives name at most one.
-    fn assert_one_condition(held: Span<Passive>) {
-        let mut condition: u8 = 0;
-        for passive in held {
-            if *passive.id == id::CONDITION_DURATION {
-                assert(condition == 0 || condition == *passive.param, errors::CONDITIONS);
-                condition = *passive.param;
-            }
-        }
-    }
-}
-
-/// What the build and the equipment give, fixed for the instance (design/03, design/15).
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
-pub struct MemberStats {
-    pub max_health: u16,
-    pub max_energy: u8,
-    /// Energy regeneration, in pips.
-    pub energy_regen: u8,
-    /// Health regeneration in pips, plus 10 (0 to 20 for −10 to +10 pips).
-    pub health_regen: u8,
-    /// `ARMOR_VS` per damage type, index `type − 1`, 6 bits each, saturated at 63 (FX-23): types
-    /// 1–2 at bits 48 and 54, types 3–9 at `200 + 6 (type − 3)`.
-    pub armor_vs: [u8; 9],
-    pub level: u8,
-    pub profession: u8,
-    pub primary_rank: u8,
-    /// The weapon's class, `types::combat::weapon` (design/19 §7.2).
-    pub weapon: u8,
-    pub weapon_damage: u8,
-    pub weapon_ticks: u8,
-    pub weapon_range: u8,
-    pub weapon_strength: u8,
-    /// The rank of the attribute of each bar skill, 4 bits each (skill `i` at bits `4 i`).
-    pub ranks: u32,
-    pub damage_type: u8,
-    pub requirement_met: u8,
-    /// Set bonuses in effect, one bit each.
-    pub set_bonuses: u16,
-    /// The quick-cast pairs each bar slot's skill counts for (CBT-05f, D-157 A: the skill's global
-    /// attribute against the pair's build-local index): slot `i`'s pair `p` at bit `2 i + p`;
-    /// slots 0–3 at bits 168–175, slots 4–7 at 242–249.
-    pub quick_cast_slots: u16,
-    /// The bar slots whose attack skill names an attribute other than the weapon's (CBT-05f,
-    /// design/19 §3.4's skill kinds: "needs the weapon of its attribute"), slot `i` at bit
-    /// `40 + i`.
-    pub weapon_required: u8,
-}
-
-pub fn pack_stats(s: MemberStats) -> felt252 {
-    s.assert_valid();
-    let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = s.armor_vs;
-    let low: u128 = s.max_health.into()
-        + s.max_energy.into() * P16
-        + s.energy_regen.into() * P24
-        + s.health_regen.into() * P32
-        + s.weapon_required.into() * P40
-        + v1.into() * P48
-        + v2.into() * 0x40000000000000
-        + s.level.into() * P64
-        + s.profession.into() * P72
-        + s.primary_rank.into() * P80
-        + s.weapon.into() * P88
-        + s.weapon_damage.into() * P96
-        + s.weapon_ticks.into() * P104
-        + s.weapon_range.into() * P112
-        + s.weapon_strength.into() * P120;
-    let (slots_high, slots_low) = DivRem::div_rem(s.quick_cast_slots, 0x100);
-    let high: u128 = s.ranks.into()
-        + s.damage_type.into() * P32
-        + slots_low.into() * P40
-        + s.requirement_met.into() * P48
-        + s.set_bonuses.into() * P56
-        + v3.into() * P72
-        + v4.into() * 0x40000000000000000000
-        + v5.into() * P84
-        + v6.into() * 0x40000000000000000000000
-        + v7.into() * P96
-        + v8.into() * 0x40000000000000000000000000
-        + v9.into() * P108
-        + slots_high.into() * P114;
-    PackingTrait::join(low, high)
-}
-
-pub fn unpack_stats(word: felt252) -> MemberStats {
-    let (low, high) = PackingTrait::split(word);
-    let b8: NonZero<u128> = P8.try_into().unwrap();
-    let b16: NonZero<u128> = P16.try_into().unwrap();
-    let b6: NonZero<u128> = 0x40;
-    let (low, max_health) = DivRem::div_rem(low, b16);
-    let (low, max_energy) = DivRem::div_rem(low, b8);
-    let (low, energy_regen) = DivRem::div_rem(low, b8);
-    let (low, health_regen) = DivRem::div_rem(low, b8);
-    let (low, weapon_required) = DivRem::div_rem(low, b8);
-    let (low, v1) = DivRem::div_rem(low, b6);
-    let (low, v2) = DivRem::div_rem(low, b6);
-    // Bits 60–63 are free.
-    let (low, level) = DivRem::div_rem(low / 0x10, b8);
-    let (low, profession) = DivRem::div_rem(low, b8);
-    let (low, primary_rank) = DivRem::div_rem(low, b8);
-    let (low, weapon) = DivRem::div_rem(low, b8);
-    let (low, weapon_damage) = DivRem::div_rem(low, b8);
-    let (low, weapon_ticks) = DivRem::div_rem(low, b8);
-    let (weapon_strength, weapon_range) = DivRem::div_rem(low, b8);
-    let (high, ranks) = DivRem::div_rem(high, P32.try_into().unwrap());
-    let (high, damage_type) = DivRem::div_rem(high, b8);
-    let (high, slots_low) = DivRem::div_rem(high, b8);
-    let (high, requirement_met) = DivRem::div_rem(high, b8);
-    let (high, set_bonuses) = DivRem::div_rem(high, b16);
-    let (high, v3) = DivRem::div_rem(high, b6);
-    let (high, v4) = DivRem::div_rem(high, b6);
-    let (high, v5) = DivRem::div_rem(high, b6);
-    let (high, v6) = DivRem::div_rem(high, b6);
-    let (high, v7) = DivRem::div_rem(high, b6);
-    let (high, v8) = DivRem::div_rem(high, b6);
-    let (slots_high, v9) = DivRem::div_rem(high, b6);
-    MemberStats {
-        max_health: max_health.try_into().unwrap(),
-        max_energy: max_energy.try_into().unwrap(),
-        energy_regen: energy_regen.try_into().unwrap(),
-        health_regen: health_regen.try_into().unwrap(),
-        armor_vs: [
-            v1.try_into().unwrap(), v2.try_into().unwrap(), v3.try_into().unwrap(),
-            v4.try_into().unwrap(), v5.try_into().unwrap(), v6.try_into().unwrap(),
-            v7.try_into().unwrap(), v8.try_into().unwrap(), v9.try_into().unwrap(),
-        ],
-        level: level.try_into().unwrap(),
-        profession: profession.try_into().unwrap(),
-        primary_rank: primary_rank.try_into().unwrap(),
-        weapon: weapon.try_into().unwrap(),
-        weapon_damage: weapon_damage.try_into().unwrap(),
-        weapon_ticks: weapon_ticks.try_into().unwrap(),
-        weapon_range: weapon_range.try_into().unwrap(),
-        weapon_strength: weapon_strength.try_into().unwrap(),
-        ranks: ranks.try_into().unwrap(),
-        damage_type: damage_type.try_into().unwrap(),
-        requirement_met: requirement_met.try_into().unwrap(),
-        set_bonuses: set_bonuses.try_into().unwrap(),
-        quick_cast_slots: (slots_low + slots_high * 0x100).try_into().unwrap(),
-        weapon_required: weapon_required.try_into().unwrap(),
-    }
-}
-
-pub impl MemberStatsStorePacking of starknet::storage_access::StorePacking<MemberStats, felt252> {
-    fn pack(value: MemberStats) -> felt252 {
-        pack_stats(value)
-    }
-    fn unpack(value: felt252) -> MemberStats {
-        unpack_stats(value)
-    }
-}
-
-/// A quick-cast modifier held (`QUICK_CAST_EVERY_N`, design/19 §4, §5.12): its attribute (4
-/// bits) and its N (8 bits; 0 for none). At most two are held, each with its own counter
-/// (`MemberState.casts`, `casts_2`; FX-43).
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
-pub struct QuickCast {
-    pub attribute: u8,
-    pub every: u8,
-}
-
-/// The skill bar (8 skill ids, registry `u16`), locked for the expedition (design/03), and, in
-/// its high limb, the passives the rules read at each hit or cast (design/19 §7.2, FX-24).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct MemberBar {
-    pub skills: [u16; 8],
-    /// The slot of the elite skill, 255 for none (bits 128–135).
-    pub elite_slot: u8,
-    /// `DAMAGE_PERCENT` sums (bits 136–183), index `3 × guard + class`: guard `ALWAYS` 0 or
-    /// `ABOVE_HALF` 1, hit class (`passive::HIT_*`) a plain weapon hit 0 (scopes `WEAPON`,
-    /// `ALL`), an attack skill's hit 1 (`WEAPON`, `ATTACK_SKILL`, `ALL`: design/19 §5.4), a
-    /// spell's hit 2 (`SPELL`, `ALL`). Each −126…+126.
-    pub damage: [i8; 6],
-    /// `PENETRATION` sums, percent, index the hit class as above (bits 184–207). Each ≤ 252,
-    /// capped at 100 at use.
-    pub penetration: [u8; 3],
-    /// Two quick-cast modifiers, 12 bits each (bits 208–231).
-    pub quick_cast: [QuickCast; 2],
-    /// The unguarded armor, signed (bits 232–247), at most `MAX_UNGUARDED_ARMOR` either way.
-    pub armor: i16,
-}
-
-#[generate_trait]
-pub impl QuickCastImpl of QuickCastTrait {
-    /// Its 12 bits: attribute 0–3 · N 4–11 (`QuickCastAssert::assert_valid`).
-    fn pack(self: @QuickCast) -> u128 {
-        self.assert_valid();
-        (*self.attribute).into() + (*self.every).into() * 0x10
-    }
-
-    /// The pair of 12 bits.
-    fn unpack(bits: u128) -> QuickCast {
-        let (every, attribute) = DivRem::div_rem(bits, 0x10);
-        QuickCast { attribute: attribute.try_into().unwrap(), every: every.try_into().unwrap() }
-    }
-}
-
-#[generate_trait]
-pub impl QuickCastAssert of QuickCastAssertTrait {
-    /// The attribute fits 4 bits.
-    #[inline(always)]
-    fn assert_valid(self: @QuickCast) {
-        assert(*self.attribute < 0x10, errors::QUICK_CAST);
-    }
-}
-
-pub fn pack_bar(b: MemberBar) -> felt252 {
-    let [s0, s1, s2, s3, s4, s5, s6, s7] = b.skills;
-    let [d0, d1, d2, d3, d4, d5] = b.damage;
-    let [p0, p1, p2] = b.penetration;
-    let [q0, q1] = b.quick_cast;
-    b.assert_valid();
-    let low: u128 = s0.into()
-        + s1.into() * P16
-        + s2.into() * P32
-        + s3.into() * P48
-        + s4.into() * P64
-        + s5.into() * P80
-        + s6.into() * P96
-        + s7.into() * P112;
-    let high: u128 = b.elite_slot.into()
-        + SignedTrait::bits8(d0) * P8
-        + SignedTrait::bits8(d1) * P16
-        + SignedTrait::bits8(d2) * P24
-        + SignedTrait::bits8(d3) * P32
-        + SignedTrait::bits8(d4) * P40
-        + SignedTrait::bits8(d5) * P48
-        + p0.into() * P56
-        + p1.into() * P64
-        + p2.into() * P72
-        + q0.pack() * P80
-        + q1.pack() * P92
-        + SignedTrait::bits16(b.armor) * P104;
-    PackingTrait::join(low, high)
-}
-
-pub fn unpack_bar(word: felt252) -> MemberBar {
-    let (low, high) = PackingTrait::split(word);
-    let b16: NonZero<u128> = P16.try_into().unwrap();
-    let b8: NonZero<u128> = P8.try_into().unwrap();
-    let b12: NonZero<u128> = P12.try_into().unwrap();
-    let (low, s0) = DivRem::div_rem(low, b16);
-    let (low, s1) = DivRem::div_rem(low, b16);
-    let (low, s2) = DivRem::div_rem(low, b16);
-    let (low, s3) = DivRem::div_rem(low, b16);
-    let (low, s4) = DivRem::div_rem(low, b16);
-    let (low, s5) = DivRem::div_rem(low, b16);
-    let (s7, s6) = DivRem::div_rem(low, b16);
-    let (high, elite_slot) = DivRem::div_rem(high, b8);
-    let (high, d0) = DivRem::div_rem(high, b8);
-    let (high, d1) = DivRem::div_rem(high, b8);
-    let (high, d2) = DivRem::div_rem(high, b8);
-    let (high, d3) = DivRem::div_rem(high, b8);
-    let (high, d4) = DivRem::div_rem(high, b8);
-    let (high, d5) = DivRem::div_rem(high, b8);
-    let (high, p0) = DivRem::div_rem(high, b8);
-    let (high, p1) = DivRem::div_rem(high, b8);
-    let (high, p2) = DivRem::div_rem(high, b8);
-    let (high, q0) = DivRem::div_rem(high, b12);
-    let (high, q1) = DivRem::div_rem(high, b12);
-    let armor = LimbTrait::low_field(high, b16);
-    MemberBar {
-        skills: [
-            s0.try_into().unwrap(), s1.try_into().unwrap(), s2.try_into().unwrap(),
-            s3.try_into().unwrap(), s4.try_into().unwrap(), s5.try_into().unwrap(),
-            s6.try_into().unwrap(), s7.try_into().unwrap(),
-        ],
-        elite_slot: elite_slot.try_into().unwrap(),
-        damage: [
-            SignedTrait::from8(d0), SignedTrait::from8(d1), SignedTrait::from8(d2),
-            SignedTrait::from8(d3), SignedTrait::from8(d4), SignedTrait::from8(d5),
-        ],
-        penetration: [p0.try_into().unwrap(), p1.try_into().unwrap(), p2.try_into().unwrap()],
-        quick_cast: [QuickCastTrait::unpack(q0), QuickCastTrait::unpack(q1)],
-        armor: SignedTrait::from16(armor),
-    }
-}
-
-pub impl MemberBarStorePacking of starknet::storage_access::StorePacking<MemberBar, felt252> {
-    fn pack(value: MemberBar) -> felt252 {
-        pack_bar(value)
-    }
-    fn unpack(value: felt252) -> MemberBar {
-        unpack_bar(value)
-    }
-}
-
-/// The belt (4 potion item ids) and the modifiers of the equipment, flattened at entry
-/// (design/15: equipment cannot change during an expedition; design/19 §7.2, FX-24). High limb,
-/// 75 bits: life steal 128–135 · energy on hit 136–143 · condition 144–147 · its duration
-/// percent 148–153 · enchantment duration percent 154–159 · double adrenaline every N hits
-/// 160–167 ·
-/// health bonus 168–183 · armor in a stance 184–191 · armor enchanted 192–199 (signed) ·
-/// knock-down ticks 200–201 · halving 202.
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
-pub struct MemberKit {
-    pub belt: [u32; 4],
-    /// `LIFE_STEAL_ON_HIT`, `ENERGY_ON_HIT`.
-    pub life_steal: u8,
-    pub energy_on_hit: u8,
-    /// `CONDITION_DURATION`: its condition (4 bits; 0 none) and percent (6 bits). One prefix, on
-    /// the weapon only.
-    pub condition: u8,
-    pub condition_duration: u8,
-    /// `ENCHANT_DURATION` percent (6 bits).
-    pub enchantment_duration: u8,
-    /// `ADRENALINE_EVERY_N`: the lowest N held (FX-43); 0 none.
-    pub double_adrenaline_every: u8,
-    /// `MAX_HEALTH` from the equipment.
-    pub health_bonus: u16,
-    /// The guarded `ARMOR` sums, signed, each −126…+126 (F-20): `IN_STANCE`, `ENCHANTED`.
-    pub armor_stance: i8,
-    pub armor_enchanted: i8,
-    /// `KNOCKDOWN_FLAT`, 0–3 ticks.
-    pub knockdown: u8,
-    /// `HALVE_FIRST_HEAVY_HIT` held.
-    pub halving: bool,
-}
-
-pub fn pack_kit(k: MemberKit) -> felt252 {
-    k.assert_valid();
-    let [b0, b1, b2, b3] = k.belt;
-    let low: u128 = b0.into() + b1.into() * P32 + b2.into() * P64 + b3.into() * P96;
-    let high: u128 = k.life_steal.into()
-        + k.energy_on_hit.into() * P8
-        + k.condition.into() * P16
-        + k.condition_duration.into() * P20
-        + k.enchantment_duration.into() * 0x4000000
-        + k.double_adrenaline_every.into() * P32
-        + k.health_bonus.into() * P40
-        + SignedTrait::bits8(k.armor_stance) * P56
-        + SignedTrait::bits8(k.armor_enchanted) * P64
-        + k.knockdown.into() * P72
-        + if k.halving {
-            0x4000000000000000000
-        } else {
-            0
-        };
-    PackingTrait::join(low, high)
-}
-
-pub fn unpack_kit(word: felt252) -> MemberKit {
-    let (low, high) = PackingTrait::split(word);
-    let b8: NonZero<u128> = P8.try_into().unwrap();
-    let b32: NonZero<u128> = P32.try_into().unwrap();
-    let (low, b0) = DivRem::div_rem(low, b32);
-    let (low, b1) = DivRem::div_rem(low, b32);
-    let (b3, b2) = DivRem::div_rem(low, b32);
-    let (high, life_steal) = DivRem::div_rem(high, b8);
-    let (high, energy_on_hit) = DivRem::div_rem(high, b8);
-    let (high, condition) = DivRem::div_rem(high, 0x10);
-    let (high, condition_duration) = DivRem::div_rem(high, 0x40);
-    let (high, enchantment_duration) = DivRem::div_rem(high, 0x40);
-    let (high, double_adrenaline_every) = DivRem::div_rem(high, b8);
-    let (high, health_bonus) = DivRem::div_rem(high, P16.try_into().unwrap());
-    let (high, armor_stance) = DivRem::div_rem(high, b8);
-    let (high, armor_enchanted) = DivRem::div_rem(high, b8);
-    let (halving, knockdown) = DivRem::div_rem(high, 4);
-    MemberKit {
-        belt: [
-            b0.try_into().unwrap(), b1.try_into().unwrap(), b2.try_into().unwrap(),
-            b3.try_into().unwrap(),
-        ],
-        life_steal: life_steal.try_into().unwrap(),
-        energy_on_hit: energy_on_hit.try_into().unwrap(),
-        condition: condition.try_into().unwrap(),
-        condition_duration: condition_duration.try_into().unwrap(),
-        enchantment_duration: enchantment_duration.try_into().unwrap(),
-        double_adrenaline_every: double_adrenaline_every.try_into().unwrap(),
-        health_bonus: health_bonus.try_into().unwrap(),
-        armor_stance: SignedTrait::from8(armor_stance),
-        armor_enchanted: SignedTrait::from8(armor_enchanted),
-        knockdown: knockdown.try_into().unwrap(),
-        halving: halving != 0,
-    }
-}
-
-/// The snapshot builder's flattening of the kit (design/19 §4, §7.2). ENG-06 builds the rest of
-/// the snapshot with design/15's formulas; the rules here are the ones a flattening defect was
-/// found in (CBT-9).
-#[generate_trait]
-pub impl MemberKitImpl of MemberKitTrait {
-    /// `CONDITION_DURATION` held: `(condition, percent)`, `(0, 0)` for none. Summed **per
-    /// condition** (§4, FX-43: a prefix's benefit and cost may name the same one, 33 + 10 = 43),
-    /// then capped at `MAX_DURATION_BONUS_PERCENT` (ENG-01 §3.1). The kit holds one condition
-    /// ("one prefix"): two conditions are refused, as the validators refuse them on one source.
-    /// Summed wide (`u32`), then saturated at 50 (DS-5): design/20 §6 test 4's 65,534 gives 50.
-    fn condition_duration(held: Span<Passive>) -> (u8, u8) {
-        MemberKitAssert::assert_one_condition(held);
-        let mut condition: u8 = 0;
-        let mut percent: u32 = 0;
-        for passive in held {
-            if *passive.id == id::CONDITION_DURATION {
-                condition = *passive.param;
-                let value: i32 = (*passive.max).into();
-                percent += value.try_into().unwrap();
-            }
-        }
-        (condition, saturate(percent, MAX_DURATION_BONUS_PERCENT).try_into().unwrap())
-    }
-}
-
-/// A sum flattened wide, then saturated at its field's cap (DS-5, FX-23). A free function: the
-/// arithmetic of one field, no type owns it.
-pub fn saturate(sum: u32, cap: u32) -> u32 {
-    if sum > cap {
-        cap
-    } else {
-        sum
-    }
 }
 
 // The production flattening (design/19 §4, §7.2; design/20 §1, D-160): the build and the
@@ -1236,16 +758,11 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
     ) -> (felt252, felt252, felt252) {
         let held = WornTrait::held(worn, ids, records);
         let snapshot = Self::build(loadout, held.span());
-        (pack_stats(snapshot.stats), pack_bar(snapshot.bar), pack_kit(snapshot.kit))
-    }
-}
-
-pub impl MemberKitStorePacking of starknet::storage_access::StorePacking<MemberKit, felt252> {
-    fn pack(value: MemberKit) -> felt252 {
-        pack_kit(value)
-    }
-    fn unpack(value: felt252) -> MemberKit {
-        unpack_kit(value)
+        (
+            MemberStatsTrait::pack(snapshot.stats),
+            MemberBarTrait::pack(snapshot.bar),
+            MemberKitTrait::pack(snapshot.kit),
+        )
     }
 }
 
@@ -1320,65 +837,11 @@ pub impl SnapshotImpl of SnapshotTrait {
     /// The snapshot as `Instances.create` receives it: its three words packed.
     fn words(self: @Snapshot) -> SnapshotWords {
         SnapshotWords {
-            stats: pack_stats(*self.stats),
-            bar: pack_bar(*self.bar),
-            kit: pack_kit(*self.kit),
+            stats: MemberStatsTrait::pack(*self.stats),
+            bar: MemberBarTrait::pack(*self.bar),
+            kit: MemberKitTrait::pack(*self.kit),
             belt_counts: *self.belt_counts,
         }
-    }
-}
-
-/// One task an instance reports (D-131): the quiver task id and what counts toward it, which the
-/// instance can check without reading the persistent domain.
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
-pub struct TaskEntry {
-    pub task: u32,
-    /// `criteria` of docs/architecture/ENG-01-interfaces.md: 1 kill a caste, 2 reach a landmark,
-    /// 3 clear a dungeon, 4 reveal a whole zone, 5 loot remains, 6 mine, 7 activate objects.
-    pub kind: u8,
-    /// The registry id the kind counts (a caste, a landmark, a location).
-    pub param: u16,
-}
-
-/// Four tasks per stored page: at bits 0 and 56 (low limb), 128 and 184 (high limb).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct TaskPage {
-    pub entries: [TaskEntry; 4],
-}
-
-fn pack_task(t: TaskEntry) -> u128 {
-    t.task.into() + t.kind.into() * P32 + t.param.into() * P40
-}
-
-fn unpack_task(bits: u128) -> TaskEntry {
-    let (rest, task) = DivRem::div_rem(bits, P32.try_into().unwrap());
-    let (param, kind) = DivRem::div_rem(rest, P8.try_into().unwrap());
-    TaskEntry {
-        task: task.try_into().unwrap(),
-        kind: kind.try_into().unwrap(),
-        param: param.try_into().unwrap(),
-    }
-}
-
-pub fn pack_task_page(p: TaskPage) -> felt252 {
-    let [a, b, c, d] = p.entries;
-    PackingTrait::join(pack_task(a) + pack_task(b) * P56, pack_task(c) + pack_task(d) * P56)
-}
-
-pub fn unpack_task_page(word: felt252) -> TaskPage {
-    let (low, high) = PackingTrait::split(word);
-    let s56: NonZero<u128> = P56.try_into().unwrap();
-    let (b, a) = DivRem::div_rem(low, s56);
-    let (d, c) = DivRem::div_rem(high, s56);
-    TaskPage { entries: [unpack_task(a), unpack_task(b), unpack_task(c), unpack_task(d)] }
-}
-
-pub impl TaskPageStorePacking of starknet::storage_access::StorePacking<TaskPage, felt252> {
-    fn pack(value: TaskPage) -> felt252 {
-        pack_task_page(value)
-    }
-    fn unpack(value: felt252) -> TaskPage {
-        unpack_task_page(value)
     }
 }
 
@@ -1390,9 +853,11 @@ pub impl TaskPageStorePacking of starknet::storage_access::StorePacking<TaskPage
 #[cfg(test)]
 mod tests {
     use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
-    use crate::helpers::packing::LIVE;
     use crate::models::base::slot as base_slot;
     use crate::models::index::Modifier;
+    use crate::models::member_bar::{MemberBar, MemberBarTrait, QuickCast};
+    use crate::models::member_kit::{MemberKit, MemberKitTrait, saturate};
+    use crate::models::member_stats::{MemberStats, MemberStatsTrait};
     use crate::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
     use crate::types::combat::{condition, damage, weapon};
     use crate::types::effect::{guard, scope};
@@ -1402,11 +867,9 @@ mod tests {
     use crate::types::profession::ProfessionTrait;
     use super::{
         BuildAssert, HEAVY_VS_PHYSICAL, HeldPassive, LIGHT_ENERGY, LIGHT_ENERGY_REGEN, Loadout,
-        MAX_ARMOR_VS, MAX_KNOCKDOWN, MAX_UNGUARDED_ARMOR, MEDIUM_VS_ELEMENTAL, MemberBar, MemberKit,
-        MemberKitTrait, MemberStats, PERSONALISED_DAMAGE_PERCENT, QuickCast, STRENGTH_PER_RANK,
-        Snapshot, SnapshotBuildTrait, SnapshotTrait, SnapshotWords, TaskEntry, TaskPage,
-        WELLSPRING_ENERGY_PER_RANK, Worn, WornTrait, errors, fit, pack_bar, pack_kit, pack_stats,
-        pack_task_page, saturate, unpack_bar, unpack_kit, unpack_stats, unpack_task_page,
+        MAX_ARMOR_VS, MAX_KNOCKDOWN, MEDIUM_VS_ELEMENTAL, PERSONALISED_DAMAGE_PERCENT,
+        STRENGTH_PER_RANK, Snapshot, SnapshotBuildTrait, SnapshotTrait, SnapshotWords,
+        WELLSPRING_ENERGY_PER_RANK, Worn, WornTrait, errors, fit,
     };
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
@@ -2385,280 +1848,6 @@ mod tests {
         assert(snapshot.kit.halving, 'halving');
     }
 
-    // DS-29: `pack_stats` accepts a health regeneration of 20 and refuses 21.
-    #[test]
-    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
-    #[available_gas(l2_gas: 117632)] // ceil(1.05 × 112030 measured)
-    fn test_stats_health_regen_20_packs() {
-        pack_stats(MemberStats { health_regen: 20, ..Default::default() });
-    }
-
-    #[test]
-    #[should_panic(expected: 'snapshot: health regen')]
-    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
-    fn test_stats_health_regen_21_refused() {
-        pack_stats(MemberStats { health_regen: 21, ..Default::default() });
-    }
-
-    #[test]
-    // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
-    #[available_gas(l2_gas: 866870)] // ceil(1.05 × 825590 measured)
-    fn test_stats_layout() {
-        let stats = MemberStats {
-            max_health: 0xFFFF,
-            max_energy: 1,
-            energy_regen: 2,
-            health_regen: 3,
-            armor_vs: [63, 1, 2, 3, 4, 5, 6, 7, 63],
-            level: 7,
-            profession: 8,
-            primary_rank: 9,
-            weapon: 10,
-            weapon_damage: 11,
-            weapon_ticks: 12,
-            weapon_range: 13,
-            weapon_strength: 0xFF,
-            ranks: 0xFFFFFFFF,
-            damage_type: 14,
-            requirement_met: 1,
-            set_bonuses: 0xFFFF,
-            quick_cast_slots: 0xFFFF,
-            weapon_required: 0xFF,
-        };
-        assert(unpack_stats(pack_stats(stats)) == stats, 'round trip');
-        // CBT-05f: the weapon-required slots at 40–47; the quick-cast slots 0–3 at 168–175,
-        // 4–7 at 242–249, below `LIVE`.
-        let required = MemberStats { weapon_required: 1, ..Default::default() };
-        assert(pack_stats(required) == 0x10000000000 + LIVE, 'weapon required at 40');
-        let quick = MemberStats { quick_cast_slots: 0x0101, ..Default::default() };
-        let at168 = 0x1000000000000000000000000000000000000000000;
-        let at242 = 0x4000000000000000000000000000000000000000000000000000000000000;
-        assert(pack_stats(quick) == at168 + at242 + LIVE, 'quick cast at 168, 242');
-        let level = MemberStats { level: 1, ..Default::default() };
-        assert(pack_stats(level) == 0x10000000000000000 + LIVE, 'level at bit 64');
-        let ranks = MemberStats { ranks: 1, ..Default::default() };
-        assert(pack_stats(ranks) == TWO_128 + LIVE, 'ranks at bit 128');
-        // design/19 §7.2: `ARMOR_VS` types 1–2 at bits 48, 54; types 3–9 at 200 + 6 (type −
-        // 3).
-        let vs = MemberStats { armor_vs: [1, 1, 0, 0, 0, 0, 0, 0, 0], ..Default::default() };
-        assert(pack_stats(vs) == 0x1000000000000 + 0x40000000000000 + LIVE, 'vs 1-2 at 48, 54');
-        let vs = MemberStats { armor_vs: [0, 0, 1, 0, 0, 0, 0, 0, 1], ..Default::default() };
-        let at200 = 0x100000000000000000000000000000000000000000000000000;
-        let at236 = 0x100000000000000000000000000000000000000000000000000000000000;
-        assert(pack_stats(vs) == at200 + at236 + LIVE, 'vs 3 at 200, 9 at 236');
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 389991)] // ceil(1.05 × 371420 measured)
-    fn test_bar_and_kit_layout() {
-        let bar = MemberBar {
-            skills: [1, 2, 3, 4, 5, 6, 7, 0xFFFF], elite_slot: 255, ..Fixture::empty_bar(),
-        };
-        assert(unpack_bar(pack_bar(bar)) == bar, 'bar round trip');
-        let bar = MemberBar {
-            skills: [0, 0, 0, 0, 0, 0, 0, 1], elite_slot: 0, ..Fixture::empty_bar(),
-        };
-        assert(pack_bar(bar) == 0x10000000000000000000000000000 + LIVE, 'skill 7 at bit 112');
-        let kit = MemberKit {
-            belt: [1, 2, 3, 0xFFFFFFFF],
-            life_steal: 3,
-            energy_on_hit: 4,
-            condition: 15,
-            condition_duration: 63,
-            enchantment_duration: 63,
-            double_adrenaline_every: 0xFF,
-            health_bonus: 0xFFFF,
-            armor_stance: -128,
-            armor_enchanted: 127,
-            knockdown: 3,
-            halving: true,
-        };
-        assert(unpack_kit(pack_kit(kit)) == kit, 'kit round trip');
-        let kit = MemberKit { health_bonus: 1, ..Default::default() };
-        assert(pack_kit(kit) == 0x10000000000 * TWO_128 + LIVE, 'health bonus at bit 168');
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 140763)] // ceil(1.05 × 134060 measured)
-    fn test_task_page_layout() {
-        let full = TaskEntry { task: 0xFFFFFFFF, kind: 0xFF, param: 0xFFFF };
-        let page = TaskPage {
-            entries: [full, TaskEntry { task: 1, kind: 2, param: 3 }, full, full],
-        };
-        assert(unpack_task_page(pack_task_page(page)) == page, 'round trip');
-        let second = TaskPage {
-            entries: [
-                Default::default(), TaskEntry { task: 1, kind: 0, param: 0 }, Default::default(),
-                TaskEntry { task: 0, kind: 1, param: 0 },
-            ],
-        };
-        // Entry 1 at bit 56; entry 3 at bit 184, its kind at bit 216.
-        let expected = 0x100000000000000 + 0x100000000 * 0x100000000000000 * TWO_128 + LIVE;
-        assert(pack_task_page(second) == expected, 'offsets');
-    }
-
-    #[generate_trait]
-    impl FixtureImpl of Fixture {
-        /// A bar with no skill and every passive sum 0, the unguarded armor 0.
-        fn empty_bar() -> MemberBar {
-            MemberBar {
-                skills: [0; 8],
-                elite_slot: 0,
-                damage: [0; 6],
-                penetration: [0; 3],
-                quick_cast: [Default::default(); 2],
-                armor: 0,
-            }
-        }
-    }
-
-    // design/19 §7.2 (FX-24): the bar's high limb holds the elite slot 128, the damage sums
-    // 136–183 (signed), the penetration sums 184–207, the quick-cast pairs 208–231 and the
-    // unguarded armor 232–247 (signed); each round-trips at both ends and sits at its bit.
-    #[test]
-    #[available_gas(l2_gas: 830193)] // ceil(1.05 × 790660 measured)
-    fn test_bar_passives_layout() {
-        let top = MemberBar {
-            skills: [0xFFFF; 8],
-            elite_slot: 255,
-            damage: [127, -128, 126, -126, 1, -1],
-            penetration: [255, 0, 252],
-            quick_cast: [
-                QuickCast { attribute: 15, every: 255 }, QuickCast { attribute: 1, every: 5 },
-            ],
-            armor: -MAX_UNGUARDED_ARMOR,
-        };
-        assert(unpack_bar(pack_bar(top)) == top, 'top round trip');
-        let top = MemberBar { armor: MAX_UNGUARDED_ARMOR, ..top };
-        assert(unpack_bar(pack_bar(top)) == top, 'armor max round trip');
-        let bit = |bar: MemberBar| -> felt252 {
-            pack_bar(bar) - LIVE
-        };
-        let empty = Fixture::empty_bar();
-        let two_136: felt252 = TWO_128 * 0x100;
-        assert(bit(MemberBar { damage: [1, 0, 0, 0, 0, 0], ..empty }) == two_136, 'damage at 136');
-        assert(
-            bit(MemberBar { damage: [-1, 0, 0, 0, 0, 0], ..empty }) == two_136 * 0xFF,
-            'signed damage',
-        );
-        let two_184: felt252 = TWO_128 * 0x100000000000000;
-        assert(bit(MemberBar { penetration: [1, 0, 0], ..empty }) == two_184, 'penetration at 184');
-        let two_208: felt252 = TWO_128 * 0x100000000000000000000;
-        let one = QuickCast { attribute: 1, every: 0 };
-        assert(
-            bit(MemberBar { quick_cast: [one, Default::default()], ..empty }) == two_208,
-            'qc at 208',
-        );
-        let two_232: felt252 = TWO_128 * 0x100000000000000000000000000;
-        assert(bit(MemberBar { armor: 1, ..empty }) == two_232, 'armor at 232');
-        assert(bit(MemberBar { armor: -1, ..empty }) == two_232 * 0xFFFF, 'armor signed');
-    }
-
-    // F-21: the unguarded armor is bounded by 9,995 either way; a wider value is refused.
-    #[test]
-    #[should_panic(expected: 'snapshot: armor above bound')]
-    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
-    fn test_bar_armor_above_bound_refused() {
-        pack_bar(MemberBar { armor: MAX_UNGUARDED_ARMOR + 1, ..Fixture::empty_bar() });
-    }
-
-    #[test]
-    #[should_panic(expected: 'snapshot: armor above bound')]
-    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
-    fn test_bar_armor_below_bound_refused() {
-        pack_bar(MemberBar { armor: -MAX_UNGUARDED_ARMOR - 1, ..Fixture::empty_bar() });
-    }
-
-    #[test]
-    #[should_panic(expected: 'snapshot: quick-cast attribute')]
-    #[available_gas(l2_gas: 77175)] // ceil(1.05 × 73500 measured)
-    fn test_bar_quick_cast_attribute_refused() {
-        let wide = QuickCast { attribute: 16, every: 1 };
-        pack_bar(MemberBar { quick_cast: [Default::default(), wide], ..Fixture::empty_bar() });
-    }
-
-    #[test]
-    #[should_panic(expected: 'snapshot: armor vs above 63')]
-    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
-    fn test_stats_armor_vs_refused() {
-        pack_stats(MemberStats { armor_vs: [0, 0, 0, 0, 0, 0, 0, 0, 64], ..Default::default() });
-    }
-
-    // The kit's high limb (design/19 §7.2): 75 bits, each field at its bit; the narrow ones
-    // refused when wider.
-    #[test]
-    #[available_gas(l2_gas: 638684)] // ceil(1.05 × 608270 measured)
-    fn test_kit_passives_layout() {
-        let bit = |kit: MemberKit| -> felt252 {
-            pack_kit(kit) - LIVE
-        };
-        let k = MemberKit { ..Default::default() };
-        assert(bit(MemberKit { life_steal: 1, ..k }) == TWO_128, 'life steal at 128');
-        assert(bit(MemberKit { energy_on_hit: 1, ..k }) == TWO_128 * 0x100, 'energy at 136');
-        assert(bit(MemberKit { condition: 1, ..k }) == TWO_128 * 0x10000, 'condition at 144');
-        assert(
-            bit(MemberKit { condition_duration: 1, ..k }) == TWO_128 * 0x100000, 'cond % at 148',
-        );
-        assert(
-            bit(MemberKit { enchantment_duration: 1, ..k }) == TWO_128 * 0x4000000, 'ench at 154',
-        );
-        assert(
-            bit(MemberKit { double_adrenaline_every: 1, ..k }) == TWO_128 * 0x100000000, 'N at 160',
-        );
-        assert(
-            bit(MemberKit { armor_stance: 1, ..k }) == TWO_128 * 0x100000000000000, 'stance 184',
-        );
-        assert(bit(MemberKit { armor_stance: -1, ..k }) == TWO_128 * 0xFF00000000000000, 'signed');
-        assert(
-            bit(MemberKit { armor_enchanted: 1, ..k }) == TWO_128 * 0x10000000000000000, 'ench 192',
-        );
-        assert(
-            bit(MemberKit { knockdown: 1, ..k }) == TWO_128 * 0x1000000000000000000, 'kd at 200',
-        );
-        assert(
-            bit(MemberKit { halving: true, ..k }) == TWO_128 * 0x4000000000000000000, 'halving 202',
-        );
-        let top = MemberKit {
-            belt: [0xFFFFFFFF; 4],
-            life_steal: 0xFF,
-            energy_on_hit: 0xFF,
-            condition: 15,
-            condition_duration: 63,
-            enchantment_duration: 63,
-            double_adrenaline_every: 0xFF,
-            health_bonus: 0xFFFF,
-            armor_stance: 127,
-            armor_enchanted: -128,
-            knockdown: 3,
-            halving: true,
-        };
-        let word = pack_kit(top);
-        assert(unpack_kit(word) == top, 'top round trip');
-        // 75 bits: the high limb's highest set bit is 202.
-        let wide: u256 = word.into();
-        assert(wide.high - 0x4000000000000000000000000000000 < 0x8000000000000000000, 'within 75');
-    }
-
-    #[test]
-    #[should_panic(expected: 'snapshot: knock-down above 3')]
-    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
-    fn test_kit_knockdown_refused() {
-        pack_kit(MemberKit { knockdown: 4, ..Default::default() });
-    }
-
-    #[test]
-    #[should_panic(expected: 'snapshot: percent above 63')]
-    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
-    fn test_kit_percent_refused() {
-        pack_kit(MemberKit { enchantment_duration: 64, ..Default::default() });
-    }
-
-    #[test]
-    #[should_panic(expected: 'snapshot: condition')]
-    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
-    fn test_kit_condition_refused() {
-        pack_kit(MemberKit { condition: 16, ..Default::default() });
-    }
 
     // ---- the flattening's cost (docs/CAIRO.md §2: a benchmark on the worst case)
     // ----------------
@@ -2764,37 +1953,6 @@ mod tests {
         assert(snapshot.stats.max_health == 480, 'no passive');
     }
 
-    // CBT-9, DS-5 (design/20 §6 test 4): `MemberKitTrait::condition_duration` sums wide, then
-    // saturates at 50: envelope A's 65,534 gives 50 (the builder's sum, without the validators
-    // that now forbid it). Moved from `test_capacity` (D-167, CBT-02c fix loop 1).
-    #[test]
-    #[available_gas(l2_gas: 32739)] // ceil(1.05 × 31180 measured)
-    fn test_same_condition_capped() {
-        let wide = passive(id::CONDITION_DURATION, condition::POISON, 32767);
-        assert(
-            MemberKitTrait::condition_duration(
-                array![wide, wide].span(),
-            ) == (condition::POISON, 50),
-            '65,534 saturated',
-        );
-        // None held: no condition.
-        assert(MemberKitTrait::condition_duration(array![].span()) == (0, 0), 'none');
-    }
-
-    // CBT-9: two conditions are still refused, by the builder as by the validators.
-    #[test]
-    #[should_panic(expected: 'snapshot: two conditions')]
-    #[available_gas(l2_gas: 22922)] // ceil(1.05 × 21830 measured)
-    fn test_two_conditions_builder_refused() {
-        MemberKitTrait::condition_duration(
-            array![
-                passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
-                passive(id::CONDITION_DURATION, condition::POISON, 10),
-            ]
-                .span(),
-        );
-    }
-
     // ---- the items worn (CBT-02e, D-168: `WornTrait::held`, `SnapshotBuildTrait::words`) -----
 
     /// The `MODIFIER` records of the tests below, one part each as the registry stores them: 1 a
@@ -2871,14 +2029,14 @@ mod tests {
             SnapshotWords { stats, bar, kit, belt_counts: build.belt_counts } == snapshot.words(),
             'words',
         );
-        assert(unpack_kit(kit).life_steal == 8, 'life steal 5 + 3');
+        assert(MemberKitTrait::unpack(kit).life_steal == 8, 'life steal 5 + 3');
         let (stats, bar, kit) = SnapshotBuildTrait::words(
             @build, array![].span(), array![].span(), array![].span(),
         );
         let empty = SnapshotBuildTrait::build(@build, array![].span());
-        assert(stats == pack_stats(empty.stats), 'empty stats');
-        assert(bar == pack_bar(empty.bar), 'empty bar');
-        assert(kit == pack_kit(empty.kit), 'empty kit');
+        assert(stats == MemberStatsTrait::pack(empty.stats), 'empty stats');
+        assert(bar == MemberBarTrait::pack(empty.bar), 'empty bar');
+        assert(kit == MemberKitTrait::pack(empty.kit), 'empty kit');
     }
 
     #[test]
@@ -2944,9 +2102,9 @@ mod tests {
             3, 1, [1, 2, 0, 0, 0, 0, 0, 0], 255, [7; 4], [1, 2, 3, 4],
         );
         let words = snapshot.words();
-        assert(unpack_stats(words.stats) == snapshot.stats, 'stats');
-        assert(unpack_bar(words.bar) == snapshot.bar, 'bar');
-        assert(unpack_kit(words.kit) == snapshot.kit, 'kit');
+        assert(MemberStatsTrait::unpack(words.stats) == snapshot.stats, 'stats');
+        assert(MemberBarTrait::unpack(words.bar) == snapshot.bar, 'bar');
+        assert(MemberKitTrait::unpack(words.kit) == snapshot.kit, 'kit');
         assert(words.belt_counts == [1, 2, 3, 4], 'counts');
     }
 }

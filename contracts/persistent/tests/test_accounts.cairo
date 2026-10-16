@@ -46,7 +46,8 @@ pub trait IDoubleViews<T> {
 #[starknet::contract]
 mod InstancesDouble {
     use grimworld_logic::interface::IInstanceEntry;
-    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry};
+    use grimworld_logic::models::task::TaskEntry;
+    use grimworld_logic::snapshot::SnapshotWords;
     use grimworld_logic::types::InstanceId;
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
@@ -96,7 +97,8 @@ mod InstancesDouble {
 #[starknet::contract]
 mod RefusingInstances {
     use grimworld_logic::interface::IInstanceEntry;
-    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry};
+    use grimworld_logic::models::task::TaskEntry;
+    use grimworld_logic::snapshot::SnapshotWords;
     use grimworld_logic::types::InstanceId;
     use starknet::ContractAddress;
 

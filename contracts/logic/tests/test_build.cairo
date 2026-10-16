@@ -314,8 +314,9 @@ fn test_caste_skill_of_64_strikes_refused() {
     CasteAssert::assert_skills(array![skill_of(63), skill_of(64)].span());
 }
 
-// §6 test 9 (DS-29): a caste's health regeneration 21 is refused at `pack`; `pack_stats` refuses
-// 21 and accepts 20. The tick's extremes: `test_tick::test_regeneration_extremes`.
+// §6 test 9 (DS-29): a caste's health regeneration 21 is refused at `pack`;
+// `MemberStatsTrait::pack` refuses 21 and accepts 20. The tick's extremes:
+// `test_tick::test_regeneration_extremes`.
 #[test]
 #[should_panic(expected: 'caste: health regen')]
 #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)

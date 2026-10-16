@@ -19,10 +19,13 @@ use grimworld_logic::models::gate::{
 };
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
+use grimworld_logic::models::member_bar::MemberBarTrait;
+use grimworld_logic::models::member_kit::MemberKitTrait;
+use grimworld_logic::models::member_stats::MemberStatsTrait;
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats};
+use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords};
 use grimworld_logic::types::Outcome;
 use grimworld_logic::types::content::{GATE, ITEM, LOCATION, MODIFIER, QUEST, REGION, SKILL};
 use grimworld_logic::types::identifier::InstanceIdTrait;
@@ -80,7 +83,8 @@ pub trait ICreated<T> {
 #[starknet::contract]
 mod EntryDouble {
     use grimworld_logic::interface::IInstanceEntry;
-    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry};
+    use grimworld_logic::models::task::TaskEntry;
+    use grimworld_logic::snapshot::SnapshotWords;
     use grimworld_logic::types::InstanceId;
     use grimworld_logic::types::identifier::InstanceIdTrait;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
@@ -550,7 +554,7 @@ fn test_enter_reserves_the_belt() {
     let snapshot = created(world).snapshot;
     let stored = SnapshotTrait::new(1, VANGUARD, [0; 8], 255, [7, 15, 22, 29], [3, 2, 1, 5]);
     assert(snapshot == stored.words(), 'the stored words');
-    assert(unpack_kit(snapshot.kit).belt == [7, 15, 22, 29], 'belt');
+    assert(MemberKitTrait::unpack(snapshot.kit).belt == [7, 15, 22, 29], 'belt');
     // Pages hold `LIVE` after the debit: never 0 again (ENG-01 §2.2).
     assert(read(world.hub, pack_page(id, 1)) == LIVE, 'page kept live');
 }
@@ -663,9 +667,9 @@ fn test_enter_after_set_build() {
     act(world, ALICE).enter(id, INTO_ZONE);
     assert(balance(world, id, 8) == 2, 'reserve debited');
     let snapshot = created(world).snapshot;
-    assert(unpack_kit(snapshot.kit).belt == [0, 8, 0, 0], 'belt');
+    assert(MemberKitTrait::unpack(snapshot.kit).belt == [0, 8, 0, 0], 'belt');
     assert(snapshot.belt_counts == [0, 3, 0, 0], 'counts');
-    let bar = unpack_bar(snapshot.bar);
+    let bar = MemberBarTrait::unpack(snapshot.bar);
     assert(bar.skills == [0, 1, 0, 0, 0, 0, 0, 0] && bar.elite_slot == 1, 'bar');
     // The words `set_build` stored, copied (D-168).
     let key = snapshot_key(id);
@@ -743,8 +747,8 @@ fn test_enter_refuses_a_stale_snapshot() {
 
     act(world, ALICE).enter(id, INTO_ZONE);
     let snapshot = created(world).snapshot;
-    assert(unpack_stats(snapshot.stats).level == 2, 'the level-2 snapshot');
-    assert(unpack_stats(snapshot.stats).max_health == 120, '100 + 20');
+    assert(MemberStatsTrait::unpack(snapshot.stats).level == 2, 'the level-2 snapshot');
+    assert(MemberStatsTrait::unpack(snapshot.stats).max_health == 120, '100 + 20');
 }
 
 fn registry_admin(world: World) -> IRegistryAdminDispatcher {

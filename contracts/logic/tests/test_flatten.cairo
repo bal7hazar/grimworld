@@ -9,8 +9,10 @@ use core::testing::get_available_gas;
 use grimworld_logic::interface::{IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher};
 use grimworld_logic::models::base::slot as base_slot;
 use grimworld_logic::models::index::Modifier;
+use grimworld_logic::models::member_kit::MemberKitTrait;
+use grimworld_logic::models::member_stats::MemberStatsTrait;
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
-use grimworld_logic::snapshot::{Loadout, SnapshotBuildTrait, Worn, unpack_kit, unpack_stats};
+use grimworld_logic::snapshot::{Loadout, SnapshotBuildTrait, Worn};
 use grimworld_logic::types::combat::damage;
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id};
 use snforge_std::{DeclareResultTrait, declare};
@@ -99,8 +101,8 @@ fn test_library_words_are_the_flattening() {
     let (stats, _, kit) = words;
     // Life steal 5 on five items; fire 7 on ten, less nothing; cold 7 × 15 against the heavy
     // class's 0, saturated at 0 below.
-    assert(unpack_kit(kit).life_steal == 25, 'life steal');
-    assert(unpack_stats(stats).level == 20, 'level');
+    assert(MemberKitTrait::unpack(kit).life_steal == 25, 'life steal');
+    assert(MemberStatsTrait::unpack(stats).level == 20, 'level');
 }
 
 // Cost: the library call of the widest equipment, the call alone (`get_available_gas` around it),
@@ -257,7 +259,7 @@ fn test_extremal_max_health_through_the_library() {
         k += 1;
     }
     let (stats, _, _) = through_the_library(bare(20, 1), worn.span(), ids, parts);
-    assert(unpack_stats(stats).max_health == 920, 'max health 920');
+    assert(MemberStatsTrait::unpack(stats).max_health == 920, 'max health 920');
 }
 
 // Max energy: an Arcanist at level 20 at Wellspring 15 (12 points and a +3 rune: DS-8) in light
@@ -278,7 +280,7 @@ fn test_extremal_max_energy_through_the_library() {
         );
     let loadout = Loadout { points: array![(PRIMARY, 12)].span(), ..bare(20, 3) };
     let (stats, _, _) = through_the_library(loadout, worn.span(), ids, parts);
-    let stats = unpack_stats(stats);
+    let stats = MemberStatsTrait::unpack(stats);
     assert(stats.max_energy == 120, 'max energy 120');
     assert(stats.primary_rank == 15, 'Wellspring 15');
 }
@@ -295,7 +297,7 @@ fn test_extremal_weapon_damage_through_the_library() {
     let (stats, _, _) = through_the_library(
         loadout, array![].span(), array![].span(), array![].span(),
     );
-    assert(unpack_stats(stats).weapon_damage == 32, 'weapon damage 32');
+    assert(MemberStatsTrait::unpack(stats).weapon_damage == 32, 'weapon damage 32');
 }
 
 // Ranks 15 (DS-8): 12 points and a +3 rune, on the primary and on every bar skill's attribute:
@@ -315,7 +317,7 @@ fn test_extremal_ranks_through_the_library() {
         points: array![(PRIMARY, 12)].span(), bar_attributes: [PRIMARY; 8], ..bare(20, 1),
     };
     let (stats, _, _) = through_the_library(loadout, worn.span(), ids, parts);
-    let stats = unpack_stats(stats);
+    let stats = MemberStatsTrait::unpack(stats);
     assert(stats.primary_rank == 15, 'primary 15');
     assert(stats.ranks == 0xffffffff, 'eight ranks of 15');
 }

@@ -36,7 +36,9 @@
 //! what reads and writes them.
 
 use grimworld_logic::helpers::packing::{Bitmap, Counter, Lanes16};
-use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage};
+use grimworld_logic::models::member_stats::MemberStats;
+use grimworld_logic::models::task::{TaskEntry, TaskPage};
+use grimworld_logic::snapshot::SnapshotWords;
 use grimworld_logic::types::reveal::outline::Outline;
 use starknet::storage::{
     StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersMutForward,

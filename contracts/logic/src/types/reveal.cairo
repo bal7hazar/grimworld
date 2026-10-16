@@ -66,7 +66,7 @@ use crate::models::pack::Pack;
 use crate::models::quotas::{QuotaSet, kind as quota};
 use crate::models::set_piece::SetPiece;
 use crate::models::spawn_table::SpawnTable;
-use crate::snapshot::TaskEntry;
+use crate::models::task::TaskEntry;
 use crate::types::ChunkKind;
 use crate::types::reveal::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
 use crate::types::reveal::placement::PlacementTrait;
@@ -787,7 +787,7 @@ pub mod tests {
     use crate::models::quotas::{Quota, QuotaSet, kind as quota};
     use crate::models::set_piece::SetPiece;
     use crate::models::spawn_table::{Spawn, SpawnTable};
-    use crate::snapshot::TaskEntry;
+    use crate::models::task::TaskEntry;
     use crate::types::ChunkKind;
     use super::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
     use super::outline::{Outline, OutlineTrait};

@@ -10,7 +10,9 @@ use grimworld_ephemeral::models::member::{
 };
 use grimworld_logic::models::goblin::{GoblinTrait, GoblinWords};
 use grimworld_logic::models::member::{MemberTrait, MemberWords};
-use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
+use grimworld_logic::models::member_bar::MemberBar;
+use grimworld_logic::models::member_kit::MemberKit;
+use grimworld_logic::models::member_stats::MemberStats;
 use grimworld_logic::types::combat::activation;
 use grimworld_logic::types::tick::{
     CasteSheet, Content, ContentTrait, PotionSheet, SkillSheet, ai, flag as tick_flag, status,

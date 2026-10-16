@@ -3,7 +3,10 @@
 use grimworld_logic::helpers::packing::Lanes16;
 use grimworld_logic::models::gate::{GateAssert, GateTrait, kind};
 use grimworld_logic::models::location::{LocationTrait, kind as location_kind};
-use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats, SnapshotTrait};
+use grimworld_logic::models::member_bar::MemberBar;
+use grimworld_logic::models::member_kit::MemberKit;
+use grimworld_logic::models::member_stats::MemberStats;
+use grimworld_logic::snapshot::SnapshotTrait;
 use grimworld_logic::types::content::exists;
 use grimworld_logic::types::profession::ProfessionTrait;
 

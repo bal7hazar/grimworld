@@ -37,7 +37,8 @@ L2 gas of a transaction ≈ F + calldata beyond one call's header + computation 
 
 `grimworld_logic` is not a contract. It holds what both domains share without either package
 depending on the other (ADR-0007): identifiers (`types`), bounds (`constants`), the wire format of a batch
-(`types::batch`), the snapshot and task layouts (`snapshot`), the packing rules (`packing`), the kinds of
+(`types::batch`), the snapshot's three words and the task page (`models::member_stats`, `member_bar`,
+`member_kit`, `models::task`), the snapshot's build (`snapshot`), the packing rules (`packing`), the kinds of
 registry records (`content`), and the calls between contracts (`interface`: `IResults`,
 `IInstanceEntry`, `IRegistryRead`, `IFate`).
 
@@ -588,7 +589,7 @@ to place of quota `i` at `16 + 8 i`, 14 quotas (the location's registry list fir
 snapshotted tasks' quotas). ADR-0006: "two counters per quota", the second being the chunks left,
 `N − revealed count`.
 
-**`TaskPage`** (1 felt, `grimworld_logic::snapshot`): four `TaskEntry` of 56 bits at 0, 56 (low)
+**`TaskPage`** (1 felt, `grimworld_logic::models::task`): four `TaskEntry` of 56 bits at 0, 56 (low)
 and 128, 184 (high): task `u32` · kind `u8` (1 kill a caste, 2 reach a landmark, 3 clear a
 dungeon, 4 reveal a zone, 5 loot, 6 mine, 7 activate) · param `u16` (the caste, landmark or
 location).
