@@ -292,7 +292,7 @@ pub impl EntryImpl of EntryTrait {
     /// The line of §2.2 through `(0, v0)` and `(12, v12)` at `rank`, for a value kept apart from
     /// its entry (the tick's content, `types::tick::SkillSheet`).
     fn line(v0: i16, v12: i16, rank: u8) -> i32 {
-        assert(rank <= MAX_RANK, errors::RANK);
+        EntryAssert::assert_rank(rank);
         let v0: i32 = v0.into();
         let v12: i32 = v12.into();
         v0 + (v12 - v0) * rank.into() / 12
@@ -301,7 +301,7 @@ pub impl EntryImpl of EntryTrait {
     /// The holding duration at `rank`, the same line (§2.2); signed, since `d12` may be below
     /// `d0`: the content pipeline keeps it in 0…`MAX_BASE_DURATION` at ranks 0 and 15.
     fn duration(self: @Entry, rank: u8) -> i32 {
-        assert(rank <= MAX_RANK, errors::RANK);
+        EntryAssert::assert_rank(rank);
         let d0: i32 = (*self.d0).into();
         let d12: i32 = (*self.d12).into();
         d0 + (d12 - d0) * rank.into() / 12
@@ -371,6 +371,12 @@ fn reads(kind: u8) -> (u8, i32, i32) {
 
 #[generate_trait]
 pub impl EntryAssert of EntryAssertTrait {
+    /// A rank of 0 to `MAX_RANK` (FX-0b), the line's domain (§2.2).
+    #[inline(always)]
+    fn assert_rank(rank: u8) {
+        assert(rank <= MAX_RANK, errors::RANK);
+    }
+
     /// Every field fits its layout: charges 6 bits, target 2, shape 3, filter 1, guard 3, scope
     /// 2; durations at most `MAX_BASE_DURATION`.
     #[inline(always)]
