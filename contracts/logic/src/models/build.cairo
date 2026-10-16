@@ -153,6 +153,41 @@ pub impl BuildAssert of BuildAssertTrait {
     fn assert_counts(counts: u128) {
         assert(counts & COUNTS_OVER == 0, errors::SOURCE_COUNT);
     }
+
+    /// Instances are numbered upward, so that none is counted twice: a passive of an earlier
+    /// instance than `next − 1` is refused.
+    #[inline(always)]
+    fn assert_order(instance: u16, next: u16) {
+        assert(instance >= next, errors::ORDER);
+    }
+
+    /// DS-23 (D-160): one insignia a piece. `pieces` holds the pieces counted so far, a bit each,
+    /// and `bit` is this insignia's.
+    #[inline(always)]
+    fn assert_piece(pieces: u8, bit: u8) {
+        assert(pieces & bit == 0, errors::PIECE_TWICE);
+    }
+
+    /// At most two quick-cast pairs (`MemberBar.quick_cast`).
+    #[inline(always)]
+    fn assert_pairs(count: u32) {
+        assert(count <= 2, errors::QUICK_CAST_ATTRIBUTE);
+    }
+}
+
+#[generate_trait]
+impl FlattenAssert of FlattenAssertTrait {
+    /// A quick-cast pair's attribute is a build-local index of 4 bits (D-157 A).
+    #[inline(always)]
+    fn assert_index(index: u8) {
+        assert(index < 16, errors::QUICK_CAST_ATTRIBUTE);
+    }
+
+    /// A quick-cast pair names an attribute the build holds: reached when none of `points` is it.
+    #[inline(always)]
+    fn assert_held() -> core::never {
+        core::panic_with_felt252(errors::QUICK_CAST_ATTRIBUTE)
+    }
 }
 
 #[generate_trait]
@@ -231,12 +266,12 @@ impl FlattenImpl of FlattenTrait {
         let mut index: u8 = 0;
         for (a, _) in points {
             if *a == attribute {
-                assert(index < 16, errors::QUICK_CAST_ATTRIBUTE);
+                FlattenAssert::assert_index(index);
                 return index;
             }
             index += 1;
         }
-        core::panic_with_felt252(errors::QUICK_CAST_ATTRIBUTE)
+        FlattenAssert::assert_held()
     }
 
     /// The bar's attribute mappings (CBT-05f), which no other word holds: the quick-cast pairs
@@ -390,12 +425,12 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         for h in held {
             let instance: u16 = (*h.instance).into();
             if instance + 1 != next {
-                assert(instance >= next, errors::ORDER);
+                BuildAssert::assert_order(instance, next);
                 next = instance + 1;
                 counts += FlattenTrait::count_lane(*h.source);
                 if *h.source == Source::Insignia {
                     let bit: u8 = *[1, 2, 4, 8, 16].span()[(*h.piece - base_slot::CHEST).into()];
-                    assert(pieces & bit == 0, errors::PIECE_TWICE);
+                    BuildAssert::assert_piece(pieces, bit);
                     pieces += bit;
                 }
             }
@@ -443,7 +478,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
                 halving = true;
             }
         }
-        assert(pairs.len() <= 2, errors::QUICK_CAST_ATTRIBUTE);
+        BuildAssert::assert_pairs(pairs.len());
         while pairs.len() < 2 {
             pairs.append(Default::default());
             globals.append(0);
