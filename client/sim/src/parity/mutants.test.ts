@@ -4437,7 +4437,7 @@ const SRC = new URL("../", import.meta.url);
 const WORKERS = Math.max(1, Math.min(4, availableParallelism() - 1));
 /** A worker runs this many mutants, then exits: its memory grows with each, and is freed then. */
 const PER_WORKER = 24;
-/** A batch takes a few seconds; one not answered in this time is stopped and fails (a hang). */
+/** No answer from a worker in this time stops it, and its unanswered jobs fail (a hang). */
 const DEADLINE = 60_000;
 
 const NONE = { tables: null, unit: null } as const;
@@ -4465,13 +4465,18 @@ function pool(jobs: readonly Job[]): Map<number, Promise<Verdict>> {
       waiting.clear();
       void worker.terminate().then(start);
     };
-    const timer = setTimeout(() => end(`no answer within ${DEADLINE / 1000} s`), DEADLINE);
+    const arm = () => setTimeout(() => end(`no answer within ${DEADLINE / 1000} s`), DEADLINE);
+    let timer = arm();
     worker.on("error", (error) => end(String(error)));
     worker.on("exit", (code) => end(`the worker exited (code ${code}) before answering`));
     worker.on("message", (verdict: Verdict) => {
       settle.get(verdict.index)!(verdict);
       waiting.delete(verdict.index);
       if (waiting.size === 0) end("");
+      else {
+        clearTimeout(timer);
+        timer = arm();
+      }
     });
     for (const job of batch) worker.postMessage(job);
   };

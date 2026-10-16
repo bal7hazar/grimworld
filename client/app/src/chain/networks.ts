@@ -29,27 +29,27 @@ export interface Network {
   };
 }
 
-/** OPS-02's deployment on Starknet Sepolia (#502, #505, #519, #525). */
+/** OPS-02's deployment on Starknet Sepolia (#502, #505, #519, #525, #535). */
 export const SEPOLIA: Network = {
   chainId: "SN_SEPOLIA",
-  commit: "a1b1d16200165c251a498180647a548d1d27f089",
-  record: "deployments/sepolia/2026-10-15-a1b1d16.json",
+  commit: "cf6ddbb8c78831de5d5b490579c6dc792972daea",
+  record: "deployments/sepolia/2026-10-16-cf6ddbb.json",
   contracts: {
     registry: {
-      address: "0x079e5f1d3f8282094facd7383c383adb2bfde44dff4c8450671f2f76bc093096",
-      classHash: "0x20c55b5148abd888553f58623e4cad9b8374e75fe2b8b250ff1a3203c6ab47c",
+      address: "0x00a0494e32587c44950e7d0e6220274f4079c53f995c146a71267caee605a9f1",
+      classHash: "0x25de0b40c8405858f4f054443bdb27b008c356c2189308bf0cb0347a1899fb7",
     },
     tx_hash_fate: {
-      address: "0x04b5a50ca5028952cabadad0d945685275191946b62ef4f375093ea7c04d5e2f",
+      address: "0x033d06c38c6fbe00a1b2b6c6b7860ec3e07bf2c757ea8c8764df8160ed487355",
       classHash: "0x31edd698a1f20d5bb78d2c1028154038568fe564d2c823b9440269db45c1135",
     },
     hub: {
-      address: "0x0254db60da143e867334d8b18e59bd82f7e02e251ead6f37340ad71ad1df7729",
-      classHash: "0x40cfc88c33788fc851f6ae0b750c645c5c6e82bb9d9b19bf88107592a50abad",
+      address: "0x076c5bd9fea636e06d06de7690bba7987aabeacbc2adf800c9859197a755b384",
+      classHash: "0xbde254c64038bd8f6a461d2198adb8de332122e3c17895035134998b04bec9",
     },
     instances: {
-      address: "0x04a0dedded9572449c855ae70b107f76ee07c856e71d85707f9a3ef077105f09",
-      classHash: "0x1b50a902623cf68503ecb4e1b5911096cd490fdc0c8c0dc07eda64c862a27bb",
+      address: "0x07e1f9c353ce5f92769781ecfbbb3bd2ff7a691008e7c98a59a668dea6971f85",
+      classHash: "0x7ca128431ea8a54ccb164610a9dd38106d79a46a75c3e17fe7928708e4a2725",
     },
   },
 };

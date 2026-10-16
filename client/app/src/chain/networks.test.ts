@@ -10,7 +10,7 @@ interface SepoliaRecord {
   chain_id: string;
   commit: string;
   rehearsal: boolean;
-  artefact: { run: string };
+  artefact?: { run: string };
   classes: { [name: string]: string };
   contracts: { [name: string]: string };
 }
@@ -19,7 +19,7 @@ interface SepoliaRecord {
  * The newest record: by the date in the file name, then, within a day, by the run id of its CI
  * artefact (GitHub run ids only increase, and a later deployment is built from a later artefact).
  */
-export function newestRecord(records: { file: string; run: string }[]): string {
+function newestRecord(records: { file: string; run: string }[]): string {
   const keyed = records.map(({ file, run }) => {
     const id = /\/actions\/runs\/(\d+)$/.exec(run)?.[1];
     if (id === undefined) throw new Error(`${file}: artefact.run has no parsable run id: ${run}`);
@@ -40,9 +40,9 @@ describe("networks.ts's Sepolia entry (CLI-11e1, D-154)", () => {
       .filter((name) => name.endsWith(".json"))
       .map((file) => ({
         file,
-        run: (
-          JSON.parse(readFileSync(root(`deployments/sepolia/${file}`), "utf8")) as SepoliaRecord
-        ).artefact.run,
+        run:
+          (JSON.parse(readFileSync(root(`deployments/sepolia/${file}`), "utf8")) as SepoliaRecord)
+            .artefact?.run ?? "",
       }));
     expect(`deployments/sepolia/${newestRecord(records)}`).toBe(SEPOLIA.record);
   });
@@ -57,6 +57,9 @@ describe("networks.ts's Sepolia entry (CLI-11e1, D-154)", () => {
     expect(newestRecord(records)).toBe("2026-10-15-a1b1d16.json");
     expect(() => newestRecord([{ file: "2026-10-15-0000000.json", run: "none" }])).toThrow(
       "2026-10-15-0000000.json",
+    );
+    expect(() => newestRecord([{ file: "2026-10-15-1111111.json", run: "" }])).toThrow(
+      "2026-10-15-1111111.json",
     );
   });
 
