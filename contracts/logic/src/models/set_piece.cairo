@@ -5,11 +5,9 @@
 use crate::helpers::packing::{LimbTrait, P16, P24, P48, P8, P80, PackingTrait};
 use crate::types::content::{Record, SET_PIECE};
 use crate::types::reveal::board::BoardTrait;
-use super::chunk::{ObjectTrait, errors as chunk_errors, object};
+use super::chunk::{ObjectTrait, TerrainAssert, object};
 pub use super::index::{Object, SetPack, SetPiece};
 
-/// 2^97: the walls' part in the high limb is below it (bits 128–224).
-const P97: u128 = 0x2000000000000000000000000;
 /// The four corner tiles, always wall (D-134).
 const CORNERS: felt252 = 0x100040000000000000000000000000000000000000000000000004001;
 
@@ -94,7 +92,7 @@ pub impl SetPieceRecord of Record<SetPiece> {
 
     fn pack(self: @SetPiece) -> Span<felt252> {
         let walls: u256 = (*self.walls).into();
-        assert(walls.high < P97, chunk_errors::WALLS);
+        TerrainAssert::assert_walls(walls.high);
         let [p0, p1] = self.packs;
         let [o0, o1, o2] = self.objects;
         let low = SetPackBitsTrait::bits(p0)

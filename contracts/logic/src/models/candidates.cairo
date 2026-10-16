@@ -24,10 +24,26 @@ pub impl CandidatesImpl of CandidatesTrait {
     fn id(location: u16, k: u8) -> u32 {
         location.into() * 2 + k.into()
     }
+
+    /// A part's chunk set: the part without `LIVE`, 0 for a part never written.
+    #[inline(always)]
+    fn chunk_set(part: felt252) -> felt252 {
+        if part == 0 {
+            0
+        } else {
+            part - LIVE
+        }
+    }
 }
 
 #[generate_trait]
 pub impl CandidatesAssert of CandidatesAssertTrait {
+    /// The packer's bound: a chunk set below bit 225.
+    #[inline(always)]
+    fn assert_set(wide: u256) {
+        assert(wide < P225, errors::ABOVE_224);
+    }
+
     /// R-31, at a `CANDIDATES` write (it reads the chunk set; a chunk set's rewrite reads both
     /// `CANDIDATES` records the other way): every candidate chunk in the zone.
     fn assert_within(sets: Span<felt252>, chunk_set: felt252) {
@@ -45,7 +61,7 @@ pub impl CandidatesRecord of Record<Candidates> {
         let mut out: Array<felt252> = array![];
         for set in self.sets.span() {
             let wide: u256 = (*set).into();
-            assert(wide < P225, errors::ABOVE_224);
+            CandidatesAssert::assert_set(wide);
             out.append(*set + LIVE);
         }
         out.span()
@@ -53,17 +69,12 @@ pub impl CandidatesRecord of Record<Candidates> {
 
     /// A part without `LIVE` (a record never written) reads as no candidate.
     fn unpack(parts: Span<felt252>) -> Candidates {
-        Candidates { sets: [set(*parts[0]), set(*parts[1]), set(*parts[2])] }
-    }
-}
-
-/// A part's chunk set: the part without `LIVE`, 0 for a part never written.
-#[inline(always)]
-fn set(part: felt252) -> felt252 {
-    if part == 0 {
-        0
-    } else {
-        part - LIVE
+        Candidates {
+            sets: [
+                CandidatesTrait::chunk_set(*parts[0]), CandidatesTrait::chunk_set(*parts[1]),
+                CandidatesTrait::chunk_set(*parts[2]),
+            ],
+        }
     }
 }
 

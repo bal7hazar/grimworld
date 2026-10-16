@@ -54,6 +54,18 @@ pub mod errors {
 
 #[generate_trait]
 pub impl ZoneChunkImpl of ZoneChunkTrait {
+    /// An object kind an authored chunk holds (`chunk::object`): chest, node, terrain trap,
+    /// landmark, lever. A vein and a collector are a quota's (drawn among candidates); an exit is a
+    /// dungeon's; a placed trap is an actor's.
+    #[inline(always)]
+    fn authored_object(kind: u8) -> bool {
+        kind == object::CHEST
+            || kind == object::NODE
+            || kind == object::TRAP
+            || kind == object::LANDMARK
+            || kind == object::LEVER
+    }
+
     /// The record's id: `location × 256 + chunk`, as `OUTLINE`.
     #[inline(always)]
     fn id(location: u16, chunk: u8) -> u32 {
@@ -102,20 +114,15 @@ pub impl ZoneChunkImpl of ZoneChunkTrait {
     }
 }
 
-/// An object kind an authored chunk holds (`chunk::object`): chest, node, terrain trap, landmark,
-/// lever. A vein and a collector are a quota's (drawn among candidates); an exit is a dungeon's; a
-/// placed trap is an actor's.
-#[inline(always)]
-pub fn authored_object(kind: u8) -> bool {
-    kind == object::CHEST
-        || kind == object::NODE
-        || kind == object::TRAP
-        || kind == object::LANDMARK
-        || kind == object::LEVER
-}
-
 #[generate_trait]
 pub impl ZoneChunkAssert of ZoneChunkAssertTrait {
+    /// The reader's bound: no reserved plane's flag (`reserved`, the plane's part above bit 224),
+    /// since format version 1 has none.
+    #[inline(always)]
+    fn assert_unreserved(reserved: u128) {
+        assert(reserved == 0, errors::RESERVED);
+    }
+
     /// The packer's bounds: the plane below bit 225, at most 15 bridges.
     #[inline(always)]
     fn assert_valid(self: @ZoneChunk) {
@@ -150,7 +157,9 @@ pub impl ZoneChunkAssert of ZoneChunkAssertTrait {
             if *item.kind == 0 {
                 assert(*item.tile == 0 && *item.state == 0 && *item.param == 0, errors::EMPTY);
             } else {
-                assert(authored_object(*item.kind) && *item.state == 0, errors::OBJECT);
+                assert(
+                    ZoneChunkTrait::authored_object(*item.kind) && *item.state == 0, errors::OBJECT,
+                );
                 Self::take(walls, ref taken, *item.tile);
                 objects += 1;
             }
@@ -248,7 +257,7 @@ pub impl ZoneChunkRecord of Record<ZoneChunk> {
     fn unpack(parts: Span<felt252>) -> ZoneChunk {
         let (low, high) = PackingTrait::split(*parts[0]);
         let (reserved, walls_high) = DivRem::div_rem(high, P97.try_into().unwrap());
-        assert(reserved == 0, errors::RESERVED);
+        ZoneChunkAssert::assert_unreserved(reserved);
         let walls: felt252 = low.into() + walls_high.into() * 0x100000000000000000000000000000000;
         let (mut low, mut high) = PackingTrait::split(*parts[1]);
         let p0 = SetPackBitsTrait::peel(ref low);
