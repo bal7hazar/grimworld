@@ -528,11 +528,36 @@ pub impl ContentImpl of ContentTrait {
 }
 
 #[generate_trait]
+pub impl IndexAssert of IndexAssertTrait {
+    /// At most `MAX_SKILLS` skills, so that a position fits the index.
+    #[inline(always)]
+    fn assert_skills(count: u32) {
+        assert(count <= MAX_SKILLS, errors::SKILLS);
+    }
+
+    /// The skill was found: `at`, its position + 1, is not 0.
+    #[inline(always)]
+    fn assert_skill(at: u32) {
+        assert(at != 0, errors::NO_SKILL);
+    }
+
+    #[inline(always)]
+    fn assert_caste(at: u32) {
+        assert(at != 0, errors::NO_CASTE);
+    }
+
+    #[inline(always)]
+    fn assert_potion(at: u32) {
+        assert(at != 0, errors::NO_POTION);
+    }
+}
+
+#[generate_trait]
 pub impl IndexImpl of IndexTrait {
     /// Every record's position, keyed by its id. The lists are read from their ends, so that of two
     /// records with one id the first is kept, as a scan finds it.
     fn new(content: @Content) -> Index {
-        assert(content.skills.len() <= MAX_SKILLS, errors::SKILLS);
+        IndexAssert::assert_skills(content.skills.len());
         let mut positions: Felt252Dict<u32> = Default::default();
         let mut skills = *content.skills;
         let mut at = skills.len();
@@ -560,21 +585,21 @@ pub impl IndexImpl of IndexTrait {
     fn skill(ref self: Index, id: u16) -> u32 {
         let key: felt252 = id.into();
         let at = Felt252DictTrait::get(ref self.positions, key);
-        assert(at != 0, errors::NO_SKILL);
+        IndexAssert::assert_skill(at);
         at - 1
     }
 
     fn caste(ref self: Index, id: u16) -> u32 {
         let key: felt252 = id.into();
         let at = Felt252DictTrait::get(ref self.positions, key + CASTE_KEY);
-        assert(at != 0, errors::NO_CASTE);
+        IndexAssert::assert_caste(at);
         at - 1
     }
 
     fn potion(ref self: Index, id: u32) -> u32 {
         let key: felt252 = id.into();
         let at = Felt252DictTrait::get(ref self.positions, key + POTION_KEY);
-        assert(at != 0, errors::NO_POTION);
+        IndexAssert::assert_potion(at);
         at - 1
     }
 
