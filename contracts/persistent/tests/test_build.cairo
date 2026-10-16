@@ -11,6 +11,8 @@ use core::testing::get_available_gas;
 use grimworld_logic::helpers::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::base::{Base, BaseTrait};
+use grimworld_logic::models::build::SnapshotBuildTrait;
+use grimworld_logic::models::build::errors::{MAX_HEALTH, SOURCE_COUNT};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::member_kit::MemberKitTrait;
@@ -18,10 +20,10 @@ use grimworld_logic::models::member_stats::MemberStatsTrait;
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::snapshot::errors::{
-    INSIGNIA_PIECE, MAX_HEALTH, NO_MODIFIER, SLOT_TYPE, SOURCE_COUNT, VALUE as MODIFIER_VALUE,
+use grimworld_logic::models::worn::Worn;
+use grimworld_logic::models::worn::errors::{
+    INSIGNIA_PIECE, NO_MODIFIER, SLOT_TYPE, VALUE as MODIFIER_VALUE,
 };
-use grimworld_logic::snapshot::{SnapshotBuildTrait, Worn};
 use grimworld_logic::types::combat::damage;
 use grimworld_logic::types::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};

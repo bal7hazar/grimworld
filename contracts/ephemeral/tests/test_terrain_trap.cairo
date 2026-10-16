@@ -16,9 +16,9 @@ use grimworld_logic::models::location::{
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
+use grimworld_logic::models::snapshot::{Snapshot, SnapshotTrait};
 use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
 use grimworld_logic::models::task::TaskEntry;
-use grimworld_logic::snapshot::{Snapshot, SnapshotTrait};
 use grimworld_logic::types::batch::Action;
 use grimworld_logic::types::combat::{damage, skill_kind};
 use grimworld_logic::types::content::{CASTE, GATE, LOCATION, PACK, REGION, SKILL, SPAWN_TABLE};

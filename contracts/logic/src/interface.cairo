@@ -3,9 +3,11 @@
 
 use starknet::{ClassHash, ContractAddress};
 use crate::models::chunk::{Features, Terrain};
+use crate::models::loadout::Loadout;
 use crate::models::set_piece::SetPiece;
+use crate::models::snapshot_words::SnapshotWords;
 use crate::models::task::TaskEntry;
-use crate::snapshot::{Loadout, SnapshotWords, Worn};
+use crate::models::worn::Worn;
 use crate::types::action::Illegal;
 use crate::types::batch::Action;
 use crate::types::executor::{Board, Cache, Carrier};
