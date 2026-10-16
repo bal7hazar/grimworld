@@ -346,6 +346,7 @@ pub impl EntryImpl of EntryTrait {
 /// a constant table by kind id, which a trait would not make clearer (docs/CAIRO.md §7).
 fn reads(kind: u8) -> (u8, i32, i32) {
     match kind {
+        // Unreachable: `assert_legal` returns on the empty entry (kind 0) before it reads.
         0 => core::panic_with_felt252(errors::KIND),
         1 => (READS_PARAM + READS_V, 0, 32767), // DAMAGE: damage type, base damage
         2 => (READS_V, 0, 32767), // ATTACK_BONUS
@@ -365,6 +366,7 @@ fn reads(kind: u8) -> (u8, i32, i32) {
         16 => (READS_D, 0, 0), // MOVEMENT
         17 => (0, 0, 0), // INTERRUPT
         18 => (0, 0, 0), // TRAP
+        // The table's refusal of a kind after the MVP's (19 to `kind::LAST`).
         _ => core::panic_with_felt252(errors::NOT_MVP),
     }
 }

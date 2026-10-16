@@ -279,6 +279,7 @@ pub impl WindowImpl of WindowTrait {
         } else if shape == shape::DISC_3 {
             WindowInternal::disc(centre, 3)
         } else {
+            // A shape outside 1–5, which content never holds (`EntryAssert::assert_legal`).
             core::panic_with_felt252(errors::SHAPE)
         };
         // `u256`: the two limbs of the bitmaps for the bitwise builtin (module documentation)

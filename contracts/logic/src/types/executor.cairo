@@ -556,6 +556,8 @@ pub impl MemberBody of Body<Member> {
     ) -> Defence {
         let index = match actor {
             Actor::Member(i) => i,
+            // Unreachable: a member's body is addressed as a member (`Unit::M` from
+            // `Actor::Member`).
             Actor::Goblin(_) => core::panic_with_felt252(errors::ADDRESS),
         };
         lever.defence(ref cache, self, index, t, sheets)
@@ -1828,6 +1830,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             Unit::G(goblin) => {
                 let i = match source {
                     Actor::Goblin(i) => i,
+                    // Unreachable: a goblin's unit comes from `Actor::Goblin` (`Unit::G`).
                     Actor::Member(_) => core::panic_with_felt252(errors::ADDRESS),
                 };
                 // The source joins its carrier's one rebuild (L3).
@@ -2004,6 +2007,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             Unit::G(mut goblin) => {
                 let i = match actor {
                     Actor::Goblin(i) => i,
+                    // Unreachable: a goblin's unit comes from `Actor::Goblin` (`Unit::G`).
                     Actor::Member(_) => core::panic_with_felt252(errors::ADDRESS),
                 };
                 if goblin.is_alive() && goblin.health == 0 {
