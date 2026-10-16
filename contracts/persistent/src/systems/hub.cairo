@@ -472,7 +472,7 @@ pub mod Hub {
                 contract_address: self.get_registry(),
             }
                 .bundle(array![(GATE, gate.into())].span());
-            AdventurerAssert::assert_gate(exists(parts));
+            GateAssert::assert_exists(exists(parts));
             let record: Gate = GateRecord::unpack(parts);
             record.assert_enterable(hub, rank);
 

@@ -8,7 +8,6 @@ use grimworld_logic::helpers::packing::{
     Bitmap, Lanes32, LimbTrait, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96,
     PackingAssert, PackingTrait,
 };
-use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
 use grimworld_logic::models::loadout::Loadout;
 use grimworld_logic::models::skill::SkillTrait;
@@ -553,11 +552,6 @@ pub impl AdventurerAssert of AdventurerAssertTrait {
         assert(pack_page.is_empty(), errors::PACK_HOLDS_EQUIPMENT);
         assert(equipped.is_empty(), errors::WEARS_EQUIPMENT);
         assert(*gold.amount == 0, errors::PACK_HOLDS_GOLD);
-    }
-
-    /// `enter`: the gate is in the registry (`Registry.bundle` returns its parts zero otherwise).
-    fn assert_gate(exists: bool) {
-        assert(exists, gate_errors::NONE);
     }
 
     /// D-144: the start hub is region 1's town, read from the registry.
