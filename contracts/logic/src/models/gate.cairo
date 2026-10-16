@@ -90,6 +90,12 @@ pub impl GateImpl of GateTrait {
 
 #[generate_trait]
 pub impl GateAssert of GateAssertTrait {
+    /// `Hub.enter`: the gate is in the registry (`Registry.bundle` returns its parts zero
+    /// otherwise).
+    fn assert_exists(exists: bool) {
+        assert(exists, errors::NONE);
+    }
+
     /// `Hub.enter`'s checks of a gate (design/01 *Connectivity*): it stands in the adventurer's
     /// hub, it is a hub gate or a link, and the adventurer meets its requirements. A quest
     /// requirement is refused whatever the adventurer holds until quiver's quests are embedded

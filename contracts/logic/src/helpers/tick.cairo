@@ -163,6 +163,12 @@ pub impl TickAssert of TickAssertTrait {
         );
     }
 
+    /// `apply`'s last condition: Crippled, since Knocked Down goes through `knock` (it interrupts).
+    #[inline(always)]
+    fn assert_crippled(condition: u8) {
+        assert(condition == condition::CRIPPLED, errors::KNOCK);
+    }
+
     /// A duration inflicted lasts at least 1 tick (a duration of 0 is a cure, §5.1).
     #[inline(always)]
     fn assert_duration(d: u32) {

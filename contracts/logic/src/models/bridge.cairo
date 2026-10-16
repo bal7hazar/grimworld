@@ -47,6 +47,12 @@ pub impl BridgeImpl of BridgeTrait {
 
 #[generate_trait]
 pub impl BridgeAssert of BridgeAssertTrait {
+    /// The packer's bound: the deck's plane below bit 225 (`high`, its high limb).
+    #[inline(always)]
+    fn assert_deck(high: u128) {
+        assert(high < P97, errors::DECK_ABOVE_224);
+    }
+
     /// R-33, at a `BRIDGE` write (the record alone): a deck, and two distinct ends, tiles of the
     /// chunk, off the deck. A one-tile deck with its two ends is valid (D-217, CLI-09e §1).
     fn assert_legal(self: @Bridge) {
@@ -87,7 +93,7 @@ pub impl BridgeRecord of Record<Bridge> {
 
     fn pack(self: @Bridge) -> Span<felt252> {
         let deck: u256 = (*self.deck).into();
-        assert(deck.high < P97, errors::DECK_ABOVE_224);
+        BridgeAssert::assert_deck(deck.high);
         let (a, b) = *self.ends;
         let high = deck.high + (a.into() + b.into() * 0x100) * P97;
         array![PackingTrait::join(deck.low, high)].span()

@@ -11,7 +11,7 @@ use crate::helpers::packing::{
     P56, P64, P72, P8, P80, P84, P96, PackingTrait,
 };
 use crate::helpers::signed::SignedTrait;
-use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
+use crate::helpers::tick::{TickAssert, TickMathTrait};
 use crate::types::combat::{condition, damage, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
@@ -1034,7 +1034,7 @@ pub impl MemberConditionImpl of MemberConditionTrait {
         } else if condition == condition::BURNING {
             self.burning = TickMathTrait::refreshed(self.burning, t0, d);
         } else {
-            assert(condition == condition::CRIPPLED, tick_errors::KNOCK);
+            TickAssert::assert_crippled(condition);
             // `MemberWordsTrait::crippled`, read here: bits 160–191 of `MemberTimers`.
             let (_, high) = PackingTrait::limbs(self.words.timers);
             let old: u32 = LimbTrait::field(high, P32, P32).try_into().unwrap();

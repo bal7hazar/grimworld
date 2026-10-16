@@ -153,7 +153,7 @@ impl FeltsImpl of Felts {
 
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 5159868)] // ceil(1.05 × 4914160 measured)
+#[available_gas(l2_gas: 5148549)] // ceil(1.05 × 4903380 measured)
 fn test_set_record_new_sequential() {
     let r = Fixture::deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
@@ -183,7 +183,7 @@ fn test_set_record_existing_changes() {
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
 // gas: raised, BND-01: the chunk set is written with the class set
-#[available_gas(l2_gas: 16213964)] // ceil(1.05 × 15441870 measured)
+#[available_gas(l2_gas: 16208189)] // ceil(1.05 × 15436370 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
     let r = Fixture::deploy_checked();
@@ -212,7 +212,7 @@ fn test_set_record_composite_needs_parent() {
 // location does not exist; `last_id` stays 0.
 #[test]
 // gas: raised, BND-01: the chunk set is written with the class set
-#[available_gas(l2_gas: 13623935)] // ceil(1.05 × 12975176 measured)
+#[available_gas(l2_gas: 13621048)] // ceil(1.05 × 12972426 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy_checked();
@@ -296,7 +296,7 @@ fn test_set_record_part_count_refused() {
 
 #[test]
 // gas: raised, ENG-05: the registry's content checks of the four new kinds (a longer dispatch)
-#[available_gas(l2_gas: 1286828)] // ceil(1.05 × 1225550 measured)
+#[available_gas(l2_gas: 1286240)] // ceil(1.05 × 1224990 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_unknown_kind_refused() {
     let r = Fixture::deploy();
@@ -312,7 +312,7 @@ fn test_set_record_unknown_kind_refused() {
 
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 4242809)] // ceil(1.05 × 4040770 measured)
+#[available_gas(l2_gas: 4241549)] // ceil(1.05 × 4039570 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
     let r = Fixture::deploy();
@@ -344,7 +344,7 @@ fn test_set_record_id_zero_refused() {
 // Sequential kinds are append-only: a new id is `last_id + 1`, never a gap.
 #[test]
 // gas: raised, ENG-09: the registry reads its zone checks' class at this kind's write (one slot)
-#[available_gas(l2_gas: 4243355)] // ceil(1.05 × 4041290 measured)
+#[available_gas(l2_gas: 4240467)] // ceil(1.05 × 4038540 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = Fixture::deploy();
@@ -457,7 +457,7 @@ fn floor(width: u8, height: u8, target: u8) -> Span<felt252> {
 // 12 refused, the record kept as it was. `N` 0 is no floor: nothing is checked, even with no
 // rectangle.
 #[test]
-#[available_gas(l2_gas: 25059000)] // ceil(1.05 × 23865714 measured)
+#[available_gas(l2_gas: 25019426)] // ceil(1.05 × 23828024 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_floor_bounds() {
     let r = Fixture::deploy();
@@ -789,7 +789,7 @@ fn next_id(r: Registry, kind: u8) -> u32 {
 // content version rises twice for each. Kinds in order, so that `LOCATION` 1 exists before the
 // composite kinds that name it.
 #[test]
-#[available_gas(l2_gas: 52306668)] // ceil(1.05 × 49815874 measured)
+#[available_gas(l2_gas: 52264983)] // ceil(1.05 × 49776174 measured)
 fn test_inputs_version_every_other_kind() {
     let r = Fixture::deploy();
     let mut others: u32 = 0;
@@ -1077,7 +1077,7 @@ fn spell_of(entries: [Entry; 3]) -> Span<felt252> {
 // kind); `SELF` resolves to the caster, whatever the address, so it mixes with `TILE`; a `TRAP`
 // with its `FOE` payload stays legal.
 #[test]
-#[available_gas(l2_gas: 32263130)] // ceil(1.05 × 30726790 measured)
+#[available_gas(l2_gas: 32228270)] // ceil(1.05 × 30693590 measured)
 fn test_set_record_mixed_targets() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1153,7 +1153,7 @@ fn test_set_record_mixed_targets() {
 // holds the caster alone and takes none (`ExecutorLibrary::actors`, `takes` is `foe` under `FOES`).
 // Any entry, any carrier, wherever it stands in it.
 #[test]
-#[available_gas(l2_gas: 5053638)] // ceil(1.05 × 4812988 measured)
+#[available_gas(l2_gas: 5042088)] // ceil(1.05 × 4801988 measured)
 fn test_set_record_self_single_foes_refused() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1179,7 +1179,7 @@ fn test_set_record_self_single_foes_refused() {
 // CARRIER-02 (D-289): `SELF` with an area shape and `FOES` is a legitimate strike around the caster
 // (the ring takes the foes beside it), and a potion's `DISC_1` too: both stay legal.
 #[test]
-#[available_gas(l2_gas: 5362917)] // ceil(1.05 × 5107540 measured)
+#[available_gas(l2_gas: 5357226)] // ceil(1.05 × 5102120 measured)
 fn test_set_record_self_area_foes_kept() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1196,7 +1196,7 @@ fn test_set_record_self_area_foes_kept() {
 // CARRIER-02 (D-289): `SELF`, `SINGLE` and `ALLIES` takes the caster (its own ally): legal, as is
 // `SELF` with an area and `ALLIES`.
 #[test]
-#[available_gas(l2_gas: 7449068)] // ceil(1.05 × 7094350 measured)
+#[available_gas(l2_gas: 7441140)] // ceil(1.05 × 7086800 measured)
 fn test_set_record_self_single_allies_kept() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1213,7 +1213,7 @@ fn test_set_record_self_single_allies_kept() {
 // `FOES` is R-45's reason, and under `ALLIES` the caster is its own hit's source, which `own_hit`
 // cuts from the hit's set (`ExecutorLibrary::actors`). At index 0, the only place a hit stands.
 #[test]
-#[available_gas(l2_gas: 3748219)] // ceil(1.05 × 3569732 measured)
+#[available_gas(l2_gas: 3739557)] // ceil(1.05 × 3561482 measured)
 fn test_set_record_damage_self_single_refused() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1238,7 +1238,7 @@ fn test_set_record_damage_self_single_refused() {
 // CARRIER-03 (D-303): a `DAMAGE` entry on `SELF` with an area (a strike around the caster) and a
 // `SELF`, `SINGLE`, `ALLIES` entry that is not a hit (a heal) stay legal.
 #[test]
-#[available_gas(l2_gas: 5774181)] // ceil(1.05 × 5499220 measured)
+#[available_gas(l2_gas: 5768406)] // ceil(1.05 × 5493720 measured)
 fn test_set_record_damage_self_area_kept() {
     let r = Fixture::deploy();
     let none: Entry = Default::default();
@@ -1441,7 +1441,7 @@ fn pack_of(a: PackCaste, b: PackCaste) -> Span<felt252> {
 
 #[test]
 // gas: raised, BND-01: the quotas written with the zone checks set
-#[available_gas(l2_gas: 23081853)] // ceil(1.05 × 21982717 measured)
+#[available_gas(l2_gas: 23058837)] // ceil(1.05 × 21960797 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_reveal_records() {
     let r = Fixture::deploy_checked();

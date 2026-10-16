@@ -104,8 +104,8 @@ pub mod Registry {
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::types::content::{
-        ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KindTrait, LOCATION, MAX_READ, MODIFIER,
-        OUTLINE, PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK,
+        ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KindAssert, KindTrait, LOCATION, MAX_READ,
+        MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK,
     };
     use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};
@@ -225,7 +225,7 @@ pub mod Registry {
             }
         }
         fn last_id(self: @ContractState, kind: u8) -> u32 {
-            KindTrait::parts(kind);
+            KindAssert::assert_known(kind);
             self.get_last_id(kind).try_into().unwrap()
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.

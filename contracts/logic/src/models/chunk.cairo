@@ -67,10 +67,19 @@ pub mod errors {
     pub const STATE: felt252 = 'packing: object state above 15';
 }
 
+#[generate_trait]
+pub impl TerrainAssert of TerrainAssertTrait {
+    /// The packer's bound: a 225-bit plane, `high` its high limb, below bit 225.
+    #[inline(always)]
+    fn assert_walls(high: u128) {
+        assert(high < P97, errors::WALLS);
+    }
+}
+
 pub impl TerrainStorePacking of starknet::storage_access::StorePacking<Terrain, felt252> {
     fn pack(value: Terrain) -> felt252 {
         let walls: u256 = value.walls.into();
-        assert(walls.high < P97, errors::WALLS);
+        TerrainAssert::assert_walls(walls.high);
         PackingAssert::assert_fits(value.edges.into(), 0x10, errors::EDGES);
         value.walls + value.edges.into() * P225 + LIVE
     }

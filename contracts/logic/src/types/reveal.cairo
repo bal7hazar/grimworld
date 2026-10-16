@@ -654,6 +654,7 @@ pub impl RevealImpl of RevealTrait {
         }
         match found {
             Option::Some(terrain) => terrain,
+            // Reached only by a malformed call: `Instances` gives every revealed neighbour.
             Option::None => core::panic_with_felt252(errors::NEIGHBOUR),
         }
     }

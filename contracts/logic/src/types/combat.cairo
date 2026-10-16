@@ -141,6 +141,8 @@ pub impl PlacerImpl of PlacerTrait {
     /// The object's `param`; refuses a member above 7, a bar slot above 7, a goblin entity outside
     /// 8…4,103 or a caste skill above 3.
     fn param(self: @Placer) -> u16 {
+        // Inline, not in an `Assert`: moved, these four checks cost +8 CASM felts each on
+        // AiLibrary (0.08 % room), ActionLibrary (0.90 %) and TickLibrary (ruling 1, measured).
         match *self {
             Placer::Member((
                 member, slot,
