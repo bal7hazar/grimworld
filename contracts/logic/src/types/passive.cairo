@@ -493,7 +493,7 @@ pub impl PassiveAssert of PassiveAssertTrait {
 mod tests {
     use crate::types::combat::{condition, damage};
     use crate::types::effect::{guard, scope};
-    use super::{Passive, PassiveTrait, Source, id};
+    use super::{Passive, PassiveAssert, PassiveTrait, Source, id};
 
     /// Attribute ids of the fixtures (content's global ids, D-157 A): the primary first.
     const PRIMARY: u8 = 13;

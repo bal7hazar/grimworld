@@ -184,7 +184,7 @@ pub impl GateRecord of Record<Gate> {
 mod tests {
     use crate::helpers::packing::LIVE;
     use crate::types::content::Record;
-    use super::{Gate, GateTrait, kind, kind as gate_kind};
+    use super::{Gate, GateAssert, GateRecord, GateTrait, kind, kind as gate_kind};
 
     /// The records these tests start from.
     #[generate_trait]

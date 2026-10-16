@@ -165,11 +165,11 @@ pub impl SkillRecord of Record<Skill> {
 #[cfg(test)]
 mod tests {
     use crate::helpers::packing::LIVE;
-    use crate::models::item::{ItemTrait, class, class as item_class};
+    use crate::models::item::{ItemAssert, ItemRecord, ItemTrait, class, class as item_class};
     use crate::types::combat::{condition, damage, skill_kind};
     use crate::types::content::{KindTrait, Record, SKILL};
-    use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, shape, target};
-    use super::{Skill, SkillTrait};
+    use crate::types::effect::{Entry, EntryAssert, EntryTrait, filter, guard, kind, shape, target};
+    use super::{Skill, SkillAssert, SkillRecord, SkillTrait};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

@@ -58,7 +58,7 @@ pub impl RegionRecord of Record<Region> {
 mod tests {
     use crate::helpers::packing::LIVE;
     use crate::types::content::Record;
-    use super::{Region, RegionTrait};
+    use super::{Region, RegionRecord, RegionTrait};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

@@ -174,13 +174,13 @@ pub impl ModifierRecord of Record<Modifier> {
 #[cfg(test)]
 mod tests {
     use crate::helpers::packing::LIVE;
-    use crate::models::armor_set::ArmorSetTrait;
+    use crate::models::armor_set::{ArmorSetAssert, ArmorSetRecord, ArmorSetTrait};
     use crate::models::base::slot as base_slot;
-    use crate::types::combat::{condition, damage, weapon};
+    use crate::types::combat::{condition, weapon};
     use crate::types::content::{KindTrait, MODIFIER, Record};
     use crate::types::effect::{guard, scope};
-    use crate::types::passive::{MAX_DAMAGE_PERCENT, Passive, PassiveTrait, id};
-    use super::{Modifier, ModifierAssert, ModifierTrait, slot};
+    use crate::types::passive::{MAX_DAMAGE_PERCENT, Passive, PassiveAssert, PassiveTrait, id};
+    use super::{Modifier, ModifierAssert, ModifierRecord, ModifierTrait, slot};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

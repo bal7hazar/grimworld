@@ -266,11 +266,11 @@ pub impl CasteRecord of Record<Caste> {
 #[cfg(test)]
 mod tests {
     use crate::helpers::packing::LIVE;
-    use crate::models::skill::{Skill, SkillTrait};
+    use crate::models::skill::{Skill, SkillAssert, SkillRecord, SkillTrait};
     use crate::types::combat::{damage, skill_kind, weapon};
     use crate::types::content::{CASTE, KindTrait, Record};
     use crate::types::effect::target;
-    use super::{Caste, CasteAssert, CasteTrait, WeaponTrait};
+    use super::{Caste, CasteAssert, CasteRecord, CasteTrait, WeaponTrait};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

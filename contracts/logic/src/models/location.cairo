@@ -244,7 +244,7 @@ pub impl LocationRecord of Record<Location> {
 mod tests {
     use crate::helpers::packing::{LIVE, Lanes16};
     use crate::types::content::{Record, exists};
-    use super::{Location, LocationTrait, kind, kind as location_kind};
+    use super::{Location, LocationRecord, LocationTrait, kind, kind as location_kind};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

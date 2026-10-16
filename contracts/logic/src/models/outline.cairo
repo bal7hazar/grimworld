@@ -85,7 +85,7 @@ mod tests {
     use crate::helpers::packing::LIVE;
     use crate::models::location::kind;
     use crate::types::content::Record;
-    use super::{CHUNK_SET, Outline, OutlineTrait};
+    use super::{CHUNK_SET, Outline, OutlineRecord, OutlineTrait};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

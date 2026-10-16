@@ -23,7 +23,7 @@ use grimworld_logic::models::modifier::{Modifier, ModifierAssert, ModifierTrait,
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::{guard, scope};
 use grimworld_logic::types::passive::{
-    HIT_ATTACK_SKILL, HIT_SPELL, HIT_WEAPON, Passive, PassiveAssert, PassiveTrait, Source, id,
+    HIT_ATTACK_SKILL, HIT_SPELL, HIT_WEAPON, Passive, PassiveAssert, PassiveTrait, id,
 };
 
 /// The weighted rating of the pieces and the shield, each personalised (F-21): 255 + 25 + 255 +

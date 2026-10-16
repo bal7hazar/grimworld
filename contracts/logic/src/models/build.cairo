@@ -622,8 +622,9 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
 /// The flattening's unit tests (D-167): design/20 §6's extremal builds, floors, saturations and
 /// counts, each compared with the oracle, CBT-02's flattening: every sum a plain pass over the
 /// passives per statistic, obviously correct and quadratic (docs/CAIRO.md §2, *Oracles*). The
-/// validators' tests (the per-source bounds, the records) are in `tests/test_build.cairo`, and the
-/// registry's refusals in the persistent package's `tests/test_registry.cairo`.
+/// validators' tests (the per-source bounds, the records) are in the records' and
+/// `types::passive`'s modules, the capacity proof in `tests/test_build.cairo`, and the registry's
+/// refusals in the persistent package's `tests/test_registry.cairo`.
 #[cfg(test)]
 pub mod tests {
     use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;

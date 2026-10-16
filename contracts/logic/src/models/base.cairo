@@ -74,7 +74,7 @@ pub impl BaseRecord of Record<Base> {
 mod tests {
     use crate::helpers::packing::LIVE;
     use crate::types::content::Record;
-    use super::{Base, BaseTrait, slot};
+    use super::{Base, BaseAssert, BaseRecord, BaseTrait, slot};
 
     #[test]
     #[available_gas(l2_gas: 73448)] // ceil(1.05 × 69950 measured)

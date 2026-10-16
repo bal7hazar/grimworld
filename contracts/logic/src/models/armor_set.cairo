@@ -74,8 +74,8 @@ mod tests {
     use crate::helpers::packing::LIVE;
     use crate::types::combat::condition;
     use crate::types::content::{ARMOR_SET, KindTrait, Record};
-    use crate::types::passive::{Passive, PassiveTrait, id};
-    use super::{ArmorSet, ArmorSetTrait};
+    use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, id};
+    use super::{ArmorSet, ArmorSetAssert, ArmorSetRecord, ArmorSetTrait};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 

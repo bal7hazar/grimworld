@@ -605,7 +605,7 @@ pub impl EntryAssert of EntryAssertTrait {
 #[cfg(test)]
 mod tests {
     use crate::models::item::class;
-    use crate::models::skill::{Skill, SkillTrait};
+    use crate::models::skill::{Skill, SkillAssert, SkillRecord, SkillTrait};
     use crate::types::combat::{HitClass, condition, damage, skill_kind, weapon};
     use crate::types::passive::id;
     use super::{

@@ -119,8 +119,8 @@ mod tests {
     use crate::helpers::packing::LIVE;
     use crate::types::combat::damage;
     use crate::types::content::{ITEM, KindTrait, Record};
-    use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
-    use super::{Item, ItemTrait, class};
+    use crate::types::effect::{Entry, EntryAssert, EntryTrait, filter, kind, shape, target};
+    use super::{Item, ItemAssert, ItemRecord, ItemTrait, class};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
