@@ -121,4 +121,25 @@ mod tests {
             'not in the MVP',
         );
     }
+
+    // design/03's attribute counts: 26 in all (D-157).
+    #[test]
+    #[available_gas(l2_gas: 27101)] // ceil(1.05 × 25810 measured)
+    fn test_profession_attributes() {
+        let mut total: u8 = 0;
+        for id in 1..7_u8 {
+            total += ProfessionTrait::attributes(id);
+        }
+        assert(total == 26, '26 attributes');
+        assert(ProfessionTrait::attributes(1) == 5, 'vanguard');
+        assert(ProfessionTrait::attributes(2) == 4, 'warden');
+        assert(ProfessionTrait::attributes(3) == 5, 'arcanist');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'bad profession')]
+    fn test_profession_attributes_none() {
+        ProfessionTrait::attributes(0);
+    }
 }

@@ -597,3 +597,426 @@ pub impl EntryAssert of EntryAssertTrait {
         }
     }
 }
+
+/// The entry's unit tests (CBT-01, design/19 §2, §3 and §7.1): 97 bits round-trip and a value
+/// too wide is refused, the line through ranks 0 and 12, the kinds' classes, and the content
+/// pipeline's checks (reads, bounds, deferred kinds and guards, CBT-4's preparations, DS-20's
+/// second attack bonus).
+#[cfg(test)]
+mod tests {
+    use crate::models::item::class;
+    use crate::models::skill::{Skill, SkillAssert, SkillRecord, SkillTrait};
+    use crate::types::combat::{HitClass, condition, damage, skill_kind, weapon};
+    use crate::types::passive::id;
+    use super::{
+        Carrier, ENTRY_BOUND, Entry, EntryAssert, EntryTrait, KindClass, filter, guard, kind, scope,
+        shape, target,
+    };
+
+    /// The entries and records these tests start from: design/03's starter skills as design/19 §8
+    /// writes them (values illustrative).
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        /// An entry of `kind` on the attacked foe, every other field 0.
+        fn on_foe(kind: u8) -> Entry {
+            Entry { kind, target: target::FOE, shape: shape::SINGLE, ..Default::default() }
+        }
+
+        fn damage(kind: u8, v0: i16, v12: i16) -> Entry {
+            Entry { param: kind, v0, v12, ..Self::on_foe(kind::DAMAGE) }
+        }
+
+        fn inflict(condition: u8, v0: i16, v12: i16) -> Entry {
+            Entry { param: condition, v0, v12, ..Self::on_foe(kind::CONDITION) }
+        }
+
+        /// Under `ALLIES`: the caster is its own ally, and under `FOES` a `SELF` entry takes nobody
+        /// (R-45).
+        fn on_self(kind: u8) -> Entry {
+            Entry {
+                kind,
+                target: target::SELF,
+                shape: shape::SINGLE,
+                filter: filter::ALLIES,
+                ..Default::default(),
+            }
+        }
+
+        fn skill(kind: u8, entries: [Entry; 3]) -> Skill {
+            SkillTrait::new(1, 2, kind, 5, 0, 1, 10, 6, target::FOE, false, entries)
+        }
+
+        /// Venom Coat: `ON_ATTACK_CONDITION` Poison 24 for 12 ticks.
+        fn venom_coat() -> Skill {
+            let coat = Entry {
+                param: condition::POISON,
+                v0: 24,
+                v12: 24,
+                d0: 12,
+                d12: 12,
+                ..Self::on_self(kind::ON_ATTACK_CONDITION),
+            };
+            Self::skill(skill_kind::PREPARATION, [coat, Default::default(), Default::default()])
+        }
+
+        /// Every field of an entry at its widest.
+        fn entry_max() -> Entry {
+            EntryTrait::new(0xFF, 0xFF, -32768, 32767, 43688, 43688, 63, 3, 7, 1, 7, 3)
+        }
+
+        fn preparation(d0: u16, d12: u16, charges: u8) -> Entry {
+            Entry {
+                kind: kind::ON_ATTACK_CONDITION,
+                param: condition::POISON,
+                v0: 1,
+                v12: 1,
+                d0,
+                d12,
+                charges,
+                target: target::SELF,
+                shape: shape::SINGLE,
+                ..Default::default(),
+            }
+        }
+    }
+
+    // §2.1: 97 bits, every field at its widest round-trips; each sits at its bit; the empty entry
+    // is 0.
+    #[test]
+    #[available_gas(l2_gas: 795281)] // ceil(1.05 × 757410 measured)
+    fn test_entry_round_trip() {
+        let top = Fixture::entry_max();
+        let bits = top.pack();
+        assert(bits < ENTRY_BOUND, '97 bits');
+        assert(EntryTrait::unpack(bits) == top, 'top round trip');
+        let low = Entry { v0: 32767, v12: -32768, d0: 0, d12: 0, ..top };
+        assert(EntryTrait::unpack(low.pack()) == low, 'signed ends');
+        let empty: Entry = Default::default();
+        assert(empty.pack() == 0 && EntryTrait::unpack(0) == empty, 'empty is 0');
+        let at = |entry: Entry| -> u128 {
+            entry.pack()
+        };
+        let e: Entry = Default::default();
+        assert(at(Entry { kind: 1, ..e }) == 1, 'kind at 0');
+        assert(at(Entry { param: 1, ..e }) == 0x100, 'param at 8');
+        assert(at(Entry { v0: 1, ..e }) == 0x10000, 'v0 at 16');
+        assert(at(Entry { v0: -1, ..e }) == 0xFFFF0000, 'v0 signed');
+        assert(at(Entry { v12: 1, ..e }) == 0x100000000, 'v12 at 32');
+        assert(at(Entry { d0: 1, ..e }) == 0x1000000000000, 'd0 at 48');
+        assert(at(Entry { d12: 1, ..e }) == 0x10000000000000000, 'd12 at 64');
+        assert(at(Entry { charges: 1, ..e }) == 0x100000000000000000000, 'charges at 80');
+        assert(at(Entry { target: 1, ..e }) == 0x4000000000000000000000, 'target at 86');
+        assert(at(Entry { shape: 1, ..e }) == 0x10000000000000000000000, 'shape at 88');
+        assert(at(Entry { filter: 1, ..e }) == 0x80000000000000000000000, 'filter at 91');
+        assert(at(Entry { guard: 1, ..e }) == 0x100000000000000000000000, 'guard at 92');
+        assert(at(Entry { scope: 1, ..e }) == 0x800000000000000000000000, 'scope at 95');
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: charges')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_charges_refused() {
+        Entry { charges: 64, ..Default::default() }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: target')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_target_refused() {
+        Entry { target: 4, ..Default::default() }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: shape')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_shape_refused() {
+        Entry { shape: 8, ..Default::default() }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: filter')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_filter_refused() {
+        Entry { filter: 2, ..Default::default() }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: guard')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_guard_refused() {
+        Entry { guard: 8, ..Default::default() }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: scope')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_scope_refused() {
+        Entry { scope: 4, ..Default::default() }.pack();
+    }
+
+    // `MAX_BASE_DURATION` (ENG-01 §3.1): the registry's writer refuses a longer duration.
+    #[test]
+    #[should_panic(expected: 'entry: duration')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_duration_refused() {
+        Entry { d12: 43689, ..Default::default() }.pack();
+    }
+
+    // §2.2: the line through ranks 0 and 12, truncated toward zero, extrapolated to 15 (FX-0b).
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_entry_scaling() {
+        let rending = Fixture::inflict(condition::BLEEDING, 5, 20);
+        assert(rending.value(0) == 5 && rending.value(12) == 20, 'ends');
+        assert(rending.value(6) == 12, 'rank 6: 5 + 15 x 6 / 12');
+        assert(rending.value(15) == 23, 'rank 15: 5 + 225 / 12');
+        let falling = Entry { v0: 0, v12: -13, ..Default::default() };
+        assert(falling.value(1) == -1, 'toward zero: -13 / 12');
+        assert(falling.value(15) == -16, '-195 / 12');
+        let widest = Entry { v0: -32768, v12: 32767, ..Default::default() };
+        assert(widest.value(15) == -32768 + 65535 * 15 / 12, 'fits i32');
+        let shrinking = Entry { d0: 10, d12: 0, ..Default::default() };
+        assert(shrinking.duration(12) == 0 && shrinking.duration(15) == -2, 'duration line');
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: rank')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_rank_refused() {
+        Fixture::damage(damage::FIRE, 1, 2).value(16);
+    }
+
+    // §3's "class" column, and §7.1's enumerations as frozen ids.
+    #[test]
+    #[available_gas(l2_gas: 155159)] // ceil(1.05 × 147770 measured)
+    fn test_kind_classes_and_ids() {
+        let class = |k: u8| -> Option<KindClass> {
+            Entry { kind: k, ..Default::default() }.class()
+        };
+        assert(class(0) == Option::None, 'empty');
+        assert(class(kind::DAMAGE) == Option::Some(KindClass::Hit), 'damage');
+        assert(class(kind::ATTACK_BONUS) == Option::Some(KindClass::HitModifier), 'bonus');
+        assert(class(kind::HIT_PENETRATION) == Option::Some(KindClass::HitModifier), 'hit pen');
+        let holding = array![5_u8, 9, 10, 11, 13, 14, 15, 16];
+        for k in holding {
+            assert(class(k) == Option::Some(KindClass::Holding), 'holding');
+        }
+        let instant = array![3_u8, 4, 6, 7, 8, 17];
+        for k in instant {
+            assert(class(k) == Option::Some(KindClass::Instant), 'instant');
+        }
+        assert(class(kind::TRAP) == Option::Some(KindClass::Placement), 'trap');
+        for k in 19..24_u8 {
+            assert(class(k) == Option::None, 'after the MVP');
+        }
+        assert(kind::LAST == 23 && id::FIRST == 40 && id::LAST == 65, 'kinds');
+        assert(condition::LAST == 9 && damage::LAST == 9 && skill_kind::LAST == 12, 'enums');
+        assert(
+            shape::LAST == 5 && guard::LAST == 4 && scope::ALL == 3 && target::TILE == 3, 'fields',
+        );
+        assert(weapon::SWORD == 1 && weapon::WAND == 6, 'weapon classes');
+        assert(HitClass::Weapon != HitClass::Trap, 'hit classes');
+    }
+
+    // §3's "reads" and bounds: the design's own entries are legal.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_entry_legal() {
+        Fixture::inflict(condition::BLEEDING, 5, 20).assert_legal();
+        Fixture::damage(damage::HOLY, 0, 26213).assert_legal();
+        let [coat, _, _] = Fixture::venom_coat().entries;
+        coat.assert_legal();
+        let oil = Entry { d0: 0, d12: 0, charges: 3, ..coat };
+        oil.assert_legal();
+        let brace = Entry { v0: 1, v12: 3, d0: 10, d12: 10, ..Fixture::on_self(kind::BLOCK) };
+        brace.assert_legal();
+        let sidestep = Entry { param: 1, d0: 2, d12: 6, ..Fixture::on_self(kind::EVADE) };
+        sidestep.assert_legal();
+        let warcry = Entry {
+            v0: 10,
+            v12: 20,
+            d0: 5,
+            d12: 11,
+            scope: scope::ALL,
+            ..Fixture::on_self(kind::PENETRATION),
+        };
+        warcry.assert_legal();
+        let drain = Entry { v0: -255, v12: -255, ..Fixture::on_foe(kind::ENERGY) };
+        drain.assert_legal();
+        let regen = Entry { v0: -10, v12: 6, d0: 5, d12: 5, ..Fixture::on_self(5) };
+        regen.assert_legal();
+        let empty: Entry = Default::default();
+        empty.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_value_at_rank_15_refused() {
+        // 10 at rank 12 extrapolates to 12 at rank 15: above `REGENERATION`'s +10.
+        Entry { v0: 2, v12: 10, d0: 5, d12: 5, ..Fixture::on_self(kind::REGENERATION) }
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_condition_of_zero_ticks_refused() {
+        Fixture::inflict(condition::POISON, 0, 5).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: field not read')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_unread_field_refused() {
+        // `HEAL` reads no duration.
+        Entry { v0: 1, v12: 1, d0: 3, ..Fixture::on_self(kind::HEAL) }.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: param')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_unknown_condition_refused() {
+        Fixture::inflict(10, 1, 1).assert_legal();
+    }
+
+    // CBT-05a: conditions 6–9 are refused in every kind that names a condition (FX-22).
+    // CBT-05a, option (ii): the kinds and entry guards the MVP's content does not use are refused.
+    #[test]
+    #[should_panic(expected: 'entry: kind deferred')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_interrupt_deferred() {
+        Fixture::on_foe(kind::INTERRUPT).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: kind deferred')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_life_steal_deferred() {
+        Entry { v0: 20, v12: 20, ..Fixture::on_foe(kind::LIFE_STEAL) }.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: guard deferred')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_guard_above_half_deferred() {
+        Entry { v0: 20, v12: 20, guard: guard::ABOVE_HALF, ..Fixture::on_foe(kind::HEAL) }
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: guard deferred')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_guard_in_stance_deferred() {
+        Entry { v0: 20, v12: 20, guard: guard::IN_STANCE, ..Fixture::on_foe(kind::HEAL) }
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: guard deferred')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_guard_enchanted_deferred() {
+        Entry { v0: 20, v12: 20, guard: guard::ENCHANTED, ..Fixture::on_foe(kind::HEAL) }
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: condition after the MVP')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_condition_after_the_mvp_refused() {
+        Fixture::inflict(condition::DAZED, 1, 1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: condition after the MVP')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_cure_after_the_mvp_refused() {
+        Entry { param: condition::DEEP_WOUND, ..Fixture::on_self(kind::CURE) }.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: neither d nor charges')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_oil_without_time_refused() {
+        let [coat, _, _] = Fixture::venom_coat().entries;
+        Entry { d0: 0, d12: 0, charges: 0, ..coat }.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: kind after the MVP')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_post_mvp_kind_refused() {
+        Fixture::on_self(kind::SUMMON).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: empty with a field')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_empty_with_field_refused() {
+        Entry { guard: 1, ..Default::default() }.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: shape')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_shape_zero_refused() {
+        Entry { shape: 0, ..Fixture::on_foe(kind::HEAL) }.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: duration')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_entry_negative_duration_at_15_refused() {
+        Entry { v0: 1, v12: 1, d0: 10, d12: 0, ..Fixture::on_self(kind::ARMOR) }.assert_legal();
+    }
+
+    // CBT-4: without charges, a preparation's duration is positive at every rank (ranks 0 and 15).
+    #[test]
+    #[should_panic(expected: 'entry: neither d nor charges')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_preparation_falling_to_0_at_15_refused() {
+        // The audit's case: 5 + trunc(−4 × 15 / 12) = 0.
+        Fixture::preparation(5, 1, 0).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: neither d nor charges')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_preparation_falling_by_one_refused() {
+        // 1 + trunc(−15 / 12) = 0.
+        Fixture::preparation(1, 0, 0).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'entry: neither d nor charges')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_preparation_rising_from_0_refused() {
+        Fixture::preparation(0, 5, 0).assert_legal();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_preparation_boundaries_accepted() {
+        // 4 + trunc(−3 × 15 / 12) = 1; 1 at both ends; rising from 1 to exactly 43,688 at rank
+        // 15 (1 + trunc(34,950 × 15 / 12)); charges without a duration.
+        Fixture::preparation(4, 1, 0).assert_legal();
+        Fixture::preparation(1, 1, 0).assert_legal();
+        Fixture::preparation(1, 34951, 0).assert_legal();
+        Fixture::preparation(0, 0, 1).assert_legal();
+        Fixture::preparation(5, 1, 1).assert_legal();
+    }
+
+    // §6 test 7, DS-20: a second `ATTACK_BONUS` on one carrier is refused.
+    #[test]
+    #[should_panic(expected: 'carrier: two attack bonuses')]
+    // gas: raised, CARRIER-01: assert_carrier's R-44 check
+    #[available_gas(l2_gas: 168945)] // ceil(1.05 × 160900 measured)
+    fn test_second_attack_bonus_refused() {
+        let bonus = EntryTrait::new(
+            kind::ATTACK_BONUS, 0, 5, 5, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+        );
+        EntryAssert::assert_carrier(
+            array![bonus, bonus, Default::default()].span(), Carrier::Attack,
+        );
+    }
+}

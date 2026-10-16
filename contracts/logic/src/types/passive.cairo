@@ -485,3 +485,359 @@ pub impl PassiveAssert of PassiveAssertTrait {
         assert(*self.min == *self.max, errors::FIXED);
     }
 }
+
+/// The passive's unit tests (CBT-01 and its fix loops, design/19 §4 and §7.2; design/20 §6 test
+/// 1, D-160): 53 bits round-trip, and the pipeline's checks accept exactly the params, scopes,
+/// values and sources design/19 and design/20 allow.
+#[cfg(test)]
+mod tests {
+    use crate::types::combat::{condition, damage};
+    use crate::types::effect::{guard, scope};
+    use super::{Passive, PassiveAssert, PassiveTrait, Source, id};
+
+    /// Attribute ids of the fixtures (content's global ids, D-157 A): the primary first.
+    const PRIMARY: u8 = 13;
+
+    /// The passives these tests start from.
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn passive_max() -> Passive {
+            PassiveTrait::new(0xFF, 0xFF, 7, 3, -32768, 32767)
+        }
+
+        fn passive(id: u8, param: u8, value: i16) -> Passive {
+            PassiveTrait::new(id, param, 0, 0, value, value)
+        }
+    }
+
+    fn passive(id: u8, param: u8, value: i16) -> Passive {
+        PassiveTrait::new(id, param, 0, 0, value, value)
+    }
+
+    fn fits(p: Passive, source: Source) -> bool {
+        p.allows(source) && PassiveTrait::fits_source(array![p].span(), source)
+    }
+
+    // §4: 53 bits; signed range; two in a limb of 106.
+    #[test]
+    #[available_gas(l2_gas: 293045)] // ceil(1.05 × 279090 measured)
+    fn test_passive_round_trip() {
+        let top = Fixture::passive_max();
+        let bits = top.pack();
+        assert(bits < 0x20000000000000, '53 bits');
+        assert(PassiveTrait::unpack(bits) == top, 'top round trip');
+        let at = |passive: Passive| -> u128 {
+            passive.pack()
+        };
+        let p: Passive = Default::default();
+        assert(at(Passive { id: 1, ..p }) == 1, 'id at 0');
+        assert(at(Passive { param: 1, ..p }) == 0x100, 'param at 8');
+        assert(at(Passive { guard: 1, ..p }) == 0x10000, 'guard at 16');
+        assert(at(Passive { scope: 1, ..p }) == 0x80000, 'scope at 19');
+        assert(at(Passive { min: 1, ..p }) == 0x200000, 'min at 21');
+        assert(at(Passive { max: 1, ..p }) == 0x2000000000, 'max at 37');
+        assert(at(Passive { min: -1, ..p }) == 0xFFFF * 0x200000, 'signed min');
+        let other = PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, -18, 18);
+        let pair = PassiveTrait::pack_pair(@top, @other);
+        assert(pair < 0x400000000000000000000000000, '106 bits');
+        assert(PassiveTrait::unpack_pair(pair) == (top, other), 'pair round trip');
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: guard')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_passive_guard_refused() {
+        Passive { guard: 8, ..Default::default() }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: scope')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_passive_scope_refused() {
+        Passive { scope: 4, ..Default::default() }.pack();
+    }
+
+    // §4, §7.2: the pipeline's bounds on the passives the snapshot sums.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_passive_legal() {
+        let damage = PassiveTrait::new(
+            id::DAMAGE_PERCENT, 0, guard::ABOVE_HALF, scope::ALL, 10, 18,
+        );
+        damage.assert_legal();
+        PassiveTrait::new(id::ARMOR, 0, guard::ENCHANTED, 0, -18, 10).assert_legal();
+        PassiveTrait::new(id::ARMOR, 0, guard::ALWAYS, 0, -255, 255).assert_legal();
+        PassiveTrait::new(id::PENETRATION, 0, 0, scope::WEAPON, 2, 4).assert_legal();
+        PassiveTrait::new(id::KNOCKDOWN_FLAT, 0, 0, 0, 1, 1).assert_legal();
+        PassiveTrait::new(id::MAX_HEALTH, 0, 0, 0, -75, -75).assert_legal();
+        let none: Passive = Default::default();
+        none.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_passive_damage_percent_bound_refused() {
+        PassiveTrait::new(id::DAMAGE_PERCENT, 0, 0, 0, 10, 19).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_passive_guarded_armor_bound_refused() {
+        PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, -19, 10).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: guard')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_passive_guard_not_its_refused() {
+        PassiveTrait::new(id::DAMAGE_PERCENT, 0, guard::BELOW_HALF, 0, 1, 1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: scope')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_passive_scope_not_its_refused() {
+        PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, scope::SPELL, 1, 1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: id after the MVP')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_passive_post_mvp_refused() {
+        PassiveTrait::new(id::CASTE_ARMOR, 0, 0, 0, 1, 1).assert_legal();
+    }
+
+    // CBT-1: each passive's `param` lies in the enumeration its id names (fix loop 2: an attribute
+    // is any `u8`, its id space not being settled; see `test_capacity`).
+    #[test]
+    #[should_panic(expected: 'passive: param')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_armor_vs_type_255_refused() {
+        Fixture::passive(id::ARMOR_VS, 255, 1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: param')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_armor_vs_type_0_refused() {
+        Fixture::passive(id::ARMOR_VS, 0, 1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: param')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_damage_type_10_refused() {
+        Fixture::passive(id::DAMAGE_TYPE, 10, 0).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: param')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_condition_duration_condition_10_refused() {
+        Fixture::passive(id::CONDITION_DURATION, 10, 33).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: param')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_energy_cost_profession_7_refused() {
+        Fixture::passive(id::ENERGY_COST, 7, -2).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: param')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_param_on_max_health_refused() {
+        Fixture::passive(id::MAX_HEALTH, 1, 30).assert_legal();
+    }
+
+    // CBT-1: a scope above 3 is refused by the pipeline's check, not only by the packer.
+    #[test]
+    #[should_panic(expected: 'passive: scope')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_damage_percent_scope_4_refused() {
+        PassiveTrait::new(id::DAMAGE_PERCENT, 0, 0, 4, 1, 1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: scope')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_penetration_scope_4_refused() {
+        PassiveTrait::new(id::PENETRATION, 0, 0, 4, 1, 1).assert_legal();
+    }
+
+    // CBT-1: values within what §4 and §7.2 state (fix loop 2: a saturated aggregate bounds no
+    // single passive; see `test_capacity`).
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_armor_vs_negative_refused() {
+        Fixture::passive(id::ARMOR_VS, 1, -1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_damage_type_with_a_value_refused() {
+        Fixture::passive(id::DAMAGE_TYPE, 4, 1).assert_legal();
+    }
+
+    // CBT-1: the ends of every domain are accepted.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_passive_domains_accepted() {
+        Fixture::passive(id::ARMOR_VS, 1, 0).assert_legal();
+        Fixture::passive(id::ARMOR_VS, 9, 63).assert_legal();
+        Fixture::passive(id::DAMAGE_TYPE, 1, 0).assert_legal();
+        Fixture::passive(id::DAMAGE_TYPE, 9, 0).assert_legal();
+        Fixture::passive(id::CONDITION_DURATION, 1, 0).assert_legal();
+        Fixture::passive(id::CONDITION_DURATION, 9, 63).assert_legal();
+        PassiveTrait::new(id::QUICK_CAST_EVERY_N, 0, 0, 0, 1, 1).assert_legal();
+        PassiveTrait::new(id::QUICK_CAST_EVERY_N, 15, 0, 0, 255, 255).assert_legal();
+        Fixture::passive(id::ATTRIBUTE, 15, -3).assert_legal();
+        Fixture::passive(id::ENERGY_COST, 1, -2).assert_legal();
+        Fixture::passive(id::ENERGY_COST, 6, -2).assert_legal();
+        Fixture::passive(id::LIFE_STEAL_ON_HIT, 0, 255).assert_legal();
+        Fixture::passive(id::RATING_PERCENT, 0, 10).assert_legal();
+        Fixture::passive(id::HALVE_FIRST_HEAVY_HIT, 0, 0).assert_legal();
+        PassiveTrait::new(id::DAMAGE_PERCENT, 0, 0, scope::ALL, -18, 18).assert_legal();
+        PassiveTrait::new(id::PENETRATION, 0, 0, scope::ALL, 0, 36).assert_legal();
+    }
+
+    // AUD-182-4: quick cast on a prefix or a suffix, the damage type on a suffix or an inscription,
+    // are refused, even in a catalogue that uses only that slot type.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_undecided_slot_types_refused() {
+        let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
+        let fire = Fixture::passive(id::DAMAGE_TYPE, 4, 0);
+        assert(!quick.allows(Source::Prefix) && !quick.allows(Source::Suffix), 'quick cast');
+        assert(quick.allows(Source::Inscription), 'quick cast on inscription');
+        assert(!fire.allows(Source::Suffix) && !fire.allows(Source::Inscription), 'damage type');
+        assert(fire.allows(Source::Prefix), 'damage type on prefix');
+    }
+
+    // CBT-7: an attribute's id space is not settled (escalated): any `u8` is accepted.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_attribute_ids_accepted() {
+        Fixture::passive(id::ATTRIBUTE, 255, 1).assert_legal();
+        Fixture::passive(id::ATTRIBUTE, 16, -2).assert_legal();
+        Fixture::passive(id::QUICK_CAST_EVERY_N, 16, 5).assert_legal();
+        Fixture::passive(id::QUICK_CAST_EVERY_N, 255, 0).assert_legal();
+    }
+
+    // CBT-1: no single passive is bounded by an aggregate the snapshot saturates or caps; a plus
+    // stays a plus (§4: "+ armor", "+ ticks"; ENG-01 §3.1's percent bonuses).
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_saturated_values_accepted() {
+        Fixture::passive(id::ARMOR_VS, 1, 64).assert_legal();
+        Fixture::passive(id::ARMOR_VS, 9, 32767).assert_legal();
+        Fixture::passive(id::KNOCKDOWN_FLAT, 0, 4).assert_legal();
+        Fixture::passive(id::ENCHANT_DURATION, 0, 64).assert_legal();
+        Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 64).assert_legal();
+        Fixture::passive(id::ARMOR_VS, 1, 0).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_negative_knockdown_refused() {
+        Fixture::passive(id::KNOCKDOWN_FLAT, 0, -1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_negative_enchant_duration_refused() {
+        Fixture::passive(id::ENCHANT_DURATION, 0, -1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_adrenaline_every_0_refused() {
+        Fixture::passive(id::ADRENALINE_EVERY_N, 0, 0).assert_legal();
+    }
+
+    // CBT-1 (fix loop 3): `ENERGY_COST` is "− energy" (§4), a reduction (§5.3): 0 or below.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_energy_cost_non_positive_accepted() {
+        Fixture::passive(id::ENERGY_COST, 2, -1).assert_legal();
+        Fixture::passive(id::ENERGY_COST, 2, 0).assert_legal();
+        PassiveTrait::new(id::ENERGY_COST, 6, 0, 0, -32768, 0).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_energy_cost_positive_refused() {
+        Fixture::passive(id::ENERGY_COST, 2, 1).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: value out of bounds')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_energy_cost_range_crossing_zero_refused() {
+        PassiveTrait::new(id::ENERGY_COST, 2, 0, 0, -1, 1).assert_legal();
+    }
+
+    // §6 test 1: for each row of §1.3 under B, a source at its bound passes, a unit beyond is
+    // refused, a source that may not hold the passive is refused, and a modifier's benefit and cost
+    // are summed.
+    #[test]
+    #[available_gas(l2_gas: 1716257)] // ceil(1.05 × 1634530 measured)
+    fn test_per_source_bounds() {
+        // (id, param, source, lo, hi)
+        let rows = array![
+            (id::MAX_HEALTH, 0, Source::Prefix, 0_i16, 30_i16),
+            (id::MAX_HEALTH, 0, Source::Insignia, 0, 15),
+            (id::MAX_HEALTH, 0, Source::Rune, -75, 50),
+            (id::MAX_HEALTH, 0, Source::SetBonus, -75, 50),
+            (id::MAX_ENERGY, 0, Source::Suffix, -5, 5),
+            (id::MAX_ENERGY, 0, Source::SetBonus, -5, 5),
+            (id::ENERGY_REGEN, 0, Source::Inscription, -1, 0),
+            (id::ENERGY_REGEN, 0, Source::SetBonus, -1, 1),
+            (id::HEALTH_REGEN, 0, Source::Prefix, -1, 0),
+            (id::HEALTH_REGEN, 0, Source::SetBonus, -1, 1),
+            (id::ARMOR_VS, damage::FIRE, Source::Rune, 0, 7),
+            (id::ATTRIBUTE, PRIMARY, Source::Rune, 1, 3),
+            (id::LIFE_STEAL_ON_HIT, 0, Source::Suffix, 0, 5),
+            (id::ENERGY_ON_HIT, 0, Source::Prefix, 0, 1),
+            (id::CONDITION_DURATION, condition::POISON, Source::Prefix, 0, 33),
+            (id::ENCHANT_DURATION, 0, Source::Insignia, 0, 20),
+            (id::KNOCKDOWN_FLAT, 0, Source::SetBonus, 0, 1),
+        ];
+        for (i, param, source, lo, hi) in rows {
+            assert(fits(passive(i, param, lo), source), 'at lo');
+            assert(fits(passive(i, param, hi), source), 'at hi');
+            assert(!fits(passive(i, param, hi + 1), source), 'above hi');
+            assert(!fits(passive(i, param, lo - 1), source), 'below lo');
+        }
+        // Sources that may not hold them (DS-4; rows 2–4, 8, 13, 14).
+        let refused = array![
+            (id::ENERGY_COST, Source::Prefix), (id::ENERGY_COST, Source::SetBonus),
+            (id::BASE_DAMAGE_PERCENT, Source::Prefix), (id::BASE_DAMAGE_PERCENT, Source::Rune),
+            (id::ATTRIBUTE, Source::Insignia), (id::ATTRIBUTE, Source::Prefix),
+            (id::LIFE_STEAL_ON_HIT, Source::SetBonus), (id::ENERGY_ON_HIT, Source::Rune),
+            (id::MAX_ENERGY, Source::Insignia), (id::MAX_ENERGY, Source::Rune),
+            (id::ENERGY_REGEN, Source::Rune), (id::HEALTH_REGEN, Source::Insignia),
+        ];
+        for (i, source) in refused {
+            assert(!passive(i, 0, 0).allows(source), 'source refused');
+        }
+        // A modifier's benefit and cost on one statistic are summed: +50 and −75 on a rune,
+        // −25.
+        let pair = array![passive(id::MAX_HEALTH, 0, 50), passive(id::MAX_HEALTH, 0, -75)];
+        assert(PassiveTrait::fits_source(pair.span(), Source::Rune), 'summed within');
+        let pair = array![passive(id::MAX_HEALTH, 0, 30), passive(id::MAX_HEALTH, 0, 30)];
+        assert(!PassiveTrait::fits_source(pair.span(), Source::Prefix), 'summed above');
+        // Two types of armor are two statistics: 7 + 7.
+        let pair = array![passive(id::ARMOR_VS, 1, 7), passive(id::ARMOR_VS, 2, 7)];
+        assert(PassiveTrait::fits_source(pair.span(), Source::Rune), 'per type');
+    }
+}

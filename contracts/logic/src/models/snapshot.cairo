@@ -82,9 +82,10 @@ pub impl SnapshotImpl of SnapshotTrait {
 
 #[cfg(test)]
 mod tests {
-    use crate::models::member_bar::MemberBarTrait;
-    use crate::models::member_kit::MemberKitTrait;
-    use crate::models::member_stats::MemberStatsTrait;
+    use crate::models::member_bar::{MemberBar, MemberBarTrait};
+    use crate::models::member_kit::{MemberKit, MemberKitTrait};
+    use crate::models::member_stats::{MemberStats, MemberStatsTrait};
+    use crate::types::profession::ProfessionTrait;
     use super::SnapshotTrait;
 
     // `SnapshotTrait::words` packs the three words of a snapshot and keeps the belt's counts.
@@ -99,5 +100,58 @@ mod tests {
         assert(MemberBarTrait::unpack(words.bar) == snapshot.bar, 'bar');
         assert(MemberKitTrait::unpack(words.kit) == snapshot.kit, 'kit');
         assert(words.belt_counts == [1, 2, 3, 4], 'counts');
+    }
+
+    // design/03: health 100 + 20 per level above 1; energy, its pips and armor by profession.
+    #[test]
+    #[available_gas(l2_gas: 45066)] // ceil(1.05 × 42920 measured)
+    fn test_snapshot() {
+        let snapshot = SnapshotTrait::new(
+            20, 3, [1, 2, 3, 4, 5, 6, 7, 8], 2, [9, 10, 11, 12], [1, 2, 3, 4],
+        );
+        let stats = MemberStats {
+            max_health: 480,
+            max_energy: 30,
+            energy_regen: 4,
+            health_regen: 10,
+            level: 20,
+            profession: 3,
+            ..Default::default(),
+        };
+        assert(snapshot.stats == stats, 'stats');
+        let bar = MemberBar {
+            skills: [1, 2, 3, 4, 5, 6, 7, 8],
+            elite_slot: 2,
+            damage: [0; 6],
+            penetration: [0; 3],
+            quick_cast: [Default::default(); 2],
+            armor: 60,
+        };
+        assert(snapshot.bar == bar, 'bar');
+        assert(snapshot.kit == MemberKit { belt: [9, 10, 11, 12], ..Default::default() }, 'kit');
+        assert(snapshot.belt_counts == [1, 2, 3, 4], 'belt');
+        assert(
+            (
+                ProfessionTrait::energy(1),
+                ProfessionTrait::energy_regen(1),
+                ProfessionTrait::armor(1),
+            ) == (20, 2, 80),
+            'vanguard',
+        );
+        assert(
+            (
+                ProfessionTrait::energy(2),
+                ProfessionTrait::energy_regen(2),
+                ProfessionTrait::armor(2),
+            ) == (25, 3, 70),
+            'warden',
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: 'bad profession')]
+    #[available_gas(l2_gas: 14711)] // ceil(1.05 × 14010 measured)
+    fn test_snapshot_of_no_profession() {
+        SnapshotTrait::new(1, 0, [0; 8], 255, [0; 4], [0; 4]);
     }
 }

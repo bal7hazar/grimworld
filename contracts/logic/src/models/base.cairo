@@ -67,3 +67,61 @@ pub impl BaseRecord of Record<Base> {
         }
     }
 }
+
+/// The record's unit tests (CBT-08a): the fields of `BASE` that `set_build` lays out (slot, hands,
+/// from bit 0 of part 0).
+#[cfg(test)]
+mod tests {
+    use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
+    use super::{Base, BaseAssert, BaseRecord, BaseTrait, slot};
+
+    #[test]
+    #[available_gas(l2_gas: 73448)] // ceil(1.05 × 69950 measured)
+    fn test_base_round_trip() {
+        let maul = BaseTrait::new(slot::WEAPON, 2);
+        assert(Record::unpack(maul.pack()) == maul, 'round trip');
+        assert(maul.is_two_handed() && !BaseTrait::new(slot::WEAPON, 1).is_two_handed(), 'hands');
+        let feet = BaseTrait::new(slot::FEET, 0);
+        assert(feet.pack() == array![7 + LIVE, LIVE].span(), 'bits: slot 0');
+        assert(*maul.pack()[0] == 1 + 2 * 0x100 + LIVE, 'bits: hands 8');
+        // A record never written unpacks as slot 0: no slot.
+        assert(Record::<Base>::unpack(array![0, 0].span()).slot == 0, 'none');
+        for s in slot::WEAPON..slot::LAST + 1 {
+            let hands = if s == slot::WEAPON {
+                1
+            } else {
+                0
+            };
+            BaseTrait::new(s, hands).assert_valid();
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'base: slot')]
+    fn test_base_slot_refused() {
+        BaseTrait::new(slot::LAST + 1, 0).pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'base: slot')]
+    fn test_base_no_slot_refused() {
+        BaseTrait::new(0, 0).pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'base: hands')]
+    fn test_base_weapon_hands_refused() {
+        BaseTrait::new(slot::WEAPON, 3).pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'base: hands')]
+    fn test_base_armor_hands_refused() {
+        BaseTrait::new(slot::OFF_HAND, 1).pack();
+    }
+}

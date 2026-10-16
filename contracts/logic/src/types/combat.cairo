@@ -177,3 +177,38 @@ pub impl PlacerImpl of PlacerTrait {
         }
     }
 }
+
+/// A placed trap's `param` (CBT-01, design/19 §7.2).
+#[cfg(test)]
+mod tests {
+    use super::{Placer, PlacerTrait};
+
+    // §7.2: a placed trap's `param`.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_placer_round_trip() {
+        let member = Placer::Member((7, 7));
+        assert(member.param() == 63, 'member bits 0-5');
+        assert(PlacerTrait::from_param(63) == member, 'member trip');
+        let goblin = Placer::Goblin((8 + 16 * 224 + 9, 3));
+        let param = goblin.param();
+        assert(param == 0x8000 + 16 * 224 + 9 + 3 * 0x1000, 'goblin bits');
+        assert(PlacerTrait::from_param(param) == goblin, 'goblin trip');
+        let first = Placer::Goblin((8, 0));
+        assert(first.param() == 0x8000 && PlacerTrait::from_param(0x8000) == first, 'first goblin');
+    }
+
+    #[test]
+    #[should_panic(expected: 'placer: entity')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_placer_member_entity_refused() {
+        Placer::Goblin((7, 0)).param();
+    }
+
+    #[test]
+    #[should_panic(expected: 'placer: slot')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_placer_skill_refused() {
+        Placer::Goblin((8, 4)).param();
+    }
+}
