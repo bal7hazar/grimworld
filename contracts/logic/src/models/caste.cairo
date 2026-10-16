@@ -259,3 +259,249 @@ pub impl CasteRecord of Record<Caste> {
         }
     }
 }
+
+/// The record's unit tests (CBT-01, design/19 §7.3; design/20 §6 tests 6 and 9, D-160): it
+/// round-trips at its bounds, sits at its documented bits, and refuses a field beyond its width or
+/// design/20's bound.
+#[cfg(test)]
+mod tests {
+    use crate::helpers::packing::LIVE;
+    use crate::models::skill::{Skill, SkillTrait};
+    use crate::types::combat::{damage, skill_kind, weapon};
+    use crate::types::content::{CASTE, KindTrait, Record};
+    use crate::types::effect::target;
+    use super::{Caste, CasteAssert, CasteTrait, WeaponTrait};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    /// The castes these tests start from.
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        /// Every field at its widest that packs: the layout's width, or design/20's bound where
+        /// `assert_valid` checks one (DS-18: health 1,000 %, energy regeneration 10, weapon damage
+        /// 255, flee 100; DS-29: health regeneration 20).
+        fn caste_max() -> Caste {
+            CasteTrait::new(
+                0xFF,
+                0xFF,
+                1000,
+                20,
+                0xFF,
+                [63, 1, 2, 3, 4, 5, 6, 7, 63],
+                WeaponTrait::new(15, 255, 15, 15, 15),
+                85,
+                10,
+                [0xFFFF, 2, 3, 0xFFFF],
+                15,
+                100,
+                0xFFFF,
+                true,
+            )
+        }
+    }
+
+    /// A caste at design/20's bounds (DS-18, DS-29): multiplier 1,000 %, energy 85, regeneration 10
+    /// pips, weapon damage 255, flee 100, health regeneration 20.
+    fn caste_at_bounds() -> Caste {
+        CasteTrait::new(
+            6,
+            1,
+            1000,
+            20,
+            40,
+            [0; 9],
+            WeaponTrait::new(weapon::MAUL, 255, damage::BLUNT, 2, 1),
+            85,
+            10,
+            [1, 0, 0, 0],
+            15,
+            100,
+            0,
+            false,
+        )
+    }
+
+    fn skill_of(adrenaline: u8) -> Skill {
+        SkillTrait::new(
+            1,
+            1,
+            skill_kind::ATTACK,
+            0,
+            adrenaline,
+            1,
+            5,
+            1,
+            target::FOE,
+            false,
+            [Default::default(); 3],
+        )
+    }
+
+    // §7.3: `CASTE`, 2 parts, 243 bits over 4 limbs, no field straddling one.
+    #[test]
+    #[available_gas(l2_gas: 649583)] // ceil(1.05 × 618650 measured)
+    fn test_caste_round_trip() {
+        let top = Fixture::caste_max();
+        let packed = top.pack();
+        assert(packed.len() == KindTrait::parts(CASTE).into(), 'parts');
+        assert(Record::<Caste>::unpack(packed) == top, 'top round trip');
+        let zero = CasteTrait::new(
+            0, 0, 0, 0, 0, [0; 9], Default::default(), 0, 0, [0; 4], 0, 0, 0, false,
+        );
+        assert(zero.pack() == array![LIVE, LIVE].span(), 'empty is LIVE');
+        let one = CasteTrait::new(
+            0,
+            0,
+            0,
+            0,
+            0,
+            [0; 9],
+            WeaponTrait::new(1, 0, 0, 0, 1),
+            0,
+            0,
+            [0, 0, 0, 1],
+            1,
+            0,
+            1,
+            true,
+        );
+        let parts = one.pack();
+        // Weapon class at 48, its range at 76, rank at 104, boss at 108; loot table at 182; skill 3
+        // at part 1's bit 48.
+        let low = 0x1000000000000
+            + 0x10000000000000000000
+            + 0x100000000000000000000000000
+            + 0x1000000000000000000000000000;
+        let two_182: felt252 = TWO_128 * 0x40000000000000;
+        assert(*parts[0] == low + two_182 + LIVE, 'part 0 bits');
+        assert(*parts[1] == 0x1000000000000 + LIVE, 'part 1 bits');
+        // Armor against type 9 at 128 + 48.
+        let vs = CasteTrait::new(
+            0,
+            0,
+            0,
+            0,
+            0,
+            [0, 0, 0, 0, 0, 0, 0, 0, 1],
+            Default::default(),
+            0,
+            0,
+            [0; 4],
+            0,
+            0,
+            0,
+            false,
+        );
+        assert(*vs.pack()[0] == TWO_128 * 0x1000000000000 + LIVE, 'vs 9 at 176');
+        let goblin = CasteTrait::new(
+            1,
+            1,
+            100,
+            10,
+            40,
+            [0; 9],
+            WeaponTrait::new(weapon::AXE, 12, damage::SLASHING, 1, 1),
+            20,
+            2,
+            [1, 0, 0, 0],
+            6,
+            30,
+            1,
+            false,
+        );
+        goblin.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: energy above 85')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_energy_refused() {
+        let top = Fixture::caste_max();
+        Caste { energy: 86, ..top }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: armor vs above 63')]
+    #[available_gas(l2_gas: 122283)] // ceil(1.05 × 116460 measured)
+    fn test_caste_armor_vs_refused() {
+        let top = Fixture::caste_max();
+        Caste { armor_vs: [64, 0, 0, 0, 0, 0, 0, 0, 0], ..top }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: rank')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_rank_refused() {
+        let top = Fixture::caste_max();
+        Caste { rank: 16, ..top }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: weapon field')]
+    #[available_gas(l2_gas: 45087)] // ceil(1.05 × 42940 measured)
+    fn test_caste_weapon_refused() {
+        let top = Fixture::caste_max();
+        Caste { weapon: WeaponTrait::new(16, 0, 0, 0, 0), ..top }.pack();
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: health regen')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_health_regen_refused() {
+        let top = Fixture::caste_max();
+        Caste { tier: 1, health_regen: 21, weapon: WeaponTrait::new(1, 1, 1, 1, 1), ..top }
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: health above 1000 %')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_multiplier_1001_refused() {
+        let caste = Caste { health: 1001, ..caste_at_bounds() };
+        Record::<Caste>::pack(@caste);
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: energy regen above 10')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_energy_regen_refused() {
+        let caste = Caste { energy_regen: 11, ..caste_at_bounds() };
+        Record::<Caste>::pack(@caste);
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: weapon damage above 255')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_weapon_damage_refused() {
+        let caste = Caste {
+            weapon: WeaponTrait::new(weapon::MAUL, 256, damage::BLUNT, 2, 1), ..caste_at_bounds(),
+        };
+        Record::<Caste>::pack(@caste);
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: flee above 100')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_flee_refused() {
+        let caste = Caste { flee: 101, ..caste_at_bounds() };
+        Record::<Caste>::pack(@caste);
+    }
+
+    #[test]
+    #[should_panic(expected: 'caste: skill adrenaline')]
+    #[available_gas(l2_gas: 49413)] // ceil(1.05 × 47060 measured)
+    fn test_caste_skill_of_64_strikes_refused() {
+        CasteAssert::assert_skills(array![skill_of(63), skill_of(64)].span());
+    }
+
+    // §6 test 9 (DS-29): a caste's health regeneration 21 is refused at `pack`;
+    // `MemberStatsTrait::pack` refuses 21 and accepts 20. The tick's extremes:
+    // `test_tick::test_regeneration_extremes`.
+    #[test]
+    #[should_panic(expected: 'caste: health regen')]
+    #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
+    fn test_caste_health_regen_21_refused_at_pack() {
+        let caste = Caste { health_regen: 21, ..caste_at_bounds() };
+        Record::<Caste>::pack(@caste);
+    }
+}

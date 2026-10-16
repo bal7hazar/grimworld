@@ -236,3 +236,140 @@ pub impl LocationRecord of Record<Location> {
         }
     }
 }
+
+/// The record's unit tests (ENG-03, ENG-01 §3.5; ENG-06): every field round-trips at its maximum,
+/// sits at its documented bit, and a value wider than its field is refused; a tile of a chunk as a
+/// global position, and which locations have a map.
+#[cfg(test)]
+mod tests {
+    use crate::helpers::packing::{LIVE, Lanes16};
+    use crate::types::content::{Record, exists};
+    use super::{Location, LocationTrait, kind, kind as location_kind};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    /// The records these tests start from.
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn location_max() -> Location {
+            LocationTrait::new(
+                0xFF,
+                0xFFFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                15,
+                15,
+                0xFF,
+                0xFF,
+                0xFFFF,
+                0xFFFF,
+                true,
+                224,
+                224,
+                Lanes16 { lanes: [0xFFFF, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0xFFFF] },
+            )
+        }
+
+        fn location_zero() -> Location {
+            LocationTrait::new(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, 0, 0, Lanes16 { lanes: [0; 15] },
+            )
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 755286)] // ceil(1.05 × 719320 measured)
+    fn test_location_round_trip() {
+        let top = Fixture::location_max();
+        let parts = top.pack();
+        assert(parts.len() == 2, 'two parts');
+        assert(Record::<Location>::unpack(parts) == top, 'round trip');
+        let zero = Fixture::location_zero();
+        let parts = zero.pack();
+        assert(parts == array![LIVE, LIVE].span(), 'empty is LIVE');
+        assert(Record::<Location>::unpack(parts) == zero, 'zero round trip');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 240776)] // ceil(1.05 × 229310 measured)
+    fn test_location_bits() {
+        let value = LocationTrait::new(
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, true, 1, 1, Lanes16 { lanes: [0; 15] },
+        );
+        let parts = value.pack();
+        // type 0 · region 8 · biome 24 · level min 32 · level max 40 · rank 48 · width 56 ·
+        // height 64 · N 72 · floors 80 · next floor 88 · spawn table 104 · sealed 120 · entry
+        // chunk 128 · entry tile 136.
+        let low: felt252 = 0x1000100010101010101010101000101;
+        assert(*parts[0] == low + TWO_128 + 0x100 * TWO_128 + LIVE, 'bits');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'location: width')]
+    fn test_location_width_refused() {
+        let mut value = Fixture::location_zero();
+        value.width = 16;
+        value.pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'location: height')]
+    fn test_location_height_refused() {
+        let mut value = Fixture::location_zero();
+        value.height = 16;
+        value.pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'location: entry chunk')]
+    fn test_location_entry_chunk_refused() {
+        let mut value = Fixture::location_zero();
+        value.entry_chunk = 225;
+        value.pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'location: entry tile')]
+    fn test_location_entry_tile_refused() {
+        let mut value = Fixture::location_zero();
+        value.entry_tile = 225;
+        value.pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_position() {
+        assert(LocationTrait::position(0, 0) == (0, 0), 'origin');
+        assert(LocationTrait::position(0, 105) == (0, 7), 'row 7');
+        assert(LocationTrait::position(16, 110) == (20, 22), 'chunk (1, 1)');
+        assert(LocationTrait::position(112, 112) == (112, 112), 'the centre');
+        assert(LocationTrait::position(224, 224) == (224, 224), 'the far corner');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 26387)] // ceil(1.05 × 25130 measured)
+    fn test_has_map() {
+        let place = |kind: u8| {
+            LocationTrait::new(
+                kind, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, false, 0, 0, Lanes16 { lanes: [0; 15] },
+            )
+        };
+        assert(
+            !place(location_kind::TOWN).has_map() && !place(location_kind::OUTPOST).has_map(),
+            'hubs',
+        );
+        for kind in array![
+            location_kind::ZONE, location_kind::DUNGEON, location_kind::ELITE, location_kind::RIFT,
+            location_kind::TRIAL,
+        ] {
+            assert(place(kind).has_map(), 'an instance');
+        }
+        assert(!exists(array![0, 5].span()) && exists(array![1, 0].span()), 'exists: part 0');
+    }
+}

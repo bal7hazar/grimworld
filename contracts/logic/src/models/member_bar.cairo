@@ -179,7 +179,7 @@ pub impl MemberBarAssert of MemberBarAssertTrait {
 #[cfg(test)]
 mod tests {
     use crate::helpers::packing::LIVE;
-    use super::{MAX_UNGUARDED_ARMOR, MemberBar, MemberBarTrait, QuickCast};
+    use super::{MAX_UNGUARDED_ARMOR, MemberBar, MemberBarTrait, QuickCast, QuickCastTrait};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
@@ -279,5 +279,21 @@ mod tests {
         MemberBarTrait::pack(
             MemberBar { quick_cast: [Default::default(), wide], ..Fixture::empty_bar() },
         );
+    }
+
+    // CBT-6: the quick-cast pair's packing, scoped in its trait.
+    #[test]
+    #[available_gas(l2_gas: 11456)] // ceil(1.05 × 10910 measured)
+    fn test_quick_cast_trait() {
+        let top = QuickCast { attribute: 15, every: 255 };
+        assert(top.pack() == 0xFFF, '12 bits');
+        assert(QuickCastTrait::unpack(0xFFF) == top, 'round trip');
+    }
+
+    #[test]
+    #[should_panic(expected: 'snapshot: quick-cast attribute')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_quick_cast_trait_refused() {
+        QuickCast { attribute: 16, every: 1 }.pack();
     }
 }

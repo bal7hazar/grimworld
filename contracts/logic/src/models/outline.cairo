@@ -77,3 +77,40 @@ pub impl OutlineRecord of Record<Outline> {
         Outline { low, high }
     }
 }
+
+/// The record's unit tests (ENG-03, ENG-01 §3.5): all 225 bits round-trip, and a bit above 224 is
+/// refused.
+#[cfg(test)]
+mod tests {
+    use crate::helpers::packing::LIVE;
+    use crate::models::location::kind;
+    use crate::types::content::Record;
+    use super::{CHUNK_SET, Outline, OutlineTrait};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    #[test]
+    #[available_gas(l2_gas: 22292)] // ceil(1.05 × 21230 measured)
+    fn test_outline_round_trip() {
+        // All 225 bits set: 128 in the low limb, 97 in the high one.
+        let full = OutlineTrait::new(
+            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, 0x1FFFFFFFFFFFFFFFFFFFFFFFF,
+        );
+        assert(Record::<Outline>::unpack(full.pack()) == full, 'round trip');
+        let empty = OutlineTrait::new(0, 0);
+        assert(empty.pack() == array![LIVE].span(), 'empty is LIVE');
+        assert(Record::<Outline>::unpack(array![LIVE].span()) == empty, 'empty round trip');
+        // Bit 128 is the high limb's bit 0.
+        assert(*OutlineTrait::new(0, 1).pack()[0] == TWO_128 + LIVE, 'bit 128');
+        assert(OutlineTrait::id(2, CHUNK_SET) == 767, 'chunk set id');
+        assert(OutlineTrait::id(0xFFFF, 224) == 0xFFFFE0, 'border chunk id');
+        assert(kind::ZONE != kind::DUNGEON, 'kinds');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'outline: above bit 224')]
+    fn test_outline_above_bit_224_refused() {
+        OutlineTrait::new(0, 0x2000000000000000000000000).pack();
+    }
+}

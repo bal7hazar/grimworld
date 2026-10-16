@@ -51,3 +51,21 @@ pub impl SignedImpl of SignedTrait {
         }
     }
 }
+
+/// Two's complement at both ends (CBT-01).
+#[cfg(test)]
+mod tests {
+    use super::SignedTrait;
+
+    // Two's complement at both ends.
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_signed_ends() {
+        assert(SignedTrait::bits8(-128) == 0x80 && SignedTrait::bits8(127) == 0x7F, 'i8 bits');
+        assert(SignedTrait::from8(0x80) == -128 && SignedTrait::from8(0xFF) == -1, 'i8 back');
+        assert(SignedTrait::bits16(-32768) == 0x8000 && SignedTrait::bits16(-1) == 0xFFFF, 'i16');
+        assert(
+            SignedTrait::from16(0x7FFF) == 32767 && SignedTrait::from16(0x8000) == -32768, 'back',
+        );
+    }
+}

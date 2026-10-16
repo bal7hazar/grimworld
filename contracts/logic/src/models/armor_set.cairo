@@ -65,3 +65,104 @@ pub impl ArmorSetRecord of Record<ArmorSet> {
         }
     }
 }
+
+/// The record's unit tests (CBT-01, design/19 §7.2; design/20 §6 test 1, D-160): it round-trips
+/// at its bounds, and its validators refuse a bonus a set may not hold or one beyond its source's
+/// bound.
+#[cfg(test)]
+mod tests {
+    use crate::helpers::packing::LIVE;
+    use crate::types::combat::condition;
+    use crate::types::content::{ARMOR_SET, KindTrait, Record};
+    use crate::types::passive::{Passive, PassiveTrait, id};
+    use super::{ArmorSet, ArmorSetTrait};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    /// The passives these tests start from.
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn passive_max() -> Passive {
+            PassiveTrait::new(0xFF, 0xFF, 7, 3, -32768, 32767)
+        }
+
+        fn passive(id: u8, param: u8, value: i16) -> Passive {
+            PassiveTrait::new(id, param, 0, 0, value, value)
+        }
+
+        fn quick_cast() -> Passive {
+            PassiveTrait::new(id::QUICK_CAST_EVERY_N, 4, 0, 0, 5, 5)
+        }
+    }
+
+    fn passive(id: u8, param: u8, value: i16) -> Passive {
+        PassiveTrait::new(id, param, 0, 0, value, value)
+    }
+
+    // §7.2: `ARMOR_SET`, 1 part: 5 piece bases low, 2 bonuses high.
+    #[test]
+    #[available_gas(l2_gas: 256683)] // ceil(1.05 × 244460 measured)
+    fn test_armor_set_round_trip() {
+        let top = ArmorSetTrait::new(
+            [0xFFFF, 2, 3, 4, 0xFFFF], [Fixture::passive_max(), Fixture::passive_max()],
+        );
+        let packed = top.pack();
+        assert(packed.len() == KindTrait::parts(ARMOR_SET).into(), 'parts');
+        assert(Record::<ArmorSet>::unpack(packed) == top, 'top round trip');
+        let p: Passive = Default::default();
+        let bits = ArmorSetTrait::new([0, 0, 0, 0, 1], [p, Passive { id: 1, ..p }]).pack();
+        let two_181: felt252 = TWO_128 * 0x20000000000000;
+        assert(*bits[0] == 0x10000000000000000 + two_181 + LIVE, 'bits');
+        // *Hob-breaker* (design/15): knock-downs +1 tick, then the halving.
+        let hob = ArmorSetTrait::new(
+            [1, 2, 3, 4, 5],
+            [
+                PassiveTrait::new(id::KNOCKDOWN_FLAT, 0, 0, 0, 1, 1),
+                PassiveTrait::new(id::HALVE_FIRST_HEAVY_HIT, 0, 0, 0, 0, 0),
+            ],
+        );
+        hob.assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: not on this source')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_quick_cast_set_bonus_refused() {
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [Fixture::quick_cast(), Default::default()])
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: not on this source')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_condition_duration_set_bonus_refused() {
+        let rending = Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33);
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [rending, Default::default()]).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: not on this source')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_damage_type_set_bonus_refused() {
+        let fire = Fixture::passive(id::DAMAGE_TYPE, 4, 0);
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [fire, Default::default()]).assert_legal();
+    }
+
+    // CBT-2's sums without a capacity rule are ruled by design/20 (D-160): life steal on hit is
+    // held on held slots only (row 13), so a set's bonus is refused.
+    #[test]
+    #[should_panic(expected: 'passive: not on this source')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_life_steal_set_bonus_refused() {
+        let steal = Fixture::passive(id::LIFE_STEAL_ON_HIT, 0, 5);
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [steal, steal]).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'passive: per-source bound')]
+    #[available_gas(l2_gas: 20916)] // ceil(1.05 × 19920 measured)
+    fn test_set_bonus_beyond_bound_refused() {
+        let knock = passive(id::KNOCKDOWN_FLAT, 0, 2);
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]).assert_legal();
+    }
+}

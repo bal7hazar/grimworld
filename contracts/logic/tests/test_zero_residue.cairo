@@ -15,6 +15,8 @@
 // placed in every order. ENG-05's merged engine failed the same comparison (SPK-17,
 // `test_zero_residue_on_eng05_*`: 5, 5, 5 and 6 of the six other orders differed on four floors of
 // 12).
+// Kept in `tests/` (D-167): it declares `HostsLibrary` and calls it by `library_call`, and it
+// spans the reveal's modules (`types::reveal`, its board, outline and placement).
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use core::poseidon::poseidon_hash_span;
 use grimworld_logic::interface::{IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher};

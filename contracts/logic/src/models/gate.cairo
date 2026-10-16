@@ -176,3 +176,129 @@ pub impl GateRecord of Record<Gate> {
         }
     }
 }
+
+/// The record's unit tests (ENG-03, ENG-01 §3.5; ENG-06): every field round-trips at its maximum,
+/// sits at its documented bit, and a value wider than its field is refused; the gate an adventurer
+/// can leave by, and the hub's checks of a gate.
+#[cfg(test)]
+mod tests {
+    use crate::helpers::packing::LIVE;
+    use crate::types::content::Record;
+    use super::{Gate, GateTrait, kind, kind as gate_kind};
+
+    /// The records these tests start from.
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn gate_max() -> Gate {
+            GateTrait::new(0xFFFF, 0xFFFF, 224, 224, 224, 224, 0xFF, 0xFF, 0xFFFFFFFF)
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 201443)] // ceil(1.05 × 191850 measured)
+    fn test_gate_round_trip() {
+        let top = Fixture::gate_max();
+        assert(Record::<Gate>::unpack(top.pack()) == top, 'round trip');
+        let gate = GateTrait::new(3, 4, 0, 0, 112, 112, gate_kind::FLOOR, 0, 0);
+        assert(Record::<Gate>::unpack(gate.pack()) == gate, 'a floor gate');
+        // source 0 · destination 16 · anchor chunk 32, tile 40 · entry chunk 48, tile 56 · kind
+        // 64 ·
+        // rank 72 · quest 80; nothing in the high limb.
+        let one = GateTrait::new(1, 1, 1, 1, 1, 1, 1, 1, 1).pack();
+        assert(*one[0] == 0x101010101010100010001 + LIVE, 'bits');
+        assert(*top.pack()[0] == 0xFFFFFFFFFFFFE0E0E0E0FFFFFFFF + LIVE, 'maximum below bit 112');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'gate: anchor chunk')]
+    fn test_gate_anchor_chunk_refused() {
+        let mut gate = Fixture::gate_max();
+        gate.anchor_chunk = 225;
+        gate.pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'gate: anchor tile')]
+    fn test_gate_anchor_tile_refused() {
+        let mut gate = Fixture::gate_max();
+        gate.anchor_tile = 225;
+        gate.pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'gate: entry chunk')]
+    fn test_gate_entry_chunk_refused() {
+        let mut gate = Fixture::gate_max();
+        gate.entry_chunk = 225;
+        gate.pack();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    #[should_panic(expected: 'gate: entry tile')]
+    fn test_gate_entry_tile_refused() {
+        let mut gate = Fixture::gate_max();
+        gate.entry_tile = 225;
+        gate.pack();
+    }
+
+    // A gate is left from its source, on its anchor, when it is a hub gate or a link with no
+    // requirement.
+    #[test]
+    #[available_gas(l2_gas: 56973)] // ceil(1.05 × 54260 measured)
+    fn test_can_leave() {
+        let gate = GateTrait::new(2, 1, 0, 105, 0, 0, kind::HUB, 0, 0);
+        assert(gate.anchor() == (0, 7) && gate.entry() == (0, 0), 'anchor, entry');
+        assert(gate.can_leave(2, 0, 7), 'on the anchor');
+        assert(!gate.can_leave(3, 0, 7), 'another location');
+        assert(!gate.can_leave(2, 1, 7) && !gate.can_leave(2, 0, 8), 'next to it');
+        let link = GateTrait::new(2, 3, 0, 105, 112, 112, kind::LINK, 0, 0);
+        assert(link.can_leave(2, 0, 7), 'a link');
+        for refused in array![
+            GateTrait::new(2, 3, 0, 105, 112, 112, kind::FLOOR, 0, 0),
+            GateTrait::new(2, 3, 0, 105, 112, 112, kind::RIFT, 0, 0),
+            GateTrait::new(2, 3, 0, 105, 112, 112, kind::LINK, 1, 0),
+            GateTrait::new(2, 3, 0, 105, 112, 112, kind::LINK, 0, 4),
+        ] {
+            assert(!refused.can_leave(2, 0, 7), 'refused');
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
+    fn test_enterable() {
+        GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 3, 0).assert_enterable(1, 3);
+        GateTrait::new(1, 2, 0, 0, 0, 105, kind::LINK, 0, 0).assert_enterable(1, 0);
+    }
+
+    #[test]
+    #[should_panic(expected: 'gate: not in this hub')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_enterable_elsewhere() {
+        GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 0, 0).assert_enterable(4, 0);
+    }
+
+    #[test]
+    #[should_panic(expected: 'gate: kind')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_enterable_floor() {
+        GateTrait::new(1, 2, 0, 0, 0, 105, kind::FLOOR, 0, 0).assert_enterable(1, 0);
+    }
+
+    #[test]
+    #[should_panic(expected: 'gate: rank')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_enterable_rank() {
+        GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 3, 0).assert_enterable(1, 2);
+    }
+
+    #[test]
+    #[should_panic(expected: 'gate: quest')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_enterable_quest() {
+        GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 0, 5).assert_enterable(1, 9);
+    }
+}
