@@ -9,7 +9,7 @@
 use crate::helpers::packing::{
     LimbTrait, N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P8, P80, P84, PackingTrait,
 };
-use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
+use crate::helpers::tick::{TickAssert, TickMathTrait};
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
@@ -542,7 +542,7 @@ pub impl GoblinConditionImpl of GoblinConditionTrait {
         } else if condition == condition::BURNING {
             self.burning = TickMathTrait::refreshed(self.burning, t0, d);
         } else {
-            assert(condition == condition::CRIPPLED, tick_errors::KNOCK);
+            TickAssert::assert_crippled(condition);
             // `GoblinWordsTrait::crippled`, read here: bits 156–183 of `GoblinTimers`.
             let (_, high) = PackingTrait::limbs(self.timers);
             let old: u32 = LimbTrait::field(high, P28, P28).try_into().unwrap();
