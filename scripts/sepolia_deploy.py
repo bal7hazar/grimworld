@@ -570,16 +570,27 @@ def needed_classes():
     return names.pairs
 
 
-def seed_records():
+def seed_records(kits=True):
     """The records this deployment writes: the devnet script's (`devnet_deploy.seed_records`), then
     CNT-01's gate zone, its gates and Heart, the starter weapons' bases and the kits (D-309), from the
-    seed's rows (`seed_records.gate_zone_and_kits`)."""
-    return dd.seed_records() + sr.gate_zone_and_kits()
+    seed's rows (`seed_records.gate_zone_and_kits`); without the kits when `kits` is false."""
+    return dd.seed_records() + [r for r in sr.gate_zone_and_kits() if kits or r[0] != sr.KIT]
 
 
-def seed_ids():
+def knows_kits(node, registry):
+    """Whether the artefact's `Registry` has the `KIT` kind (29, CNT-01): its `last_id` answers for it,
+    and a class built before CNT-01 refuses it (`registry: unknown kind`). A rehearsal of an artefact
+    of `main` older than the seed it writes (OPS-02a's smoke, on a pull request) then writes no kit."""
+    try:
+        node.view("persistent", registry, "last_id", sr.KIT)
+    except RuntimeError:
+        return False
+    return True
+
+
+def seed_ids(records=None):
     ids = {}
-    for kind, rid, _ in seed_records():
+    for kind, rid, _ in (seed_records() if records is None else records):
         ids.setdefault(KINDS.get(kind, str(kind)), []).append(rid)
     return ids
 
@@ -696,7 +707,11 @@ def run(args, log, redact, environ):
             core = dd.deploy_core(node, address)
             log.say("classes: " + ", ".join(f"{k} {v}" for k, v in core["classes"].items()))
             log.say("contracts: " + ", ".join(f"{k} {core[k]}" for k in ("registry", "fate", "hub", "instances")))
-            for kind, rid, parts in seed_records():
+            kits = knows_kits(node, core["registry"])
+            if not kits:
+                log.say("this artefact's Registry has no KIT kind (built before CNT-01): no kit written")
+            written = seed_records(kits)
+            for kind, rid, parts in written:
                 node.invoke(core["registry"], "set_record", kind, rid, len(parts), *parts)
             count, fee, unit = totals(node)
         except BaseException:  # what was sent so far, so that a retry knows what exists
@@ -714,7 +729,7 @@ def run(args, log, redact, environ):
             "classes": core["classes"],
             "contracts": {"registry": core["registry"], "tx_hash_fate": core["fate"], "hub": core["hub"],
                           "instances": core["instances"]},
-            "seed": {"records": len(seed_records()), "ids": seed_ids()},
+            "seed": {"records": len(written), "ids": seed_ids(written)},
             "tools": {"sncast": sncast_version},
             "transactions": count, "total_fee": {"amount": str(fee), "unit": unit},
         }
