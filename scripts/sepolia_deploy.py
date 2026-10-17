@@ -170,16 +170,16 @@ class Redactor:
 class Log:
     """Every line printed goes through the redactor and into the log file."""
 
-    def __init__(self, redact, path):
-        self.redact = redact
+    def __init__(self, redact, path, name=NAME):
+        self.redact, self.name = redact, name  # the prefix of each line (GATE-1a's play script has its own)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         self.file = os.fdopen(descriptor, "a")
 
     def say(self, text, error=False):
         text = self.redact(text)
-        print(f"{NAME}: {text}", file=sys.stderr if error else sys.stdout, flush=True)
-        self.file.write(f"{NAME}: {text}\n")
+        print(f"{self.name}: {text}", file=sys.stderr if error else sys.stdout, flush=True)
+        self.file.write(f"{self.name}: {text}\n")
         self.file.flush()
 
     def die(self, text):
@@ -438,25 +438,27 @@ def is_local(url):
     return address.is_loopback or address.is_unspecified or address.is_private or address.is_link_local
 
 
-def check_endpoint(url, rehearsal, log):
-    """The URL, before any call: remote and https for Sepolia, `http://127.0.0.1:<port>` for the rehearsal."""
+def check_endpoint(url, rehearsal, log, flag="--devnet-rehearsal"):
+    """The URL, before any call: remote and https for Sepolia, `http://127.0.0.1:<port>` for the rehearsal.
+    `flag` is the option that names the local run in the messages (GATE-1a's play script has its own)."""
     if rehearsal:
         if urllib.parse.urlparse(url).hostname not in ("127.0.0.1",) or not is_local(url):
-            log.die("--devnet-rehearsal runs against a local node only: STARKNET_RPC_URL is not local")
+            log.die(f"{flag} runs against a local node only: STARKNET_RPC_URL is not local")
         try:
             dd.check_url(url)
         except SystemExit as error:
-            log.die(f"--devnet-rehearsal: {error}")
+            log.die(f"{flag}: {error}")
     else:
         if is_local(url):
-            log.die("STARKNET_RPC_URL is a local URL: a local node runs only with --devnet-rehearsal")
+            log.die(f"STARKNET_RPC_URL is a local URL: a local node runs only with {flag}")
         if urllib.parse.urlparse(url).scheme != "https":
             log.die("STARKNET_RPC_URL is not an https URL")
 
 
-def check_chain(node, rehearsal, log):
+def check_chain(node, rehearsal, log, flag="--devnet-rehearsal"):
     """OPERATIONS §7: the chain id first, and nothing is sent unless it is SN_SEPOLIA. The rehearsal must
-    also be a devnet (it answers `devnet_getPredeployedAccounts`); a Sepolia run must not be one."""
+    also be a devnet (it answers `devnet_getPredeployedAccounts`); a Sepolia run must not be one. `flag`
+    as in `check_endpoint`."""
     try:
         chain = dd.chain_of(node)
     except Exception as error:
@@ -470,10 +472,9 @@ def check_chain(node, rehearsal, log):
         devnet = False
         reason = node.redact(error)
     if rehearsal and not devnet:
-        log.die(f"--devnet-rehearsal: STARKNET_RPC_URL is not a starknet-devnet ({reason})")
+        log.die(f"{flag}: STARKNET_RPC_URL is not a starknet-devnet ({reason})")
     if devnet and not rehearsal:
-        log.die("STARKNET_RPC_URL answers devnet_getPredeployedAccounts: a devnet runs only with "
-                "--devnet-rehearsal")
+        log.die(f"STARKNET_RPC_URL answers devnet_getPredeployedAccounts: a devnet runs only with {flag}")
     log.say(f"STARKNET_RPC_URL: chain id {chain}")
     return chain
 
@@ -604,6 +605,21 @@ def parse(argv):
     return parser.parse_args(argv)
 
 
+def import_account(node, url, address, key, logs, account_type):
+    """The account into `sncast`'s accounts file: the key through a 0600 file (`O_EXCL`) in the private
+    folder `logs`, deleted in a `finally`, never a command line."""
+    descriptor_path = os.path.join(logs, "key")
+    descriptor = os.open(descriptor_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(key)
+        node.sncast("persistent", "account", "import", "--url", url, "--name", node.name,
+                    "--type", account_type, "--address", address,
+                    "--private-key-file", descriptor_path)
+    finally:
+        os.remove(descriptor_path)
+
+
 def write_record(path, record):
     text = json.dumps(record, indent=2) + "\n"
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -667,16 +683,7 @@ def run(args, log, redact, environ):
             return 0
         nonce = int(node.rpc("starknet_getNonce", {"block_id": "latest", "contract_address": address}), 16)
         log.say(f"STARKNET_ACCOUNT_ADDRESS: nonce {nonce}")
-        descriptor_path = os.path.join(logs, "key")
-        descriptor = os.open(descriptor_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        try:
-            with os.fdopen(descriptor, "w") as handle:
-                handle.write(key)
-            node.sncast("persistent", "account", "import", "--url", url, "--name", node.name,
-                        "--type", args.account_type, "--address", address,
-                        "--private-key-file", descriptor_path)
-        finally:
-            os.remove(descriptor_path)
+        import_account(node, url, address, key, logs, args.account_type)
         try:
             core = dd.deploy_core(node, address)
             log.say("classes: " + ", ".join(f"{k} {v}" for k, v in core["classes"].items()))
