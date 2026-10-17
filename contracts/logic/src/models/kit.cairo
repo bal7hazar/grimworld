@@ -101,6 +101,7 @@ mod tests {
     use super::{KitAssert, KitRecord, KitTrait};
 
     #[test]
+    #[available_gas(l2_gas: 230475)] // ceil(1.05 × 219500 measured)
     fn test_kit_bits_and_round_trip() {
         let kit = KitTrait::new(0xabcd, [1, 2, 3, 0x1234, 5, 0xffff]);
         let parts = kit.pack();
@@ -117,6 +118,7 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 123638)] // ceil(1.05 × 117750 measured)
     fn test_kit_legal() {
         KitTrait::new(1, [1, 2, 3, 4, 5, 6]).assert_legal(1);
         KitTrait::new(0, [9, 0, 0, 0, 0, 0]).assert_legal(6);
@@ -124,18 +126,21 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'kit: not a profession')]
     fn test_kit_not_a_profession() {
         KitTrait::new(0, [0; 6]).assert_legal(7);
     }
 
     #[test]
+    #[available_gas(l2_gas: 21557)] // ceil(1.05 × 20530 measured)
     #[should_panic(expected: 'kit: gap')]
     fn test_kit_gap() {
         KitTrait::new(0, [1, 0, 2, 0, 0, 0]).assert_legal(1);
     }
 
     #[test]
+    #[available_gas(l2_gas: 34157)] // ceil(1.05 × 32530 measured)
     #[should_panic(expected: 'kit: skill twice')]
     fn test_kit_duplicate() {
         KitTrait::new(0, [1, 2, 1, 0, 0, 0]).assert_legal(1);
