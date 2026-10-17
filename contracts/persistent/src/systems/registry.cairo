@@ -533,7 +533,7 @@ pub mod Registry {
     }
 }
 
-/// The flattening's input kinds (D-169): `SKILL`, `ITEM` and `MODIFIER`, and none of the 22 others.
+/// The flattening's input kinds (D-169): `SKILL`, `ITEM` and `MODIFIER`, and none of the 26 others.
 /// This guards the current list only (a change of it must change this test); that the list is what
 /// `Hub.set_build` asks the registry for is `test_build::test_set_build_requests_the_input_kinds`.
 #[cfg(test)]
