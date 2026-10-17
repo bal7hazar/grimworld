@@ -35,7 +35,7 @@ fields, not the packed felts.
 | `QUOTAS` | 3 | Floor 1's exit: gate 5, once (ADR-0006) |
 | `QUOTAS` | 5 | The gate zone's Heart: pack 5, once |
 | `BASE` | 1, 2 | The starter weapons' bases (D-309): 1 an axe (weapon slot, one hand), 2 a bow (two hands) |
-| `KIT` | 1, 2, 3 | The creation kits (D-309), id = the profession: the Vanguard's (axe, skills 1–4, 6, 7), the Warden's (bow, skills 8–13), the Arcanist's (no weapon, skills 14–19) |
+| `KIT` | 1, 2, 3 | The creation kits (D-309), id = the profession: the Vanguard's (axe, skills 1, 22, 3, 4, 6, 7), the Warden's (bow, skills 8–13), the Arcanist's (no weapon, skills 14–19) |
 
 **Quotas (D-145: `QUOTAS` id = the location's id; the layout is ENG-05's,
 `grimworld_logic::models::quotas`).** `QUOTAS` 3, floor 1's exit (count 1; gate 5 has no anchor
@@ -80,7 +80,10 @@ the castes' own, §3.2).** Skills 1–4 replace the placeholders of SEED-02 (the
 --build full` picks by kind, see CNT-01's report); skill 5, Rockfall, is kept for GEN-TRAP. Values are
 rank 0…12; an attack's range is its weapon's (the executor reads the weapon's, the record's is the
 client's); `SELF` entries are filtered ALLIES (R-45); a spell's range is 6 where design/03 gives none
-(the staff's and design/20's for Stone Skin and Mend Kin).
+(the staff's and design/20's for Stone Skin and Mend Kin). **One weapon family per starter bar
+(D-310):** the Vanguard's three starter attacks are Axes attacks, Cleave, Gash and Haft Blow; Rending
+Cut (Blades) and Skullring (Mauls) are trainers' skills (CNT-02), and Skullring is not seeded.
+design/03's table is updated by WPN-01.
 
 The attribute ids the records name are **design/03's attribute table in order, from 1**: Might 1,
 Blades 2, Axes 3, Mauls 4, Tactics 5, Fieldcraft 6, Archery 7, Survival 8, Trapping 9, Wellspring 10,
@@ -90,8 +93,8 @@ numbered before CNT-01; no rule reads them yet: `Build::loadout` passes no bar a
 | Id | Name | Profession, attribute | Kind | Energy / adrenaline, activation, recharge, range | Entries |
 |---|---|---|---|---|---|
 | 1 | Cleave | Vanguard, Axes | Attack | 4 strikes, 0, 0, the weapon's | `ATTACK_BONUS` 10…30 |
-| 2 | Rending Cut | Vanguard, Blades | Attack | 5, 0, 8, the weapon's | `CONDITION` Bleeding 5…20 |
-| 3 | Skullring | Vanguard, Mauls | Attack | 6 strikes, 0, 0, the weapon's | `CONDITION` Knocked down 2 (its interrupt is §5.9's rule, `INTERRUPT` deferred) |
+| 2 | Rending Cut | Vanguard, Blades | Attack | 5, 0, 8, the weapon's | `CONDITION` Bleeding 5…20; the Skirmisher's, not a starter (D-310: a trainer's, CNT-02) |
+| 3 | Haft Blow | Vanguard, Axes | Attack | 6 strikes, 0, 0, the weapon's | `CONDITION` Knocked down 2: Skullring's values and kind as an axe attack (D-310) |
 | 4 | Second Wind | Vanguard, Tactics | Skill | 5, 1, 20, self | `HEAL` 40…140; `HEAL` 20…70 `BELOW_HALF` (DS-31) |
 | 5 | Rockfall | none | Trap | 0, 0, 0, a tile | `TRAP`; `DAMAGE` earth 10…40 (GEN-TRAP) |
 | 6 | Brace | Vanguard, Tactics | Stance | 5, 0, 15, self | `BLOCK` 1…3 for 8…15 (DS-33) |
@@ -110,6 +113,7 @@ numbered before CNT-01; no rule reads them yet: `Build::loadout` passes no bar a
 | 19 | Deep Draw | Arcanist, Wellspring | Glyph | 0, 1, 25, self | `NEXT_SPELL_COST` 5…15, held 25 (its recharge; design/03 gives none: it is spent by the next spell, design/19 §3.4) |
 | 20 | Mend Kin | Cleric, Mending | Spell | 10, 2, 8, range 6, an ally | `HEAL` 20…100, `ALLY`, allies (the Shaman's) |
 | 21 | Overhead Smash | Vanguard, Mauls | Attack | 10, 3, 10, the weapon's | `ATTACK_BONUS` 20…60 (the Hobgoblin's wind-up) |
+| 22 | Gash | Vanguard, Axes | Attack | 5, 0, 8, the weapon's | `CONDITION` Bleeding 5…20: Rending Cut's values and kind as an axe attack (D-310) |
 
 **The creation kits (D-309).** A `KIT` per profession, id = the profession's: its starter weapon's
 `BASE` (0 none) and its starter skills. `create_adventurer` reads it with the region (one `bundle`)
@@ -123,7 +127,7 @@ item id of the seed, with a short English name and what it is:
 
 | Kind | Id | Name | What |
 |---|---|---|---|
-| `SKILL` | 1 to 21 | the table above | Its name is the table's (design/03, design/20 §3.2) |
+| `SKILL` | 1 to 22 | the table above | Its name is the table's (design/03, design/20 §3.2) |
 | `ITEM` | 1, 8, 15, 22 | Healing Potion | Potion; entry `HEAL` 20 on its holder (`SELF`, `SINGLE`, filter ALLIES), at every rank |
 | `ITEM` | 23 | Regeneration Potion | Potion; entry `REGENERATION` 3 pips for 40 ticks on its holder (`SELF`, `SINGLE`, filter ALLIES) |
 | `ITEM` | 2 to 7, 9 to 14, 16 to 21 | Ingredient (2 to 7, 9 to 14, 16 to 21) | Ingredient (18 items, no entry); named "Ingredient <id>" until the content pass names them |

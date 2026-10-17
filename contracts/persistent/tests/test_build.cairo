@@ -30,7 +30,7 @@ use grimworld_logic::types::content::{ITEM, KIT, LAST_KIND, LOCATION, MODIFIER, 
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};
 use grimworld_persistent::models::account::{OwnerTrait, PACK, VAULT};
 use grimworld_persistent::models::adventurer::errors::{
-    ADVENTURER_DELETED, BELT_NOT_IN_PACK, COUNT_WITHOUT_ITEM, DUPLICATE_ITEM, DUPLICATE_SKILL,
+    ADVENTURER_DELETED, BELT_NOT_IN_PACK, PACK_HOLDS_GOLD, COUNT_WITHOUT_ITEM, DUPLICATE_ITEM, DUPLICATE_SKILL,
     ELITE_SLOT, NOT_A_POTION, NOT_IN_HUB, NOT_OWNER, NO_ADVENTURER, NO_ATTRIBUTE, NO_SKILL, POINTS,
     RANK_ABOVE_12, SKILL_ALREADY_KNOWN, SKILL_NOT_KNOWN, SKILL_NOT_SOLD, SKILL_PRICE,
     SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
@@ -1400,4 +1400,38 @@ fn test_gas_create_adventurer_kit() {
     println!(
         "gas create_adventurer initialised, a kit and its purse: {}", gas - get_available_gas(),
     );
+}
+
+fn try_delete(world: World, id: u32) -> Result<(), Array<felt252>> {
+    #[feature("safe_dispatcher")]
+    let result = try_act(world, ALICE).delete_adventurer(id);
+    result
+}
+
+// D-310: the kit is forfeited at deletion. A new adventurer holding its purse, whole or partly
+// spent, is deleted and its gold dropped; gold above the purse is refused, as is any gold of a
+// profession without a kit.
+#[test]
+#[available_gas(l2_gas: 84040949)] // ceil(1.05 × 80038999 measured)
+fn test_delete_adventurer_forfeits_the_purse() {
+    let world = setup();
+    write_kit(world, VANGUARD, [1, 2, 3, 4, 5, 6]);
+    let whole = created(world, VANGUARD, true);
+    accepted(try_delete(world, whole));
+    assert(gold_of(world, whole) == 0, 'the purse dropped');
+    let spent = created(world, VANGUARD, false);
+    accepted(try_buy(world, ALICE, spent, 1));
+    accepted(try_buy(world, ALICE, spent, 2));
+    assert(gold_of(world, spent) == 450 - 50 - 60, 'part spent');
+    accepted(try_delete(world, spent));
+    assert(gold_of(world, spent) == 0, 'the rest dropped');
+    let richer = created(world, VANGUARD, false);
+    set_gold(world, richer, 451);
+    refused(try_delete(world, richer), PACK_HOLDS_GOLD);
+    set_gold(world, richer, 0);
+    accepted(try_delete(world, richer));
+    let none = created(world, WARDEN, false);
+    set_gold(world, none, 1);
+    refused(try_delete(world, none), PACK_HOLDS_GOLD);
+    assert(gold_of(world, none) == 1, 'kept on a refusal');
 }

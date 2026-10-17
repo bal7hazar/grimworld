@@ -364,7 +364,9 @@ pub mod Hub {
         /// D-33: frees the slot once the pack is empty. "Its inventory emptied", each checked by
         /// one read, without scanning (`AdventurerAssert::assert_emptied`): the pack's balances
         /// (`core.pack_lanes` = 0), its equipment (the compact list's first page is empty), what it
-        /// wears (`equipped` all 0), its gold (0). The belt names potion items; the potions
+        /// wears (`equipped` all 0), its gold (0), but for its kit (D-310): gold up to the purse
+        /// its profession's `KIT` gives is forfeited, written 0 (one `record` call, only when it
+        /// holds gold). The belt names potion items; the potions
         /// themselves are pack balances. The adventurer's record is never zeroed: `core.status` =
         /// `DELETED` marks it, and its id is never reused. Writes (ENG-01 §9.3): `core`, the
         /// account's record, the list's hole and last pages, all overwritten (one page while the
@@ -372,11 +374,24 @@ pub mod Hub {
         fn delete_adventurer(ref self: ContractState, adventurer_id: u32) {
             let (account_id, core, _) = self.owned_in_hub(adventurer_id);
             let (_, _, pack_lanes) = core.fields();
+            let pack = OwnerTrait::pack(adventurer_id);
+            let gold = self.get_gold(pack);
+            let mut kept = gold;
+            if gold.amount != 0 {
+                let (_, _, _, profession) = core.profile();
+                let parts = IRegistryReadDispatcher { contract_address: self.get_registry() }
+                    .record(KIT, profession.into());
+                let purse = SkillTrainerTrait::purse(KitRecord::unpack(parts).count());
+                if gold.amount <= purse {
+                    kept = Gold { amount: 0 };
+                    self.set_gold(pack, kept);
+                }
+            }
             AdventurerAssert::assert_emptied(
                 pack_lanes,
                 @self.get_pack_page(adventurer_id, 0),
                 @self.get_equipped(adventurer_id),
-                @self.get_gold(OwnerTrait::pack(adventurer_id)),
+                @kept,
             );
             let record = self.get_account_record(account_id);
             let (_, count) = record.counts();

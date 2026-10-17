@@ -706,20 +706,21 @@ impl SeedFixture of Fixture {
     }
 }
 
-// The test region, written and read back (AC-4): 56 records, 89 slots, in `bundle` calls of at
+// The test region, written and read back (AC-4): 57 records, 91 slots, in `bundle` calls of at
 // most `MAX_READ` records (ENG-05: the pack templates, a spawn table, the quotas; CNT-01: the MVP's
-// 18 starter skills, five castes and their skills, the four packs of design/05 and the gate pack,
+// 18 starter skills (D-310: the Vanguard's three attacks of one family, the axe), five castes and
+// their skills, the four packs of design/05 and the gate pack,
 // the gate zone, two weapon bases and the three kits).
 #[test]
-// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+// gas: raised, CNT-01: the seed holds 31 more records (57, 91 slots: the MVP content and kits)
 #[available_gas(l2_gas: 164066511)] // ceil(1.05 × 156253820 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
-    assert(written.requests.len() == 56, '56 records');
-    assert(written.felts.len() == 89, '89 slots');
+    assert(written.requests.len() == 57, '57 records');
+    assert(written.felts.len() == 91, '91 slots');
     let (version, felts) = SeedTrait::read_back(registry, written.requests.span());
-    assert(version == 56, 'one version a record');
+    assert(version == 57, 'one version a record');
     assert(felts == written.felts.span(), 'read back as written');
     let at = |kind: u8, id: u32| -> Span<felt252> {
         written.at(felts, kind, id)
@@ -805,7 +806,7 @@ fn test_seed_written_and_read_back() {
 
     // The MVP's starter skills (design/03, design/20 §3.1), six a profession, Rockfall kept at 5
     // (GEN-TRAP), and the castes' two of design/20 §3.2.
-    assert(admin.last_id(SKILL) == 21 && admin.last_id(CASTE) == 5, '21 skills, 5 castes');
+    assert(admin.last_id(SKILL) == 22 && admin.last_id(CASTE) == 5, '22 skills, 5 castes');
     let cleave = Record::<Skill>::unpack(at(SKILL, 1));
     assert(cleave.is_attack() && cleave.adrenaline == 4 && cleave.profession == 1, 'cleave');
     let wind = Record::<Skill>::unpack(at(SKILL, 4));
@@ -824,7 +825,15 @@ fn test_seed_written_and_read_back() {
     assert(skin.profession == 3 && skin.range == 6 && armor.v12 == 30, 'stone skin: DS-22');
     let smash = Record::<Skill>::unpack(at(SKILL, 21));
     assert(smash.is_attack() && smash.activation == 3, 'overhead smash: wind-up');
-    for id in 1..22_u32 {
+    // D-310: one weapon family per starter bar: the Vanguard's three attacks are of Axes (3),
+    // Rending Cut's bleed (Gash, 22) and Skullring's knock-down (Haft Blow, 3) among them.
+    for id in array![1_u32, 22, 3] {
+        let attack = Record::<Skill>::unpack(at(SKILL, id));
+        assert(attack.is_attack() && attack.attribute == 3, 'vanguard: axe attacks');
+    }
+    let rending = Record::<Skill>::unpack(at(SKILL, 2));
+    assert(rending.attribute == 2, 'rending cut: blades, a caste');
+    for id in 1..23_u32 {
         Record::<Skill>::unpack(at(SKILL, id)).assert_legal();
     }
 
@@ -848,7 +857,7 @@ fn test_seed_written_and_read_back() {
     let bow = BaseRecord::unpack(at(BASE, 2));
     assert(bow.slot == slot::WEAPON && bow.hands == 2, 'base 2: the bow');
     let vanguard = KitRecord::unpack(at(KIT, 1));
-    assert(vanguard == KitTrait::new(1, [1, 2, 3, 4, 6, 7]), 'kit 1: vanguard');
+    assert(vanguard == KitTrait::new(1, [1, 22, 3, 4, 6, 7]), 'kit 1: vanguard');
     let warden = KitRecord::unpack(at(KIT, 2));
     assert(warden == KitTrait::new(2, [8, 9, 10, 11, 12, 13]), 'kit 2: warden');
     let arcanist = KitRecord::unpack(at(KIT, 3));
@@ -857,16 +866,16 @@ fn test_seed_written_and_read_back() {
 
 // The baseline of the next test: the deployment, and the file read and packed.
 #[test]
-// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+// gas: raised, CNT-01: the seed holds 31 more records (57, 91 slots: the MVP content and kits)
 #[available_gas(l2_gas: 24686834)] // ceil(1.05 × 23511270 measured)
 fn test_gas_seed_baseline() {
     Fixture::deploy();
     SeedTrait::load().records();
 }
 
-// Writing the whole test region, 56 `set_record` (AC-4): this test less the baseline.
+// Writing the whole test region, 57 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+// gas: raised, CNT-01: the seed holds 31 more records (57, 91 slots: the MVP content and kits)
 #[available_gas(l2_gas: 127623122)] // ceil(1.05 × 121545830 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
@@ -875,12 +884,12 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+// gas: raised, CNT-01: the seed holds 31 more records (57, 91 slots: the MVP content and kits)
 #[available_gas(l2_gas: 194059310)] // ceil(1.05 × 184818390 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);
     SeedTrait::write(registry);
     let read = IRegistryReadDispatcher { contract_address: registry };
-    assert(read.content_version() == 56, 'version kept');
+    assert(read.content_version() == 57, 'version kept');
 }

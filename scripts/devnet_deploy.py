@@ -478,7 +478,7 @@ def build_plan():
         "instant_attack": ("instant attack skill", lambda r: r["kind"] == 1 and r["activation"] == 0),
         "activation_skill": ("skill with an activation of 1 or more",
                              lambda r: r["activation"] >= 1 and r["kind"] != 9),
-        "trap": ("trap skill", lambda r: r["kind"] == 9),
+        "trap": ("trap skill of profession 1", lambda r: r["kind"] == 9 and r["profession"] == 1),
         "regeneration_skill": ("skill with a REGENERATION entry", lambda r: 5 in r["entries"]),
     }
     skills, dropped = {}, {}
