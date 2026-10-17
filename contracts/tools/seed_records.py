@@ -109,3 +109,20 @@ def spawn_table_record(row):
     bits = [row[1 + 2 * i] + (row[2 + 2 * i] << 16) for i in range(7)]
     low = sum(b << (24 * i) for i, b in enumerate(bits[:5]))
     return [low + ((bits[5] + (bits[6] << 24) + (row[15] << 48) + (row[16] << 56)) << 128) + LIVE]
+
+
+BASE, KIT = 12, 29  # CNT-01 (D-309)
+
+
+def base_record(row):
+    """`BaseRecord::pack`: the slot, then the hands, in part 0 (the prefix `BASE` lays out, D-158);
+    part 1 is `LIVE` only."""
+    _, slot, hands = row
+    return [slot + (hands << 8) + LIVE, LIVE]
+
+
+def kit_record(row):
+    """`KitRecord::pack`: the starter weapon's `BASE` (0 none), then the six starter skills, 16 bits
+    each."""
+    _, weapon, *skills = row
+    return [weapon + sum(sk << (16 * (i + 1)) for i, sk in enumerate(skills)) + LIVE]
