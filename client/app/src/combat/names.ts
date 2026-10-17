@@ -2,17 +2,35 @@
  * The names of the seed's skills and items, for the screens and the log (CLI-05 brief Q-1). The
  * registry holds no names and none is planned (track game, 2026-10-12); this is a copy of the table
  * `contracts/seed/README.md` keeps under "Names for the client", the single source: change it there
- * first. An id the table does not know is named by its number ("Skill 12"), never guessed.
+ * first. An id the table does not know is named by its number ("Skill 23"), never guessed.
  */
 
 import { DEFAULT_NAMES, type Names } from "./state";
 
-/** `SKILL` ids 1 to 4 of the seed. */
+/** `SKILL` ids 1 to 22 of the seed. */
 export const SKILL_NAMES: Readonly<Record<number, string>> = {
-  1: "Strike",
-  2: "Second Wind",
-  3: "Snare",
-  4: "Mending",
+  1: "Cleave",
+  2: "Rending Cut",
+  3: "Haft Blow",
+  4: "Second Wind",
+  5: "Rockfall",
+  6: "Brace",
+  7: "Warcry",
+  8: "Aimed Shot",
+  9: "Hamstring Shot",
+  10: "Venom Coat",
+  11: "Snare",
+  12: "Field Dressing",
+  13: "Sidestep",
+  14: "Ember Bolt",
+  15: "Cinder Ring",
+  16: "Rime Shard",
+  17: "Stone Skin",
+  18: "Static Lash",
+  19: "Deep Draw",
+  20: "Mend Kin",
+  21: "Overhead Smash",
+  22: "Gash",
 };
 
 /** The healing potions (`ITEM` 1, 8, 15, 22) and the REGENERATION potion (23). */
