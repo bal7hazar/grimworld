@@ -1325,6 +1325,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_build::test_set_build_stores_the_extremal_max_energy` | 92342777 | 94791351 | 2026-10-17 | f49b7e9 |
 | grimworld_persistent | `test_build::test_set_build_stores_the_extremal_max_health` | 108964751 | 112116461 | 2026-10-17 | f49b7e9 |
 | grimworld_persistent | `test_build::test_set_build_unknown_modifier_refused` | 97884699 | 100801606 | 2026-10-17 | f49b7e9 |
+| grimworld_persistent | `test_build::test_set_build_weapon_requirement_unmet` | 85970128 | 90268635 | 2026-10-17 | f49b7e9 |
 | grimworld_persistent | `test_build::test_set_build_wears_the_kit_weapon` | 96677461 | 101511335 | 2026-10-17 | f49b7e9 |
 | grimworld_persistent | `test_build::test_set_build_worst_case` | 124770774 | 126814185 | 2026-10-17 | f49b7e9 |
 | grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_calls` | 377771 | 396660 | 2026-10-02 | f55176c |

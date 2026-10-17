@@ -169,6 +169,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_build::test_set_build_stores_the_extremal_max_energy` | 92342777 | 94791351 | 2.65 % | 0 | 11232 | 2026-10-17 | f49b7e9 |
 | `test_build::test_set_build_stores_the_extremal_max_health` | 108964751 | 112116461 | 2.89 % | 0 | 12480 | 2026-10-17 | f49b7e9 |
 | `test_build::test_set_build_unknown_modifier_refused` | 97884699 | 100801606 | 2.98 % | 0 | 11808 | 2026-10-17 | f49b7e9 |
+| `test_build::test_set_build_weapon_requirement_unmet` | 85970128 | 90268635 | 5.00 % | 0 | 9696 | 2026-10-17 | f49b7e9 |
 | `test_build::test_set_build_wears_the_kit_weapon` | 96677461 | 101511335 | 5.00 % | 0 | 10848 | 2026-10-17 | f49b7e9 |
 | `test_build::test_set_build_worst_case` | 124770774 | 126814185 | 1.64 % | 0 | 12672 | 2026-10-17 | f49b7e9 |
 | `test_contracts::test_fate_refuses_mainnet_calls` | 377771 | 396660 | 5.00 % | 0 | 96 | 2026-10-02 | f55176c |
