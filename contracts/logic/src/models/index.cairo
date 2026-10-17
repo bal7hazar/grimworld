@@ -1,4 +1,10 @@
-//! The world's registry records, together (D-143, docs/CAIRO.md §7): `REGION`, `LOCATION`,
+//! The Registry's records, together (D-143, docs/CAIRO.md §7), and the structs that still sit with
+//! them: `MemberWords`, `Member`, `GoblinWords`, `Goblin`, `Terrain`, `PackPlacement`, `Object` and
+//! `Features`, which move into their own files with the next lot that changes the classes
+//! compiling this file for a behaviour reason (ENG-R1c-2, ruling 10: the move changes class hashes
+//! through Sierra type ids, for no behaviour gain). The other models have one file each.
+//!
+//! The records: `REGION`, `LOCATION`,
 //! `GATE` and both forms of `OUTLINE` (design/01 *World structure*, ADR-0006 *Outlines*;
 //! docs/architecture/ENG-01-interfaces.md §3.5, where every width is justified). Each model's file
 //! holds its constructor, its checks, its errors and its packing into the record's parts

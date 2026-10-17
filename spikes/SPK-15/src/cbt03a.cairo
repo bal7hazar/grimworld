@@ -16,7 +16,7 @@ pub enum Arc {
     RearSide,
     Back,
 }
-use grimworld_logic::helpers::exp2::{Exp2, SHIFT};
+use grimworld_logic::helpers::exp2::{Exp2Trait, SHIFT};
 use grimworld_logic::models::build::STRENGTH_PER_RANK;
 use grimworld_logic::types::combat::{HitClass, weapon};
 
@@ -256,7 +256,7 @@ pub impl HitImpl of HitTrait {
     #[inline(always)]
     fn damage(self: @Hit, armor: u32, percent: i32) -> u64 {
         let x: i32 = (*self.strength).into() - armor.try_into().unwrap();
-        let factor: u64 = Exp2::at(x).into();
+        let factor: u64 = Exp2Trait::at(x).into();
         let base: u64 = (*self.base).into();
         let scaled = base * factor / SHIFT.into();
         let multiplier: u64 = (100 + percent).try_into().unwrap();

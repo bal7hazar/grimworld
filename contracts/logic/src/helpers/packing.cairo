@@ -55,7 +55,7 @@ pub impl PackingImpl of PackingTrait {
     /// overflows into `LIVE` or beyond is refused, never written.
     #[inline(always)]
     fn join(low: u128, high: u128) -> felt252 {
-        assert(high < LIVE_HIGH, 'packing: high limb overflow');
+        PackingAssert::assert_high(high);
         low.into() + high.into() * TWO_POW_128 + LIVE
     }
 }
@@ -113,6 +113,19 @@ pub impl PackingAssert of PackingAssertTrait {
     #[inline(always)]
     fn assert_fits(value: u128, size: u128, message: felt252) {
         assert(value < size, message);
+    }
+
+    /// A stored record's high limb stays below `LIVE_HIGH` (2^122), or `join` would overflow into
+    /// `LIVE`.
+    #[inline(always)]
+    fn assert_high(high: u128) {
+        assert(high < LIVE_HIGH, 'packing: high limb overflow');
+    }
+
+    /// A bitmap's high limb stays below `LIVE_HIGH`: no bit above 249.
+    #[inline(always)]
+    fn assert_bitmap(high: u128) {
+        assert(high < LIVE_HIGH, 'packing: bitmap above bit 249');
     }
 }
 
@@ -292,7 +305,7 @@ pub struct Bitmap {
 pub impl BitmapStorePacking of starknet::storage_access::StorePacking<Bitmap, felt252> {
     fn pack(value: Bitmap) -> felt252 {
         let wide: u256 = value.bits.into();
-        assert(wide.high < LIVE_HIGH, 'packing: bitmap above bit 249');
+        PackingAssert::assert_bitmap(wide.high);
         value.bits + LIVE
     }
     fn unpack(value: felt252) -> Bitmap {
