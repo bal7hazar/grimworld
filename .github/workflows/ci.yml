@@ -1,4 +1,4 @@
-# CI of the contracts, the client and the indexer (FND-02, D-153), beside the `tooling` workflow.
+# CI of the contracts, the client and the indexer (FND-02, D-153); it calls the `tooling` workflow (D-314).
 # "Merge on green CI" means the code works: every Cairo package is formatted, built and tested on
 # the toolchain of its own .tool-versions; the pnpm workspace (client and indexer) is installed,
 # linted, typechecked, tested, built and formatted; a change to indexer/ also runs the indexer on a
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The CI's own trigger logic is gated here, because `ci result` needs `discover` (FND-CI2,
-      # D-264): the tooling workflow is not a required check. It runs on every pull request and
+      # D-264; the tooling job runs it too since D-314, but only on a tooling path). It runs on every pull request and
       # push (under a second), before the outputs below are computed, so a broken rule fails the
       # job instead of silently steering the others.
       - name: changed-paths self-test
@@ -924,12 +924,18 @@ jobs:
           python3 --version
           python3 -m unittest discover -v -s tools/map-format/tests -p 'test_*.py'
 
+  # The agent tooling's checks (shellcheck, the launcher dry-run, lock.sh, with-node.sh, the D-73
+  # guards), in their own reusable workflow; D-314: `ci result` needs it like any other job. It always
+  # runs: its own `changed paths` step turns its script checks into no-ops when no tooling path changed.
+  tooling:
+    uses: ./.github/workflows/tooling.yml
+
   # FND-18: the one check that always runs, so that `gh pr checks` has a result whichever test jobs the
   # change concerned. It fails when a needed job failed or was cancelled, and passes when every one
   # succeeded or was skipped (a job its paths did not concern).
   result:
     name: ci result
-    needs: [discover, cairo, contracts-vectors, contracts-build-stable, class-artefacts, client, indexer-node, client-node, devnet-smoke, art, map-format]
+    needs: [discover, cairo, contracts-vectors, contracts-build-stable, class-artefacts, client, indexer-node, client-node, devnet-smoke, art, map-format, tooling]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
