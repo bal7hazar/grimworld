@@ -1629,3 +1629,34 @@ fn test_delete_adventurer_forfeits_the_kit_weapon() {
     write(world.hub, pack_key(other, 0), page);
     refused(try_delete(world, other), PACK_HOLDS_EQUIPMENT);
 }
+
+// D-144: `create_adventurer`'s cost with a kit that names a weapon against the same kit without
+// one, initialised: the `record(BASE)` call after the `bundle` and `create_item`'s writes
+// (`next_item`, the item's base, the pack's first page).
+#[test]
+#[available_gas(l2_gas: 93230046)] // ceil(1.05 × 88790520 measured)
+fn test_gas_create_adventurer_kit_weapon() {
+    let world = setup();
+    weapon_kits(world);
+    let hub = act(world, ALICE);
+    hub.register();
+    hub.create_adventurer('Aldric', ARCANIST);
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
+    admin.set_record(KIT, WARDEN.into(), KitTrait::new(0, [15, 16, 10, 0, 0, 0]).pack());
+    start_cheat_caller_address(world.hub, addr(ALICE));
+    let gas = get_available_gas();
+    let without = hub.create_adventurer('Aldric', WARDEN);
+    println!(
+        "gas create_adventurer initialised, a kit without weapon: {}", gas - get_available_gas(),
+    );
+    act(world, ALICE).delete_adventurer(without);
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    admin.set_record(KIT, WARDEN.into(), KitTrait::new(2, [15, 16, 10, 0, 0, 0]).pack());
+    start_cheat_caller_address(world.hub, addr(ALICE));
+    let gas = get_available_gas();
+    hub.create_adventurer('Aldric', WARDEN);
+    println!(
+        "gas create_adventurer initialised, a kit with its weapon: {}", gas - get_available_gas(),
+    );
+}
