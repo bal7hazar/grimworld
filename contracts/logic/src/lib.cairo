@@ -10,9 +10,12 @@ pub mod constants;
 pub mod helpers;
 /// The calls between contracts: results, entry, registry reads, randomness.
 pub mod interface;
-/// The world's registry records as models: regions, locations, gates, outlines (D-143).
+/// The models, one file per entity (docs/CAIRO.md §7); `models::index` holds the Registry's
+/// records and the structs that move out later (ENG-R1c-2, ruling 10).
 pub mod models;
-/// The library classes (ENG-01 §1.3): the tick's, `TickLibrary`.
+/// The library classes (ENG-01 §1.3): nine, `ActionLibrary`, `AiLibrary`, `ExecutorLibrary`,
+/// `FlattenLibrary`, `HostsLibrary`, `RevealLibrary`, `SegmentLibrary`, `TickLibrary` and
+/// `TrapLibrary`.
 pub mod systems;
 /// Identifiers, bounds and enums shared by the two domains.
 pub mod types;

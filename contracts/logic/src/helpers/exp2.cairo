@@ -23,13 +23,13 @@ pub mod errors {
     pub const OUT_OF_RANGE: felt252 = 'exp2: x out of range';
 }
 
-pub trait Exp2 {
+pub trait Exp2Trait {
     /// `round(2^16 × 2^(x/40))`, with `x` clamped to `[−160, +80]` (D-140: a legal action never
     /// panics, however far apart strength and armor are).
     fn at(x: i32) -> u32;
 }
 
-pub impl Exp2Impl of Exp2 {
+pub impl Exp2Impl of Exp2Trait {
     #[inline(always)]
     fn at(x: i32) -> u32 {
         // [Compute] Two comparisons and one addition: branch-free is not cheaper.
@@ -45,8 +45,9 @@ pub impl Exp2Impl of Exp2 {
 }
 
 #[generate_trait]
-pub impl Exp2Assert of AssertTrait {
-    /// For a caller that must not clamp: `x` is inside the table.
+pub impl Exp2Assert of Exp2AssertTrait {
+    /// For a caller that must not clamp: none yet (the damage formula clamps, D-140). `x` is inside
+    /// the table.
     fn assert_covered(x: i32) {
         assert(X_LOW <= x && x <= X_HIGH, errors::OUT_OF_RANGE);
     }
@@ -59,7 +60,7 @@ pub impl Exp2Assert of AssertTrait {
 /// too.
 #[cfg(test)]
 mod tests {
-    use super::{Exp2, Exp2Assert, LEN, SHIFT, X_HIGH, X_LOW};
+    use super::{Exp2Assert, Exp2Trait, LEN, SHIFT, X_HIGH, X_LOW};
 
     #[generate_trait]
     impl FixtureImpl of Fixture {
@@ -116,7 +117,7 @@ mod tests {
                 x
             };
             let index: u32 = (inside - X_LOW).try_into().unwrap();
-            assert(Exp2::at(x) == *expected.at(index), 'exp2 entry');
+            assert(Exp2Trait::at(x) == *expected.at(index), 'exp2 entry');
             x += 1;
         }
     }
@@ -125,23 +126,23 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 16937)] // ceil(1.05 × 16130 measured)
     fn test_octaves_exact() {
-        assert(Exp2::at(-160) == SHIFT / 16, '2^-4');
-        assert(Exp2::at(-120) == SHIFT / 8, '2^-3');
-        assert(Exp2::at(-80) == SHIFT / 4, '2^-2');
-        assert(Exp2::at(-40) == SHIFT / 2, '2^-1');
-        assert(Exp2::at(0) == SHIFT, '2^0');
-        assert(Exp2::at(40) == SHIFT * 2, '2^1');
-        assert(Exp2::at(80) == SHIFT * 4, '2^2');
+        assert(Exp2Trait::at(-160) == SHIFT / 16, '2^-4');
+        assert(Exp2Trait::at(-120) == SHIFT / 8, '2^-3');
+        assert(Exp2Trait::at(-80) == SHIFT / 4, '2^-2');
+        assert(Exp2Trait::at(-40) == SHIFT / 2, '2^-1');
+        assert(Exp2Trait::at(0) == SHIFT, '2^0');
+        assert(Exp2Trait::at(40) == SHIFT * 2, '2^1');
+        assert(Exp2Trait::at(80) == SHIFT * 4, '2^2');
     }
 
     // Out of range clamps, at both ends, however far.
     #[test]
     #[available_gas(l2_gas: 13671)] // ceil(1.05 × 13020 measured)
     fn test_clamp_ends() {
-        assert(Exp2::at(-161) == Exp2::at(-160), 'below clamps');
-        assert(Exp2::at(-65535) == 4096, 'far below clamps');
-        assert(Exp2::at(81) == Exp2::at(80), 'above clamps');
-        assert(Exp2::at(65535) == 262144, 'far above clamps');
+        assert(Exp2Trait::at(-161) == Exp2Trait::at(-160), 'below clamps');
+        assert(Exp2Trait::at(-65535) == 4096, 'far below clamps');
+        assert(Exp2Trait::at(81) == Exp2Trait::at(80), 'above clamps');
+        assert(Exp2Trait::at(65535) == 262144, 'far above clamps');
     }
 
     #[test]
@@ -170,14 +171,14 @@ mod tests {
     #[available_gas(l2_gas: 11897)] // ceil(1.05 × 11330 measured)
     fn test_bench_lookup() {
         let x: i32 = Fixture::opaque(-37);
-        assert(Exp2::at(x) == 34517, 'lookup');
+        assert(Exp2Trait::at(x) == 34517, 'lookup');
     }
 
     // §6 test 7: one hit's product in a `u64` (§1.6): B's base 33,022 at x = 80 and A's 163,836.
     #[test]
     #[available_gas(l2_gas: 10416)] // ceil(1.05 × 9920 measured)
     fn test_one_hit_product() {
-        let table: u64 = Exp2::at(80).into();
+        let table: u64 = Exp2Trait::at(80).into();
         assert(33022 * table == 8656519168, 'B: < 2^34');
         assert(163836 * table == 42948624384, 'A: < 2^36');
     }

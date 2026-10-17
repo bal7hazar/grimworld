@@ -366,7 +366,9 @@ fn reads(kind: u8) -> (u8, i32, i32) {
         16 => (READS_D, 0, 0), // MOVEMENT
         17 => (0, 0, 0), // INTERRUPT
         18 => (0, 0, 0), // TRAP
-        // The table's refusal of a kind after the MVP's (19 to `kind::LAST`).
+        // Reachable: a kind from 19 to `kind::LAST` reaches it through `assert_legal`. It is the
+        // table's own refusal of a kind after the MVP's, kept in the `match` (ENG-R1c-2, ruling 9:
+        // moving it would duplicate the table's case analysis).
         _ => core::panic_with_felt252(errors::NOT_MVP),
     }
 }

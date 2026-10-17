@@ -13,7 +13,7 @@ use crate::helpers::duration::MAX_DURATION_BONUS_PERCENT;
 use crate::helpers::packing::{P16, P32, P48, P64, P80};
 use crate::models::base::slot as base_slot;
 use crate::models::held_passive::HeldPassive;
-use crate::models::loadout::Loadout;
+use crate::models::loadout::{Loadout, LoadoutAssert};
 use crate::models::member_bar::{MemberBar, MemberBarTrait, QuickCast};
 use crate::models::member_kit::{MemberKit, MemberKitTrait, saturate};
 use crate::models::member_stats::{MemberStats, MemberStatsTrait};
@@ -31,9 +31,6 @@ pub mod errors {
     pub const MAX_HEALTH: felt252 = 'build: max health below 1';
     pub const MAX_ENERGY: felt252 = 'build: max energy below 0';
     pub const ENERGY_REGEN: felt252 = 'build: energy regen below 0';
-    pub const POINTS: felt252 = 'build: points above 12';
-    pub const WEAPON_DAMAGE: felt252 = 'build: weapon damage above 27';
-    pub const RATING: felt252 = 'build: rating above 560';
     pub const QUICK_CAST_ATTRIBUTE: felt252 = 'build: quick-cast attribute';
     pub const OVERFLOW: felt252 = 'build: sum outside its field';
     pub const PIECE_TWICE: felt252 = 'build: two insignias a piece';
@@ -58,12 +55,6 @@ pub const STRENGTH_PER_RANK: u16 = 5;
 /// Personalisation: +20 % to the weapon's base damage (design/15 D-48), the only source of
 /// `BASE_DAMAGE_PERCENT` (DS-4).
 pub const PERSONALISED_DAMAGE_PERCENT: u32 = 120;
-/// The weighted rating of the pieces and the shield, personalised (F-21: 255 + 25 + 255 + 25).
-pub const MAX_RATING: u16 = 560;
-/// Attribute points give a rank of at most 12 (design/03; design/20 §1.2's build B).
-pub const MAX_POINTS_RANK: u8 = 12;
-/// A weapon's base damage at its requirement, at most the maul's 27 (design/15; design/20 row 9).
-pub const MAX_WEAPON_BASE_DAMAGE: u8 = 27;
 /// DS-7 (D-160) bounds *Wellspring* at 3 energy a rank and light armor at +20 energy and +1 pip.
 /// BAL-01 sets the values; until then the bounds are used, as `ADRENALINE_DECAY` is (escalated).
 pub const WELLSPRING_ENERGY_PER_RANK: i32 = 3;
@@ -136,16 +127,6 @@ pub impl BuildAssert of BuildAssertTrait {
         assert(health >= 1, errors::MAX_HEALTH);
         assert(energy >= 0, errors::MAX_ENERGY);
         assert(energy_regen >= 0, errors::ENERGY_REGEN);
-    }
-
-    /// The build's own bounds design/20 §1 sums from (B, row 9, F-21): each attribute's points
-    /// give a rank of at most 12, the weapon's base damage at most 27, the rating at most 560.
-    fn assert_loadout(loadout: @Loadout) {
-        for (_, points) in *loadout.points {
-            assert(*points <= MAX_POINTS_RANK, errors::POINTS);
-        }
-        assert(*loadout.weapon_damage <= MAX_WEAPON_BASE_DAMAGE, errors::WEAPON_DAMAGE);
-        assert(*loadout.rating <= MAX_RATING, errors::RATING);
     }
 
     /// At most design/20 §1.2's count of each source (`COUNTS_OVER`).
@@ -414,7 +395,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
     /// - The bar's attribute mappings (CBT-05f, `FlattenTrait::mappings`): each slot's quick-cast
     ///   pairs, and its attack skill's weapon requirement.
     fn build(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
-        BuildAssert::assert_loadout(loadout);
+        LoadoutAssert::assert_loadout(loadout);
         // The sums, and the counts: a new instance is numbered above the last.
         let mut counts: u128 = COUNTS_START;
         let mut next: u16 = 0;
@@ -557,6 +538,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
                 profession,
                 primary_rank,
                 weapon: *loadout.weapon,
+                // Refused like `fit`'s conversion: a failure is a broken proof (see `fit`).
                 weapon_damage: weapon_damage.try_into().expect(errors::OVERFLOW),
                 weapon_ticks: *loadout.weapon_ticks,
                 weapon_range: *loadout.weapon_range,

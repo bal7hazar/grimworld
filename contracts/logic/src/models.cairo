@@ -14,7 +14,8 @@ pub mod gate;
 pub mod goblin;
 /// A passive the build holds, as the flattening reads it (design/20 §1.2).
 pub mod held_passive;
-/// The structs of every model, together (D-143).
+/// The Registry's records, and the structs that still sit with them (ruling 10), in one file; every
+/// other model has its own file, with its checks and errors (D-143).
 pub mod index;
 pub mod item;
 /// What the flattening reads of a build besides its passives.

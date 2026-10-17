@@ -39,7 +39,9 @@ pub impl ProfessionImpl of ProfessionTrait {
     /// The base energy of a primary profession (design/03, *Professions*): a table.
     fn energy(id: u8) -> u8 {
         match id {
-            // The table's refusal, in its arms: 0 and an id past it are no profession.
+            // Reachable: `0` and an id past the table reach these arms (`energy(0)`,
+            // `attributes(7)`). They are the table's own refusal, kept in the `match` (ENG-R1c-2,
+            // ruling 9: moving them would duplicate the table's case analysis).
             0 => core::panic_with_felt252(errors::BAD_PROFESSION),
             1 => 20,
             2 => 25,
@@ -51,7 +53,9 @@ pub impl ProfessionImpl of ProfessionTrait {
     /// Its energy regeneration, in pips (design/03).
     fn energy_regen(id: u8) -> u8 {
         match id {
-            // The table's refusal, in its arms: 0 and an id past it are no profession.
+            // Reachable: `0` and an id past the table reach these arms (`energy(0)`,
+            // `attributes(7)`). They are the table's own refusal, kept in the `match` (ENG-R1c-2,
+            // ruling 9: moving them would duplicate the table's case analysis).
             0 => core::panic_with_felt252(errors::BAD_PROFESSION),
             1 => 2,
             2 => 3,
@@ -64,7 +68,9 @@ pub impl ProfessionImpl of ProfessionTrait {
     /// a table over the six professions, since a secondary profession may be any of them.
     fn attributes(id: u8) -> u8 {
         match id {
-            // The table's refusal, in its arms: 0 and an id past it are no profession.
+            // Reachable: `0` and an id past the table reach these arms (`energy(0)`,
+            // `attributes(7)`). They are the table's own refusal, kept in the `match` (ENG-R1c-2,
+            // ruling 9: moving them would duplicate the table's case analysis).
             0 => core::panic_with_felt252(errors::BAD_PROFESSION),
             1 => 5,
             2 => 4,
@@ -81,7 +87,9 @@ pub impl ProfessionImpl of ProfessionTrait {
     /// (escalated in ENG-06's report).
     fn armor(id: u8) -> u8 {
         match id {
-            // The table's refusal, in its arms: 0 and an id past it are no profession.
+            // Reachable: `0` and an id past the table reach these arms (`energy(0)`,
+            // `attributes(7)`). They are the table's own refusal, kept in the `match` (ENG-R1c-2,
+            // ruling 9: moving them would duplicate the table's case analysis).
             0 => core::panic_with_felt252(errors::BAD_PROFESSION),
             1 => 80,
             2 => 70,

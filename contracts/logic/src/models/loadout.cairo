@@ -1,5 +1,19 @@
 //! `Loadout`, what the flattening reads of a build besides the passives it holds (`models::build`):
-//! `Hub.set_build` builds it, `FlattenLibrary` flattens it.
+//! `Hub.set_build` builds it, `FlattenLibrary` flattens it; `LoadoutAssert` holds the bounds it
+//! owns.
+
+pub mod errors {
+    pub const POINTS: felt252 = 'build: points above 12';
+    pub const WEAPON_DAMAGE: felt252 = 'build: weapon damage above 27';
+    pub const RATING: felt252 = 'build: rating above 560';
+}
+
+/// The weighted rating of the pieces and the shield, personalised (F-21: 255 + 25 + 255 + 25).
+pub const MAX_RATING: u16 = 560;
+/// Attribute points give a rank of at most 12 (design/03; design/20 §1.2's build B).
+pub const MAX_POINTS_RANK: u8 = 12;
+/// A weapon's base damage at its requirement, at most the maul's 27 (design/15; design/20 row 9).
+pub const MAX_WEAPON_BASE_DAMAGE: u8 = 27;
 
 /// What the flattening reads besides the passives (design/03, design/15).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -34,4 +48,17 @@ pub struct Loadout {
     pub set_bonuses: u16,
     pub belt: [u32; 4],
     pub belt_counts: [u8; 4],
+}
+
+#[generate_trait]
+pub impl LoadoutAssert of LoadoutAssertTrait {
+    /// The build's own bounds design/20 §1 sums from (B, row 9, F-21): each attribute's points
+    /// give a rank of at most 12, the weapon's base damage at most 27, the rating at most 560.
+    fn assert_loadout(loadout: @Loadout) {
+        for (_, points) in *loadout.points {
+            assert(*points <= MAX_POINTS_RANK, errors::POINTS);
+        }
+        assert(*loadout.weapon_damage <= MAX_WEAPON_BASE_DAMAGE, errors::WEAPON_DAMAGE);
+        assert(*loadout.rating <= MAX_RATING, errors::RATING);
+    }
 }

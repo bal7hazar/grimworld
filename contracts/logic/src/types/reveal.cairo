@@ -654,7 +654,10 @@ pub impl RevealImpl of RevealTrait {
         }
         match found {
             Option::Some(terrain) => terrain,
-            // Reached only by a malformed call: `Instances` gives every revealed neighbour.
+            // Reachable: a call whose `known` lacks a revealed neighbour reaches it (`Instances`
+            // gives every one, so only a malformed call does). It is the table's own refusal, kept
+            // in the `match` (ENG-R1c-2, ruling 9: moving it would duplicate the table's case
+            // analysis).
             Option::None => core::panic_with_felt252(errors::NEIGHBOUR),
         }
     }
