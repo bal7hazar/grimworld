@@ -1593,7 +1593,7 @@ fn test_set_record_kit() {
 // WPN-01: a `BASE` is checked when written (`BaseAssert::assert_valid`): a weapon carries its
 // statistics, any other base none; the item's creator copies them unchecked (D-158).
 #[test]
-#[available_gas(l2_gas: 4963697)] // ceil(1.05 × 4727330 measured)
+#[available_gas(l2_gas: 4963592)] // ceil(1.05 × 4727230 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_base() {
     let r = Fixture::deploy();

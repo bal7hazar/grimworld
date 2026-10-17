@@ -657,7 +657,7 @@ mod tests {
     // WPN-01: `ItemBase.weapon` at bits 128-175, its base's weapon at the item's requirement
     // (design/15's axe: 9 at requirement 0, 17 at 9; 12 at 4), 8 bits a field from bit 128.
     #[test]
-    #[available_gas(l2_gas: 584703)] // ceil(1.05 × 556860 measured)
+    #[available_gas(l2_gas: 584598)] // ceil(1.05 × 556760 measured)
     fn test_item_weapon() {
         let axe = BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 3);
         let at_0 = ItemBaseTrait::new(1, @axe, 0, 0, 0, 0, 0, 0, PACK, 5);
@@ -704,7 +704,7 @@ mod tests {
 
     // The pack's list: its first free lane, the entity it holds alone.
     #[test]
-    #[available_gas(l2_gas: 144512)] // ceil(1.05 × 137630 measured)
+    #[available_gas(l2_gas: 144407)] // ceil(1.05 × 137530 measured)
     fn test_pack_list() {
         let none = StoredLanes { word: 0 };
         assert(PackListTrait::free_lane(@none) == Option::Some(0), 'never written');

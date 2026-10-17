@@ -427,7 +427,7 @@ fn test_extremal_max_health_through_the_library() {
 // bonuses, which no item holds (as above). Flattened directly: no input of `set_build` carries
 // attribute points yet (D-157 A), so the library is never sent them.
 #[test]
-#[available_gas(l2_gas: 3459547)] // ceil(1.05 × 3294806 measured)
+#[available_gas(l2_gas: 1840454)] // ceil(1.05 × 1752813 measured)
 fn test_extremal_max_energy_flattened() {
     let none: Passive = Default::default();
     let mut records = Fixture::held_records(PassiveTrait::new(id::MAX_ENERGY, 0, 0, 0, 1, 5));
@@ -470,7 +470,7 @@ fn test_extremal_weapon_damage_through_the_library() {
 // build-local indices and the global ids runes name are not numbered (D-157 A), so its loadout
 // has no point: flattened directly, as above.
 #[test]
-#[available_gas(l2_gas: 2135696)] // ceil(1.05 × 2033996 measured)
+#[available_gas(l2_gas: 1036186)] // ceil(1.05 × 986843 measured)
 fn test_extremal_ranks_flattened() {
     let attribute = PassiveTrait::new(id::ATTRIBUTE, PRIMARY, 0, 0, 1, 3);
     let rune = ModifierTrait::new(modifier_slot::RUNE, attribute, Default::default());

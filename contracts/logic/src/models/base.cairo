@@ -307,7 +307,7 @@ mod tests {
     // design/15: the damage grows from requirement 0 to 9, rounded down, and stops at 9; the
     // other statistics are the base's.
     #[test]
-    #[available_gas(l2_gas: 1644983)] // ceil(1.05 × 1566650 measured)
+    #[available_gas(l2_gas: 1644878)] // ceil(1.05 × 1566550 measured)
     fn test_base_weapon_at_requirement() {
         let at_0 = Weapon {
             class: weapon::AXE,
