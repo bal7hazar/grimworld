@@ -54,7 +54,7 @@ pub impl KitAssert of KitAssertTrait {
         assert(id >= 1 && id <= PROFESSIONS.into(), errors::PROFESSION);
         let skills = self.skills.span();
         let mut ended = false;
-        for i in 0..SKILLS.into() {
+        for i in 0..skills.len() {
             let skill = *skills[i];
             if skill == 0 {
                 ended = true;
@@ -84,11 +84,13 @@ pub impl KitRecord of Record<Kit> {
     fn unpack(parts: Span<felt252>) -> Kit {
         let (mut low, _) = PackingTrait::split(*parts[0]);
         let size: NonZero<u128> = P16.try_into().unwrap();
-        let mut field = || -> u16 {
-            LimbTrait::peel(ref low, size).try_into().unwrap()
-        };
-        let weapon = field();
-        Kit { weapon, skills: [field(), field(), field(), field(), field(), field()] }
+        let weapon = LimbTrait::peel(ref low, size).try_into().unwrap();
+        let mut skills: Array<u16> = array![];
+        for _ in 0..SKILLS {
+            skills.append(LimbTrait::peel(ref low, size).try_into().unwrap());
+        }
+        let s = skills.span();
+        Kit { weapon, skills: [*s[0], *s[1], *s[2], *s[3], *s[4], *s[5]] }
     }
 }
 

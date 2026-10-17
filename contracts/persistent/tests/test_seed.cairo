@@ -10,8 +10,10 @@
 // names of its columns, which are read with a cursor (`Stream`) and checked (`SeedAssert`).
 use grimworld_logic::helpers::packing::Lanes16;
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
+use grimworld_logic::models::base::{Base, BaseRecord, BaseTrait, slot};
 use grimworld_logic::models::caste::{Caste, CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
+use grimworld_logic::models::kit::{Kit, KitRecord, KitTrait};
 use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait, biome, kind};
 use grimworld_logic::models::outline::{CHUNK_SET, Outline, OutlineRecord, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord, PackTrait};
@@ -19,11 +21,12 @@ use grimworld_logic::models::quotas::{
     Quota, QuotaSet, QuotaSetRecord, QuotaSetTrait, kind as quota,
 };
 use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
-use grimworld_logic::models::skill::{Skill, SkillRecord, SkillTrait};
+use grimworld_logic::models::skill::{Skill, SkillAssert, SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
-use grimworld_logic::types::combat::skill_kind;
+use grimworld_logic::types::combat::{damage, skill_kind, weapon};
 use grimworld_logic::types::content::{
-    CASTE, GATE, KindTrait, LOCATION, OUTLINE, PACK, QUOTAS, REGION, Record, SKILL, SPAWN_TABLE,
+    BASE, CASTE, GATE, KIT, KindTrait, LOCATION, MAX_READ, OUTLINE, PACK, QUOTAS, REGION, Record,
+    SKILL, SPAWN_TABLE,
 };
 use grimworld_logic::types::effect::{Entry, EntryTrait, kind as effect_kind};
 use grimworld_persistent::systems::registry::{
@@ -50,6 +53,9 @@ const QUOTA_COLUMNS: u32 = 19;
 /// Columns of a skill's row (three entries of 12) and of a caste's (ENG-07t).
 const SKILL_COLUMNS: u32 = 47;
 const CASTE_COLUMNS: u32 = 30;
+/// Columns of an equipment base's row and of a kit's (CNT-01, D-309).
+const BASE_COLUMNS: u32 = 3;
+const KIT_COLUMNS: u32 = 8;
 
 pub mod errors {
     pub const TRUNCATED: felt252 = 'seed: truncated';
@@ -74,10 +80,14 @@ struct RegionRow {
 /// The file, in the order `read_json` gives its keys.
 #[derive(Drop)]
 pub struct Seed {
+    base_fields: Array<ByteArray>,
+    bases: Span<felt252>,
     caste_fields: Array<ByteArray>,
     castes: Span<felt252>,
     gate_fields: Array<ByteArray>,
     gates: Span<felt252>,
+    kit_fields: Array<ByteArray>,
+    kits: Span<felt252>,
     location_fields: Array<ByteArray>,
     locations: Span<felt252>,
     outline_fields: Array<ByteArray>,
@@ -309,6 +319,22 @@ impl RowImpl of Row {
             self.field(9),
         )
     }
+
+    /// An equipment base: its slot and its hands (the prefix `BASE` lays out, D-158).
+    fn base(self: Span<felt252>) -> Base {
+        BaseTrait::new(self.field(1), self.field(2))
+    }
+
+    /// A profession's kit: its starter weapon's base, then its six starter skills.
+    fn kit(self: Span<felt252>) -> Kit {
+        KitTrait::new(
+            self.field(1),
+            [
+                self.field(2), self.field(3), self.field(4), self.field(5), self.field(6),
+                self.field(7),
+            ],
+        )
+    }
 }
 
 /// A region's name: a short string of at most 15 characters.
@@ -385,10 +411,14 @@ pub impl SeedImpl of SeedTrait {
         let file = FileTrait::new("../seed/test-region.json");
         let felts = read_json(@file);
         let mut stream = felts.span();
+        let base_fields = stream.names();
+        let bases = stream.numbers();
         let caste_fields = stream.names();
         let castes = stream.numbers();
         let gate_fields = stream.names();
         let gates = stream.numbers();
+        let kit_fields = stream.names();
+        let kits = stream.numbers();
         let location_fields = stream.names();
         let locations = stream.numbers();
         let outline_fields = stream.names();
@@ -415,10 +445,14 @@ pub impl SeedImpl of SeedTrait {
         let spawn_tables = stream.numbers();
         SeedAssert::assert_read(stream);
         Seed {
+            base_fields,
+            bases,
             caste_fields,
             castes,
             gate_fields,
             gates,
+            kit_fields,
+            kits,
             location_fields,
             locations,
             outline_fields,
@@ -570,7 +604,47 @@ pub impl SeedImpl of SeedTrait {
             let row = self.castes.slice(CASTE_COLUMNS * i, CASTE_COLUMNS);
             written.add(row.field(0), @row.sheet());
         }
+
+        // CNT-01 (D-309): the starter weapons' bases, then the kits, which name them and the
+        // starter skills (the registry checks both exist).
+        let columns: Array<ByteArray> = array!["id", "slot", "hands"];
+        let rows = SeedAssert::assert_columns(self.base_fields, columns, *self.bases);
+        for i in 0..rows {
+            let row = self.bases.slice(BASE_COLUMNS * i, BASE_COLUMNS);
+            written.add(row.field(0), @row.base());
+        }
+
+        let mut columns: Array<ByteArray> = array!["profession", "weapon"];
+        for i in 1..7_u8 {
+            columns.append(format!("skill_{}", i));
+        }
+        let rows = SeedAssert::assert_columns(self.kit_fields, columns, *self.kits);
+        for i in 0..rows {
+            let row = self.kits.slice(KIT_COLUMNS * i, KIT_COLUMNS);
+            written.add(row.field(0), @row.kit());
+        }
         written
+    }
+
+    /// The records of `requests`, read back in `bundle` calls of at most `MAX_READ` records
+    /// (ENG-01 §4.5): the content version of the last call, and every record's felts in order.
+    fn read_back(registry: ContractAddress, requests: Span<(u8, u32)>) -> (u32, Span<felt252>) {
+        let read = IRegistryReadDispatcher { contract_address: registry };
+        let mut felts: Array<felt252> = array![];
+        let mut version = 0;
+        let mut at: u32 = 0;
+        while at < requests.len() {
+            let count = core::cmp::min(MAX_READ, requests.len() - at);
+            let (v, inputs, parts) = read.bundle(requests.slice(at, count));
+            // Every record is new: no stored snapshot can name it (D-169).
+            assert(inputs == 0, 'no input rewritten');
+            for felt in parts {
+                felts.append(*felt);
+            }
+            version = v;
+            at += count;
+        }
+        (version, felts.span())
     }
 
     /// Writes the test region into `registry` as `ADMIN`; returns what it wrote.
@@ -589,6 +663,22 @@ pub impl WrittenImpl of WrittenTrait {
         for felt in R::pack(record) {
             self.felts.append(*felt);
         }
+    }
+
+    /// The felts of record `(kind, id)` among `felts`, which hold the records in the order
+    /// written.
+    fn at(self: @Written, felts: Span<felt252>, kind: u8, id: u32) -> Span<felt252> {
+        let mut offset: u32 = 0;
+        let mut found: Option<Span<felt252>> = Option::None;
+        for request in self.requests.span() {
+            let (k, i) = *request;
+            let count: u32 = KindTrait::parts(k).into();
+            if k == kind && i == id {
+                found = Option::Some(felts.slice(offset, count));
+            }
+            offset += count;
+        }
+        found.expect('seed: no such record')
     }
 
     /// Writes the records into `registry` as `ADMIN`, one `set_record` a record.
@@ -616,127 +706,168 @@ impl SeedFixture of Fixture {
     }
 }
 
-// The test region, written and read back in one `bundle` (AC-4): 25 records, 36 slots (ENG-05: two
-// pack templates, a spawn table, the zone's and floor 1's quotas; SEED-02: three more skills).
+// The test region, written and read back (AC-4): 56 records, 89 slots, in `bundle` calls of at
+// most `MAX_READ` records (ENG-05: the pack templates, a spawn table, the quotas; CNT-01: the MVP's
+// 18 starter skills, five castes and their skills, the four packs of design/05 and the gate pack,
+// the gate zone, two weapon bases and the three kits).
 #[test]
-// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
-#[available_gas(l2_gas: 70309202)] // ceil(1.05 × 66961144 measured)
+// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+#[available_gas(l2_gas: 164678966)] // ceil(1.05 × 156837110 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
-    assert(written.requests.len() == 26, '26 records');
-    assert(written.felts.len() == 38, '38 slots');
-    let read = IRegistryReadDispatcher { contract_address: registry };
-    let (version, inputs, felts) = read.bundle(written.requests.span());
-    assert(version == 26, 'one version a record');
-    // Every record is new: no stored snapshot can name it (D-169).
-    assert(inputs == 0, 'no input rewritten');
+    assert(written.requests.len() == 56, '56 records');
+    assert(written.felts.len() == 89, '89 slots');
+    let (version, felts) = SeedTrait::read_back(registry, written.requests.span());
+    assert(version == 56, 'one version a record');
     assert(felts == written.felts.span(), 'read back as written');
+    let at = |kind: u8, id: u32| -> Span<felt252> {
+        written.at(felts, kind, id)
+    };
     let admin = IRegistryAdminDispatcher { contract_address: registry };
     assert(admin.last_id(REGION) == 1, 'one region');
-    assert(admin.last_id(LOCATION) == 4, 'four locations');
-    assert(admin.last_id(GATE) == 5, 'five gates');
+    assert(admin.last_id(LOCATION) == 5, 'five locations');
+    assert(admin.last_id(GATE) == 7, 'seven gates');
     assert(admin.last_id(OUTLINE) == 0, 'outlines are composite');
 
     // What the file says, field by field, through the models.
-    let region = Record::<Region>::unpack(felts.slice(0, 1));
+    let region = Record::<Region>::unpack(at(REGION, 1));
     assert(region.town == 1 && region.first_location == 1 && region.book == 0, 'region');
     assert(region.name == 'Test Region', 'region: name');
-    let town = Record::<Location>::unpack(felts.slice(1, 2));
+    let town = Record::<Location>::unpack(at(LOCATION, 1));
     assert(town.kind == kind::TOWN && town.region == 1 && town.width == 0, 'town');
-    let zone = Record::<Location>::unpack(felts.slice(3, 2));
+    let zone = Record::<Location>::unpack(at(LOCATION, 2));
     assert(zone.kind == kind::ZONE && zone.biome == biome::MEADOW, 'zone');
     assert(zone.level_min == 1 && zone.level_max == 3, 'zone: band');
     assert(zone.width == 3 && zone.height == 2, 'zone: size');
     assert(zone.entry_chunk == 0 && zone.entry_tile == 105, 'zone: entry');
-    let floor1 = Record::<Location>::unpack(felts.slice(5, 2));
+    let floor1 = Record::<Location>::unpack(at(LOCATION, 3));
     assert(floor1.kind == kind::DUNGEON && floor1.biome == biome::CAVE, 'floor 1');
     assert(floor1.target == 6 && floor1.floors == 2 && floor1.next_floor == 4, 'floor 1: N');
     assert(floor1.entry_chunk == 112 && floor1.entry_tile == 112, 'floor 1: entry (7, 7)');
     assert(floor1.set_pieces == Lanes16 { lanes: [0; 15] }, 'floor 1: no set piece');
-    let floor2 = Record::<Location>::unpack(felts.slice(7, 2));
+    let floor2 = Record::<Location>::unpack(at(LOCATION, 4));
     assert(floor2.target == 8 && floor2.next_floor == 0, 'floor 2: last');
     // The zone's chunk set: (0, 0), (1, 0), (2, 0), (0, 1), (1, 1).
-    assert(*written.requests[5] == (OUTLINE, 2 * 256 + CHUNK_SET.into()), 'chunk set id');
-    let chunks = Record::<Outline>::unpack(felts.slice(9, 1));
+    let chunks = Record::<Outline>::unpack(at(OUTLINE, 2 * 256 + CHUNK_SET.into()));
     assert(chunks == OutlineTrait::new(0x18007, 0), 'zone: chunk set');
     // Chunk 16's mask: rows 0-9 whole, rows 10-14 columns 0-9; 200 tiles.
-    assert(*written.requests[7] == (OUTLINE, 2 * 256 + 16), 'chunk 16 id');
-    let mask = Record::<Outline>::unpack(felts.slice(11, 1));
+    let mask = Record::<Outline>::unpack(at(OUTLINE, 2 * 256 + 16));
     let expected = OutlineTrait::new(0xffffffffffffffffffffffffffffffff, 0xffc1ff83ff07fe0ffffffff);
     assert(mask == expected, 'chunk 16 mask');
-    let hub = Record::<Gate>::unpack(felts.slice(12, 1));
+    let hub = Record::<Gate>::unpack(at(GATE, 1));
     assert(hub.source == 1 && hub.destination == 2 && hub.kind == gate_kind::HUB, 'gate 1: hub');
     assert(hub.entry_chunk == 0 && hub.entry_tile == 105, 'gate 1: entry');
-    let link = Record::<Gate>::unpack(felts.slice(14, 1));
+    let link = Record::<Gate>::unpack(at(GATE, 3));
     assert(
         link.source == 2 && link.destination == 3 && link.kind == gate_kind::LINK, 'gate 3: link',
     );
     assert(link.anchor_chunk == 16 && link.anchor_tile == 110, 'gate 3: anchor');
-    let floor = Record::<Gate>::unpack(felts.slice(16, 1));
+    let floor = Record::<Gate>::unpack(at(GATE, 5));
     assert(floor.source == 3 && floor.destination == 4 && floor.kind == gate_kind::FLOOR, 'gate 5');
-    // The reveal's records (ENG-05).
+
+    // The reveal's records (ENG-05), with design/05's packs (CNT-01).
     assert(zone.spawn_table == 1 && floor1.spawn_table == 1, 'spawn table named');
-    assert(admin.last_id(PACK) == 2 && admin.last_id(SPAWN_TABLE) == 1, 'packs, table');
+    assert(admin.last_id(PACK) == 5 && admin.last_id(SPAWN_TABLE) == 1, 'packs, table');
     assert(admin.last_id(QUOTAS) == 0, 'quotas are composite');
-    let first = PackRecord::unpack(felts.slice(17, 1));
-    assert(first.castes.span()[1] == @PackCaste { caste: 2, min: 1, max: 3 }, 'pack 1');
-    assert(first.bounds() == (2, 5), 'pack 1: 2 to 5 goblins');
-    let second = PackRecord::unpack(felts.slice(18, 1));
-    assert(second.level == 1 && second.bounds() == (1, 3), 'pack 2');
-    let table = SpawnTableRecord::unpack(felts.slice(19, 1));
+    let rabble = PackRecord::unpack(at(PACK, 1));
+    assert(*rabble.castes.span()[0] == PackCaste { caste: 1, min: 3, max: 5 }, 'pack 1: rabble');
+    assert(rabble.bounds() == (3, 5), 'rabble: 3 to 5 runts');
+    let raiders = PackRecord::unpack(at(PACK, 2));
+    assert(raiders.level == 0 && raiders.bounds() == (3, 5), 'pack 2: raiders');
+    assert(PackRecord::unpack(at(PACK, 3)).bounds() == (4, 4), 'pack 3: warband');
+    let guard = PackRecord::unpack(at(PACK, 4));
+    assert(*guard.castes.span()[0] == PackCaste { caste: 5, min: 1, max: 1 }, 'pack 4: hob');
+    assert(guard.bounds() == (4, 4), 'hob guard: 4');
+    let table = SpawnTableRecord::unpack(at(SPAWN_TABLE, 1));
     assert(table.density == 128 && table.weight() == 4 && table.pick(3) == 2, 'spawn table');
     // GEN-TRAP (D-304): the table's generated terrain traps take skill 5, Rockfall.
     assert(table.trap == 5, 'spawn table: trap skill');
-    assert(*written.requests[16] == (QUOTAS, 2), 'the zone quotas');
-    let camp = QuotaSetRecord::unpack(felts.slice(20, 1));
+    let camp = QuotaSetRecord::unpack(at(QUOTAS, 2));
     assert(*camp.quotas.span()[0] == Quota { kind: quota::COLLECTOR, param: 1, count: 1 }, 'camp');
-    let exit = QuotaSetRecord::unpack(felts.slice(21, 1));
+    let exit = QuotaSetRecord::unpack(at(QUOTAS, 3));
     assert(*exit.quotas.span()[0] == Quota { kind: quota::EXIT, param: 5, count: 1 }, 'exit');
-    // ENG-07t: the skill and the three castes the packs name.
-    assert(admin.last_id(SKILL) == 5 && admin.last_id(CASTE) == 3, 'five skills, three castes');
-    let rend = Record::<Skill>::unpack(felts.slice(22, 2));
-    assert(rend.is_attack() && rend.count() == 1 && rend.range == 1, 'skill 1: an attack');
-    // SEED-02: the skills `buy_skill` sells to the devnet adventurer (a Vanguard, profession 1):
-    // an activation skill, a trap and a REGENERATION skill, each a legal carrier.
-    let wind = Record::<Skill>::unpack(felts.slice(24, 2));
-    assert(
-        wind.profession == 1 && wind.activation >= 1 && wind.count() == 1, 'skill 2: activation',
-    );
-    let snare = Record::<Skill>::unpack(felts.slice(26, 2));
-    assert(snare.kind == skill_kind::TRAP && snare.count() == 3, 'skill 3: a trap');
-    let [trap, _, _] = snare.entries;
-    assert(trap.kind == effect_kind::TRAP, 'skill 3: a TRAP entry first');
-    let mending = Record::<Skill>::unpack(felts.slice(28, 2));
-    let [regeneration, _, _] = mending.entries;
-    assert(mending.profession == 1 && regeneration.kind == effect_kind::REGENERATION, 'skill 4');
-    // GEN-TRAP (D-304): Rockfall, the cave's terrain trap skill, of no profession (never on a bar):
-    // a `TRAP` entry, then an earth hit on a foe.
-    let rockfall = Record::<Skill>::unpack(felts.slice(30, 2));
+
+    // The gate zone (CNT-01, GATE-2a): one chunk at level 1, no spawn table, and a Heart of the
+    // gate pack, whose fewest are its most: 5 goblins whatever the entry draw.
+    let arena = Record::<Location>::unpack(at(LOCATION, 5));
+    assert(arena.kind == kind::ZONE && arena.width == 1 && arena.height == 1, 'gate zone: 1 chunk');
+    assert(arena.level_min == 1 && arena.level_max == 1, 'gate zone: level 1');
+    assert(arena.spawn_table == 0, 'gate zone: no spawn table');
+    let heart = QuotaSetRecord::unpack(at(QUOTAS, 5));
+    assert(*heart.quotas.span()[0] == Quota { kind: quota::HEART, param: 5, count: 1 }, 'heart');
+    assert(PackRecord::unpack(at(PACK, 5)).bounds() == (5, 5), 'gate pack: always 5');
+    let there = Record::<Gate>::unpack(at(GATE, 6));
+    assert(there.source == 1 && there.destination == 5 && there.kind == gate_kind::HUB, 'gate 6');
+    assert(there.entry_chunk == 0 && there.entry_tile == 105, 'gate 6: entry');
+    let back = Record::<Gate>::unpack(at(GATE, 7));
+    assert(back.source == 5 && back.destination == 1 && back.anchor_tile == 105, 'gate 7: back');
+
+    // The MVP's starter skills (design/03, design/20 §3.1), six a profession, Rockfall kept at 5
+    // (GEN-TRAP), and the castes' two of design/20 §3.2.
+    assert(admin.last_id(SKILL) == 21 && admin.last_id(CASTE) == 5, '21 skills, 5 castes');
+    let cleave = Record::<Skill>::unpack(at(SKILL, 1));
+    assert(cleave.is_attack() && cleave.adrenaline == 4 && cleave.profession == 1, 'cleave');
+    let wind = Record::<Skill>::unpack(at(SKILL, 4));
+    let [_, more, _] = wind.entries;
+    assert(wind.kind == skill_kind::SKILL && more.v12 == 70, 'second wind: DS-31');
+    let rockfall = Record::<Skill>::unpack(at(SKILL, 5));
     let [trap, earth, _] = rockfall.entries;
     assert(rockfall.profession == 0 && rockfall.kind == skill_kind::TRAP, 'skill 5: a trap');
     assert(trap.kind == effect_kind::TRAP && earth.kind == effect_kind::DAMAGE, 'skill 5: entries');
-    for k in 0..3_u32 {
-        let caste = Record::<Caste>::unpack(felts.slice(32 + 2 * k, 2));
-        assert(*caste.skills.span()[0] == 1 && caste.health >= 100, 'a caste of skill 1');
+    let snare = Record::<Skill>::unpack(at(SKILL, 11));
+    let [_, hit, _] = snare.entries;
+    assert(snare.profession == 2 && snare.range == 1, 'snare: DS-32 range');
+    assert(hit.param == damage::PIERCING, 'snare: DS-32 piercing');
+    let skin = Record::<Skill>::unpack(at(SKILL, 17));
+    let [armor, _, _] = skin.entries;
+    assert(skin.profession == 3 && skin.range == 6 && armor.v12 == 30, 'stone skin: DS-22');
+    let smash = Record::<Skill>::unpack(at(SKILL, 21));
+    assert(smash.is_attack() && smash.activation == 3, 'overhead smash: wind-up');
+    for id in 1..22_u32 {
+        Record::<Skill>::unpack(at(SKILL, id)).assert_legal();
     }
-    let brute = Record::<Caste>::unpack(felts.slice(36, 2));
-    assert(brute.tier == 2 && brute.weapon.damage == 9, 'caste 3: the brute');
+
+    // design/20 §2.2's sheets.
+    let runt = Record::<Caste>::unpack(at(CASTE, 1));
+    assert(runt.health == 50 && runt.weapon.class == weapon::AXE && runt.flee == 30, 'runt');
+    let slinger = Record::<Caste>::unpack(at(CASTE, 2));
+    assert(slinger.weapon.range == 6 && *slinger.armor_vs.span()[3] == 30, 'slinger');
+    let skirmisher = Record::<Caste>::unpack(at(CASTE, 3));
+    assert(*skirmisher.skills.span()[0] == 2, 'skirmisher: rending cut');
+    let shaman = Record::<Caste>::unpack(at(CASTE, 4));
+    let [heal, shield, _, _] = shaman.skills;
+    assert(heal == 20 && shield == 17, 'shaman: mend kin, stone skin');
+    let hob = Record::<Caste>::unpack(at(CASTE, 5));
+    assert(hob.tier == 4 && hob.weapon.damage == 27 && hob.rank == 12, 'hobgoblin');
+
+    // The creation kits (D-309): the Vanguard's axe, the Warden's bow, the Arcanist none.
+    assert(admin.last_id(BASE) == 2 && admin.last_id(KIT) == 3, 'two bases, three kits');
+    let axe = BaseRecord::unpack(at(BASE, 1));
+    assert(axe.slot == slot::WEAPON && axe.hands == 1, 'base 1: the axe');
+    let bow = BaseRecord::unpack(at(BASE, 2));
+    assert(bow.slot == slot::WEAPON && bow.hands == 2, 'base 2: the bow');
+    let vanguard = KitRecord::unpack(at(KIT, 1));
+    assert(vanguard == KitTrait::new(1, [1, 2, 3, 4, 6, 7]), 'kit 1: vanguard');
+    let warden = KitRecord::unpack(at(KIT, 2));
+    assert(warden == KitTrait::new(2, [8, 9, 10, 11, 12, 13]), 'kit 2: warden');
+    let arcanist = KitRecord::unpack(at(KIT, 3));
+    assert(arcanist.weapon == 0 && arcanist.count() == 6, 'kit 3: arcanist, no weapon');
 }
 
 // The baseline of the next test: the deployment, and the file read and packed.
 #[test]
-// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
-#[available_gas(l2_gas: 15615621)] // ceil(1.05 × 14872020 measured)
+// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+#[available_gas(l2_gas: 24686834)] // ceil(1.05 × 23511270 measured)
 fn test_gas_seed_baseline() {
     Fixture::deploy();
     SeedTrait::load().records();
 }
 
-// Writing the whole test region, 18 `set_record` (AC-4): this test less the baseline.
+// Writing the whole test region, 56 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
-#[available_gas(l2_gas: 65154531)] // ceil(1.05 × 62051934 measured)
+// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+#[available_gas(l2_gas: 128234526)] // ceil(1.05 × 122128120 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -744,12 +875,12 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, SEED-02: the seed holds 3 more records (three skills, two slots each)
-#[available_gas(l2_gas: 100961316)] // ceil(1.05 × 96153634 measured)
+// gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
+#[available_gas(l2_gas: 194738355)] // ceil(1.05 × 185465100 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);
     SeedTrait::write(registry);
     let read = IRegistryReadDispatcher { contract_address: registry };
-    assert(read.content_version() == 26, 'version kept');
+    assert(read.content_version() == 56, 'version kept');
 }
