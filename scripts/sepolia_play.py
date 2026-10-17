@@ -91,6 +91,11 @@ MAX_MOVES = 10  # a batch's actions (`types::batch`)
 MAX_BATCHES = 60
 AVOID, DETOUR = 5, 20  # a tile within AVOID of a pack's tile costs DETOUR more
 WAIT, K_WAIT = "wait", 2  # a Wait, and its action code (`types::batch`)
+# Batches of Moves that play none and did not stop `Invalid` (a wall or an actor is `Invalid`, and the next plan
+# avoids that tile), in a row, at most: each is a paid send, so a loop of them could spend up to MAX_BATCHES
+# of them per phase. 3 lets a stale view or a one-off cause (a Sequence or Version stop, which the next
+# batch picks up) pass, and stops a cause that repeats.
+MAX_IDLE = 3
 WAITS, MAX_WAITING = 2, 8  # Waits a batch while goblins block the way; such batches in a row at most
 GOBLIN_COST = 50  # a goblin's tile, on a route through goblins (they move: the member waits for them)
 SIDE = 15  # tiles a chunk side; chunk `15 cy + cx`
@@ -348,17 +353,19 @@ class Play:
             return self.node.invoke(contract, function, *calldata)
         except BaseException:
             if len(self.node.sent) == before:
-                unknown = None
+                # The step with no hash is kept before the reads that an interrupt or a SIGTERM can cut (the nonce,
+                # then `find_transaction`'s search of up to 60 s): the record then still says something may have
+                # been sent. Each read's result replaces it (the transaction found, or nothing when the nonce
+                # did not move), so that a step is never counted twice.
+                self.steps.append((what, None, "nonce unreadable after the failure, hash unknown"))
                 try:
                     if self.node.account_nonce() > nonce:
-                        unknown = "nonce moved, hash unknown"
-                        self.node.sent.append(self.node.find_transaction(nonce)["transaction_hash"])
-                        unknown = None
+                        self.steps[-1] = (what, None, "nonce moved, hash unknown")
+                        self.steps[-1] = (what, self.node.find_transaction(nonce)["transaction_hash"])
+                    else:
+                        self.steps.pop()
                 except Exception as error:  # the call's own error is the one that goes on
-                    unknown = unknown or "nonce unreadable after the failure, hash unknown"
-                    self.log.say(f"{what}: {unknown} ({error})", error=True)
-                if unknown:  # a step with no hash: the record still says something may have been sent
-                    self.steps.append((what, None, unknown))
+                    self.log.say(f"{what}: {self.steps[-1][2]} ({error})", error=True)
             raise
         finally:
             self.steps += [(what, tx) for tx in self.node.sent[before:]]
@@ -423,7 +430,7 @@ class Play:
 
     def walk(self, goal_of, done, what):
         """Batches until `done(board)`; `goal_of(board, blocked)` gives the next Moves or None."""
-        blocked, health, waiting = set(), None, 0
+        blocked, health, waiting, idle = set(), None, 0, 0
         for _ in range(MAX_BATCHES):
             board = self.board()
             if self.health is None:
@@ -474,6 +481,10 @@ class Play:
             count = min(count, len(moves))
             if stop in (DEFEATED, CLOSED):
                 raise Stopped(f"batch stopped {STOPS[stop]} in instance {self.instance}")
+            idle = idle + 1 if moves and count == 0 and stop != INVALID else 0
+            if idle >= MAX_IDLE:
+                raise Stopped(f"{what}: {MAX_IDLE} batches in a row played no Move (last stop {STOPS[stop]}) from "
+                              f"{board.at} in instance {self.instance}; stopped, each batch is a paid send")
             # the Move after the ones played met a wall or an actor; an actor moves: the next plan only
             blocked = {path[count + 1]} if stop == INVALID and count < len(moves) else set()
             for tile in path[1:count + 1]:
@@ -594,7 +605,7 @@ def record_phase(node, steps, redact, build, out, log):
         text = json.dumps(record, indent=2) + "\n"
         markdown = "# GATE-1: a minimal record\n\nThe full record would have held the value of a STARKNET_* " \
                    "variable; only the transactions' hashes are kept:\n\n" + \
-                   "".join(f"- `{t['hash']}`\n" for t in record["transactions"])
+                   "".join(f"- {'`' + t['hash'] + '`' if t['hash'] else 'unknown'}\n" for t in record["transactions"])
         if redact(text) != text:
             raise RuntimeError("even the hashes would hold the value of a STARKNET_* variable: not written")
     write_new(out, text)
@@ -659,9 +670,22 @@ def summary(record):
 
 
 def write_new(path, text):
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path, "x") as out:  # never over an earlier record
-        out.write(text)
+    """Writes `text` to a new file: a temporary name in the same directory, then `os.replace` to the final one,
+    so that a crash never leaves a half-written record. Never over an earlier record."""
+    path = os.path.abspath(path)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.exists(path):
+        raise FileExistsError(f"{path} exists: a record is never overwritten")
+    temporary = os.path.join(os.path.dirname(path), f".{os.path.basename(path)}.{os.getpid()}.tmp")
+    try:
+        with open(temporary, "x") as out:
+            out.write(text)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
 
 
 def parse(argv):

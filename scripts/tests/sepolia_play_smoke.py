@@ -11,6 +11,8 @@
     it, `--devnet` without `--out`, an `--out` under docs/reports, a Sepolia record with `--devnet`;
   * the bookkeeping, on stubs: a reverted transaction and one whose call failed without a hash (the nonce
     moved) stay in the record, the reverted one marked with its fee;
+  * review t-0275's deferred fixes, on stubs: an interrupt during the hash search keeps its step, a row of 0-Move
+    batches stops the phase, the record is written atomically, a null hash is "unknown" in the minimal record;
   * the views at `pre_confirmed` (Sepolia's tag) and at `latest` agree with `sncast call` on the devnet;
   * three faults injected after `enter` (a `ValueError` in the crossing, an `OSError` from every view, a
     `KeyboardInterrupt`, which goes on after): the run exits 1 or raises and still writes its record, every transaction the account sent, why, and where the
@@ -193,6 +195,145 @@ def check_bookkeeping():
     assert play.where(play.Play(Node("x"), Quiet(), contracts, 2), str)["kind"] == "unknown"
 
 
+def check_deferred():
+    """Review t-0275's four deferred findings, on stubs (no node): the interrupt during the hash search, the
+    progress guard, the record written atomically, a null hash in the minimal record."""
+    contracts = {"hub": "0x2", "instances": "0x3", "registry": "0x4"}
+
+    class Node:  # a send that fails with no hash while the nonce moved
+        address = "0x1"
+
+        def __init__(self, search):
+            self.nonce, self.sent, self.search = 5, [], search
+
+        def account_nonce(self):
+            return self.nonce
+
+        def invoke(self, *_):
+            self.nonce += 1
+            raise RuntimeError("sncast failed after the node took it")
+
+        def find_transaction(self, nonce):
+            return self.search()
+
+    def interrupted():
+        raise KeyboardInterrupt
+    # 1. an interrupt during the search: the step stays in the record, once, and the interrupt goes on
+    game = play.Play(Node(interrupted), Quiet(), contracts, 2)
+    try:
+        game.invoke("enter (gate 1)", "0x2", "enter", 1, 1)
+    except KeyboardInterrupt:
+        pass
+    else:
+        raise AssertionError("the interrupt did not propagate")
+    assert game.steps == [("enter (gate 1)", None, "nonce moved, hash unknown")], game.steps
+    game = play.Play(Node(lambda: {"transaction_hash": "0xbb"}), Quiet(), contracts, 2)  # found: replaced, once
+    try:
+        game.invoke("enter (gate 1)", "0x2", "enter", 1, 1)
+    except RuntimeError:
+        pass
+    assert game.steps == [("enter (gate 1)", "0xbb")], game.steps
+    # ... and during the nonce read after the failure
+    reads = [0]
+
+    class Reading(Node):
+        def account_nonce(self):
+            reads[0] += 1
+            if reads[0] > 1:
+                raise KeyboardInterrupt
+            return self.nonce
+    game = play.Play(Reading(None), Quiet(), contracts, 2)
+    try:
+        game.invoke("enter (gate 1)", "0x2", "enter", 1, 1)
+    except KeyboardInterrupt:
+        pass
+    assert game.steps == [("enter (gate 1)", None, "nonce unreadable after the failure, hash unknown")], game.steps
+
+    # 2. the progress guard: batches that play no Move and did not stop Invalid end the phase after MAX_IDLE
+    class Board:
+        at, health, goblins, packs = (0, 7), 10, [], []
+
+        def living(self):
+            return set()
+
+    def walker(stop):
+        game = play.Play(None, Quiet(), contracts, 2)
+        game.instance, game.board, game.calls = 1, lambda: Board(), 0
+
+        def one_batch(moves, number):
+            game.calls += 1
+            return 0, stop
+        game.play = one_batch
+        return game
+    game = walker(play.SEQUENCE)
+    try:
+        game.walk(lambda board, blocked: [0], lambda board: False, "crossing rooms")
+    except play.Stopped as stopped:
+        assert f"{play.MAX_IDLE} batches in a row played no Move" in str(stopped), stopped
+    else:
+        raise AssertionError("no stop on a row of 0-Move batches")
+    assert game.calls == play.MAX_IDLE, game.calls
+    game = walker(play.INVALID)  # a wall is not this: the plan changes, and the old limit applies
+    try:
+        game.walk(lambda board, blocked: [0], lambda board: False, "crossing rooms")
+    except play.Stopped as stopped:
+        assert "not done after" in str(stopped), stopped
+    assert game.calls == play.MAX_BATCHES, game.calls
+
+    # 3. the record written atomically: the final names exist and parse, no temporary name is left, an
+    # earlier record is never overwritten, a failed replace leaves nothing
+    folder = tempfile.mkdtemp(prefix="smoke-play-atomic-")
+    steps = [("a", "0xaa"), ("b", None, "nonce moved, hash unknown")]
+    record = lambda transactions, total: {"gate": "GATE-1 (D-308)", "completed": False, "transactions": transactions}
+    out = os.path.join(folder, "sub", "r.json")
+    class Fees(Node):
+        def rpc(self, method, params):
+            if method == "starknet_getTransactionByHash":
+                return {"sender_address": "0x1"}
+            return {"actual_fee": {"amount": "0x3", "unit": "FRI"}, "execution_status": "SUCCEEDED"}
+    original = play.summary
+    play.summary = lambda r: "# summary\n"
+    try:
+        play.record_phase(Fees(None), steps, str, record, out, Quiet())
+    finally:
+        play.summary = original
+    assert sorted(os.listdir(os.path.dirname(out))) == ["r.json", "r.md"], os.listdir(os.path.dirname(out))
+    assert json.load(open(out))["transactions"][0]["hash"] == "0xaa" and open(out[:-5] + ".md").read() == "# summary\n"
+    try:
+        play.write_new(out, "{}")
+    except FileExistsError:
+        pass
+    else:
+        raise AssertionError("an earlier record was overwritten")
+    assert json.load(open(out))["gate"] == "GATE-1 (D-308)"
+    replace = os.replace
+
+    def failing(*_):
+        raise OSError("injected crash")
+    os.replace = failing
+    try:
+        play.write_new(os.path.join(folder, "c.json"), "{}")
+    except OSError:
+        pass
+    finally:
+        os.replace = replace
+    assert "c.json" not in os.listdir(folder) and not [n for n in os.listdir(folder) if n.endswith(".tmp")]
+
+    # 4. the minimal record prints a null hash as unknown
+    leak = lambda text: str(text).replace("SECRETVALUE", "<STARKNET_RPC_URL>")
+    build = lambda transactions, total: {"gate": "GATE-1 (D-308)", "completed": False, "stopped": "SECRETVALUE",
+                                         "transactions": transactions}
+    out = os.path.join(folder, "m.json")
+    play.summary = lambda r: "# summary\n"
+    try:
+        play.record_phase(Fees(None), steps, leak, build, out, Quiet())
+    finally:
+        play.summary = original
+    assert json.load(open(out))["minimal"] is True
+    markdown = open(out[:-5] + ".md").read()
+    assert "- `0xaa`\n- unknown\n" in markdown and "None" not in markdown, markdown
+
+
 def injected(values, deployment, logs, name, patch):
     """A run in this process with `patch` applied to `Play` (a fault after `enter`), then undone. Returns the
     exit code, the record and its summary, checked for leaks."""
@@ -294,6 +435,7 @@ def nonce(node, address):
 def main():
     check_board()
     check_bookkeeping()
+    check_deferred()
     print("sepolia_play_smoke: board ok")
     url = os.environ["NODE_URL"]
     logs = tempfile.mkdtemp(prefix="smoke-play-")
