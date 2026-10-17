@@ -499,6 +499,7 @@ jobs:
       - name: no asset file committed (D-73)
         run: |
           set -euo pipefail
+          echo "CI-TOOL proof: a failing tooling step; reverted by the next commit" >&2; exit 1
           exts='png|jpe?g|gif|webp|bmp|tga|psd|aseprite|ase|kra|svg|wav|ogg|mp3|flac|ttf|otf|woff2?|fnt'
           files=$(git ls-files | grep -iE "\.($exts)\$" || true)
           # A sprite atlas descriptor (TexturePacker-style JSON) is derived from the pack too.
