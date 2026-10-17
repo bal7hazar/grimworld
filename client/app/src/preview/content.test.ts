@@ -57,6 +57,20 @@ function registry(count: { calls: [number, number][] } = { calls: [] }): RecordR
   };
 }
 
+/** The skills `castes` name in their recorded sheets, then `effects`, once each and never 0. */
+function lackingSkills(castes: number[], effects: number[]): number[] {
+  const all = [
+    ...castes.flatMap((id) => readCasteSheet(id, partsOf(CASTE, id)).skills),
+    ...effects,
+  ];
+  return [...new Set(all.filter((id) => id !== 0))];
+}
+/** The sheets of the skills among `ids` that the recording holds (the registry's others read as 0). */
+const heldSheets = (ids: number[]) =>
+  ids
+    .filter((id) => recorded.has(`${SKILL}:${id}`))
+    .map((id) => readSkillSheet(id, partsOf(SKILL, id)));
+
 const view = (): InstanceView => decodeInstanceView(recordedBefore.view.map(BigInt));
 /** A goblin of caste `caste` (state bits 64–79), its held effect's skill at timers bits 108–123. */
 const goblin = (entity: number, derived: boolean, caste: number, effect = 0): GoblinView => ({
@@ -136,10 +150,17 @@ describe("the sheets read from the recorded records", () => {
     expect(packedSkill(rows("skills", 47).get(1)!)).toEqual(partsOf(SKILL, 1));
   });
 
-  it("reads Mending (skill 4) as a regeneration of 2, then 5", () => {
-    expect(readSkillSheet(4, packedSkill(rows("skills", 47).get(4)!))).toMatchObject({
-      regen0: 2,
-      regen12: 5,
+  it("reads the deployment's Regeneration Potion (item 23): a regeneration of 3", () => {
+    // No seed skill has a `REGENERATION` entry since CNT-01; devnet_deploy.py's `regeneration_item`:
+    // `REGENERATION` (5), 3 at both ranks, 40 ticks at both, `SELF`, the ALLIES filter
+    const entry =
+      5n + (3n << 16n) + (3n << 32n) + (40n << 48n) + (40n << 64n) + (1n << 88n) + (1n << 91n);
+    expect(readPotionSheet(23, partsOf(ITEM, 23))).toEqual({
+      id: 23,
+      regen: 3,
+      entry,
+      range: 0,
+      strength: 0,
     });
   });
 
@@ -210,16 +231,18 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     );
     expect(content.castes.map((c) => c.id)).toEqual([2, 3, 1]);
     expect(content.castes[0]).toEqual(readCasteSheet(2, partsOf(CASTE, 2)));
-    expect(content.skills).toEqual([readSkillSheet(1, partsOf(SKILL, 1))]);
+    // The castes' skills as their recorded sheets name them, once each, then the effect's skill 1
+    const lacking = lackingSkills([2, 3, 1], [1]);
+    expect(content.skills).toEqual(heldSheets(lacking));
     expect(content.potions).toEqual([]);
-    // Three castes, then skill 1 once (the castes' and the effect's)
+    // Three castes, then each skill once (the castes' and the effect's)
     expect(count.calls).toEqual([
       [CASTE, 2],
       [CASTE, 3],
       [CASTE, 1],
-      [SKILL, 1],
+      ...lacking.map((id) => [SKILL, id]),
     ]);
-    expect(calls).toBe(4);
+    expect(calls).toBe(3 + lacking.length);
   });
 
   it("does not read again a skill the members' content holds", async () => {
@@ -246,7 +269,7 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     expect(calls).toBe(3);
   });
 
-  it("reads the recorded goblins' castes and their skill: the adventurer has an empty build, no belt", async () => {
+  it("reads the recorded goblins' castes and their skills: the adventurer has an empty build, no belt", async () => {
     const recordedView = view();
     expect(recordedView.goblins.length).toBeGreaterThan(0);
     // The distinct castes (state bits 64-79), in the order the goblins are listed
@@ -255,13 +278,18 @@ describe("the content assembled as PlayLibrary assembles it", () => {
     ];
     const count = { calls: [] as [number, number][] };
     const { content, calls } = await assembleContent(recordedView, registry(count), []);
+    // Every listed goblin is derived: no held effect, the skills are the castes' only
+    const lacking = lackingSkills(castes, []);
     expect(content).toEqual({
-      skills: [readSkillSheet(1, partsOf(SKILL, 1))],
+      skills: heldSheets(lacking),
       potions: [],
       castes: castes.map((caste) => readCasteSheet(caste, partsOf(CASTE, caste))),
     });
-    expect(count.calls).toEqual([...castes.map((caste) => [CASTE, caste]), [SKILL, 1]]);
-    expect(calls).toBe(castes.length + 1);
+    expect(count.calls).toEqual([
+      ...castes.map((caste) => [CASTE, caste]),
+      ...lacking.map((id) => [SKILL, id]),
+    ]);
+    expect(calls).toBe(castes.length + lacking.length);
   });
 });
 

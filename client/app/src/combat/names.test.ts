@@ -22,16 +22,18 @@ function table(): { skills: Map<number, string>; items: Map<number, string> } {
 describe("names (Q-1)", () => {
   it("gives the README table's name to every skill and potion it names", () => {
     const { skills, items } = table();
-    expect([...skills.keys()].sort()).toEqual([1, 2, 3, 4]);
+    expect([...skills.keys()].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 22 }, (_, k) => k + 1),
+    );
     expect([...items.keys()].sort((a, b) => a - b)).toEqual([1, 8, 15, 22, 23]);
     for (const [id, name] of skills) expect(skillName(id), `skill ${id}`).toBe(name);
     for (const [id, name] of items) expect(itemName(id), `item ${id}`).toBe(name);
   });
 
   it("names every id of a full build's bar and belt", () => {
-    // `scripts/devnet_deploy.py --build full`: skills 1 to 4, a belt of healing ×2 and item 23 ×1
+    // `scripts/devnet_deploy.py --build full`: skills 1 and 4, a belt of healing ×2 and item 23 ×1
     const build = {
-      bar: [1, 2, 3, 4, 0, 0, 0, 0],
+      bar: [1, 4, 0, 0, 0, 0, 0, 0],
       belt: [
         { item: 1, count: 2 },
         { item: 23, count: 1 },
@@ -44,7 +46,7 @@ describe("names (Q-1)", () => {
   });
 
   it("names an unknown id by its number", () => {
-    expect(NAMES.skill(12)).toBe("Skill 12");
+    expect(NAMES.skill(23)).toBe("Skill 23");
     expect(NAMES.potion(99)).toBe("Item 99");
   });
 
