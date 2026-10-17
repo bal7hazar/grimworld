@@ -7,3 +7,5 @@ It is **met** by run 2, on the deployment `2026-10-16-cf6ddbb`, played by `scrip
 Run 1 stopped: goblins blocked the way back to gate 2 for 8 batches of Waits, and the adventurer was left inside an instance (records `GATE-1-sepolia-play-2026-10-17-2026-10-16-cf6ddbb.json` and `.md`). That stop was 1 draw in 9 on the devnet. A rerun creates a new adventurer.
 
 Total fee of both runs: 31476276130155500189 + 13925479201207006588 FRI.
+
+The gate table is GATE-MAP's, in the body of PR #543, rows P1-1 to P1-4.
