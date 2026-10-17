@@ -67,9 +67,9 @@ pub trait IRegistryAdmin<T> {
 /// - `ITEM`: each belt item's class, a potion (`BeltAssert::assert_potion`);
 /// - `MODIFIER`: each worn modifier's slot type, benefit, cost, source and piece, flattened into
 ///   the words (`WornTrait::held`).
-/// No other kind is read: `BASE`'s slot and hands are copied into the item at its creation
-/// (D-158), and `Build::loadout` lays out no weapon statistic and no set bonus, so neither `BASE`
-/// nor `ARMOR_SET` is read; the level is the adventurer's, the profession's values are constants
+/// No other kind is read: `BASE`'s slot, hands and weapon statistics are copied into the item at
+/// its creation (D-158, WPN-01), and `Build::loadout` lays out no set bonus, so neither `BASE` nor
+/// `ARMOR_SET` is read; the level is the adventurer's, the profession's values are constants
 /// (`ProfessionTrait`). A lot that makes `set_build` read another kind adds it here.
 ///
 /// A **new** id of these kinds raises nothing: `set_build` refuses a missing skill, potion or
@@ -89,7 +89,7 @@ pub mod Registry {
     use grimworld_logic::helpers::packing::{Counter, LIVE_HIGH};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
-    use grimworld_logic::models::base::{BaseRecord, slot};
+    use grimworld_logic::models::base::{BaseAssert, BaseRecord, slot};
     use grimworld_logic::models::caste::{
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
@@ -288,6 +288,10 @@ pub mod Registry {
         ///   it names that the registry holds at most 63 strikes (DS-18, across records);
         /// - DS-18 in the other order: a `SKILL` above 63 strikes is refused while a caste names
         ///   its id (`caste_skills`), whether the skill is new or rewritten.
+        /// - `BASE`: `BaseAssert::assert_valid` (WPN-01): its slot and hands, and a weapon's
+        ///   statistics (a class, a damage that does not fall from requirement 0 to 9, at most 27,
+        ///   ticks, a damage type, an attribute), none on any other slot: the creator of an item
+        ///   copies them without checking them again (D-158).
         /// - `KIT` (D-309): `KitAssert::assert_legal` (its id a profession's, its skills packed and
         ///   distinct), each skill it names a `SKILL` of that profession and its weapon, when not
         ///   0, a `BASE` worn in the weapon slot: `create_adventurer` prices the purse from these
@@ -368,6 +372,8 @@ pub mod Registry {
                     }
                 }
                 CasteAssert::assert_skills(skills.span());
+            } else if kind == BASE {
+                BaseRecord::unpack(record).assert_valid();
             } else if kind == KIT {
                 let kit = KitRecord::unpack(record);
                 kit.assert_legal(id);

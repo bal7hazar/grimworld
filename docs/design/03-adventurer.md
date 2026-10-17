@@ -194,13 +194,20 @@ seal on the corpse. The seal is replaced by the skill.
 Six per MVP profession, enough to teach every skill kind the profession uses. Format:
 `energy / activation / recharge` in ticks; values are `rank 0…rank 12`.
 
+One weapon family per starter bar (D-310): every starter attack of a profession is an attack of its
+starter weapon's attribute, the one its creation kit gives (D-309: the Vanguard an axe, the Warden a
+bow, the Arcanist none), since an attack skill of another attribute than the weapon held is refused.
+The Vanguard's three are Axes attacks: Gash takes Rending Cut's values and Haft Blow Skullring's;
+Rending Cut (Blades) and Skullring (Mauls) are trainers' skills (CNT-02). The seed's records are
+`contracts/seed/README.md`'s.
+
 ### Vanguard
 
 | Working name | Attribute | Kind | Cost | Effect |
 |---|---|---|---|---|
 | Cleave | Axes | Attack | 4 adrenaline | +10…30 damage |
-| Rending Cut | Blades | Attack | 5 / – / 8 | Bleeding for 5…20 ticks |
-| Skullring | Mauls | Attack | 6 adrenaline | Knock down for 2 ticks |
+| Gash | Axes | Attack | 5 / – / 8 | Bleeding for 5…20 ticks |
+| Haft Blow | Axes | Attack | 6 adrenaline | Knock down for 2 ticks |
 | Second Wind | Tactics | Skill | 5 / 1 / 20 | Heal 40…140, more if below 50% health |
 | Brace | Tactics | Stance | 5 / 0 / 15 | Block the next 1…3 attacks |
 | Warcry | Might | Shout | 5 / 0 / 20 | +armor penetration for 5…11 ticks |

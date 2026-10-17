@@ -184,11 +184,12 @@ pub struct Modifier {
     pub cost: Passive,
 }
 
-/// `BASE`, 2 parts (design/15; ENG-01 §3.5). CBT-08a lays out only its prefix, from bit 0 of
-/// part 0: what the creator of an item copies into `ItemBase` (D-158), so that `set_build` reads
-/// no `BASE`. The lot that lays out the rest (class, profession, damage by requirement, rating,
-/// look) appends to it; until then this model covers the prefix only, and its packer writes every
-/// other bit 0: part 0 low: slot 0–7 · hands 8–15 · `LIVE` in both parts.
+/// `BASE`, 2 parts (design/15; ENG-01 §3.5). Part 0 low: slot 0–7 · hands 8–15 (CBT-08a) · a
+/// weapon's class 16–23 · damage at requirement 0, 24–31, and at 9, 32–39 · ticks 40–47
+/// · range 48–55 · damage type 56–63 · attribute 64–71 (WPN-01, D-310) · `LIVE` in both
+/// parts. What the creator of an item copies into `ItemBase` (D-158), so that `set_build` reads no
+/// `BASE`. The rest (profession, rating, look) is a later lot's, appended after bit 71; until then
+/// its packer writes every other bit 0.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Base {
     /// `base::slot::WEAPON` … `FEET`: `equipped`'s lane plus one.
@@ -196,6 +197,20 @@ pub struct Base {
     /// A weapon's hands (design/15, *Weapons*): 1, or 2 for a maul, a bow or a staff; 0 for
     /// anything else.
     pub hands: u8,
+    /// A weapon's class, `combat::weapon::SWORD` … `WAND`; 0 for anything else, like the
+    /// statistics below.
+    pub class: u8,
+    /// Its base damage at requirement 0 and at requirement 9 (design/15's table; at most
+    /// `loadout::MAX_WEAPON_BASE_DAMAGE`): an item takes the one at its requirement.
+    pub damage_0: u8,
+    pub damage_9: u8,
+    /// Ticks an attack costs, and its range in tiles.
+    pub ticks: u8,
+    pub range: u8,
+    /// `combat::damage::SLASHING` … `HOLY`.
+    pub damage_type: u8,
+    /// The attribute whose rank meets its requirement (D-157 A's global ids, the seed's order).
+    pub attribute: u8,
 }
 
 /// `ARMOR_SET`, 1 part (design/15 D-45, design/19 §7.2).

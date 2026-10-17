@@ -10,7 +10,9 @@ use grimworld_logic::interface::{
     IRegistryReadSafeDispatcherTrait,
 };
 use grimworld_logic::models::armor_set::{ArmorSetRecord, ArmorSetTrait};
-use grimworld_logic::models::base::{BaseRecord, BaseTrait, slot as base_slot};
+use grimworld_logic::models::base::{
+    BaseRecord, BaseTrait, errors as base_errors, slot as base_slot,
+};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait, errors as caste_errors};
 use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::item::{
@@ -728,6 +730,10 @@ fn plain_of(kind: u8, value: felt252) -> Span<felt252> {
     }
     if kind == SET_PIECE {
         return piece_of(value.try_into().unwrap(), 112, 100);
+    }
+    // A base the registry checks (WPN-01): a piece of armor, its slot from the value.
+    if kind == BASE {
+        return BaseTrait::new(base_slot::CHEST + value.try_into().unwrap(), 0).pack();
     }
     // A template of at least one goblin at its fewest (R-42, BND-01)
     if kind == PACK {
@@ -1551,7 +1557,8 @@ fn test_set_record_kit() {
     assert_accepted(try_write(r, SKILL, skill(1)));
     assert_accepted(try_write(r, SKILL, skill(1)));
     assert_accepted(try_write(r, SKILL, skill(2)));
-    assert_accepted(try_write(r, BASE, BaseTrait::new(base_slot::WEAPON, 1).pack()));
+    let axe = BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 3);
+    assert_accepted(try_write(r, BASE, axe.pack()));
     assert_accepted(try_write(r, BASE, BaseTrait::new(base_slot::CHEST, 0).pack()));
     let kit = |weapon: u16, skills: [u16; 6]| -> Span<felt252> {
         KitTrait::new(weapon, skills).pack()
@@ -1581,4 +1588,25 @@ fn test_set_record_kit() {
     // A kit's weapon changed is a rewrite of its record.
     r.admin.set_record(KIT, 2, kit(1, [3, 0, 0, 0, 0, 0]));
     assert(KitRecord::unpack(r.read.record(KIT, 2)).weapon == 1, 'weapon rewritten');
+}
+
+// WPN-01: a `BASE` is checked when written (`BaseAssert::assert_valid`): a weapon carries its
+// statistics, any other base none; the item's creator copies them unchecked (D-158).
+#[test]
+#[available_gas(l2_gas: 4963592)] // ceil(1.05 × 4727230 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_base() {
+    let r = Fixture::deploy();
+    let bow = BaseTrait::weapon(2, weapon::BOW, 11, 21, 2, 6, damage::PIERCING, 7);
+    assert_accepted(try_write(r, BASE, bow.pack()));
+    assert(BaseRecord::unpack(r.read.record(BASE, 1)) == bow, 'the bow read back');
+    // A one-handed weapon with no statistic (CBT-08a's prefix alone).
+    let bare = array![1 + 0x100 + LIVE, LIVE];
+    assert_refused(r.safe.set_record(BASE, 2, bare.span()), base_errors::CLASS);
+    // A chest piece with a class at bit 16.
+    let chest = array![3 + 0x20000 + LIVE, LIVE];
+    assert_refused(r.safe.set_record(BASE, 2, chest.span()), base_errors::NOT_A_WEAPON);
+    // A bow whose damage falls from requirement 0 to 9.
+    let word = 1 + 0x200 + 0x40000 + 21 * 0x1000000 + 11 * 0x100000000 + LIVE;
+    assert_refused(r.safe.set_record(BASE, 2, array![word, LIVE].span()), base_errors::DAMAGE);
 }
