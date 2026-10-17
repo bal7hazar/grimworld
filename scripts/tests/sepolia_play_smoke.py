@@ -11,8 +11,9 @@
     it, `--devnet` without `--out`, an `--out` under docs/reports, a Sepolia record with `--devnet`;
   * the bookkeeping, on stubs: a reverted transaction and one whose call failed without a hash (the nonce
     moved) stay in the record, the reverted one marked with its fee;
-  * two faults injected after `enter` (a `ValueError` in the crossing, an `OSError` from every view): the
-    run exits 1 and still writes its record, every transaction the account sent, why, and where the
+  * the views at `pre_confirmed` (Sepolia's tag) and at `latest` agree with `sncast call` on the devnet;
+  * three faults injected after `enter` (a `ValueError` in the crossing, an `OSError` from every view, a
+    `KeyboardInterrupt`, which goes on after): the run exits 1 or raises and still writes its record, every transaction the account sent, why, and where the
     adventurer is (inside its instance, read from the chain; or unknown, and why);
   * `scripts/devnet_deploy.py` deploys on the node, then the play runs from the second predeployed account:
     `--dry-run` sends nothing; the run exits 0 (a run that goblins stop, its record `"completed": false`,
@@ -131,15 +132,20 @@ def check_bookkeeping():
 
         def find_transaction(self, nonce):
             assert nonce == 5, nonce
+            if self.mode == "lost":
+                raise RuntimeError("no transaction of the account with that nonce")
             return {"transaction_hash": "0xbb"}
 
         def rpc(self, method, params):
+            if method == "starknet_getTransactionByHash":
+                return {"sender_address": "0x1"}
             reverted = params["transaction_hash"] == "0xaa"
             return {"actual_fee": {"amount": hex(7 if reverted else 3), "unit": "FRI"},
                     "execution_status": "REVERTED" if reverted else "SUCCEEDED", "revert_reason": "out of gas"}
 
     contracts = {"hub": "0x2", "instances": "0x3", "registry": "0x4"}
-    for mode, tx in (("reverted", "0xaa"), ("unreported", "0xbb")):
+    for mode, step in (("reverted", ("enter (gate 1)", "0xaa")), ("unreported", ("enter (gate 1)", "0xbb")),
+                       ("lost", ("enter (gate 1)", None, "nonce moved, hash unknown"))):
         game = play.Play(Node(mode), Quiet(), contracts, 2)
         try:
             game.invoke("enter (gate 1)", "0x2", "enter", 1, 1)
@@ -147,10 +153,41 @@ def check_bookkeeping():
             pass
         else:
             raise AssertionError("the failed call did not raise")
-        assert game.steps == [("enter (gate 1)", tx)], (mode, game.steps)
-    transactions, total = play.fees(Node("reverted"), [("a", "0xaa"), ("b", "0xbb")], str)
+        assert game.steps == [step], (mode, game.steps)
+    steps = [("a", "0xaa"), ("b", "0xbb"), ("c", None, "nonce moved, hash unknown")]
+    transactions, total = play.fees(Node("reverted"), steps, str)
     assert transactions[0]["reverted"] is True and transactions[0]["fee"] == "7" and "reverted" not in transactions[1]
-    assert total == {"amount": "10", "unit": "FRI"}, total
+    assert all(t["sender"] == "account" for t in transactions[:2]), transactions
+    assert transactions[2] == {"what": "c", "hash": None, "sender": None, "fee": None, "unit": None,
+                               "error": "nonce moved, hash unknown"}, transactions[2]
+    assert total == {"amount": "10", "unit": "FRI", "missing": 1}, total
+    assert play.total_of({"FRI": 3, "WEI": 4}, 0) == {"amounts": {"FRI": "3", "WEI": "4"}}
+    # the record phase: a leak in a message leaves a minimal record of the hashes; an interrupt while the
+    # fees are read leaves every fee null; either way the record is written
+    folder = tempfile.mkdtemp(prefix="smoke-play-phase-")
+
+    def build(transactions, total):
+        return {"gate": "GATE-1 (D-308)", "network": "devnet", "script_commit": "0" * 40, "completed": False,
+                "deployment": {"name": "d", "commit": "0" * 40}, "adventurer_id": 1, "instance_id": 2,
+                "gates": {"in": {"id": 1, "source": 1, "destination": 2}}, "chunks_crossed": [],
+                "final_location": {"kind": "instance", "instance": 2}, "hits": [], "stopped": "SECRETVALUE echoed",
+                "transactions": transactions, "total_fee": total, "started": "s", "finished": "f", "seconds": 0}
+    leak = lambda text: str(text).replace("SECRETVALUE", "<STARKNET_RPC_URL>")
+    assert play.record_phase(Node("reverted"), steps[:2], leak, build, os.path.join(folder, "a.json"), Quiet()) is None
+    minimal = json.load(open(os.path.join(folder, "a.json")))
+    assert minimal == {"gate": "GATE-1 (D-308)", "completed": False, "minimal": True,
+                       "transactions": [{"hash": "0xaa"}, {"hash": "0xbb"}]}, minimal
+    assert "SECRETVALUE" not in open(os.path.join(folder, "a.md")).read()
+
+    class Interrupted(Node):
+        def rpc(self, method, params):
+            raise KeyboardInterrupt
+
+    interrupt = play.record_phase(Interrupted("x"), steps[:2], str, build, os.path.join(folder, "b.json"), Quiet())
+    assert isinstance(interrupt, KeyboardInterrupt), interrupt
+    written = json.load(open(os.path.join(folder, "b.json")))
+    assert [t["hash"] for t in written["transactions"]] == ["0xaa", "0xbb"], written
+    assert all(t["fee"] is None and t["error"] == "fee not read: KeyboardInterrupt" for t in written["transactions"])
     assert play.place_text({"kind": "instance", "instance": 9}) == "left inside instance 9"
     assert play.place_text({"kind": "unknown", "why": "OSError: x"}) == "unknown: OSError: x"
     assert play.where(play.Play(Node("x"), Quiet(), contracts, 2), str)["kind"] == "unknown"
@@ -167,6 +204,8 @@ def injected(values, deployment, logs, name, patch):
                "WITH_NODE_LOG_DIR": tempfile.mkdtemp(prefix="smoke-play-logs-")}
     try:
         code = play.main(["--devnet", "--deployment", deployment, "--out", record_path], environ)
+    except KeyboardInterrupt:
+        code = "interrupted"
     finally:
         for k, v in saved.items():
             setattr(play.Play, k, v)
@@ -176,7 +215,7 @@ def injected(values, deployment, logs, name, patch):
     return code, json.loads(text), markdown
 
 
-def check_faults(values_a, values_b, deployment, logs, probe, dep):
+def check_faults(values_a, values_b, values_c, deployment, logs, probe, dep):
     """Review t-0273, finding 1: an error that is not the script's own, after `enter`, still writes the
     record with every transaction sent and where the adventurer is."""
     def cross(self):
@@ -205,6 +244,31 @@ def check_faults(values_a, values_b, deployment, logs, probe, dep):
     assert all(t["fee"] for t in record["transactions"]) and int(record["total_fee"]["amount"]) > 0
     assert record["final_location"]["kind"] == "unknown" and "OSError" in record["final_location"]["why"]
     assert "unknown: OSError" in markdown, markdown
+
+    def interrupt(self):  # review t-0274: an interrupt after enter writes the record, then goes on
+        raise KeyboardInterrupt
+    code, record, markdown = injected(values_c, deployment, logs, "fault-interrupt", {"cross": interrupt})
+    assert code == "interrupted", f"the interrupt did not propagate: {code}"
+    assert record["completed"] is False and record["stopped"].startswith("KeyboardInterrupt"), record
+    assert len(record["transactions"]) == nonce(probe, values_c["STARKNET_ACCOUNT_ADDRESS"]) == 4
+    assert record["final_location"]["kind"] == "instance", record["final_location"]
+
+
+def check_views(values, dep, logs):
+    """Review t-0274: the views read at the node's tag, `pre_confirmed` on Sepolia. The devnet answers a
+    `starknet_call` at `pre_confirmed` as at `latest`, and both as `sncast call` does."""
+    url, address = values["STARKNET_RPC_URL"], values["STARKNET_ACCOUNT_ADDRESS"]
+    answers = []
+    for tag in ("latest", "pre_confirmed"):
+        node = play.PlayNode(url, address, "unused", tempfile.mkdtemp(prefix="smoke-play-view-"), {}, str, tag=tag)
+        answers.append((node.view("persistent", dep["contracts"]["registry"], "content_version"),
+                        node.view("persistent", dep["contracts"]["hub"], "account_of", int(dep["account"], 16)),
+                        node.view("ephemeral", dep["contracts"]["instances"], "placement", 1)))
+    sncast = devnet_deploy.Node(url, address, "unused", logs, name="views")
+    assert answers[0] == answers[1] == (
+        sncast.view("persistent", dep["contracts"]["registry"], "content_version"),
+        sncast.view("persistent", dep["contracts"]["hub"], "account_of", int(dep["account"], 16)),
+        sncast.view("ephemeral", dep["contracts"]["instances"], "placement", 1)), answers
 
 
 def check_refusals(real, deployment, logs):
@@ -243,7 +307,7 @@ def main():
     accounts = predeployed[1:1 + TRIES]  # the deployer is the first; the faults take the two after these
     real = [{"STARKNET_NETWORK": FAKE["STARKNET_NETWORK"], "STARKNET_RPC_URL": url,
              "STARKNET_ACCOUNT_ADDRESS": a["address"], "STARKNET_PRIVATE_KEY": a["private_key"]}
-            for a in predeployed[1:3 + TRIES]]
+            for a in predeployed[1:4 + TRIES]]
     print(f"sepolia_play_smoke: deployed (commit {dep['commit'][:7]})")
 
     check_refusals(real[0], deployment, logs)
@@ -255,7 +319,8 @@ def main():
     assert dry.code == 0 and "--dry-run: nothing sent" in dry.stdout and "plan:" in dry.stdout, dry.stderr
     assert nonce(probe, accounts[0]["address"]) == 0 and not os.path.exists(record_path), "--dry-run sent or wrote"
 
-    check_faults(real[TRIES], real[TRIES + 1], deployment, logs, probe, dep)
+    check_views(real[0], dep, logs)
+    check_faults(real[TRIES], real[TRIES + 1], real[TRIES + 2], deployment, logs, probe, dep)
     print("sepolia_play_smoke: faults after enter recorded, with every transaction and the place")
 
     # The world is drawn at the entry: a draw whose goblins stop the run (no route, health below half) is
@@ -303,6 +368,7 @@ def main():
         receipt = probe.rpc("starknet_getTransactionReceipt", {"transaction_hash": t["hash"]})
         assert int(tx["sender_address"], 16) == int(address, 16) and receipt["execution_status"] == "SUCCEEDED"
         assert int(receipt["actual_fee"]["amount"], 16) == int(t["fee"]), t
+        assert t["sender"] == "account", t  # checked against the chain just above
         total += int(t["fee"])
     assert record["total_fee"] == {"amount": str(total), "unit": txs[0]["unit"]} and total > 0, record["total_fee"]
     assert record["seconds"] >= 0 and record["started"] <= record["finished"]

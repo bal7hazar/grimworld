@@ -104,6 +104,21 @@ EVENTS = {name: dd.storage_key(name) for name in
           ("InstanceEntered", "BatchPlayed", "Refused", "InstanceClosed", "ChunkRevealed", "Defeated")}
 
 
+class PlayNode(sd.SepoliaNode):
+    """`SepoliaNode` whose views read at its block tag: `pre_confirmed` on Sepolia, where the nonce of the
+    sends is read too, so that a view right after a `--wait` send sees it (a `latest` read may lag behind);
+    `latest` on a devnet, which mines at once (as `sepolia_deploy.py` reads its nonce). A view is one
+    `starknet_call` through the node's RPC (retried on a rate limit, its errors redacted), not `sncast call`,
+    whose `--block-id` this script does not need; the answer is the same raw felts."""
+
+    def view(self, package, contract, function, *calldata):
+        result = self.rpc("starknet_call", {
+            "request": {"contract_address": contract, "entry_point_selector": hex(dd.storage_key(function)),
+                        "calldata": [hex(c) for c in calldata]},
+            "block_id": self.tag})
+        return [int(felt, 16) for felt in result]
+
+
 class Stopped(RuntimeError):
     """The run cannot go on without fighting or guessing: the message says where and why."""
 
@@ -333,11 +348,17 @@ class Play:
             return self.node.invoke(contract, function, *calldata)
         except BaseException:
             if len(self.node.sent) == before:
+                unknown = None
                 try:
                     if self.node.account_nonce() > nonce:
+                        unknown = "nonce moved, hash unknown"
                         self.node.sent.append(self.node.find_transaction(nonce)["transaction_hash"])
+                        unknown = None
                 except Exception as error:  # the call's own error is the one that goes on
-                    self.log.say(f"{what}: the nonce moved and its transaction was not found ({error})", error=True)
+                    unknown = unknown or "nonce unreadable after the failure, hash unknown"
+                    self.log.say(f"{what}: {unknown} ({error})", error=True)
+                if unknown:  # a step with no hash: the record still says something may have been sent
+                    self.steps.append((what, None, unknown))
             raise
         finally:
             self.steps += [(what, tx) for tx in self.node.sent[before:]]
@@ -508,28 +529,80 @@ class Play:
 
 
 def fees(node, steps, redact):
-    """Each transaction's fee, from its receipt, a reverted one marked (its fee counts); the total (one
-    unit). A receipt that cannot be read leaves its fee null with the reason, and the total says how many
-    it misses."""
-    out, total, units, missing = [], 0, set(), 0
-    for what, tx in steps:
-        entry = {"what": what, "hash": tx}
+    """Each transaction's sender (`"account"` when it is the account, whose address is never written) and
+    fee, from the chain (`starknet_getTransactionByHash`, its receipt), a
+    reverted one marked (its fee counts); the total by unit. A step whose hash is unknown, or whose reads
+    fail, keeps a null fee and says why; the total counts what it misses. Never raises an `Exception`: an
+    interrupt goes on, and `record_phase` writes what it has."""
+    out, totals, missing = [], {}, 0
+    for step in steps:
+        what, tx = step[0], step[1]
+        entry = {"what": what, "hash": tx, "sender": None, "fee": None, "unit": None}
+        if tx is None:
+            entry["error"] = step[2]
+            missing += 1
+            out.append(entry)
+            continue
         try:
+            sender = node.rpc("starknet_getTransactionByHash", {"transaction_hash": tx}).get("sender_address")
+            # the account's address is never written (a STARKNET_* value): "account" says it is the sender
+            entry["sender"] = "account" if sender and int(sender, 16) == int(node.address, 16) else sender
             receipt = node.rpc("starknet_getTransactionReceipt", {"transaction_hash": tx})
             paid = receipt["actual_fee"]
             entry.update(fee=str(int(paid["amount"], 16)), unit=paid["unit"])
-            total += int(paid["amount"], 16)
-            units.add(paid["unit"])
+            totals[paid["unit"]] = totals.get(paid["unit"], 0) + int(paid["amount"], 16)
             if receipt.get("execution_status") == "REVERTED":
                 entry.update(reverted=True, revert_reason=str(redact(receipt.get("revert_reason", "")))[:500])
         except Exception as error:
             entry.update(fee=None, unit=None, error=f"{type(error).__name__}: {redact(error)}"[:500])
             missing += 1
         out.append(entry)
-    if len(units) > 1:
-        raise RuntimeError(f"fees in several units: {sorted(units)}")
-    return out, {"amount": str(total), "unit": units.pop() if units else "FRI",
-                 **({"missing": missing} if missing else {})}
+    return out, total_of(totals, missing)
+
+
+def total_of(totals, missing):
+    """`{"amount", "unit"}` for one unit (FRI with no fee read); `{"amounts": {unit: amount}}` for several;
+    `missing`, the fees not read, when there are some."""
+    if len(totals) > 1:
+        total = {"amounts": {unit: str(amount) for unit, amount in sorted(totals.items())}}
+    else:
+        unit, amount = next(iter(totals.items()), ("FRI", 0))
+        total = {"amount": str(amount), "unit": unit}
+    return {**total, **({"missing": missing} if missing else {})}
+
+
+def record_phase(node, steps, redact, build, out, log):
+    """The record, once a transaction is sent, whatever happens here: the fees (an interrupt while they are
+    read leaves every fee null, saying so), then the JSON and the summary. If the redactor would change
+    them (a `STARKNET_*` value in a message), a minimal record of the hashes alone is written instead, and
+    the log says so. Returns the interrupt to raise again, if one came."""
+    interrupt = None
+    try:
+        transactions, total = fees(node, steps, redact)
+    except BaseException as error:  # an interrupt or a SIGTERM while the receipts are read
+        interrupt = error
+        transactions = [{"what": s[0], "hash": s[1], "sender": None, "fee": None, "unit": None,
+                         "error": f"fee not read: {type(error).__name__}"} for s in steps]
+        total = total_of({}, len(steps))
+    record = build(transactions, total)
+    text, markdown = json.dumps(record, indent=2) + "\n", summary(record)
+    if redact(text) != text or redact(markdown) != markdown:
+        log.say("the record would hold the value of a STARKNET_* variable: a minimal record of the hashes "
+                "alone is written instead", error=True)
+        record = {"gate": record["gate"], "completed": False, "minimal": True,
+                  "transactions": [{"hash": t["hash"]} for t in transactions]}
+        text = json.dumps(record, indent=2) + "\n"
+        markdown = "# GATE-1: a minimal record\n\nThe full record would have held the value of a STARKNET_* " \
+                   "variable; only the transactions' hashes are kept:\n\n" + \
+                   "".join(f"- `{t['hash']}`\n" for t in record["transactions"])
+        if redact(text) != text:
+            raise RuntimeError("even the hashes would hold the value of a STARKNET_* variable: not written")
+    write_new(out, text)
+    write_new(os.path.splitext(out)[0] + ".md", markdown)
+    known = total.get("amount", total.get("amounts"))
+    log.say(f"{len(transactions)} transactions, total fee {known} {total.get('unit', '')}; record "
+            f"{os.path.basename(out)}")
+    return interrupt
 
 
 def where(play, redact):
@@ -570,14 +643,17 @@ def summary(record):
              f"- Final location: {place_text(record['final_location'])}",
              f"- Hits taken (the script never attacks): {len(record['hits'])}" + "".join(
                  f"; at {tuple(h['tile'])}, health {h['health'][0]} to {h['health'][1]}" for h in record["hits"]),
-             f"- Transactions: {len(record['transactions'])}, total fee {record['total_fee']['amount']} "
-             f"{record['total_fee']['unit']}",
+             f"- Transactions: {len(record['transactions'])}, total fee "
+             f"{record['total_fee'].get('amount', record['total_fee'].get('amounts'))} "
+             f"{record['total_fee'].get('unit', '')}"
+             + (f" ({record['total_fee']['missing']} fees not read)" if record['total_fee'].get('missing') else ""),
              f"- Time: {record['started']} to {record['finished']} ({record['seconds']} s)"]
     if not record["completed"]:
         lines.append(f"- Stopped: {record['stopped']}")
     lines += ["", "| # | Transaction | Hash | Fee |", "|---|---|---|---|"]
-    lines += [f"| {i} | {t['what']}{' (reverted)' if t.get('reverted') else ''} | `{t['hash']}` | "
-              f"{t['fee'] if t['fee'] is not None else 'unknown'} {t['unit'] or ''} |"
+    lines += [f"| {i} | {t['what']}{' (reverted)' if t.get('reverted') else ''} | "
+              f"{'`' + t['hash'] + '`' if t['hash'] else 'unknown'} | "
+              f"{t['fee'] if t['fee'] is not None else 'unknown: ' + t.get('error', '')} {t['unit'] or ''} |"
               for i, t in enumerate(record["transactions"], 1)]
     return "\n".join(lines) + "\n"
 
@@ -636,8 +712,8 @@ def run(args, log, redact, environ):
 
     logs = tempfile.mkdtemp(prefix="sepolia-play-")  # 0700: the accounts file holds the key
     try:
-        node = sd.SepoliaNode(url, address, "unused", logs, {}, redact, log.say, pace=pace, backoff=args.backoff,
-                              tag="latest" if args.devnet else "pre_confirmed")
+        node = PlayNode(url, address, "unused", logs, {}, redact, log.say, pace=pace, backoff=args.backoff,
+                        tag="latest" if args.devnet else "pre_confirmed")
         chain = sd.check_chain(node, args.devnet, log, flag="--devnet")
         sncast_version = sd.read_sncast_version(log)
         path = args.deployment or newest_record()
@@ -696,33 +772,35 @@ def run(args, log, redact, environ):
             if not isinstance(error, Exception):
                 again = error
             stopped = str(redact(error)) if isinstance(error, Stopped) else \
-                f"{type(error).__name__}: {redact(error)}"
+                f"{type(error).__name__}: {redact(error)}".rstrip(": ")
             log.say(f"stopped: {stopped}", error=True)
-            final = where(play, redact)
+            try:
+                final = where(play, redact)
+            except BaseException as interrupt:  # an interrupt while it is read: the record still comes
+                again = again or interrupt
+                final = {"kind": "unknown", "why": f"not read: {type(interrupt).__name__}"}
             log.say(f"where the adventurer is: {place_text(final)}", error=True)
-        transactions, total = fees(node, play.steps, redact)
-        finished = datetime.datetime.now(datetime.timezone.utc)
-        record = {
-            "gate": "GATE-1 (D-308)", "network": "Starknet Sepolia" if not args.devnet else "devnet",
-            "devnet": args.devnet, "chain_id": chain,
-            "deployment": {"name": name, "commit": dep.get("commit", "unknown"), "contracts": contracts},
-            "script_commit": dd.commit(), "tools": {"sncast": sncast_version},
-            "completed": stopped is None, **({"stopped": stopped} if stopped else {}),
-            "adventurer_id": play.adventurer, "instance_id": play.instance,
-            "gates": {k: {"id": g, **v} for (k, v), g in zip(gates.items(), (GATE_IN, GATE_OUT))},
-            "chunks_crossed": play.crossed, "final_location": final, "hits": play.hits,
-            "transactions": transactions, "total_fee": total,
-            "started": started.isoformat(timespec="seconds"), "finished": finished.isoformat(timespec="seconds"),
-            "seconds": round((finished - started).total_seconds()),
-        }
-        text, markdown = json.dumps(record, indent=2) + "\n", summary(record)
+
+        def build(transactions, total):
+            finished = datetime.datetime.now(datetime.timezone.utc)
+            return {
+                "gate": "GATE-1 (D-308)", "network": "Starknet Sepolia" if not args.devnet else "devnet",
+                "devnet": args.devnet, "chain_id": chain,
+                "deployment": {"name": name, "commit": dep.get("commit", "unknown"), "contracts": contracts},
+                "script_commit": dd.commit(), "tools": {"sncast": sncast_version},
+                "completed": stopped is None, **({"stopped": stopped} if stopped else {}),
+                "adventurer_id": play.adventurer, "instance_id": play.instance,
+                "gates": {k: {"id": g, **v} for (k, v), g in zip(gates.items(), (GATE_IN, GATE_OUT))},
+                "chunks_crossed": play.crossed, "final_location": final, "hits": play.hits,
+                "transactions": transactions, "total_fee": total,
+                "started": started.isoformat(timespec="seconds"),
+                "finished": finished.isoformat(timespec="seconds"),
+                "seconds": round((finished - started).total_seconds()),
+            }
+
         # The redactor is the check: the record must come out of it unchanged (as sepolia_deploy.py's)
-        if redact(text) != text or redact(markdown) != markdown:
-            raise RuntimeError("the record would hold the value of a STARKNET_* variable: not written")
-        write_new(out, text)
-        write_new(os.path.splitext(out)[0] + ".md", markdown)
-        log.say(f"{len(transactions)} transactions, total fee {total['amount']} {total['unit']}; record "
-                f"{os.path.basename(out)}")
+        interrupt = record_phase(node, play.steps, redact, build, out, log)
+        again = again or interrupt
         if again is not None:
             raise again
         return 0 if stopped is None else 1
@@ -739,7 +817,7 @@ def main(argv, environ=os.environ):
                                       "sepolia-play.log"), name=NAME)
     try:
         return run(args, log, redact, environ)
-    except SystemExit:
+    except (SystemExit, KeyboardInterrupt):  # an interrupt goes on, once the record is written
         raise
     except BaseException as error:  # an echo of the URL or the address is redacted before it is shown
         log.say(f"failed: {type(error).__name__}: {error}", error=True)
