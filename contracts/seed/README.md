@@ -24,7 +24,8 @@ fields, not the packed felts.
 | `GATE` | 1, 2 | Town → zone (entering at chunk 0, tile 105), zone → town (anchored there): hub gates |
 | `GATE` | 3, 4 | Zone → floor 1 (anchored at chunk 16, tile 110), floor 1's entrance → zone: links |
 | `GATE` | 5 | Floor 1 → floor 2: a floor gate, no anchor (a dungeon's exit is a quota, ADR-0006) |
-| `GATE` | 6, 7 | Town → gate zone (entering at chunk 0, tile 105), gate zone → town (anchored there): hub gates |
+| `GATE` | 6 | Zone → floor 1, anchored at the zone's entry (chunk 0, tile 105), entering at chunk 112, tile 112: a link, the deployments' shortcut (`devnet_deploy.py`), in the seed so that ids agree |
+| `GATE` | 7, 8 | Town → gate zone (entering at chunk 0, tile 105), gate zone → town (anchored there): hub gates |
 | `PACK` | 1 | *Rabble* (design/05, tier 1): 3 to 5 Runts; level offset 0 (as every pack below) |
 | `PACK` | 2 | *Raiders* (tier 1): 2–3 Runts, 1–2 Slingers |
 | `PACK` | 3 | *Warband* (tier 3): 2 Skirmishers, 1 Slinger, 1 Shaman |
@@ -55,11 +56,11 @@ of pack 5: a 1 × 1 zone's only chunk hosts every quota (`placement`'s subset, n
 is placed in chunk 0 at every entry, at the band's highest level (1), on an allowed tile at least
 3 tiles from the entry (the reveal's allowed tiles exclude those within 2 of an anchor); only its tile and its goblins' offsets
 follow the draw. Chunk 0 is within sight of the entry tile, so it is revealed at `enter`. A script
-finds it so: `Hub.enter(adventurer, 6)`, then `instance_state` (VIEW-01: the 3 × 3 chunks around
+finds it so: `Hub.enter(adventurer, 7)`, then `instance_state` (VIEW-01: the 3 × 3 chunks around
 the member hold the whole zone) lists the five goblins, entities 8 to 12 (`8 + 16 chunk + k`); or
 `instance_region(instance, 0, 1)` gives chunk 0's features, whose first pack word holds the pack's
 tile (bits 0–7), template 5 and count 5. The script walks to the tile and fights until no goblin of
-the list is alive, then leaves by gate 7. A goblin's count is lower than 5 only when fewer than four
+the list is alive, then leaves by gate 8. A goblin's count is lower than 5 only when fewer than four
 allowed tiles are free within 2 of the pack's tile, which an open meadow chunk does not produce
 (not measured on every draw: a property of the generated terrain).
 

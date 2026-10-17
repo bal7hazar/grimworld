@@ -63,6 +63,7 @@ import urllib.parse
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import devnet_deploy as dd  # noqa: E402  the deployment order, the seed and the node, shared
+import seed_records as sr  # noqa: E402  CNT-01's records (devnet_deploy put contracts/tools on the path)
 
 REPO = "bal7hazar/grimworld"  # every `gh` call names it: the artefact is this repository's, whatever the checkout's remote
 NAME = "ops02a"
@@ -89,7 +90,7 @@ SUBMITTING = ("declare-from", "declare", "deploy", "invoke")
 WINDOW = 40  # blocks searched before the first latest seen: sncast's --wait polls for minutes
 FOUND_TRIES, FOUND_WAIT = 20, 3.0  # looking for the transaction an accepted-but-failed call left
 KINDS = {dd.REGION: "region", dd.LOCATION: "location", dd.GATE: "gate", dd.ITEM: "item",
-         9: "skill", 8: "caste", 7: "pack", 6: "spawn_table"}
+         9: "skill", 8: "caste", 7: "pack", 6: "spawn_table", 5: "quotas", 12: "base", 29: "kit"}
 
 
 class Redactor:
@@ -569,9 +570,16 @@ def needed_classes():
     return names.pairs
 
 
+def seed_records():
+    """The records this deployment writes: the devnet script's (`devnet_deploy.seed_records`), then
+    CNT-01's gate zone, its gates and Heart, the starter weapons' bases and the kits (D-309), from the
+    seed's rows (`seed_records.gate_zone_and_kits`)."""
+    return dd.seed_records() + sr.gate_zone_and_kits()
+
+
 def seed_ids():
     ids = {}
-    for kind, rid, _ in dd.seed_records():
+    for kind, rid, _ in seed_records():
         ids.setdefault(KINDS.get(kind, str(kind)), []).append(rid)
     return ids
 
@@ -676,7 +684,7 @@ def run(args, log, redact, environ):
         plan = needed_classes()
         log.say(f"plan: declare {len(plan)} classes from the artefact, deploy Registry, TxHashFate, Hub, "
                 f"Instances; set_zone_checks first, set_contracts, set_play_class keys 0-"
-                f"{len(dd.PLAY_CLASSES) - 1} (GoblinsLibrary last), then {len(dd.seed_records())} seed records")
+                f"{len(dd.PLAY_CLASSES) - 1} (GoblinsLibrary last), then {len(seed_records())} seed records")
         log.say(f"pace: {pace:g} s between transactions" + (" (rehearsal)" if args.devnet_rehearsal else ""))
         if args.dry_run:
             log.say("--dry-run: nothing sent")
@@ -688,7 +696,8 @@ def run(args, log, redact, environ):
             core = dd.deploy_core(node, address)
             log.say("classes: " + ", ".join(f"{k} {v}" for k, v in core["classes"].items()))
             log.say("contracts: " + ", ".join(f"{k} {core[k]}" for k in ("registry", "fate", "hub", "instances")))
-            dd.write_seed(node, core["registry"])
+            for kind, rid, parts in seed_records():
+                node.invoke(core["registry"], "set_record", kind, rid, len(parts), *parts)
             count, fee, unit = totals(node)
         except BaseException:  # what was sent so far, so that a retry knows what exists
             try:
@@ -705,7 +714,7 @@ def run(args, log, redact, environ):
             "classes": core["classes"],
             "contracts": {"registry": core["registry"], "tx_hash_fate": core["fate"], "hub": core["hub"],
                           "instances": core["instances"]},
-            "seed": {"records": len(dd.seed_records()), "ids": seed_ids()},
+            "seed": {"records": len(seed_records()), "ids": seed_ids()},
             "tools": {"sncast": sncast_version},
             "transactions": count, "total_fee": {"amount": str(fee), "unit": unit},
         }
