@@ -17,6 +17,7 @@
 - Never push red: fix what it reports first. CI stays the gate; this is the same checks, earlier.
 - `scripts/prepush.sh --all` runs every check whatever the diff: use it when you change the toolchain pins, a
   workflow or a script that the checks share.
+- On the Mac, scripts/lock.sh runs the command without a lock: the one-build rule is the VPS's, and the Mac's shims cap memory.
 - Heavy builds and tests go through `scripts/lock.sh`; the rules of the repository are in `docs/briefs/COMMON.md`
   and `OPERATIONS.md`.
 

@@ -345,6 +345,24 @@ jobs:
             set +e; PATH=$lkd/bin:$PATH scripts/lock.sh --wait "$w" scarb build 2> /dev/null; s=$?; set -e
             [ "$s" = 2 ] || { echo "lock.sh --wait $w: exit $s, not refused" >&2; exit 1; }
           done
+          # D-313: with no flock on PATH, Darwin runs the command unlocked after one stderr line; Linux still fails;
+          # the allow-list still refuses (2). The PATH holds only symlinks to what lock.sh needs, a fake scarb and a fake uname.
+          nf=$lkd/noflock; mkdir "$nf"
+          for t in env bash nice date dirname mkdir touch; do ln -s "$(command -v $t)" "$nf/$t"; done
+          cp "$lkd/bin/scarb" "$nf/scarb"
+          rm -f "$lkd/ran"
+          printf '#!/bin/sh\necho Darwin\n' > "$nf/uname"; chmod +x "$nf/uname"
+          out=$(PATH=$nf "$(command -v bash)" scripts/lock.sh --wait 1 scarb build 2>&1)
+          [ "$out" = "no flock on this machine: running without the build lock" ] || { echo "darwin no-flock: '$out'" >&2; exit 1; }
+          [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
+          set +e; out=$(PATH=$nf "$(command -v bash)" scripts/lock.sh rm -rf x 2>&1); s=$?; set -e
+          [ "$s" = 2 ] || { echo "darwin no-flock: bad command exit $s, not 2" >&2; exit 1; }
+          if grep -q 'no flock on this machine' <<< "$out"; then echo "darwin no-flock: refused command printed the no-flock line" >&2; exit 1; fi
+          printf '#!/bin/sh\necho Linux\n' > "$nf/uname"
+          set +e; out=$(PATH=$nf "$(command -v bash)" scripts/lock.sh scarb build 2>&1); s=$?; set -e
+          [ "$s" = 127 ] || { echo "linux no-flock: exit $s, not 127" >&2; exit 1; }
+          [ ! -e "$lkd/ran" ]
+          if grep -q 'no flock on this machine' <<< "$out"; then echo "linux no-flock: printed the no-flock line" >&2; exit 1; fi
           unset GRIMWORLD_BUILD_LOCK HEAVY_BUILD_LOCK
 
       # with-node.sh (FND-09): the process group of the command on both paths (with setsid, and with it hidden from

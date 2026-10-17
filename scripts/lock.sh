@@ -17,6 +17,10 @@
 # past it the command does not run, the script prints "build lock busy for <s> s" and exits 75. The
 # command still runs only under the locks, never around them (FND-13: the pre-push check waits 15 s by default, PREPUSH_LOCK_WAIT).
 #
+# No flock on the machine (the Mac: macOS has none, D-313): on Darwin the command runs under `nice` with no lock, after one
+# line on stderr. The one-build-at-a-time rule is the VPS's; the Mac's shims cap memory. --wait has nothing to wait for
+# there and is accepted and ignored. On Linux a missing flock stays an error. The allow-list below applies either way.
+#
 # Only build and test commands are wrapped: the audit profile allows `scripts/lock.sh …`, so
 # this script must not become a way to run anything else.
 #
@@ -87,6 +91,10 @@ if [ -n "${HEAVY_BUILD_LOCK_HELD:-}" ] && [ -z "${GRIMWORLD_BUILD_LOCK_HELD:-}" 
   echo "scripts/lock.sh: called under the heavy lock without the project lock (wrong order);" \
     "run the outer command through scripts/lock.sh" >&2
   exit 3
+fi
+if ! command -v flock > /dev/null 2>&1 && [ "$(uname)" = Darwin ]; then
+  echo "no flock on this machine: running without the build lock" >&2
+  exec nice -n 10 "$@"
 fi
 # With a wait, the project lock is taken first for at most <s> s, and the heavy lock for what remains of
 # the same deadline (flock -E 75: the exit status of a lock that stayed busy).
