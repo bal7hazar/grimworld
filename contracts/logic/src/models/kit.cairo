@@ -101,7 +101,7 @@ mod tests {
     use super::{KitAssert, KitRecord, KitTrait};
 
     #[test]
-    #[available_gas(l2_gas: 230475)] // ceil(1.05 × 219500 measured)
+    #[available_gas(l2_gas: 230370)] // ceil(1.05 × 219400 measured)
     fn test_kit_bits_and_round_trip() {
         let kit = KitTrait::new(0xabcd, [1, 2, 3, 0x1234, 5, 0xffff]);
         let parts = kit.pack();

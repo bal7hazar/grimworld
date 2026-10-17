@@ -1013,6 +1013,7 @@ mod tests {
     // SKILL-01: a skill learned in either limb, the count capped, the price's steps (design/15:
     // 50 for the first, 1,000 from the 21st; the 20 first cost 6,450 in all, as in the baseline).
     #[test]
+    // gas: raised, CNT-01: `SkillTrainerTrait` holds `purse` (D-309), the module's code moved
     #[available_gas(l2_gas: 501431)] // ceil(1.05 × 477553 measured)
     fn test_skill_trainer() {
         let mut page: Bitmap = StorePacking::unpack(0);
