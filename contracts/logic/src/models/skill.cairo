@@ -557,7 +557,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 2303763)] // ceil(1.05 × 2194060 measured)
+    // gas: raised, WPN-01: SkillTrait::attribute_kind checked with profile
+    #[available_gas(l2_gas: 2587452)] // ceil(1.05 × 2464240 measured)
     fn test_skill_profile_and_item_class() {
         for profession in array![1_u8, 6, 0xFF] {
             for elite in array![false, true] {

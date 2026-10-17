@@ -10,7 +10,7 @@
 // names of its columns, which are read with a cursor (`Stream`) and checked (`SeedAssert`).
 use grimworld_logic::helpers::packing::Lanes16;
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
-use grimworld_logic::models::base::{Base, BaseRecord, BaseTrait, slot};
+use grimworld_logic::models::base::{Base, BaseRecord, BaseTrait};
 use grimworld_logic::models::caste::{Caste, CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::kit::{Kit, KitRecord, KitTrait};
@@ -54,7 +54,7 @@ const QUOTA_COLUMNS: u32 = 19;
 const SKILL_COLUMNS: u32 = 47;
 const CASTE_COLUMNS: u32 = 30;
 /// Columns of an equipment base's row and of a kit's (CNT-01, D-309).
-const BASE_COLUMNS: u32 = 3;
+const BASE_COLUMNS: u32 = 10;
 const KIT_COLUMNS: u32 = 8;
 
 pub mod errors {
@@ -320,9 +320,19 @@ impl RowImpl of Row {
         )
     }
 
-    /// An equipment base: its slot and its hands (the prefix `BASE` lays out, D-158).
+    /// An equipment base: its slot and its hands (D-158), then a weapon's statistics (WPN-01).
     fn base(self: Span<felt252>) -> Base {
-        BaseTrait::new(self.field(1), self.field(2))
+        Base {
+            slot: self.field(1),
+            hands: self.field(2),
+            class: self.field(3),
+            damage_0: self.field(4),
+            damage_9: self.field(5),
+            ticks: self.field(6),
+            range: self.field(7),
+            damage_type: self.field(8),
+            attribute: self.field(9),
+        }
     }
 
     /// A profession's kit: its starter weapon's base, then its six starter skills.
@@ -607,7 +617,10 @@ pub impl SeedImpl of SeedTrait {
 
         // CNT-01 (D-309): the starter weapons' bases, then the kits, which name them and the
         // starter skills (the registry checks both exist).
-        let columns: Array<ByteArray> = array!["id", "slot", "hands"];
+        let columns: Array<ByteArray> = array![
+            "id", "slot", "hands", "class", "damage_0", "damage_9", "ticks", "range", "damage_type",
+            "attribute",
+        ];
         let rows = SeedAssert::assert_columns(self.base_fields, columns, *self.bases);
         for i in 0..rows {
             let row = self.bases.slice(BASE_COLUMNS * i, BASE_COLUMNS);
@@ -857,10 +870,17 @@ fn test_seed_written_and_read_back() {
 
     // The creation kits (D-309): the Vanguard's axe, the Warden's bow, the Arcanist none.
     assert(admin.last_id(BASE) == 2 && admin.last_id(KIT) == 0, 'two bases; kits are composite');
+    // WPN-01: design/15's axe and bow, Axes (3) and Archery (7) their attributes.
     let axe = BaseRecord::unpack(at(BASE, 1));
-    assert(axe.slot == slot::WEAPON && axe.hands == 1, 'base 1: the axe');
+    assert(
+        axe == BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 3),
+        'base 1: the axe',
+    );
     let bow = BaseRecord::unpack(at(BASE, 2));
-    assert(bow.slot == slot::WEAPON && bow.hands == 2, 'base 2: the bow');
+    assert(
+        bow == BaseTrait::weapon(2, weapon::BOW, 11, 21, 2, 6, damage::PIERCING, 7),
+        'base 2: the bow',
+    );
     let vanguard = KitRecord::unpack(at(KIT, 1));
     assert(vanguard == KitTrait::new(1, [1, 22, 3, 4, 6, 7]), 'kit 1: vanguard');
     let warden = KitRecord::unpack(at(KIT, 2));
@@ -875,7 +895,7 @@ fn test_seed_written_and_read_back() {
         (GATE, 7, 0x400000000000000000000000000000000000000000000016900000000050001),
         (GATE, 8, 0x400000000000000000000000000000000000000000000010000690000010005),
         (QUOTAS, 5, 0x400000000000000000000000000000000000000000000000000000001000502),
-        (BASE, 2, 0x400000000000000000000000000000000000000000000000000000000000201),
+        (BASE, 2, 0x40000000000000000000000000000000000000000000007020602150b040201),
         (KIT, 1, 0x400000000000000000000000000000000000007000600040003001600010001),
         (KIT, 3, 0x400000000000000000000000000000000000013001200110010000f000e0000),
     ];

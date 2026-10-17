@@ -10,7 +10,7 @@
 use core::testing::get_available_gas;
 use grimworld_logic::helpers::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
-use grimworld_logic::models::base::{Base, BaseTrait};
+use grimworld_logic::models::base::{Base, BaseRecord, BaseTrait};
 use grimworld_logic::models::build::SnapshotBuildTrait;
 use grimworld_logic::models::build::errors::{MAX_HEALTH, SOURCE_COUNT};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
@@ -25,20 +25,23 @@ use grimworld_logic::models::worn::Worn;
 use grimworld_logic::models::worn::errors::{
     INSIGNIA_PIECE, NO_MODIFIER, SLOT_TYPE, VALUE as MODIFIER_VALUE,
 };
-use grimworld_logic::types::combat::damage;
-use grimworld_logic::types::content::{ITEM, KIT, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
+use grimworld_logic::types::combat::{damage, skill_kind, weapon};
+use grimworld_logic::types::content::{
+    BASE, ITEM, KIT, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL,
+};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};
 use grimworld_persistent::models::account::{OwnerTrait, PACK, VAULT};
 use grimworld_persistent::models::adventurer::errors::{
     ADVENTURER_DELETED, BELT_NOT_IN_PACK, COUNT_WITHOUT_ITEM, DUPLICATE_ITEM, DUPLICATE_SKILL,
     ELITE_SLOT, NOT_A_POTION, NOT_IN_HUB, NOT_OWNER, NO_ADVENTURER, NO_ATTRIBUTE, NO_SKILL,
-    PACK_HOLDS_GOLD, POINTS, RANK_ABOVE_12, SKILL_ALREADY_KNOWN, SKILL_NOT_KNOWN, SKILL_NOT_SOLD,
-    SKILL_PRICE, SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
+    PACK_HOLDS_EQUIPMENT, PACK_HOLDS_GOLD, POINTS, RANK_ABOVE_12, SKILL_ALREADY_KNOWN,
+    SKILL_NOT_KNOWN, SKILL_NOT_SOLD, SKILL_PRICE, SKILL_PROFESSION, TWO_ELITES, TWO_HANDS,
+    WRONG_SLOT,
 };
 use grimworld_persistent::models::adventurer::{AdventurerCore, Build, BuildTrait, NO_ELITE};
 use grimworld_persistent::models::item::errors::{A_COMPONENT, NOT_IN_PACK, UNIDENTIFIED};
 use grimworld_persistent::models::item::{
-    COMPONENT, Gold, IDENTIFIED, ItemBase, ItemBaseTrait, ItemMods, ItemModsTrait, Modifier,
+    COMMON, COMPONENT, Gold, IDENTIFIED, ItemBase, ItemBaseTrait, ItemMods, ItemModsTrait, Modifier,
 };
 use grimworld_persistent::models::snapshot::StoredSnapshotTrait;
 use grimworld_persistent::models::stored_build::errors::{
@@ -488,7 +491,10 @@ fn try_set(
 /// the node probe's (`contracts/tools/lifecycle_probe.py`). Raised from 3,108,768 (2,960,731
 /// measured, no modifier worn): the flattening of the 15 modifiers, D-160, D-168. Raised again to
 /// ceil(1.05 × 8,667,373 measured) on Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost.
-const WORST_CASE_CALL: u128 = 9100742;
+/// Raised again to ceil(1.05 × 9,190,003 measured) by WPN-01 (D-310): the build's checks in a
+/// second `FlattenLibrary` call (+136,410, the coordinator's option A) and the loadout's weapon
+/// and bar kinds (8,753,783 measured after the move out of Hub, before the mechanism).
+const WORST_CASE_CALL: u128 = 9649504;
 
 // The worst case of ENG-01 §9.3 and §10: 8 skills (an elite in slot 3), every attribute point of
 // a level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
@@ -676,8 +682,8 @@ fn test_bar_duplicate_refused() {
 
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
-// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 88105360)] // ceil(1.05 × 83909866 measured)
+// gas: raised, WPN-01: set_build's second FlattenLibrary call and the bar's kinds read (D-310)
+#[available_gas(l2_gas: 92608462)] // ceil(1.05 × 88198535 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -711,8 +717,8 @@ fn test_bar_profession() {
 
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
-// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 87953884)] // ceil(1.05 × 83765603 measured)
+// gas: raised, WPN-01: set_build's second FlattenLibrary call and the bar's kinds read (D-310)
+#[available_gas(l2_gas: 93643450)] // ceil(1.05 × 89184238 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -1447,4 +1453,179 @@ fn test_delete_adventurer_forfeits_the_purse() {
     set_gold(world, none, 1);
     refused(try_delete(world, none), PACK_HOLDS_GOLD);
     assert(gold_of(world, none) == 1, 'kept on a refusal');
+}
+
+// ---- The kit's weapon (WPN-01, D-309, D-310): created by `create_item`, worn by `set_build`,
+// forfeited at deletion
+// --------------------------------------------------------------------------------------
+
+/// Skills 12 to 16: the Vanguard's Axes attacks (attribute 3) and the Warden's Archery attacks
+/// (attribute 7), as the seed's starter attacks are (Cleave, Gash, Haft Blow; Aimed Shot,
+/// Hamstring Shot); the fixtures' skills 1 to 11 name attribute 1. The bases: 1 design/15's axe,
+/// 2 its bow (`BASE`, written after the skills).
+const AXES_ATTACKS: [u16; 3] = [12, 13, 14];
+const ARCHERY_ATTACKS: [u16; 2] = [15, 16];
+fn axe_base() -> Base {
+    BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 3)
+}
+fn bow_base() -> Base {
+    BaseTrait::weapon(2, weapon::BOW, 11, 21, 2, 6, damage::PIERCING, 7)
+}
+
+fn weapon_kits(world: World) {
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
+    let none = [Default::default(); 3];
+    for attribute in array![3_u8, 3, 3, 7, 7] {
+        let profession = if attribute == 3 {
+            VANGUARD
+        } else {
+            WARDEN
+        };
+        let attack = SkillTrait::new(
+            profession, attribute, skill_kind::ATTACK, 5, 0, 1, 8, 1, 1, false, none,
+        );
+        admin.set_record(SKILL, admin.last_id(SKILL).try_into().unwrap() + 1, attack.pack());
+    }
+    admin.set_record(BASE, 1, axe_base().pack());
+    admin.set_record(BASE, 2, bow_base().pack());
+    admin.set_record(KIT, VANGUARD.into(), KitTrait::new(1, [12, 13, 14, 1, 0, 0]).pack());
+    admin.set_record(KIT, WARDEN.into(), KitTrait::new(2, [15, 16, 10, 0, 0, 0]).pack());
+    admin.set_record(KIT, ARCANIST.into(), KitTrait::new(0, [11, 0, 0, 0, 0, 0]).pack());
+}
+
+fn pack_key(id: u32, page: u8) -> felt252 {
+    map_entry_address(selector!("packs"), array![id.into(), page.into()].span())
+}
+fn item_key(entity: u32) -> felt252 {
+    map_entry_address(selector!("items"), array![entity.into()].span())
+}
+/// The entity in lane 0 of `id`'s pack list, 0 for none.
+fn first_entity(world: World, id: u32) -> u32 {
+    let page = read(world.hub, pack_key(id, 0));
+    if page == 0 {
+        return 0;
+    }
+    let lanes: Lanes32 = StorePacking::unpack(page);
+    *lanes.lanes.span()[0]
+}
+fn item_base_of(world: World, entity: u32) -> ItemBase {
+    StorePacking::unpack(read(world.hub, item_key(entity)))
+}
+/// Skills 1 to 16 known.
+fn know_all(world: World, id: u32) {
+    write(world.hub, known_key(id), 0x1fffe + LIVE);
+}
+
+// Each profession's new adventurer holds its kit's weapon, a common item at requirement 0 of its
+// base, the base's weapon copied (D-158), created by `create_item` in lane 0 of its pack; the
+// Arcanist's kit names none, and nothing is created.
+#[test]
+#[available_gas(l2_gas: 92070080)] // ceil(1.05 × 87685790 measured)
+fn test_create_adventurer_kit_weapon() {
+    let world = setup();
+    weapon_kits(world);
+    let vanguard = created(world, VANGUARD, true);
+    let warden = created(world, WARDEN, false);
+    let arcanist = created(world, ARCANIST, false);
+    let axe = first_entity(world, vanguard);
+    let bow = first_entity(world, warden);
+    assert(axe == 1 && bow == 2, 'entities 1 and 2, in order');
+    let expected = ItemBaseTrait::new(1, @axe_base(), 0, COMMON, 0, 0, 0, 0, PACK, vanguard);
+    assert(item_base_of(world, axe) == expected, 'the axe');
+    assert(item_base_of(world, axe).weapon().damage == 9, 'its damage at 0');
+    let expected = ItemBaseTrait::new(2, @bow_base(), 0, COMMON, 0, 0, 0, 0, PACK, warden);
+    assert(item_base_of(world, bow) == expected, 'the bow');
+    assert(first_entity(world, arcanist) == 0, 'no weapon');
+    assert(read(world.hub, item_key(3)) == 0, 'no third item');
+}
+
+// The kit is content: the Vanguard's record rewritten to name the bow gives the next Vanguard a
+// bow, with no code change; one created before keeps its axe.
+#[test]
+#[available_gas(l2_gas: 88309799)] // ceil(1.05 × 84104570 measured)
+fn test_create_adventurer_kit_weapon_is_content() {
+    let world = setup();
+    weapon_kits(world);
+    let before = created(world, VANGUARD, true);
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    IRegistryAdminDispatcher { contract_address: world.registry }
+        .set_record(KIT, VANGUARD.into(), KitTrait::new(2, [12, 0, 0, 0, 0, 0]).pack());
+    let after = created(world, VANGUARD, false);
+    assert(item_base_of(world, first_entity(world, before)).base == 1, 'kept its axe');
+    assert(item_base_of(world, first_entity(world, after)).base == 2, 'a bow now');
+}
+
+// `set_build` wearing the kit's weapon fills the snapshot's weapon (its base's, at requirement 0,
+// met) and sets CBT-05f's weapon-required bit on every attack skill of another attribute: the
+// Vanguard's three Axes attacks pass with the axe, the fixtures' attack (skill 1, attribute 1)
+// does not; without a weapon every attack is bound. The Warden's Archery attacks likewise.
+#[test]
+#[available_gas(l2_gas: 101511335)] // ceil(1.05 × 96677461 measured)
+fn test_set_build_wears_the_kit_weapon() {
+    let world = setup();
+    weapon_kits(world);
+    let vanguard = created(world, VANGUARD, true);
+    know_all(world, vanguard);
+    let axe = first_entity(world, vanguard);
+    set(world, vanguard, bar([12, 13, 14, 1, 0, 0, 0, 0]), 0, equipped([axe, 0, 0, 0, 0, 0, 0]));
+    let (stats, _, _) = stored_snapshot(world, vanguard);
+    let stats = MemberStatsTrait::unpack(stats);
+    assert(stats.weapon == weapon::AXE && stats.weapon_damage == 9, 'axe, 9');
+    assert(stats.weapon_ticks == 1 && stats.weapon_range == 1, 'one tick, range 1');
+    assert(stats.damage_type == damage::SLASHING && stats.requirement_met == 1, 'slashing, met');
+    assert(stats.weapon_required == 0b1000, 'only skill 1 bound');
+    set(world, vanguard, bar([12, 13, 14, 1, 0, 0, 0, 0]), 0, 0);
+    let (stats, _, _) = stored_snapshot(world, vanguard);
+    let stats = MemberStatsTrait::unpack(stats);
+    assert(stats.weapon == 0 && stats.weapon_damage == 0, 'no weapon');
+    assert(stats.weapon_required == 0b1111, 'every attack bound');
+
+    let warden = created(world, WARDEN, false);
+    know_all(world, warden);
+    let bow = first_entity(world, warden);
+    set(world, warden, bar([15, 16, 10, 0, 0, 0, 0, 0]), 0, equipped([bow, 0, 0, 0, 0, 0, 0]));
+    let (stats, _, _) = stored_snapshot(world, warden);
+    let stats = MemberStatsTrait::unpack(stats);
+    assert(stats.weapon == weapon::BOW && stats.weapon_damage == 11, 'bow, 11');
+    assert(stats.weapon_ticks == 2 && stats.weapon_range == 6, 'two ticks, range 6');
+    assert(stats.damage_type == damage::PIERCING, 'piercing');
+    assert(stats.weapon_required == 0b100, 'only skill 10 bound');
+}
+
+// D-310: the kit's weapon is forfeited at deletion with the purse, worn or not: the pack's list
+// and what it wears are emptied, the item kept, held by nobody. Another item beside it, or an
+// item of another base alone, is still refused.
+#[test]
+#[available_gas(l2_gas: 109067783)] // ceil(1.05 × 103874079 measured)
+fn test_delete_adventurer_forfeits_the_kit_weapon() {
+    let world = setup();
+    weapon_kits(world);
+    let held = created(world, VANGUARD, true);
+    let axe = first_entity(world, held);
+    accepted(try_delete(world, held));
+    assert(first_entity(world, held) == 0 && gold_of(world, held) == 0, 'pack emptied');
+    let item = item_base_of(world, axe);
+    assert(item.owner_kind == 0 && item.owner == 0 && item.base == 1, 'held by nobody');
+
+    let worn = created(world, VANGUARD, false);
+    know_all(world, worn);
+    let axe = first_entity(world, worn);
+    set(world, worn, bar([12, 0, 0, 0, 0, 0, 0, 0]), 0, equipped([axe, 0, 0, 0, 0, 0, 0]));
+    accepted(try_delete(world, worn));
+    let equipped_word = read(world.hub, adventurer_word(worn, 4));
+    assert(equipped_word == LIVE && first_entity(world, worn) == 0, 'unworn, emptied');
+
+    let more = created(world, VANGUARD, false);
+    let page = StorePacking::pack(
+        Lanes32 { lanes: [first_entity(world, more), 101, 0, 0, 0, 0, 0] },
+    );
+    write(world.hub, pack_key(more, 0), page);
+    refused(try_delete(world, more), PACK_HOLDS_EQUIPMENT);
+
+    let other = created(world, VANGUARD, false);
+    put_item(world, 120, 2, 0, 0, PACK, other);
+    let page = StorePacking::pack(Lanes32 { lanes: [120, 0, 0, 0, 0, 0, 0] });
+    write(world.hub, pack_key(other, 0), page);
+    refused(try_delete(world, other), PACK_HOLDS_EQUIPMENT);
 }

@@ -116,10 +116,11 @@ BASE, KIT = 12, 29  # CNT-01 (D-309)
 
 
 def base_record(row):
-    """`BaseRecord::pack`: the slot, then the hands, in part 0 (the prefix `BASE` lays out, D-158);
+    """`BaseRecord::pack`: the slot, the hands (D-158), then a weapon's class, damage at requirement
+    0 and at 9, ticks, range, damage type and attribute (WPN-01), 8 bits each from bit 0 of part 0;
     part 1 is `LIVE` only."""
-    _, slot, hands = row
-    return [slot + (hands << 8) + LIVE, LIVE]
+    _, *fields = row
+    return [sum(f << (8 * i) for i, f in enumerate(fields)) + LIVE, LIVE]
 
 
 def kit_record(row):
@@ -154,6 +155,6 @@ def gate_zone_and_kits():
             _, source, destination, ac, at, ec, et, gate_kind, _, _ = row
             records.append((GATE, row[0], gate(source, destination, (ac, at), (ec, et), gate_kind)))
     records += [(QUOTAS, r[0], quotas_record(r)) for r in seed_rows("quotas", 19) if r[0] == GATE_ZONE]
-    records += [(BASE, r[0], base_record(r)) for r in seed_rows("bases", 3)]
+    records += [(BASE, r[0], base_record(r)) for r in seed_rows("bases", 10)]
     records += [(KIT, r[0], kit_record(r)) for r in seed_rows("kits", 8)]
     return records

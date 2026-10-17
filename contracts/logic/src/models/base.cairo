@@ -271,6 +271,8 @@ mod tests {
     }
 
     #[test]
+    // gas: raised, WPN-01: the weapon's statistics packed, decoded and checked
+    #[available_gas(l2_gas: 346437)] // ceil(1.05 × 329940 measured)
     fn test_base_round_trip() {
         let maul = BaseTrait::weapon(2, weapon::MAUL, 13, 27, 2, 1, damage::BLUNT, 4);
         assert(Record::unpack(maul.pack()) == maul, 'round trip');
@@ -305,6 +307,7 @@ mod tests {
     // design/15: the damage grows from requirement 0 to 9, rounded down, and stops at 9; the
     // other statistics are the base's.
     #[test]
+    #[available_gas(l2_gas: 1644983)] // ceil(1.05 × 1566650 measured)
     fn test_base_weapon_at_requirement() {
         let at_0 = Weapon {
             class: weapon::AXE,
@@ -340,72 +343,84 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: slot')]
     fn test_base_slot_refused() {
         BaseTrait::new(slot::LAST + 1, 0).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: slot')]
     fn test_base_no_slot_refused() {
         BaseTrait::new(0, 0).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: hands')]
     fn test_base_weapon_hands_refused() {
         BaseTrait::weapon(3, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 3).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: hands')]
     fn test_base_armor_hands_refused() {
         BaseTrait::new(slot::OFF_HAND, 1).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: weapon class')]
     fn test_base_weapon_class_refused() {
         BaseTrait::weapon(1, weapon::LAST + 1, 9, 17, 1, 1, damage::SLASHING, 3).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: weapon class')]
     fn test_base_weapon_without_class_refused() {
         BaseTrait::new(slot::WEAPON, 1).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: weapon damage')]
     fn test_base_weapon_damage_falling_refused() {
         BaseTrait::weapon(1, weapon::AXE, 17, 9, 1, 1, damage::SLASHING, 3).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: weapon damage')]
     fn test_base_weapon_damage_above_27_refused() {
         BaseTrait::weapon(2, weapon::MAUL, 13, 28, 2, 1, damage::BLUNT, 4).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: weapon ticks')]
     fn test_base_weapon_ticks_refused() {
         BaseTrait::weapon(1, weapon::AXE, 9, 17, 0, 1, damage::SLASHING, 3).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: damage type')]
     fn test_base_weapon_damage_type_refused() {
         BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::LAST + 1, 3).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: weapon attribute')]
     fn test_base_weapon_attribute_refused() {
         BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 0).pack();
     }
 
     #[test]
+    #[available_gas(l2_gas: 7256)] // ceil(1.05 × 6910 measured)
     #[should_panic(expected: 'base: stats off a weapon')]
     fn test_base_armor_stats_refused() {
         Base { class: weapon::SWORD, ..BaseTrait::new(slot::CHEST, 0) }.pack();

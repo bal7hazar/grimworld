@@ -535,7 +535,7 @@ mod tests {
     use grimworld_logic::helpers::packing::LIVE;
     use grimworld_logic::models::base::{BaseRecord, BaseTrait, Weapon, WeaponTrait, slot};
     use grimworld_logic::types::combat::{damage, weapon};
-    use grimworld_logic::types::content::{MODIFIER, Record};
+    use grimworld_logic::types::content::MODIFIER;
     use starknet::storage_access::StorePacking;
     use super::super::account::PACK;
     use super::super::lanes::{StoredLanes, StoredLanesTrait};
@@ -615,7 +615,8 @@ mod tests {
     // CBT-08a, D-158: `ItemBase.slot` at bit 120 and `hands` at 124, 4 bits each, copied from the
     // `BASE` record by the constructor every creator of an item calls.
     #[test]
-    #[available_gas(l2_gas: 181094)] // ceil(1.05 × 172470 measured)
+    // gas: raised, WPN-01: ItemBase holds its weapon at bits 128-175
+    #[available_gas(l2_gas: 248220)] // ceil(1.05 × 236400 measured)
     fn test_item_slot_and_hands() {
         let one = ItemBase { slot: 1, ..Default::default() };
         assert(
@@ -656,6 +657,7 @@ mod tests {
     // WPN-01: `ItemBase.weapon` at bits 128-175, its base's weapon at the item's requirement
     // (design/15's axe: 9 at requirement 0, 17 at 9; 12 at 4), 8 bits a field from bit 128.
     #[test]
+    #[available_gas(l2_gas: 584703)] // ceil(1.05 × 556860 measured)
     fn test_item_weapon() {
         let axe = BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 3);
         let at_0 = ItemBaseTrait::new(1, @axe, 0, 0, 0, 0, 0, 0, PACK, 5);
@@ -702,6 +704,7 @@ mod tests {
 
     // The pack's list: its first free lane, the entity it holds alone.
     #[test]
+    #[available_gas(l2_gas: 144512)] // ceil(1.05 × 137630 measured)
     fn test_pack_list() {
         let none = StoredLanes { word: 0 };
         assert(PackListTrait::free_lane(@none) == Option::Some(0), 'never written');
@@ -738,7 +741,8 @@ mod tests {
     // The items worn as `set_build` reads them: lanes and bases in lane order, the distinct
     // modifiers in the order met, the weapon's personalisation.
     #[test]
-    #[available_gas(l2_gas: 150829)] // ceil(1.05 × 143646 measured)
+    // gas: raised, WPN-01: ItemBase holds its weapon at bits 128-175
+    #[available_gas(l2_gas: 179914)] // ceil(1.05 × 171346 measured)
     fn test_equipment() {
         let none = Modifier { id: 0, value: 0 };
         let weapon = Item {

@@ -1,5 +1,7 @@
 // CBT-02e (D-168): the snapshot's flattening as a library class. `FlattenLibrary.words` through a
-// `library_call` is `SnapshotBuildTrait::words`, whose unit tests are in `models/build.cairo`;
+// `library_call` is `BuildTrait::words` (WPN-01: the bar's and the belt's checks against their
+// parts, the loadout, then `SnapshotBuildTrait::words`, whose unit tests are in
+// `models/build.cairo`);
 // here, what needs the declared class: the call's result and its cost on the widest equipment
 // design/20 §1.2 counts (the benchmark of `Hub.set_build`'s flattening, D-158 (c)), and design/20
 // §6 test 2's extremal builds as far as items and a loadout hold them (fix loop 1): the library's
@@ -7,17 +9,21 @@
 // is said at each test.
 use core::testing::get_available_gas;
 use grimworld_logic::interface::{IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher};
-use grimworld_logic::models::base::slot as base_slot;
+use grimworld_logic::models::base::{Weapon, WeaponTrait, slot as base_slot};
 use grimworld_logic::models::build::SnapshotBuildTrait;
 use grimworld_logic::models::index::Modifier;
+use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
 use grimworld_logic::models::loadout::Loadout;
 use grimworld_logic::models::member_kit::MemberKitTrait;
 use grimworld_logic::models::member_stats::MemberStatsTrait;
 use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
+use grimworld_logic::models::sent_build::{Build, BuildTrait};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::worn::Worn;
-use grimworld_logic::types::combat::damage;
+use grimworld_logic::types::combat::{damage, skill_kind, weapon};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id};
 use snforge_std::{DeclareResultTrait, declare};
+use starknet::storage_access::StorePacking;
 
 #[generate_trait]
 impl FixtureImpl of Fixture {
@@ -168,27 +174,167 @@ impl FixtureImpl of Fixture {
         }
     }
 
-    /// The library's words of the build, checked equal to the direct flattening's.
+    /// What `Hub.set_build` sends the library for `loadout` (WPN-01): the build word of its bar
+    /// and elite slot, each bar skill as its two `SKILL` parts (of the loadout's profession, its
+    /// attribute and attack slot, the elite in its slot) and known, a potion's part for each
+    /// distinct belt item, then the modifiers' `records`; its weapon packed, at requirement 0 when
+    /// the loadout meets it, else 1. What the loadout holds that `set_build` cannot send (attribute
+    /// points, a rating, a strength cap, set bonuses) is not sent.
+    fn sent(loadout: @Loadout, records: Span<felt252>) -> Sent {
+        let build = Build { bar: *loadout.skills, attributes: 0, elite_slot: *loadout.elite_slot };
+        let mut parts: Array<felt252> = array![];
+        let mut known: Array<bool> = array![];
+        let mut slot: u8 = 0;
+        let mut attacks: u8 = *loadout.bar_attacks;
+        for skill in loadout.skills.span() {
+            if *skill != 0 {
+                let kind = if attacks % 2 == 1 {
+                    skill_kind::ATTACK
+                } else {
+                    skill_kind::SKILL
+                };
+                let record = SkillTrait::new(
+                    *loadout.profession,
+                    *loadout.bar_attributes.span()[slot.into()],
+                    kind,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    slot == *loadout.elite_slot,
+                    [Default::default(); 3],
+                )
+                    .pack();
+                parts.append(*record[0]);
+                parts.append(*record[1]);
+                known.append(true);
+            }
+            attacks /= 2;
+            slot += 1;
+        }
+        let mut potions: u32 = 0;
+        let belt = loadout.belt.span();
+        for i in 0..4_u32 {
+            let item = *belt[i];
+            let mut first = item != 0;
+            for j in 0..i {
+                if *belt[j] == item {
+                    first = false;
+                }
+            }
+            if first {
+                let potion = ItemTrait::new(class::POTION, 1, 0, 1, 0, Default::default(), 0, 0);
+                parts.append(*potion.pack()[0]);
+                potions += 1;
+            }
+        }
+        for record in records {
+            parts.append(*record);
+        }
+        let weapon = Weapon {
+            class: *loadout.weapon,
+            damage: *loadout.weapon_damage,
+            ticks: *loadout.weapon_ticks,
+            range: *loadout.weapon_range,
+            damage_type: *loadout.damage_type,
+            attribute: *loadout.weapon_attribute,
+        };
+        Sent {
+            build,
+            known: known.span(),
+            parts: parts.span(),
+            level: *loadout.level,
+            profession: *loadout.profession,
+            potions,
+            weapon: weapon.pack(),
+            requirement: if *loadout.requirement_met == 1 {
+                0
+            } else {
+                1
+            },
+            personalised: *loadout.personalised,
+            belt: *loadout.belt,
+            counts: *loadout.belt_counts,
+        }
+    }
+
+    /// The library's words of what `sent` sends, the items `worn` holding the modifiers `ids`.
+    fn call(
+        library: IFlattenLibraryLibraryDispatcher, sent: @Sent, worn: Span<Worn>, ids: Span<u16>,
+    ) -> (felt252, felt252, felt252) {
+        library
+            .words(
+                StorePacking::pack(*sent.build),
+                *sent.known,
+                *sent.parts,
+                *sent.level,
+                *sent.profession,
+                0,
+                *sent.potions,
+                *sent.weapon,
+                *sent.requirement,
+                *sent.personalised,
+                *sent.belt,
+                *sent.counts,
+                worn,
+                ids,
+            )
+    }
+
+    /// The library's words of the build, checked equal to the direct flattening of the loadout
+    /// it builds from what it was sent (`BuildTrait::words`).
     fn through_the_library(
         loadout: Loadout, worn: Span<Worn>, ids: Span<u16>, records: Span<felt252>,
     ) -> (felt252, felt252, felt252) {
         let class = declare("FlattenLibrary").unwrap().contract_class();
         let library = IFlattenLibraryLibraryDispatcher { class_hash: *class.class_hash };
-        let words = library.words(loadout, worn, ids, records);
-        assert(words == SnapshotBuildTrait::words(@loadout, worn, ids, records), 'the flattening');
+        let sent = Self::sent(@loadout, records);
+        let words = Self::call(library, @sent, worn, ids);
+        let built = sent
+            .build
+            .loadout(
+                sent.level,
+                sent.profession,
+                sent.build.bar_kinds(sent.parts),
+                WeaponTrait::unpack(sent.weapon),
+                sent.requirement,
+                sent.personalised,
+                sent.belt,
+                sent.counts,
+            );
+        assert(words == SnapshotBuildTrait::words(@built, worn, ids, records), 'the flattening');
         words
     }
 }
 
+/// What `Hub.set_build` sends `FlattenLibrary.words` (`Fixture::sent`).
+#[derive(Drop)]
+struct Sent {
+    build: Build,
+    known: Span<bool>,
+    parts: Span<felt252>,
+    level: u8,
+    profession: u8,
+    potions: u32,
+    weapon: u128,
+    requirement: u8,
+    personalised: bool,
+    belt: [u32; 4],
+    counts: [u8; 4],
+}
+
 // The library's words are the flattening's (D-168: `set_build` stores them, `enter` copies them).
 #[test]
-#[available_gas(l2_gas: 7554022)] // ceil(1.05 × 7194306 measured)
+// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the loadout (D-310)
+#[available_gas(l2_gas: 16494003)] // ceil(1.05 × 15708574 measured)
 fn test_library_words_are_the_flattening() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
     let library = IFlattenLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (loadout, worn, ids, records) = Fixture::widest();
-    let words = library.words(loadout, worn, ids, records);
-    assert(words == SnapshotBuildTrait::words(@loadout, worn, ids, records), 'the flattening');
+    let words = Fixture::through_the_library(loadout, worn, ids, records);
+    assert(words == Fixture::call(library, @Fixture::sent(@loadout, records), worn, ids), 'again');
     let (stats, _, kit) = words;
     // Life steal 5 on five items; fire 7 on ten, less nothing; cold 7 × 15 against the heavy
     // class's 0, saturated at 0 below.
@@ -199,13 +345,15 @@ fn test_library_words_are_the_flattening() {
 // Cost: the library call of the widest equipment, the call alone (`get_available_gas` around it),
 // the benchmark of `set_build`'s flattening.
 #[test]
-#[available_gas(l2_gas: 4631937)] // ceil(1.05 × 4411368 measured)
+// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the loadout (D-310)
+#[available_gas(l2_gas: 7293214)] // ceil(1.05 × 6945918 measured)
 fn test_cost_library_call_widest() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
     let library = IFlattenLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (loadout, worn, ids, records) = Fixture::widest();
+    let sent = Fixture::sent(@loadout, records);
     let before = get_available_gas();
-    let (stats, _, _) = library.words(loadout, worn, ids, records);
+    let (stats, _, _) = Fixture::call(library, @sent, worn, ids);
     let used = before - get_available_gas();
     println!("flatten library call, widest: {}", used);
     assert(stats != 0, 'words');
@@ -213,13 +361,15 @@ fn test_cost_library_call_widest() {
 
 // Cost: the library call of a build without equipment (the fixed part).
 #[test]
-#[available_gas(l2_gas: 2065900)] // ceil(1.05 × 1967523 measured)
+// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the loadout (D-310)
+#[available_gas(l2_gas: 4677523)] // ceil(1.05 × 4454783 measured)
 fn test_cost_library_call_empty() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
     let library = IFlattenLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (loadout, _, _, _) = Fixture::widest();
+    let sent = Fixture::sent(@loadout, array![].span());
     let before = get_available_gas();
-    let (stats, _, _) = library.words(loadout, array![].span(), array![].span(), array![].span());
+    let (stats, _, _) = Fixture::call(library, @sent, array![].span(), array![].span());
     let used = before - get_available_gas();
     println!("flatten library call, empty: {}", used);
     assert(stats != 0, 'words');
@@ -235,7 +385,8 @@ const PRIMARY: u8 = 13;
 // 250 = 920. design/20's 1,020 adds two +50 set bonuses, which no item holds: armor sets are not
 // laid out in the loadout (`set_bonuses` 0, `BuildTrait::loadout`).
 #[test]
-#[available_gas(l2_gas: 6732512)] // ceil(1.05 × 6411916 measured)
+// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the loadout (D-310)
+#[available_gas(l2_gas: 7299995)] // ceil(1.05 × 6952376 measured)
 fn test_extremal_max_health_through_the_library() {
     let none: Passive = Default::default();
     let mut records = Fixture::held_records(PassiveTrait::new(id::MAX_HEALTH, 0, 0, 0, 1, 30));
@@ -273,10 +424,11 @@ fn test_extremal_max_health_through_the_library() {
 
 // Max energy: an Arcanist at level 20 at Wellspring 15 (12 points and a +3 rune: DS-8) in light
 // armor, the five held slots at +5: 30 + 45 + 20 + 25 = 120. design/20's 130 adds two +5 set
-// bonuses, which no item holds (as above).
+// bonuses, which no item holds (as above). Flattened directly: no input of `set_build` carries
+// attribute points yet (D-157 A), so the library is never sent them.
 #[test]
 #[available_gas(l2_gas: 3459547)] // ceil(1.05 × 3294806 measured)
-fn test_extremal_max_energy_through_the_library() {
+fn test_extremal_max_energy_flattened() {
     let none: Passive = Default::default();
     let mut records = Fixture::held_records(PassiveTrait::new(id::MAX_ENERGY, 0, 0, 0, 1, 5));
     let attribute = PassiveTrait::new(id::ATTRIBUTE, PRIMARY, 0, 0, 1, 3);
@@ -288,20 +440,24 @@ fn test_extremal_max_energy_through_the_library() {
             Worn { lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 0, 6], values: [0, 0, 0, 0, 3] },
         );
     let loadout = Loadout { points: array![(PRIMARY, 12)].span(), ..Fixture::bare(20, 3) };
-    let (stats, _, _) = Fixture::through_the_library(loadout, worn.span(), ids, parts);
+    let (stats, _, _) = SnapshotBuildTrait::words(@loadout, worn.span(), ids, parts);
     let stats = MemberStatsTrait::unpack(stats);
     assert(stats.max_energy == 120, 'max energy 120');
     assert(stats.primary_rank == 15, 'Wellspring 15');
 }
 
 // Weapon damage 32 (DS-4): a personalised maul at requirement 9, base damage 27: 27 × 1.2 rounded
-// down. The loadout carries it; `set_build` cannot yet, since `BASE` lays out no weapon statistics
-// (D-158): its loadout's weapon damage is 0.
+// down, its requirement met. `set_build` sends it as the worn item's weapon (WPN-01, D-158).
 #[test]
-#[available_gas(l2_gas: 1531190)] // ceil(1.05 × 1458276 measured)
+// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the loadout (D-310)
+#[available_gas(l2_gas: 2055046)] // ceil(1.05 × 1957186 measured)
 fn test_extremal_weapon_damage_through_the_library() {
     let loadout = Loadout {
-        weapon_damage: 27, requirement_met: 1, personalised: true, ..Fixture::bare(20, 1),
+        weapon: weapon::MAUL,
+        weapon_damage: 27,
+        requirement_met: 1,
+        personalised: true,
+        ..Fixture::bare(20, 1),
     };
     let (stats, _, _) = Fixture::through_the_library(
         loadout, array![].span(), array![].span(), array![].span(),
@@ -312,10 +468,10 @@ fn test_extremal_weapon_damage_through_the_library() {
 // Ranks 15 (DS-8): 12 points and a +3 rune, on the primary and on every bar skill's attribute:
 // every 4-bit rank of `MemberStats.ranks` at 15. `set_build` cannot yet: `Build.attributes` holds
 // build-local indices and the global ids runes name are not numbered (D-157 A), so its loadout
-// has no point.
+// has no point: flattened directly, as above.
 #[test]
 #[available_gas(l2_gas: 2135696)] // ceil(1.05 × 2033996 measured)
-fn test_extremal_ranks_through_the_library() {
+fn test_extremal_ranks_flattened() {
     let attribute = PassiveTrait::new(id::ATTRIBUTE, PRIMARY, 0, 0, 1, 3);
     let rune = ModifierTrait::new(modifier_slot::RUNE, attribute, Default::default());
     let (ids, parts) = Fixture::registry(array![rune].span());
@@ -325,7 +481,7 @@ fn test_extremal_ranks_through_the_library() {
     let loadout = Loadout {
         points: array![(PRIMARY, 12)].span(), bar_attributes: [PRIMARY; 8], ..Fixture::bare(20, 1),
     };
-    let (stats, _, _) = Fixture::through_the_library(loadout, worn.span(), ids, parts);
+    let (stats, _, _) = SnapshotBuildTrait::words(@loadout, worn.span(), ids, parts);
     let stats = MemberStatsTrait::unpack(stats);
     assert(stats.primary_rank == 15, 'primary 15');
     assert(stats.ranks == 0xffffffff, 'eight ranks of 15');
