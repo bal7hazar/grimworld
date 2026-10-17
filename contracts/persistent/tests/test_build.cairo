@@ -1660,3 +1660,33 @@ fn test_gas_create_adventurer_kit_weapon() {
         "gas create_adventurer initialised, a kit with its weapon: {}", gas - get_available_gas(),
     );
 }
+
+// D-157 A: no attribute point reaches the flattening yet, so a weapon worn at a requirement above 0
+// counts as unmet (design/15: rank ≥ requirement; every rank is 0 here). An axe at requirement 3
+// carries its damage at 3 (9 + 8 × 3 / 9, rounded down: 11), its requirement unmet; the kit's axe,
+// at 0, is met.
+#[test]
+#[available_gas(l2_gas: 90268635)] // ceil(1.05 × 85970128 measured)
+fn test_set_build_weapon_requirement_unmet() {
+    let world = setup();
+    weapon_kits(world);
+    let id = created(world, VANGUARD, true);
+    know_all(world, id);
+    let axe = ItemBaseTrait::new(1, @axe_base(), 3, COMMON, 0, 0, 0, 0, PACK, id);
+    write(world.hub, item_key(120), StorePacking::pack(axe));
+    set(world, id, bar([12, 0, 0, 0, 0, 0, 0, 0]), 0, equipped([120, 0, 0, 0, 0, 0, 0]));
+    let (stats, _, _) = stored_snapshot(world, id);
+    let stats = MemberStatsTrait::unpack(stats);
+    assert(stats.weapon == weapon::AXE && stats.weapon_damage == 11, 'axe at 3, 11');
+    assert(stats.requirement_met == 0, 'requirement 3 unmet');
+    assert(stats.weapon_required == 0, 'its axes attack not bound');
+    set(
+        world,
+        id,
+        bar([12, 0, 0, 0, 0, 0, 0, 0]),
+        0,
+        equipped([first_entity(world, id), 0, 0, 0, 0, 0, 0]),
+    );
+    let (stats, _, _) = stored_snapshot(world, id);
+    assert(MemberStatsTrait::unpack(stats).requirement_met == 1, 'requirement 0 met');
+}
