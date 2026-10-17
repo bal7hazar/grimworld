@@ -486,6 +486,15 @@ pub struct Candidates {
     pub sets: [felt252; 3],
 }
 
+/// `KIT`, 1 part (D-309): id = a profession's id (design/03, `types::profession`). low: the
+/// starter weapon's `BASE` 0–15 (0 for none) · its six starter skills, `SKILL` ids, `u16` each at
+/// 16, 32, 48, 64, 80, 96 (0 for none, packed from the first) · `LIVE`.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct Kit {
+    pub weapon: u16,
+    pub skills: [u16; 6],
+}
+
 /// The terrain of a revealed chunk (ENG-01 §3.2): walls of the 225 tiles (bit `15 row + column`,
 /// 1 = wall) and, for a dungeon chunk, its four edges (bits 225–228: 1 open, 0 border; West,
 /// East, South, North), decided at its reveal.

@@ -4,6 +4,9 @@
 //! Q-12 (the Arcanist or the Cleric in the MVP) changes which ids are accepted, never an id: the
 //! Cleric, 4th in the table, would take id 4.
 
+/// The professions of design/03's table (D-30): ids 1 to 6.
+pub const PROFESSIONS: u8 = 6;
+
 /// The MVP's professions (D-30), in design/03's order.
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub enum Profession {

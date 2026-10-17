@@ -50,12 +50,15 @@ pub const BRIDGE: u8 = 27;
 /// The candidate chunks of an authored zone's quotas (D-215 ruling 3): id `location × 2 + k`, part
 /// `j` quota `3 k + j`'s.
 pub const CANDIDATES: u8 = 28;
+/// A profession's creation kit (D-309): id = the profession's id; its starter weapon and the
+/// starter skills its purse is priced from.
+pub const KIT: u8 = 29;
 /// The last kind: kinds are 1 to `LAST_KIND`.
-pub const LAST_KIND: u8 = 28;
+pub const LAST_KIND: u8 = 29;
 
 /// Felts per record of each kind (index = kind; 0 is not a kind).
-pub const PARTS: [u8; 29] = [
-    0, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 3,
+pub const PARTS: [u8; 30] = [
+    0, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 3, 1,
 ];
 
 pub mod errors {
@@ -148,7 +151,8 @@ mod tests {
             KindTrait::parts(2) == 2
                 && KindTrait::parts(15) == 3
                 && KindTrait::parts(25) == 1
-                && KindTrait::parts(LAST_KIND) == 3,
+                && KindTrait::parts(28) == 3
+                && KindTrait::parts(LAST_KIND) == 1,
             'parts per kind',
         );
     }
