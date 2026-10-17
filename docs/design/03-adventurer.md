@@ -227,9 +227,14 @@ Rending Cut (Blades) and Skullring (Mauls) are trainers' skills (CNT-02). The se
 
 | Working name | Attribute | Kind | Cost | Effect |
 |---|---|---|---|---|
-| Ember Bolt | Fire | Spell | 5 / 1 / 2 | 15…60 fire damage |
+| Ember Bolt | Fire | Spell | 5 / 1 / 2 | 25…60 fire damage (NUM-01: 15 at rank 0 before) |
 | Cinder Ring | Fire | Spell | 15 / 2 / 12 | 20…80 fire damage to adjacent foes, Burning 1…3 ticks |
 | Rime Shard | Frost | Spell | 5 / 1 / 4 | 10…50 cold damage, target moves 1 tile per 2 ticks for 2…5 ticks |
 | Stone Skin | Stone | Enchantment | 10 / 1 / 20 | +armor for 8…20 ticks |
 | Static Lash | Storm | Spell | 10 / 1 / 6 | 10…60 lightning damage, 25% armor penetration |
 | Deep Draw | Wellspring | Glyph | 0 / 1 / 25 | Next spell costs 5…15 less energy |
+
+Ember Bolt's rank-0 damage is NUM-01's (D-311): with NUM-01's Runt and Slinger and the bolt at 15,
+a level-1 Arcanist, 50 energy and no weapon, runs out of energy before the gate pack falls (6 of 20
+sim fights won); at 25 a bolt does 18 to a Runt and 11 to a Slinger at level 1, and it wins 17 of 20
+(`docs/reports/NUM-01-gate-fight.md`). Rank 12 stays at 60.

@@ -286,12 +286,12 @@ CBT-01's ids (`combat::weapon`, `combat::damage`).
 |---|---|---|---|---|---|
 | tier (8) | 1 | 1 | 2 | 3 | 4 |
 | AI profile (8) | 1 `swarm` | 2 `kite` | 3 `flank` | 4 `support` | 5 `brute` |
-| health multiplier, % (16) | 50 | 40 | 50 | 60 | 100 |
+| health multiplier, % (16) | 25 | 20 | 50 | 60 | 100 |
 | health regeneration, pips (8, stored + 10) | 0 (10) | 0 (10) | 0 (10) | 0 (10) | 0 (10) |
 | armor (8) | 20 | 20 | 40 | 30 | 60 |
 | armor per type 1–9 (9 × 6) | 0 × 9 | 0, 0, 0, 30, 30, 30, 30, 0, 0 | 20, 20, 20, 0 × 6 | 0 × 9 | 20, 20, 20, 0 × 6 |
 | weapon class (4) | 2 axe | 4 bow | 1 sword | 5 staff | 3 maul |
-| weapon damage (16) | 17 | 21 | 18 | 16 | 27 |
+| weapon damage (16) | 17 | 11 | 18 | 16 | 27 |
 | damage type (4) | 1 slashing | 3 blunt | 1 slashing | 7 earth | 3 blunt |
 | weapon ticks (4) | 1 | 2 | 1 | 2 | 2 |
 | weapon range (4) | 1 | 6 | 1 | 6 | 1 |
@@ -306,6 +306,25 @@ CBT-01's ids (`combat::weapon`, `combat::damage`).
 Skill ids and loot table ids are content, which CNT-01 seeds. The names above are design/03's
 skills and §3's new ones. Every value lies inside §1.5's bounds under B. v0.1 had Skirmisher 70 and
 Hobgoblin 150; §2.4's recount with type armor lowered them.
+
+NUM-01 (D-311) bent the two tier-1 sheets so that each MVP profession at level 1, with its creation
+kit, wins the gate fight (`PACK` 5: 3 Runts, 2 Slingers; `scripts/gate2_sim.mjs`, report
+`docs/reports/NUM-01-gate-fight.md`). The chain applies no level curve to a goblin yet (DS-11), so
+these sheets are what a level-1 adventurer meets:
+- **Runt health 50 → 25 %, Slinger 40 → 20 %.** §2.1's "about 4 hits" assumed the sword at 18; the
+  Vanguard's kit holds the axe at its requirement-0 damage, 9 (D-309, `BASE` 1), which does 6 to a
+  Runt at level 1. At 25 and 20 health a Runt takes 5 axe hits and a Slinger 4, §2.1's count with
+  the weapon a level-1 adventurer holds.
+- **Slinger weapon damage 21 → 11.** §2.1 puts a weapon's damage at requirement 9; at level 1
+  that is the level-20 hit, and no curve scales it down. 11 is the bow's damage at requirement 0
+  (`BASE` 2), the low end of design/15's 11 → 21. The Runt's axe keeps 17: lowering it too is not
+  needed for 16 of 20 (it would raise the Warden from 17 to 19 and the Arcanist from 17 to 20), and
+  NUM-01 changed the fewest numbers.
+- Who meets them: the packs 1 (Rabble) and 2 (Raiders), through spawn table 1 (locations 2, 3
+  and 4); pack 5, the Heart of the gate zone (location 5); pack 3 (Warband) has one Slinger but no
+  spawn table names it. The Cairo test that pins them is `test_seed.cairo` (the Runt's health);
+  `contracts/tools/lifecycle_probe.py --fight on` fights spawn table 1's packs on a node, and track
+  CV's client tests read the seed.
 
 ### 2.3 Why each caste looks like this
 
@@ -352,7 +371,8 @@ The table is computed with integer arithmetic: `⌊base × table(x) / 2^16⌋` w
   attribute used.
 - Its sword does 18 with the requirement met (design/04), at strength 5 × rank, with no level cap
   (DS-9) and no personalisation.
-- Its Ember Bolt does `15 + 45 r / 12`, truncated, at strength 3 × level.
+- Its Ember Bolt does `25 + 35 r / 12`, truncated, at strength 3 × level (NUM-01; `15 + 45 r / 12`
+  before).
 - **The target's armor includes its type armor**: +20 against the slashing sword for the Skirmisher
   and the Hobgoblin, +30 against the fire bolt for the Slinger.
 - Goblins hit with their sheet's weapon damage, **flat**: the check does not apply DS-11's curve, and BAL-01 validates balance with it separately (D-160). They hit at strength 5 × caste rank. They hit a Vanguard
@@ -362,14 +382,17 @@ The table is computed with integer arithmetic: `⌊base × table(x) / 2^16⌋` w
 
 | Caste | Level (rank) | Health | Sword hits | Ember Bolts | Its hit on a Vanguard | The Vanguard lasts | Its hit on an Arcanist | The Arcanist lasts |
 |---|---|---:|---:|---:|---|---:|---|---:|
-| Runt | 1 (0) / 3 (4) / 6 (6) | 50 / 70 / 100 | 5 / 4 / 5 | 5 / 3 / 3 | 4 a tick | 25 / 35 / 50 | 8 a tick | 13 / 18 / 25 |
-| Slinger | 1 (0) / 3 (4) / 6 (6) | 40 / 56 / 80 | 4 / 4 / 4 | 7 / 4 / 4 | 5 per 2 ticks | 40 / 56 / 80 | 10 per 2 ticks | 20 / 28 / 40 |
+| Runt | 1 (0) / 3 (4) / 6 (6) | 25 / 35 / 50 | 3 / 2 / 3 | 2 / 2 / 2 | 4 a tick | 25 / 35 / 50 | 8 a tick | 13 / 18 / 25 |
+| Slinger | 1 (0) / 3 (4) / 6 (6) | 20 / 28 / 40 | 2 / 2 / 2 | 2 / 2 / 2 | 2 per 2 ticks | 100 / 140 / 200 | 5 per 2 ticks | 40 / 56 / 80 |
 | Skirmisher | 3 (4) / 6 (6) / 10 (8) | 70 / 100 / 140 | 8 / 10 / 12 | 5 / 4 / 4 | 5 a tick | 28 / 40 / 56 | 10 a tick | 14 / 20 / 28 |
 | Shaman | 6 (8) / 10 (9) / 14 (12) | 120 / 168 / 216 | 6 / 8 / 8 | 4 / 4 / 3 | 8 per 2 ticks | 50 / 70 / 90 | 12 per 2 ticks | 34 / 48 / 60 |
 | Hobgoblin | 10 (10) / 15 (12) / 20 (12) | 280 / 380 / 480 | 28 / 32 / 40 | 10 / 9 / 8 | 13 per 2 ticks | 44 / 60 / 74 | 27 per 2 ticks | 22 / 30 / 36 |
 
 What the table shows, for BAL-01:
-- The Slinger's +30 elemental makes a level-1 Arcanist need 7 bolts: the analogue's rule, visible.
+- The Slinger's +30 elemental halves the bolt's damage: the analogue's rule, visible (7 bolts at
+  level 1 before NUM-01, 2 since: its health halved and the bolt's rank-0 value raised).
+- The Runt and Slinger rows are NUM-01's (D-311, §2.2's note): the sword column counts design/04's
+  sword at 18, so it falls to 2–3 hits; the kit's axe at 9 takes 5 and 4.
 - Goblins' damage is flat in this check (not DS-11's curve), so "lasts" grows with the
   adventurer's health alone.
 - A pack multiplies the goblin columns.
