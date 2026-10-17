@@ -857,7 +857,7 @@ fn test_seed_written_and_read_back() {
 
     // design/20 §2.2's sheets.
     let runt = Record::<Caste>::unpack(at(CASTE, 1));
-    assert(runt.health == 50 && runt.weapon.class == weapon::AXE && runt.flee == 30, 'runt');
+    assert(runt.health == 25 && runt.weapon.class == weapon::AXE && runt.flee == 30, 'runt');
     let slinger = Record::<Caste>::unpack(at(CASTE, 2));
     assert(slinger.weapon.range == 6 && *slinger.armor_vs.span()[3] == 30, 'slinger');
     let skirmisher = Record::<Caste>::unpack(at(CASTE, 3));
