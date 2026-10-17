@@ -567,7 +567,7 @@ if OPTIONS.get("--play") == "on":
                record=False)
 
     def batch(actions):
-        """`actions::encode_batch`: the count at bits 0-3, action `i` (24 bits: kind 0-2, the
+        """`types::batch::BatchTrait::encode`: the count at bits 0-3, action `i` (24 bits: kind 0-2, the
         direction 3-5 for a Move) at `4 + 24 i` for `i` 0-4 and `128 + 24 (i - 5)` after."""
         word = len(actions)
         for i, direction in enumerate(actions):
@@ -693,7 +693,7 @@ if OPTIONS.get("--play") == "on":
         # and after shows the fight. Behind the option: the compared streams do not move.
         if OPTIONS.get("--fight") == "on":
             def batch_codes(codes):
-                """`batch` for action codes: 2 is a Wait (`actions::encode_action`)."""
+                """`batch` for action codes: 2 is a Wait (`types::batch::ActionCodeTrait::encode`)."""
                 word = len(codes)
                 for i, code in enumerate(codes):
                     word += code << (4 + 24 * i if i < 5 else 128 + 24 * (i - 5))

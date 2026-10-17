@@ -1437,7 +1437,7 @@ each content round (the batch's first area, and each area the batch moves to),
 `param`s**, FIX-02, D-266, each once) at most `MAX_READ` (32) a call. A round holds at most 27 trap
 skills (9 chunks of 3 objects). A trap skill the registry lacks refuses the batch (`Stop::Invalid`),
 as a goblin it cannot load does; a trap of `param` 0 asks for nothing and stays inert (the generated
-traps until GEN-TRAP, D-268).
+traps carry their spawn table's skill since GEN-TRAP, #522, D-304).
 
 **Results** (`IResults.report`, **one call per transaction** that has any): contributors (M-4),
 experience, gold, balances, equipment drops (unidentified `ItemBase`), task increments (only

@@ -9,7 +9,7 @@ Tiles are `15 row + column` in their chunk, chunks `15 cy + cx` in the location 
 LIVE = 1 << 250
 BOARD = (1 << 225) - 1
 
-# Kinds (`content.cairo`; 26-28 proposed by ENG-08).
+# Kinds (`types/content.cairo`; 26-28 proposed by ENG-08).
 LOCATION, OUTLINE, GATE, QUOTAS, PACK, SET_PIECE = 2, 3, 4, 5, 7, 24
 ZONE_CHUNK, BRIDGE, CANDIDATES = 26, 27, 28
 KIND_NAMES = {LOCATION: "LOCATION", OUTLINE: "OUTLINE", GATE: "GATE", QUOTAS: "QUOTAS",

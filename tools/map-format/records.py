@@ -11,7 +11,7 @@ Tiles are `15 row + column` in their chunk, chunks `15 cy + cx` in the location 
 LIVE = 1 << 250
 BOARD = (1 << 225) - 1
 
-# Kinds (`content.cairo`; 26-28 ENG-08's, built by ENG-09).
+# Kinds (`types/content.cairo`; 26-28 ENG-08's, built by ENG-09).
 LOCATION, OUTLINE, GATE, QUOTAS, PACK, SET_PIECE = 2, 3, 4, 5, 7, 24
 ZONE_CHUNK, BRIDGE, CANDIDATES = 26, 27, 28
 KIND_NAMES = {LOCATION: "LOCATION", OUTLINE: "OUTLINE", GATE: "GATE", QUOTAS: "QUOTAS",
@@ -30,7 +30,7 @@ AUTHORED_OBJECTS = {1, 3, 4, 6, 7}
 GATE_KINDS = {"hub": 1, "link": 2, "floor": 3, "rift": 4}
 GENERATED, AUTHORED = 0, 1
 MAX_DRAWS = 640
-MAX_PACK_SIZE = 5  # `types.cairo:75`: a pack is at most 5 goblins (E-3)
+MAX_PACK_SIZE = 5  # `constants.cairo:24`: a pack is at most 5 goblins (E-3)
 MIN_FLOOR = 6  # `models::location::MIN_FLOOR` (R-40, CM-9)
 
 
@@ -79,10 +79,10 @@ def assert_sizes(sizes):
 
 def assert_bounds(what, bounds):
     """A manifest pack's `[fewest, most]` (`pack_bounds`): exactly two whole numbers with
-    1 <= fewest <= most <= `MAX_PACK_SIZE` (5, `contracts/logic/src/types.cairo:75`). `Pack::bounds`
-    (`pack.cairo:35`) is the template's summed minimums and maximums, the most capped at 5 and the
-    fewest at the most; R-27 (`assert_heart`, `quotas.cairo:150`) refuses a 0 at either end and
-    R-42 (`assert_legal`, `pack.cairo:103`) a template whose fewest is 0 or above 5. A pair that
+    1 <= fewest <= most <= `MAX_PACK_SIZE` (5, `contracts/logic/src/constants.cairo:24`). `Pack::bounds`
+    (`models/pack.cairo:35`) is the template's summed minimums and maximums, the most capped at 5 and the
+    fewest at the most; R-27 (`assert_heart`, `models/quotas.cairo:150`) refuses a 0 at either end and
+    R-42 (`assert_legal`, `models/pack.cairo:103`) a template whose fewest is 0 or above 5. A pair that
     `bounds` cannot return would only skew the converter's R-27 verdict, so it is refused."""
     ok = (isinstance(bounds, list) and len(bounds) == 2
           and all(isinstance(v, int) and not isinstance(v, bool) for v in bounds)

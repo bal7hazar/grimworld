@@ -29,7 +29,7 @@
 | X-3 | Every effect is an integer function of the state and its parameters: no draw, no block data, no floating point. Every division truncates **toward zero**. **Arithmetic is signed where the quantity is signed** (a scaling difference `v12 − v0`, the damage exponent `strength − armor`, a sum of percents, a pip sum) and is then clamped only to a range this document states. **Saturating subtraction** (`a ⊖ b = a − min(a, b)`) is used only for quantities that cannot be negative: health, energy, adrenaline, charges, and a prospective health | D-40, ADR-0002, D-140 |
 | X-4 | **A rule never panics on a legal action** (D-140): every value is clamped or saturated to its field (§6); a counter never wraps (§5.12) | D-140 |
 | X-5 | Percent modifiers of one quantity are **summed, then applied once**, the result truncated | D-140 |
-| X-6 | Durations become deadlines on the instance clock (M-2), bounded by `grimworld_logic::durations` | D-02, ENG-01 §3.1 |
+| X-6 | Durations become deadlines on the instance clock (M-2), bounded by `grimworld_logic::helpers::duration` (`DurationTrait::effective_duration`) | D-02, ENG-01 §3.1 |
 | X-7 | Iteration is by lowest entity id, then lowest tile index (`x + 256 y`). **One exception: the actors of a carrier are taken in tile order** (§5.14) | COMMON §4, design/04 |
 
 **Words.** A **carrier** holds effects: a skill (`SKILL`, up to 3 entries), a potion (`ITEM`, 1
