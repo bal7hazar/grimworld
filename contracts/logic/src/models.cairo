@@ -38,6 +38,8 @@ pub mod pack;
 /// A location's quotas, `QUOTAS` (ENG-05).
 pub mod quotas;
 pub mod region;
+/// The build `Hub.set_build` receives: its word, its rules, the loadout it gives (WPN-01).
+pub mod sent_build;
 /// An authored chunk, `SET_PIECE` (ENG-05).
 pub mod set_piece;
 pub mod skill;

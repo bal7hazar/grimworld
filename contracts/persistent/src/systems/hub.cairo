@@ -455,17 +455,28 @@ pub mod Hub {
                 contract_address: self.get_registry(),
             }
                 .bundle(requests.span());
-            let at = value.assert_bar(parts, known.span(), primary, secondary);
-            let modifier_parts = BeltAssert::assert_potions(parts, at, potions);
 
-            // The snapshot's flattening, once, in `FlattenLibrary` (D-168), with every check of
+            // The bar and the belt against their parts, then the snapshot's flattening, once, in
+            // `FlattenLibrary` (D-168; out of `Hub` since WPN-01, D-310), with every check of
             // design/20's capacity proof (D-160): a build it refuses is refused here.
             let Equipment { bases: _, worn, modifiers, personalised } = equipment;
-            let loadout = value.loadout(level, primary, personalised, items, counts);
             let (stats, bar, kit) = IFlattenLibraryLibraryDispatcher {
                 class_hash: self.get_flatten(),
             }
-                .words(loadout, worn.span(), modifiers.span(), modifier_parts);
+                .words(
+                    value,
+                    known.span(),
+                    parts,
+                    level,
+                    primary,
+                    secondary,
+                    potions,
+                    personalised,
+                    items,
+                    counts,
+                    worn.span(),
+                    modifiers.span(),
+                );
 
             self.set_adventurer_build(adventurer_id, sent);
             let epoch = StoredSnapshotTrait::epoch(inputs, self.get_rules_epoch().value);
