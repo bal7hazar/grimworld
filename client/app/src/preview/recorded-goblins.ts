@@ -10,9 +10,9 @@
 import type { InvokeTrace } from "./trace";
 
 export const recordedPlayed: InvokeTrace = {
-  "type": "INVOKE",
-  "execute_invocation": {
-    "result": [
+  type: "INVOKE",
+  execute_invocation: {
+    result: [
       "0x2",
       "0x0",
       "0x28",
@@ -55,33 +55,31 @@ export const recordedPlayed: InvokeTrace = {
       "0x4000000000000000000000000000000000000000000000000000000000000ff",
       "0x3",
       "0x3",
-      "0x1"
+      "0x1",
     ],
-    "calls": [
+    calls: [
       {
-        "result": [],
-        "calls": [
+        result: [],
+        calls: [
           {
-            "result": [
-              "0x0"
-            ],
-            "calls": [
+            result: ["0x0"],
+            calls: [
               {
-                "result": [
+                result: [
                   "0x43",
                   "0x0",
                   "0x4",
                   "0x400000000000000000000000000690000000100000000030300030101000103",
                   "0x400000000000000000000000000000000000000000000000000000000000000",
                   "0x0",
-                  "0x400000000000000000000000000000000000000000000000000000005030001"
+                  "0x400000000000000000000000000000000000000000000000000000005030001",
                 ],
-                "calls": [],
-                "events": [],
-                "is_reverted": false
+                calls: [],
+                events: [],
+                is_reverted: false,
               },
               {
-                "result": [
+                result: [
                   "0x0",
                   "0x5",
                   "0x8",
@@ -123,27 +121,27 @@ export const recordedPlayed: InvokeTrace = {
                   "0x1",
                   "0x1",
                   "0x4",
-                  "0x0"
+                  "0x0",
                 ],
-                "calls": [
+                calls: [
                   {
-                    "result": [
+                    result: [
                       "0x43",
                       "0x0",
                       "0x2",
                       "0x40000000000000000000000000000000000041e000011100112140a00320101",
-                      "0x400000000000000000000000000000000000000000000000000000000000000"
+                      "0x400000000000000000000000000000000000000000000000000000000000000",
                     ],
-                    "calls": [],
-                    "events": [],
-                    "is_reverted": false
-                  }
+                    calls: [],
+                    events: [],
+                    is_reverted: false,
+                  },
                 ],
-                "events": [],
-                "is_reverted": false
+                events: [],
+                is_reverted: false,
               },
               {
-                "result": [
+                result: [
                   "0x1",
                   "0x1",
                   "0x400000000000000000000000000000000000000003c00640000070000000001",
@@ -210,11 +208,11 @@ export const recordedPlayed: InvokeTrace = {
                   "0x1",
                   "0x0",
                   "0x0",
-                  "0x0"
+                  "0x0",
                 ],
-                "calls": [
+                calls: [
                   {
-                    "result": [
+                    result: [
                       "0x1",
                       "0x1",
                       "0x400000000000000000000000000000000000000003c00640000070000000001",
@@ -273,43 +271,35 @@ export const recordedPlayed: InvokeTrace = {
                       "0x0",
                       "0x0",
                       "0x0",
-                      "0x0"
+                      "0x0",
                     ],
-                    "calls": [],
-                    "events": [],
-                    "is_reverted": false
-                  }
+                    calls: [],
+                    events: [],
+                    is_reverted: false,
+                  },
                 ],
-                "events": [],
-                "is_reverted": false
-              }
+                events: [],
+                is_reverted: false,
+              },
             ],
-            "events": [
+            events: [
               {
-                "order": 0,
-                "keys": [
+                order: 0,
+                keys: [
                   "0x26842a87b04dae550c97a6f2a1e36c2cb714a15a696322f03e3019023f9f1eb",
-                  "0x100000001"
+                  "0x100000001",
                 ],
-                "data": [
-                  "0x1",
-                  "0x0",
-                  "0x1",
-                  "0x0",
-                  "0x1",
-                  "0x1",
-                  "0x43"
-                ]
-              }
+                data: ["0x1", "0x0", "0x1", "0x0", "0x1", "0x1", "0x43"],
+              },
             ],
-            "is_reverted": false
-          }
+            is_reverted: false,
+          },
         ],
-        "events": [],
-        "is_reverted": false
+        events: [],
+        is_reverted: false,
       },
       {
-        "result": [
+        result: [
           "0x100000001",
           "0x400000000000000000169000000010001000002000000010000000100000001",
           "0x83a7a34c2adc2f5344537533d74c7d1af90cd51da8bd265992bb3a67f261ce",
@@ -349,11 +339,11 @@ export const recordedPlayed: InvokeTrace = {
           "0x4000000000000000000000000000000000000000000000000000000000000ff",
           "0x3",
           "0x3",
-          "0x1"
+          "0x1",
         ],
-        "calls": [
+        calls: [
           {
-            "result": [
+            result: [
               "0x0",
               "0x5",
               "0x8",
@@ -375,66 +365,67 @@ export const recordedPlayed: InvokeTrace = {
               "0xc",
               "0x1",
               "0x400000000000000000000000000000000000000000100010000003200000603",
-              "0x4000000000000000000000000000000000000000000000000000000000000ff"
+              "0x4000000000000000000000000000000000000000000000000000000000000ff",
             ],
-            "calls": [
+            calls: [
               {
-                "result": [
+                result: [
                   "0x43",
                   "0x0",
                   "0x1",
-                  "0x400000000000000000000000000000000000000000000000000000005030001"
+                  "0x400000000000000000000000000000000000000000000000000000005030001",
                 ],
-                "calls": [],
-                "events": [],
-                "is_reverted": false
+                calls: [],
+                events: [],
+                is_reverted: false,
               },
               {
-                "result": [
+                result: [
                   "0x43",
                   "0x0",
                   "0x2",
                   "0x40000000000000000000000000000000000041e000011100112140a00320101",
-                  "0x400000000000000000000000000000000000000000000000000000000000000"
+                  "0x400000000000000000000000000000000000000000000000000000000000000",
                 ],
-                "calls": [],
-                "events": [],
-                "is_reverted": false
-              }
+                calls: [],
+                events: [],
+                is_reverted: false,
+              },
             ],
-            "events": [],
-            "is_reverted": false
+            events: [],
+            is_reverted: false,
           },
           {
-            "result": [
+            result: [
               "0x2",
               "0x400000000000000000000000000690000000100000000030300030101000103",
-              "0x400000000000000000000000000000000000000000000000000000000000000"
+              "0x400000000000000000000000000000000000000000000000000000000000000",
             ],
-            "calls": [],
-            "events": [],
-            "is_reverted": false
-          }
+            calls: [],
+            events: [],
+            is_reverted: false,
+          },
         ],
-        "events": [],
-        "is_reverted": false
-      }
+        events: [],
+        is_reverted: false,
+      },
     ],
-    "events": [],
-    "is_reverted": false
-  }
+    events: [],
+    is_reverted: false,
+  },
 };
 
 export const recordedReverted: InvokeTrace = {
-  "type": "INVOKE",
-  "execute_invocation": {
-    "revert_reason": "Transaction execution has failed:\n0: Error in the called contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nExecution failed. Failure reason:\nError in contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nError in contract (contract address: 0x05259eb0352bcd0ce19e941f529480df07e86faa1c3e77308132e906a94acde4, class hash: 0x07ca128431ea8a54ccb164610a9dd38106d79a46a75c3e17fe7928708e4a2725, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\nError in contract (contract address: 0x05259eb0352bcd0ce19e941f529480df07e86faa1c3e77308132e906a94acde4, class hash: 0x02be8ca75e60d5f02fd07efc6238438ef83e5f194737b28d40647ff7e7198ddf, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\n0x6e6f7420636f6e74726f6c6c6572 ('not controller').\n"
-  }
+  type: "INVOKE",
+  execute_invocation: {
+    revert_reason:
+      "Transaction execution has failed:\n0: Error in the called contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nExecution failed. Failure reason:\nError in contract (contract address: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691, class hash: 0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nError in contract (contract address: 0x05259eb0352bcd0ce19e941f529480df07e86faa1c3e77308132e906a94acde4, class hash: 0x07ca128431ea8a54ccb164610a9dd38106d79a46a75c3e17fe7928708e4a2725, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\nError in contract (contract address: 0x05259eb0352bcd0ce19e941f529480df07e86faa1c3e77308132e906a94acde4, class hash: 0x02be8ca75e60d5f02fd07efc6238438ef83e5f194737b28d40647ff7e7198ddf, selector: 0x021c4a0db2b08b026c4e31bf76d5dd9b92aa54c0978df57474355786073775e8):\n0x6e6f7420636f6e74726f6c6c6572 ('not controller').\n",
+  },
 };
 
 /** The mirror's inputs before the Wait: the view's felts, the controlled member, the chunks not void. */
 export const recordedBefore = {
-  "view": [
+  view: [
     "0x100000001",
     "0x400000000000000000169000000010001000002000000000000000000000001",
     "0x83a7a34c2adc2f5344537533d74c7d1af90cd51da8bd265992bb3a67f261ce",
@@ -474,74 +465,74 @@ export const recordedBefore = {
     "0x4000000000000000000000000000000000000000000000000000000000000ff",
     "0x3",
     "0x3",
-    "0x1"
+    "0x1",
   ],
-  "member": 0,
-  "region": [
+  member: 0,
+  region: [
     {
-      "chunk": 0,
-      "kind": 2,
-      "terrain": "0x4000001ffdf380c601c0030806000800380013406780c31380e3000f083ffff",
-      "features": "0x40000000000000000000000000003b5000000000000000011115a950100013f",
-      "goblins": []
+      chunk: 0,
+      kind: 2,
+      terrain: "0x4000001ffdf380c601c0030806000800380013406780c31380e3000f083ffff",
+      features: "0x40000000000000000000000000003b5000000000000000011115a950100013f",
+      goblins: [],
     },
     {
-      "chunk": 1,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
+      chunk: 1,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
     },
     {
-      "chunk": 2,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
+      chunk: 2,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
     },
     {
-      "chunk": 15,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
+      chunk: 15,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
     },
     {
-      "chunk": 16,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
+      chunk: 16,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
     },
     {
-      "chunk": 17,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
+      chunk: 17,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
     },
     {
-      "chunk": 30,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
+      chunk: 30,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
     },
     {
-      "chunk": 31,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
+      chunk: 31,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
     },
     {
-      "chunk": 32,
-      "kind": 1,
-      "terrain": "0x0",
-      "features": "0x0",
-      "goblins": []
-    }
-  ]
+      chunk: 32,
+      kind: 1,
+      terrain: "0x0",
+      features: "0x0",
+      goblins: [],
+    },
+  ],
 };
 
 /** The Registry records read (`[kind, id, parts]`): the content's before the Wait, the seed's sheets. */
@@ -551,61 +542,49 @@ export const recordedRecords: [number, number, string[]][] = [
     1,
     [
       "0x40000000000000000000000000000000000041e000011100112140a00320101",
-      "0x400000000000000000000000000000000000000000000000000000000000000"
-    ]
+      "0x400000000000000000000000000000000000000000000000000000000000000",
+    ],
   ],
   [
     8,
     2,
     [
       "0x400000000000000000001e79e78000000000400000062300154140a00280201",
-      "0x400000000000000000000000000000000000000000000000000000000000000"
-    ]
+      "0x400000000000000000000000000000000000000000000000000000000000000",
+    ],
   ],
   [
     8,
     3,
     [
       "0x400000000000000000000000001451400000600021411100121280a00320302",
-      "0x400000000000000000000000000000000000000000000000000000000000002"
-    ]
+      "0x400000000000000000000000000000000000000000000000000000000000002",
+    ],
   ],
   [
     8,
     4,
     [
       "0x400000000000000000000000000000000000900041e627001051e0a003c0403",
-      "0x400000000000000000000000000000000000000000000000000000000110014"
-    ]
+      "0x400000000000000000000000000000000000000000000000000000000110014",
+    ],
   ],
   [
     8,
     5,
     [
       "0x400000000000000000000000001451400000c000214123001b33c0a00640504",
-      "0x400000000000000000000000000000000000000000000000000000000000015"
-    ]
+      "0x400000000000000000000000000000000000000000000000000000000000015",
+    ],
   ],
   [
     9,
     1,
     [
       "0x4000000014000000000001e000a000200000000000101000000000400010301",
-      "0x400000000000000000000000000000000000000000000000000000000000000"
-    ]
+      "0x400000000000000000000000000000000000000000000000000000000000000",
+    ],
   ],
-  [
-    11,
-    1,
-    [
-      "0x400000009000000000000140014000300000000000000000000000100000103"
-    ]
-  ],
-  [
-    11,
-    23,
-    [
-      "0x400000009000028002800030003000500000000000000000000000100000103"
-    ]
-  ]
+  [11, 1, ["0x400000009000000000000140014000300000000000000000000000100000103"]],
+  [11, 23, ["0x400000009000028002800030003000500000000000000000000000100000103"]],
 ];

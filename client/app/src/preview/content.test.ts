@@ -59,12 +59,17 @@ function registry(count: { calls: [number, number][] } = { calls: [] }): RecordR
 
 /** The skills `castes` name in their recorded sheets, then `effects`, once each and never 0. */
 function lackingSkills(castes: number[], effects: number[]): number[] {
-  const all = [...castes.flatMap((id) => readCasteSheet(id, partsOf(CASTE, id)).skills), ...effects];
+  const all = [
+    ...castes.flatMap((id) => readCasteSheet(id, partsOf(CASTE, id)).skills),
+    ...effects,
+  ];
   return [...new Set(all.filter((id) => id !== 0))];
 }
 /** The sheets of the skills among `ids` that the recording holds (the registry's others read as 0). */
 const heldSheets = (ids: number[]) =>
-  ids.filter((id) => recorded.has(`${SKILL}:${id}`)).map((id) => readSkillSheet(id, partsOf(SKILL, id)));
+  ids
+    .filter((id) => recorded.has(`${SKILL}:${id}`))
+    .map((id) => readSkillSheet(id, partsOf(SKILL, id)));
 
 const view = (): InstanceView => decodeInstanceView(recordedBefore.view.map(BigInt));
 /** A goblin of caste `caste` (state bits 64–79), its held effect's skill at timers bits 108–123. */
@@ -148,7 +153,8 @@ describe("the sheets read from the recorded records", () => {
   it("reads the deployment's Regeneration Potion (item 23): a regeneration of 3", () => {
     // No seed skill has a `REGENERATION` entry since CNT-01; devnet_deploy.py's `regeneration_item`:
     // `REGENERATION` (5), 3 at both ranks, 40 ticks at both, `SELF`, the ALLIES filter
-    const entry = 5n + (3n << 16n) + (3n << 32n) + (40n << 48n) + (40n << 64n) + (1n << 88n) + (1n << 91n);
+    const entry =
+      5n + (3n << 16n) + (3n << 32n) + (40n << 48n) + (40n << 64n) + (1n << 88n) + (1n << 91n);
     expect(readPotionSheet(23, partsOf(ITEM, 23))).toEqual({
       id: 23,
       regen: 3,
