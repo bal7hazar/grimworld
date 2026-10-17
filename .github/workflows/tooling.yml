@@ -357,11 +357,12 @@ jobs:
           [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
           set +e; out=$(PATH=$nf "$(command -v bash)" scripts/lock.sh rm -rf x 2>&1); s=$?; set -e
           [ "$s" = 2 ] || { echo "darwin no-flock: bad command exit $s, not 2" >&2; exit 1; }
-          ! grep -q 'no flock on this machine' <<< "$out"
+          if grep -q 'no flock on this machine' <<< "$out"; then echo "darwin no-flock: refused command printed the no-flock line" >&2; exit 1; fi
           printf '#!/bin/sh\necho Linux\n' > "$nf/uname"
           set +e; out=$(PATH=$nf "$(command -v bash)" scripts/lock.sh scarb build 2>&1); s=$?; set -e
-          [ "$s" != 0 ] || { echo "linux no-flock: ran" >&2; exit 1; }
-          [ ! -e "$lkd/ran" ]; ! grep -q 'no flock on this machine' <<< "$out"
+          [ "$s" = 127 ] || { echo "linux no-flock: exit $s, not 127" >&2; exit 1; }
+          [ ! -e "$lkd/ran" ]
+          if grep -q 'no flock on this machine' <<< "$out"; then echo "linux no-flock: printed the no-flock line" >&2; exit 1; fi
           unset GRIMWORLD_BUILD_LOCK HEAVY_BUILD_LOCK
 
       # with-node.sh (FND-09): the process group of the command on both paths (with setsid, and with it hidden from
