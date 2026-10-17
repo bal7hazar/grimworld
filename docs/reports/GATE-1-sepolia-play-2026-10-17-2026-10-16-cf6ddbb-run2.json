@@ -1,0 +1,301 @@
+{
+  "gate": "GATE-1 (D-308)",
+  "network": "Starknet Sepolia",
+  "devnet": false,
+  "chain_id": "SN_SEPOLIA",
+  "deployment": {
+    "name": "2026-10-16-cf6ddbb",
+    "commit": "cf6ddbb8c78831de5d5b490579c6dc792972daea",
+    "contracts": {
+      "registry": "0x00a0494e32587c44950e7d0e6220274f4079c53f995c146a71267caee605a9f1",
+      "hub": "0x076c5bd9fea636e06d06de7690bba7987aabeacbc2adf800c9859197a755b384",
+      "instances": "0x07e1f9c353ce5f92769781ecfbbb3bd2ff7a691008e7c98a59a668dea6971f85"
+    }
+  },
+  "script_commit": "44373774e7ff8ae19f80584565f86c794709d38b",
+  "tools": {
+    "sncast": "sncast 0.64.0"
+  },
+  "completed": true,
+  "adventurer_id": 2,
+  "instance_id": 8589934593,
+  "gates": {
+    "in": {
+      "id": 1,
+      "source": 1,
+      "destination": 2,
+      "anchor": [
+        0,
+        0
+      ],
+      "arrival": [
+        0,
+        105
+      ],
+      "kind": 1
+    },
+    "out": {
+      "id": 2,
+      "source": 2,
+      "destination": 1,
+      "anchor": [
+        0,
+        105
+      ],
+      "arrival": [
+        0,
+        0
+      ],
+      "kind": 1
+    }
+  },
+  "chunks_crossed": [
+    {
+      "chunk": 15,
+      "tile": [
+        7,
+        15
+      ]
+    },
+    {
+      "chunk": 16,
+      "tile": [
+        15,
+        19
+      ]
+    },
+    {
+      "chunk": 1,
+      "tile": [
+        19,
+        14
+      ]
+    },
+    {
+      "chunk": 0,
+      "tile": [
+        14,
+        6
+      ]
+    }
+  ],
+  "final_location": {
+    "kind": "hub",
+    "location": 1
+  },
+  "hits": [
+    {
+      "tile": [
+        15,
+        19
+      ],
+      "health": [
+        100,
+        99
+      ],
+      "goblins": [
+        {
+          "tile": [
+            13,
+            19
+          ],
+          "distance": 2
+        },
+        {
+          "tile": [
+            17,
+            22
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            18,
+            19
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            18,
+            21
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        19,
+        16
+      ],
+      "health": [
+        99,
+        98
+      ],
+      "goblins": [
+        {
+          "tile": [
+            18,
+            17
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            17,
+            17
+          ],
+          "distance": 2
+        },
+        {
+          "tile": [
+            18,
+            19
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            19,
+            20
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        8,
+        3
+      ],
+      "health": [
+        98,
+        97
+      ],
+      "goblins": [
+        {
+          "tile": [
+            10,
+            3
+          ],
+          "distance": 2
+        },
+        {
+          "tile": [
+            11,
+            4
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            16,
+            9
+          ],
+          "distance": 11
+        },
+        {
+          "tile": [
+            19,
+            18
+          ],
+          "distance": 18
+        }
+      ]
+    }
+  ],
+  "transactions": [
+    {
+      "what": "create_adventurer",
+      "hash": "0x07907406d8c472021fef25d8944d61d0e09fcf066e510cfbc991a11b58c7a097",
+      "sender": "account",
+      "fee": "59110584540237915",
+      "unit": "FRI"
+    },
+    {
+      "what": "set_build",
+      "hash": "0x02ad9556668120ce4ca2b450140ad94dda369f67822cb140bdd2bf0d323ae79e",
+      "sender": "account",
+      "fee": "55728804284575236",
+      "unit": "FRI"
+    },
+    {
+      "what": "enter (gate 1)",
+      "hash": "0x069503e455451d1f0823a00c6cdc84cf504b8eeb4ca52b813520d1e13ffaba98",
+      "sender": "account",
+      "fee": "188077219345086480",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 1, 10 Moves)",
+      "hash": "0x02f43dcaf77ee2b542567c1e18adeee4ae82f6fc27612b3293f3ebb63c6ee2da",
+      "sender": "account",
+      "fee": "550243356548473026",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 2, 4 Moves)",
+      "hash": "0x00c87a1ed98c6e38dfbc0dbbf2c1b14649e407ba21c9511911d912d53ba74a08",
+      "sender": "account",
+      "fee": "662381569345465362",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 3, 10 Moves)",
+      "hash": "0x047e766881d94c7b42144f272cc0f036fb6e50f69c74e3313c6acba353ff9301",
+      "sender": "account",
+      "fee": "1510104911518595657",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 4, 5 Moves)",
+      "hash": "0x0716c7c613eeb3e572a25e06061265387f00e0206c6320a43dd859d22b218092",
+      "sender": "account",
+      "fee": "1251516336073827847",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 5, 10 Moves)",
+      "hash": "0x03410fe4f74e392d96df2150afb5a9b4181e4eb658670c658b984a88562a4261",
+      "sender": "account",
+      "fee": "2027138729563234423",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 6, 10 Moves)",
+      "hash": "0x05b8d38871a9aab7c68ebadeb87e4f43fbf61a9c1654049ed50fb16a7fc593e9",
+      "sender": "account",
+      "fee": "3303236000557006954",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 7, 10 Moves)",
+      "hash": "0x0496a33fde62ada217fd3b5c04a21fce475ad8dbe70110366017ac7b65742735",
+      "sender": "account",
+      "fee": "2296175968559778685",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 8, 10 Moves)",
+      "hash": "0x013fe4d85d5c63a4261509f3baf5d6e4d5ffe1f95868ceeb6ead0e814d174664",
+      "sender": "account",
+      "fee": "1988244120243849779",
+      "unit": "FRI"
+    },
+    {
+      "what": "leave (gate 2)",
+      "hash": "0x078ef2ee840a2c49c3a57a631dfebab6afb04ddc3d3163c416e40f1c737e69af",
+      "sender": "account",
+      "fee": "33521600626875224",
+      "unit": "FRI"
+    }
+  ],
+  "total_fee": {
+    "amount": "13925479201207006588",
+    "unit": "FRI"
+  },
+  "started": "2026-10-17T11:32:51+00:00",
+  "finished": "2026-10-17T11:35:49+00:00",
+  "seconds": 178
+}
