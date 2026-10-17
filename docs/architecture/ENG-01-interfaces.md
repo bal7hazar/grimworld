@@ -862,7 +862,7 @@ it. An identical rewrite raises neither version. `Hub.set_build` seals the snaps
 rewritten skill, item or modifier stales them all.
 
 **The writer's checks** (ENG-03, `systems/registry.cairo`). `set_record` refuses, in this order: a
-caller other than `admin` (`'not admin'`); an unknown kind; a record of other than `parts(kind)`
+caller other than `admin` (`'not admin'`); an unknown kind; a record of other than `KindTrait::parts(kind)`
 felts; id 0; a part 0 without `LIVE` or with a bit above it; for a sequential kind, an id that is
 neither existing (≤ `last_id`) nor `last_id + 1`; for `QUOTAS`, a location (`id`) that does not
 exist; for `OUTLINE`, a chunk that is neither below 225 nor 255, or a location that does not exist;
@@ -886,7 +886,7 @@ then the zero address (`'admin is zero'`). **A change
 is told part by part**: each part is compared with the stored felt, only the parts that differ are
 written, and the version is raised once if any did; a rewrite of the same values writes nothing. A
 new sequential id reads nothing (its keys were never written) and always raises. **A record never
-written reads as `parts(kind)` zeros** (`record`, `records`, `bundle`): part 0 is 0, so it does not
+written reads as `KindTrait::parts(kind)` zeros** (`record`, `records`, `bundle`): part 0 is 0, so it does not
 exist. `records` and `bundle` refuse more than 32 records (`MAX_READ`).
 
 Every variable is read and written through `Registry`'s store (`RegistryStoreTrait`,
@@ -1152,10 +1152,10 @@ manifest).
 
 **What stays random on an authored zone** (rulings 3 and 4; built by ENG-09, `types::reveal::authored`,
 `EntropyTrait::authored_hosts` and `spawns`): the quotas' hosts,
-`count` chunks among each quota's candidates, drawn once at `create` from `derive(entropy,
-domain(instance, 226, REVEAL), 0)` by ENG-05's law (`PlacementTrait::subset`, D-220's complement
+`count` chunks among each quota's candidates, drawn once at `create` from `FateTrait::derive(entropy,
+FateTrait::domain(instance, 226, REVEAL), 0)` by ENG-05's law (`PlacementTrait::subset`, D-220's complement
 draw); each chunk's spawn points' level (uniform in the band, the template's offset held in it) and
-count (in the template's bounds, at least 1) from `derive(entropy, domain(instance, 256 + chunk,
+count (in the template's bounds, at least 1) from `FateTrait::derive(entropy, FateTrait::domain(instance, 256 + chunk,
 REVEAL), 0)`; a Heart at the band's top (D-208). No reveal reads another's result: **no order of
 moves or reveals changes where anything lands or what it holds** (`test_authored_reveal_order_free`).
 A snapshot's task quota places nothing in an authored zone (its landmarks are the author's; D-221).
@@ -1352,7 +1352,7 @@ views: lot, lot_count, open_lot_count, lots_of, trade, trade_count
 | `Hub.counters.counters`, `Hub.balances.pages` | ≤ 32 | the view |
 | `set_account_owner`: adventurers updated | ≤ 7 (one account page) | `set_account_owner` |
 | the belt | 4 slots, a count of ≤ 255 each (lane 4 of `belt`) | `set_build`, `enter` |
-| `Registry.set_record.record` | exactly `parts(kind)` | the writer |
+| `Registry.set_record.record` | exactly `KindTrait::parts(kind)` | the writer |
 | a trade side | ≤ 7 entities, ≤ 2 balances, gold (E-11) | the stored layout |
 | held quests | ≤ 4 (D-135) | quiver |
 
