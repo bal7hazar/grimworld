@@ -89,10 +89,10 @@ pub mod Registry {
     use grimworld_logic::helpers::packing::{Counter, LIVE_HIGH};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
+    use grimworld_logic::models::base::{BaseRecord, slot};
     use grimworld_logic::models::caste::{
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
-    use grimworld_logic::models::base::{BaseRecord, slot};
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
     use grimworld_logic::models::kit::{KitAssert, KitRecord, errors as kit_errors};
     use grimworld_logic::models::location::{
@@ -106,8 +106,9 @@ pub mod Registry {
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord, SkillTrait};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::types::content::{
-        ARMOR_SET, BASE, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KIT, KindAssert, KindTrait, LOCATION,
-        MAX_READ, MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK,
+        ARMOR_SET, BASE, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KIT, KindAssert, KindTrait,
+        LOCATION, MAX_READ, MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE,
+        ZONE_CHUNK,
     };
     use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};

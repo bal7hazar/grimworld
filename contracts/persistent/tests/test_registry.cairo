@@ -16,6 +16,7 @@ use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::item::{
     ItemRecord, ItemTrait, class as item_class, errors as item_errors,
 };
+use grimworld_logic::models::kit::{KitRecord, KitTrait, errors as kit_errors};
 use grimworld_logic::models::location::{
     LocationRecord, LocationTrait, errors as location_errors, kind as location_kind,
 };
@@ -29,7 +30,6 @@ use grimworld_logic::models::quotas::{
 use grimworld_logic::models::set_piece::{
     SetPack, SetPieceRecord, SetPieceTrait, errors as set_piece_errors,
 };
-use grimworld_logic::models::kit::{KitRecord, KitTrait, errors as kit_errors};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::models::spawn_table::{
     Spawn, SpawnTableRecord, SpawnTableTrait, errors as spawn_errors,
@@ -1544,9 +1544,7 @@ fn test_set_record_kit() {
     let r = Fixture::deploy();
     let none: [Entry; 3] = [Default::default(); 3];
     let skill = |profession: u8| -> Span<felt252> {
-        SkillTrait::new(
-            profession, 1, skill_kind::ATTACK, 0, 1, 1, 5, 1, target::FOE, false, none,
-        )
+        SkillTrait::new(profession, 1, skill_kind::ATTACK, 0, 1, 1, 5, 1, target::FOE, false, none)
             .pack()
     };
     // Skills 1 and 2 of the Vanguard, 3 of the Warden; base 1 an axe, base 2 a chest piece.

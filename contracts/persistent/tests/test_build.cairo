@@ -1397,5 +1397,7 @@ fn test_gas_create_adventurer_kit() {
     start_cheat_caller_address(world.hub, addr(ALICE));
     let gas = get_available_gas();
     hub.create_adventurer('Aldric', WARDEN);
-    println!("gas create_adventurer initialised, a kit and its purse: {}", gas - get_available_gas());
+    println!(
+        "gas create_adventurer initialised, a kit and its purse: {}", gas - get_available_gas(),
+    );
 }
