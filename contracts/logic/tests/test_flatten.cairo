@@ -327,8 +327,7 @@ struct Sent {
 
 // The library's words are the flattening's (D-168: `set_build` stores them, `enter` copies them).
 #[test]
-// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the
-// loadout (D-310)
+// gas: raised, WPN-01 (D-310): the library checks the bar and belt, builds the loadout
 #[available_gas(l2_gas: 16494003)] // ceil(1.05 × 15708574 measured)
 fn test_library_words_are_the_flattening() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
@@ -346,8 +345,7 @@ fn test_library_words_are_the_flattening() {
 // Cost: the library call of the widest equipment, the call alone (`get_available_gas` around it),
 // the benchmark of `set_build`'s flattening.
 #[test]
-// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the
-// loadout (D-310)
+// gas: raised, WPN-01 (D-310): the library checks the bar and belt, builds the loadout
 #[available_gas(l2_gas: 7293214)] // ceil(1.05 × 6945918 measured)
 fn test_cost_library_call_widest() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
@@ -363,8 +361,7 @@ fn test_cost_library_call_widest() {
 
 // Cost: the library call of a build without equipment (the fixed part).
 #[test]
-// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the
-// loadout (D-310)
+// gas: raised, WPN-01 (D-310): the library checks the bar and belt, builds the loadout
 #[available_gas(l2_gas: 4677523)] // ceil(1.05 × 4454783 measured)
 fn test_cost_library_call_empty() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
@@ -388,8 +385,7 @@ const PRIMARY: u8 = 13;
 // 250 = 920. design/20's 1,020 adds two +50 set bonuses, which no item holds: armor sets are not
 // laid out in the loadout (`set_bonuses` 0, `BuildTrait::loadout`).
 #[test]
-// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the
-// loadout (D-310)
+// gas: raised, WPN-01 (D-310): the library checks the bar and belt, builds the loadout
 #[available_gas(l2_gas: 7299995)] // ceil(1.05 × 6952376 measured)
 fn test_extremal_max_health_through_the_library() {
     let none: Passive = Default::default();
@@ -453,8 +449,7 @@ fn test_extremal_max_energy_flattened() {
 // Weapon damage 32 (DS-4): a personalised maul at requirement 9, base damage 27: 27 × 1.2 rounded
 // down, its requirement met. `set_build` sends it as the worn item's weapon (WPN-01, D-158).
 #[test]
-// gas: raised, WPN-01: the library checks the bar and the belt against their parts and builds the
-// loadout (D-310)
+// gas: raised, WPN-01 (D-310): the library checks the bar and belt, builds the loadout
 #[available_gas(l2_gas: 2055046)] // ceil(1.05 × 1957186 measured)
 fn test_extremal_weapon_damage_through_the_library() {
     let loadout = Loadout {
