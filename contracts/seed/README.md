@@ -84,12 +84,13 @@ client's); `SELF` entries are filtered ALLIES (R-45); a spell's range is 6 where
 (the staff's and design/20's for Stone Skin and Mend Kin). **One weapon family per starter bar
 (D-310):** the Vanguard's three starter attacks are Axes attacks, Cleave, Gash and Haft Blow; Rending
 Cut (Blades) and Skullring (Mauls) are trainers' skills (CNT-02), and Skullring is not seeded.
-design/03's table is updated by WPN-01.
+design/03's table follows the seed (WPN-01).
 
 The attribute ids the records name are **design/03's attribute table in order, from 1**: Might 1,
 Blades 2, Axes 3, Mauls 4, Tactics 5, Fieldcraft 6, Archery 7, Survival 8, Trapping 9, Wellspring 10,
 Fire 11, Frost 12, Storm 13, Stone 14, Grace 15, Mending 16, … Insight 26 (D-157 A's global ids, never
-numbered before CNT-01; no rule reads them yet: `Build::loadout` passes no bar attribute).
+numbered before CNT-01). Since WPN-01 the loadout reads each bar skill's attribute and the worn
+weapon's: an attack skill whose attribute is not the weapon's is refused in play (CBT-05f).
 
 | Id | Name | Profession, attribute | Kind | Energy / adrenaline, activation, recharge, range | Entries |
 |---|---|---|---|---|---|
@@ -120,8 +121,12 @@ numbered before CNT-01; no rule reads them yet: `Build::loadout` passes no bar a
 `BASE` (0 none) and its starter skills. `create_adventurer` reads it with the region (one `bundle`)
 and credits the purse that buys exactly those skills from none known, priced by `SKILL_PRICES`
 (`SkillTrainerTrait::purse`: 50 + 60 + 70 + 80 + 90 + 100 = 450 for six); a profession without a
-`KIT` gets nothing. A later kit is a seed change. The bases hold only the slot and the hands that
-`BASE` lays out (D-158); the weapon itself is CNT-01's open proposal (its report).
+`KIT` gets nothing. A later kit is a seed change. The bases are design/15's axe and bow (WPN-01):
+`bases`' columns are the slot, the hands, then the weapon's class (`combat::weapon`: 2 axe, 4 bow),
+its damage at requirement 0 and at 9 (9 → 17, 11 → 21), its ticks (1, 2), its range (1, 6), its
+damage type (1 slashing, 2 piercing) and its attribute (Axes 3, Archery 7). `create_adventurer`
+creates the kit's weapon in the new adventurer's pack, a common item at requirement 0 (damage 9 or
+11); `delete_adventurer` forfeits it with the purse (D-310).
 
 **Names for the client (CLI-05; off-chain, CV's single source).** The registry holds no names. Every skill and
 item id of the seed, with a short English name and what it is:

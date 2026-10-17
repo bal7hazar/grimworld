@@ -9,8 +9,9 @@
 //
 // (after `pnpm install --frozen-lockfile`, for @scure/starknet). `--goblins N` fights the pack's
 // first N goblins only. The cases:
-// - weapons `inert`, as the chain is until WPN-01 (`Build::loadout` passes weapon 0), or `kit`, the
-//   weapon WPN-01 would give (design/15's base at requirement 0);
+// - weapons `inert`, as the chain was before WPN-01 (`Build::loadout` passed weapon 0), or `kit`, as
+//   the chain is since WPN-01: the kit's weapon, its `BASE` row of the seed at requirement 0 (met),
+//   and CBT-05f's weapon-required bit on each bar attack of another attribute than the weapon's;
 // - ranks `today` (a caste's one rank, design/20 §2.2), `a` (D-310 (a): a goblin's rank follows its
 //   level, rank 0 at level 1, the gate pack's level) or `a+b` (and (b): rank 1 in the profession's
 //   primary attribute at creation).
@@ -76,6 +77,7 @@ const SKILLS = byId(rows("skills", 47));
 const CASTES = byId(rows("castes", 30));
 const PACKS = byId(rows("packs", 17));
 const KITS = byId(rows("kits", 8));
+const BASES = byId(rows("bases", 10));
 const QUOTAS = rows("quotas", 19);
 const LOCATIONS = byId(rows("locations", 31));
 
@@ -129,13 +131,15 @@ const PROFESSIONS = {
   2: { name: "Warden", energy: 25, regen: 3, armor: 70, vs: [0, 0, 0, 30, 30, 30, 30, 0, 0], primary: 6 },
   3: { name: "Arcanist", energy: 50, regen: 5, armor: 60, vs: [0, 0, 0, 0, 0, 0, 0, 0, 0], primary: 10 },
 };
-/** The weapons WPN-01 would give (design/15 *Weapons*, a common one at requirement 0, met at rank 0;
- * design/04: the class's damage type): class, damage, ticks, range, type. */
-const WEAPONS = {
-  1: { class: 2, damage: 9, ticks: 1, range: 1, type: 1 }, // the axe: slashing
-  2: { class: 4, damage: 11, ticks: 2, range: 6, type: 2 }, // the bow: piercing
-};
-const INERT = { class: 0, damage: 0, ticks: 0, range: 0, type: 0 };
+/** The kit's weapon as `create_adventurer` creates it and `set_build` flattens it (WPN-01): its
+ * `BASE` row (slot, hands, class, damage at requirement 0 and 9, ticks, range, damage type,
+ * attribute) at requirement 0. */
+function kitWeapon(base) {
+  const [, , , klass, damage0, , ticks, range, type, attribute] = BASES.get(base);
+  return { class: klass, damage: damage0, ticks, range, type, attribute };
+}
+const INERT = { class: 0, damage: 0, ticks: 0, range: 0, type: 0, attribute: 0 };
+const ATTACK = 1;
 const WELLSPRING_ENERGY_PER_RANK = 3;
 const LEVEL = 1;
 const MAX_HEALTH = 100 + 20 * (LEVEL - 1);
@@ -151,14 +155,22 @@ const ONLY = flag("--goblins", 5);
 function memberWords(profession, weapons, primaryRank) {
   const p = PROFESSIONS[profession];
   const kit = KITS.get(profession);
-  const w = weapons === "kit" && kit[1] !== 0 ? WEAPONS[profession] : INERT;
+  const w = weapons === "kit" && kit[1] !== 0 ? kitWeapon(kit[1]) : INERT;
   const skills = kit.slice(2, 8);
+  // CBT-05f, live since WPN-01 (`FlattenTrait::mappings`): an attack slot of another attribute than
+  // the weapon's is bound to a weapon it does not hold. Before WPN-01 the loadout named no attack.
+  const required = weapons === "kit"
+    ? skills.reduce((acc, s, i) => {
+      const row = SKILLS.get(s);
+      return row !== undefined && row[3] === ATTACK && row[2] !== w.attribute ? acc | (1 << i) : acc;
+    }, 0)
+    : 0;
   const energy = p.energy + (profession === 3 ? WELLSPRING_ENERGY_PER_RANK * primaryRank : 0);
   // The rank of each bar skill's attribute (`MemberStats.ranks`, 4 bits a slot): the primary's.
   const ranks = skills.reduce(
     (acc, s, i) => acc + (SKILLS.get(s)[2] === p.primary ? b(primaryRank) << b(4 * i) : 0n), 0n);
   const [v1, v2, v3, v4, v5, v6, v7, v8, v9] = p.vs.map(b);
-  const low = b(MAX_HEALTH) + (b(energy) << 16n) + (b(p.regen) << 24n) + (10n << 32n)
+  const low = b(MAX_HEALTH) + (b(energy) << 16n) + (b(p.regen) << 24n) + (10n << 32n) + (b(required) << 40n)
     + (v1 << 48n) + (v2 << 54n) + (b(LEVEL) << 64n) + (b(profession) << 72n)
     + (b(primaryRank) << 80n) + (b(w.class) << 88n) + (b(w.damage) << 96n) + (b(w.ticks) << 104n)
     + (b(w.range) << 112n);

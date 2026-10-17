@@ -315,6 +315,32 @@ The last row is why `create` receives the packed words: the three unpackers alon
 of `Hub`. The call: 3,183,138 L2 gas on the widest equipment design/20 §1.2 counts (15 modifiers, 30
 passives), 745,553 without equipment (`contracts/logic/tests/test_flatten.cairo`, the call alone).
 
+**WPN-01 (D-310): `set_build`'s rules move into the library, so that `Hub` stays under 50 % with the
+weapons.** The build word's model and its rules are `grimworld_logic::models::sent_build`'s
+(re-exported by `grimworld_persistent::models::adventurer`), and `FlattenLibrary` has two
+entrypoints, which `set_build` calls at the points where `Hub` made the same checks, so that every
+refusal keeps its order:
+- `assert_build(build, primary, secondary, level, rank)`, first: the attributes
+  (`BuildAssert::assert_attributes`) and no skill twice (`assert_distinct`);
+- `words(build, known, parts, level, primary, secondary, potions, weapon, requirement,
+  personalised, belt, counts, worn, ids) -> (stats, bar, kit)`, after the `Registry.bundle` call:
+  the bar against its `SKILL` parts (`assert_bar`), the belt's potions (`BeltAssert::assert_potions`),
+  the loadout (`BuildTrait::loadout`: the worn weapon's statistics from `ItemBase.weapon`, the bar's
+  attributes and attack slots from the same `SKILL` parts, `bar_kinds`, so CBT-05f's
+  weapon-required bit is set), then `SnapshotBuildTrait::words`. `build` is the `Build` word as
+  stored, `weapon` `ItemBase.weapon` as stored (0 with none).
+`Hub` keeps the checks that read its storage (the belt's items held, the equipment worn).
+
+| Class (CASM felts, `class_sizes.py`) | origin/main 409083fb | WPN-01 |
+|---|---:|---:|
+| `Hub` | 40,455 (49.38 %) | **40,141 (49.00 %)** |
+| `FlattenLibrary` | 23,506 (28.69 %) | 27,045 (33.01 %) |
+| `Registry` (the `BASE` check) | 36,495 (44.55 %) | 37,118 (45.31 %) |
+
+The second call costs 136,410 L2 gas on every `set_build` (snforge, the call alone). The library's
+`words` on the widest build: 3,599,468 L2 gas with 8 skills and 4 potions checked, 1,131,883 for a build
+with none (`test_flatten.cairo`, the call alone).
+
 **The reveal's library class (ENG-05; Open question 1, decided by the orchestrator on
 2026-10-03).** `RevealLibrary`, in `grimworld_logic` (`contracts/logic/src/systems/reveal.cairo`),
 declared as its own class; its one entrypoint, `IRevealLibrary::reveal(site, progress, instance_id,
@@ -730,6 +756,13 @@ Layouts (`contracts/persistent/src/models/`), every one with `LIVE`:
   (1 or 2 on a weapon, 0 elsewhere), copied from the `BASE` record by whoever creates the item
   (`ItemBaseTrait::new`: loot, a craft, a shop, a quest, a collector, the ephemeral domain's
   equipment drops in `Results.equipment` alike), so that `set_build` reads no `BASE` record.
+  **weapon 128–175** (WPN-01, D-310): its base's weapon at the item's requirement, copied likewise,
+  as `WeaponTrait::pack` lays it out (class, damage, ticks, range, damage type, attribute, 8 bits
+  each; the damage `damage_0 + (damage_9 − damage_0) × min(requirement, 9) / 9`, rounded down; 0 on
+  any item that is not a weapon). `Hub` keeps it packed and hands the worn weapon's to
+  `FlattenLibrary`, which decodes it into the loadout. A new item is written by
+  `HubStoreTrait::create_item` (its id from `next_item`, its base word, the pack list's first free
+  lane), which the creation kit's weapon uses first (D-309).
   `ItemMods`: five `(modifier u16, value u8)` at 0, 24, 48, 72, 96 (prefix, suffix, inscription,
   insignia, rune): written at identification, when the modifiers come to exist (design/15).
 - `GrimoireState`: known recipes 0–15 · untried pairs per signature 6 × 8 at 16–63 · 4 hints of 16
@@ -823,7 +856,7 @@ rules 1–2). Pillar 6 and S-6: a zone or a quest is data.
 | `SKILL` | 9 | 2 | profession, attribute, kind, elite, energy, adrenaline, activation, recharge, range, target, 3 effects (kind, value at 0 and 12, duration) |
 | `LOOT_TABLE` | 10 | 2 | up to 7 (item, weight), nothing weight, gold range, equipment chance and rarity weights |
 | `ITEM` | 11 | 1 | class (ingredient, material, potion, trophy, stillstone, heartstone, quest, failed brew), region, rarity, value, book index, potion effect |
-| `BASE` | 12 | 2 | equipment base: slot, weapon or armor class, profession, damage by requirement, rating, look |
+| `BASE` | 12 | 2 | equipment base: slot, hands, a weapon's class, damage at requirement 0 and 9, ticks, range, damage type and attribute (WPN-01); later: armor class, profession, rating, look |
 | `MODIFIER` | 13 | 1 | slot, effect, value range, condition or cost (Q-4, Q-6) |
 | `ARMOR_SET` | 14 | 1 | pieces, two bonuses |
 | `BOOK` | 15 | 3 | ingredients, their rarities packed, recipe masks per signature, potion of each recipe |
@@ -923,7 +956,7 @@ value; no field straddles bit 128; `LIVE` in part 0.
 | `SKILL` | 0 | header, low limb (83 bits): profession 0–7 · attribute 8–15 · skill kind 16–23 (design/19 §3.4, 1–12) · energy 24–31 · adrenaline (strikes) 32–39 · activation 40–55 · recharge 56–71 (both ≤ `MAX_BASE_DURATION`) · range 72–79 · target 80–81 (self, foe, ally, tile) · elite 82 · **entry 1** 128–224 |
 | `SKILL` | 1 | **entry 2** 0–96 · **entry 3** 128–224 |
 | `ITEM` | 0 | class 0–7 (1 ingredient, 2 material, 3 potion, 4 trophy, 5 stillstone, 6 heartstone, 7 quest, 8 failed brew) · region 8–23 · rarity 24–31 · value 32–63 · book index 64–71 · the potion's **entry** 128–224 · range 225–232 · bomb strength 233–240 (FX-18, FX-28) |
-| `BASE` | 0 | **slot 0–7** (1 weapon … 7 feet, as `ItemBase.slot`) · **hands 8–15** (1 or 2 on a weapon, 0 elsewhere); the rest of part 0 and part 1 (class, profession, damage by requirement, rating, look) are laid out by a later lot, appended after bit 15 (CBT-08a; `grimworld_logic::models::base`, which covers this prefix only) |
+| `BASE` | 0 | **slot 0–7** (1 weapon … 7 feet, as `ItemBase.slot`) · **hands 8–15** (1 or 2 on a weapon, 0 elsewhere) (CBT-08a) · a weapon's **class 16–23** (`combat::weapon`) · **damage at requirement 0, 24–31, and at 9, 32–39** (at most 27, never falling) · **ticks 40–47** · **range 48–55** · **damage type 56–63** · **attribute 64–71** (D-157 A's global id, the seed's order) (WPN-01, D-310): all 0 on a base of another slot, which the registry checks at the write (`BaseAssert::assert_valid`). The rest of part 0 and part 1 (profession, rating, look) are a later lot's, appended after bit 71 (`grimworld_logic::models::base`) |
 | `BASE` | 1 | `LIVE` only, until then |
 | `KIT` | 0 | **weapon 0–15** (a `BASE` of the weapon slot, 0 none) · **skills 16–111** (six `SKILL` ids of the kit's profession, `u16` each, packed from the first, distinct; `grimworld_logic::models::kit`); `create_adventurer` reads it with `REGION` 1 in one `bundle` |
 | `MODIFIER` | 0 | slot type 0–7 (1 prefix, 2 suffix, 3 inscription, 4 insignia, 5 rune: `ItemMods`' order) · **benefit** 128–180 · **cost** 181–233 (a passive each; the cost fixed, id 0 for none) |
@@ -2457,8 +2490,8 @@ inputs version comes in the `bundle` call they already make, from the slot it al
 | a snapshot word overwritten (fix loop 1: `set_build` of two potions with the belt's slots swapped, belt and kit words overwritten, 3,342,059, less the same with the counts changed, the belt word alone, 3,302,059) | — | **40,000** | 40,000 | — |
 | `set_build`, the worst case (8 skills, 4 potions, 7 pieces holding 15 modifiers), the call, snforge | 2,960,731 | 8,097,073 | **8,124,823** | **8,501,927**, its measure (D-158 (c), D-168) |
 
-`set_build`'s worst case cannot run on the node yet (no entrypoint creates an item or teaches a
-skill); its transaction is about **9.29 M (E)** overwriting and **10.57 M (E)** at an adventurer's
+`set_build`'s worst case cannot run on the node yet (no entrypoint creates an item but the kit's
+weapon, WPN-01, and none puts a modifier on one); its transaction is about **9.29 M (E)** overwriting and **10.57 M (E)** at an adventurer's
 first `set_build` (CBT-02e; CBT-02f adds about 0.04 M to each). The derivation: the snforge call, plus the node's excess over snforge on the
 empty build, which is 1,068,596 with the words rewritten unchanged. Overwriting adds the three
 words, 3 × 40,000; a first `set_build` adds the three new words, 1,406,000. It is a hub action, off the expedition's path; `enter`, on it, is
