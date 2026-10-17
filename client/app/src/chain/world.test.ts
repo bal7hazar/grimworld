@@ -55,7 +55,8 @@ describe("the castes by the seed's ids (contracts/seed/README.md)", () => {
     seed.forEach((name, k) => {
       const caste = BigInt(k + 1);
       const state = (goblin.state & ~(0xffffn << 64n) & ~(0xffn << 24n)) | (caste << 64n);
-      expect(goblinActor({ ...goblin, state })?.caste, `caste ${k + 1}`).toBe(name);
+      const actor = goblinActor({ ...goblin, state });
+      expect(actor?.side === "goblin" ? actor.caste : null, `caste ${k + 1}`).toBe(name);
       expect(DEFAULT_NAMES.caste(k + 1), `caste ${k + 1}`).toBe(name);
     });
   });
