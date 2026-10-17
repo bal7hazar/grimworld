@@ -412,7 +412,8 @@ pub mod Registry {
         /// `OUTLINE` a location (and a chunk below 225, or 255), `SHOP` a location as its hub (its
         /// existence only: that it is a town or an outpost is the content pipeline's check).
         /// `ZONE_CHUNK` a location and a chunk below 225, `BRIDGE` a location and a chunk below
-        /// 225, `CANDIDATES` a location (ENG-09). `TASK` and `QUEST` take the administrator's
+        /// 225, `CANDIDATES` a location (ENG-09); `KIT` a profession, which `KitAssert` checks with
+        /// the record (D-309). `TASK` and `QUEST` take the administrator's
         /// quiver ids as they are (D-145): that a quiver id exists is the content pipeline's check
         /// (OPS-01).
         #[inline(always)]
@@ -543,7 +544,7 @@ mod inputs_tests {
 
     #[test]
     // gas: raised, ENG-09: three more kinds to loop over (LAST_KIND 28)
-    #[available_gas(l2_gas: 115815)] // ceil(1.05 × 110300 measured)
+    #[available_gas(l2_gas: 119669)] // ceil(1.05 × 113970 measured)
     fn test_flattening_inputs() {
         for kind in 1..LAST_KIND + 1 {
             let expected = kind == SKILL || kind == ITEM || kind == MODIFIER;

@@ -191,8 +191,9 @@ pub mod Hub {
         IResults, Results,
     };
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord};
+    use grimworld_logic::models::kit::{Kit, KitRecord, KitTrait};
     use grimworld_logic::models::region::{Region, RegionRecord};
-    use grimworld_logic::types::content::{GATE, REGION, SKILL, exists};
+    use grimworld_logic::types::content::{GATE, KIT, REGION, SKILL, exists};
     use grimworld_logic::types::profession::ProfessionAssert;
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::Map;
@@ -331,10 +332,13 @@ pub mod Hub {
             }
         }
 
-        /// D-32: a name and a primary profession; placed in region 1's town, read from the
-        /// registry (D-144: one `record` call), unlocked, at level 1, rank Wood.
+        /// D-32: a name and a primary profession; placed in region 1's town, unlocked, at level 1,
+        /// rank Wood, with its profession's kit (D-309): a purse that buys the starter skills its
+        /// `KIT` names (`SkillTrainerTrait::purse`). The region and the kit are read from the
+        /// registry in one `bundle` call (D-144); a profession without a `KIT` gets nothing.
         /// Writes (ENG-01 §9.3): the adventurer's six words new, its lane of the account's list
-        /// (new on a page's first lane), the account's record and `next_adventurer` overwritten.
+        /// (new on a page's first lane), the account's record and `next_adventurer` overwritten,
+        /// its gold new when the purse is not 0.
         fn create_adventurer(ref self: ContractState, name: felt252, profession: u8) -> u32 {
             let account_id = self.get_account_id(get_caller_address());
             AccountAssert::assert_has_account(account_id);
@@ -345,12 +349,15 @@ pub mod Hub {
             AccountAssert::assert_free_slot(slots, count);
 
             let adventurer_id = self.new_adventurer_id();
-            let (core, place, build) = AdventurerTrait::new(
-                account_id, profession, self.start_hub(),
-            );
+            let (hub, kit) = self.start(profession);
+            let (core, place, build) = AdventurerTrait::new(account_id, profession, hub);
             self.set_adventurer(adventurer_id, core, place, build, name);
             self.add_adventurer_id(account_id, count, adventurer_id);
             self.set_account_record(account_id, record.with_adventurer());
+            let purse = SkillTrainerTrait::purse(kit.count());
+            if purse != 0 {
+                self.set_gold(OwnerTrait::pack(adventurer_id), Gold { amount: purse });
+            }
             adventurer_id
         }
 
@@ -800,12 +807,16 @@ pub mod Hub {
         /// Region 1's town (D-144), read from the registry: one `record` call. Refuses when the
         /// region is missing; a town id of 64 or more when it is placed (`unlocked` holds bits
         /// 0-63).
-        fn start_hub(self: @ContractState) -> u16 {
-            let parts = IRegistryReadDispatcher { contract_address: self.get_registry() }
-                .record(REGION, START_REGION);
-            AdventurerAssert::assert_start_region(exists(parts));
-            let region: Region = RegionRecord::unpack(parts);
-            region.town
+        /// Region 1's town and `profession`'s kit (D-309), in one `bundle` call: a kit never
+        /// written reads as zeros, no weapon and no skill.
+        fn start(self: @ContractState, profession: u8) -> (u16, Kit) {
+            let requests = array![(REGION, START_REGION), (KIT, profession.into())];
+            let (_, _, parts) = IRegistryReadDispatcher { contract_address: self.get_registry() }
+                .bundle(requests.span());
+            let region_parts = parts.slice(0, 1);
+            AdventurerAssert::assert_start_region(exists(region_parts));
+            let region: Region = RegionRecord::unpack(region_parts);
+            (region.town, KitRecord::unpack(parts.slice(1, 1)))
         }
     }
 }

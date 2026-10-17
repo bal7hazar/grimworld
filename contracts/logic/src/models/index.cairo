@@ -486,7 +486,8 @@ pub struct Candidates {
     pub sets: [felt252; 3],
 }
 
-/// `KIT`, 1 part (D-309): id = a profession's id (design/03, `types::profession`). low: the
+/// `KIT`, 1 part (D-309): id = a profession's id, 1 to 6 (design/03, `types::profession`; a
+/// composite id, written in any order). low: the
 /// starter weapon's `BASE` 0–15 (0 for none) · its six starter skills, `SKILL` ids, `u16` each at
 /// 16, 32, 48, 64, 80, 96 (0 for none, packed from the first) · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]

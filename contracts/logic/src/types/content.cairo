@@ -50,8 +50,8 @@ pub const BRIDGE: u8 = 27;
 /// The candidate chunks of an authored zone's quotas (D-215 ruling 3): id `location × 2 + k`, part
 /// `j` quota `3 k + j`'s.
 pub const CANDIDATES: u8 = 28;
-/// A profession's creation kit (D-309): id = the profession's id; its starter weapon and the
-/// starter skills its purse is priced from.
+/// A profession's creation kit (D-309): id = the profession's id (composite, D-145's pattern);
+/// its starter weapon and the starter skills its purse is priced from.
 pub const KIT: u8 = 29;
 /// The last kind: kinds are 1 to `LAST_KIND`.
 pub const LAST_KIND: u8 = 29;
@@ -73,7 +73,8 @@ pub impl KindImpl of KindTrait {
     /// kinds take ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE` and
     /// `ZONE_CHUNK`:
     /// `location × 256 + chunk`; `BRIDGE`: `location × 4096 + chunk × 16 + k`; `CANDIDATES`:
-    /// `location × 2 + k`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by
+    /// `location × 2 + k`; `SHOP`: `hub × 16 + service`; `KIT`: its profession's id, 1 to 6): any
+    /// id whose parent exists; or given by
     /// quiver (`TASK`, `QUEST`: the administrator's quiver ids, taken as they are, D-145).
     /// `last_id`
     /// stays 0 for them.
@@ -89,6 +90,7 @@ pub impl KindImpl of KindTrait {
             && kind != ZONE_CHUNK
             && kind != BRIDGE
             && kind != CANDIDATES
+            && kind != KIT
     }
 
     /// Felts per record of `kind`.

@@ -14,6 +14,7 @@ use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::build::SnapshotBuildTrait;
 use grimworld_logic::models::build::errors::{MAX_HEALTH, SOURCE_COUNT};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
+use grimworld_logic::models::kit::{KitRecord, KitTrait};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::member_kit::MemberKitTrait;
 use grimworld_logic::models::member_stats::MemberStatsTrait;
@@ -25,7 +26,7 @@ use grimworld_logic::models::worn::errors::{
     INSIGNIA_PIECE, NO_MODIFIER, SLOT_TYPE, VALUE as MODIFIER_VALUE,
 };
 use grimworld_logic::types::combat::damage;
-use grimworld_logic::types::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
+use grimworld_logic::types::content::{ITEM, KIT, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};
 use grimworld_persistent::models::account::{OwnerTrait, PACK, VAULT};
 use grimworld_persistent::models::adventurer::errors::{
@@ -1142,8 +1143,11 @@ fn test_set_build_requests_the_input_kinds() {
     let id = adventurer(world, VANGUARD);
     set_profile(world, id, 20, 2, 0);
     widest_equipment(world, id);
-    // `create_adventurer` reads its region with `record`, not `bundle`: nothing recorded yet.
-    assert(read(recorder, selector!("kinds")) == 0, 'nothing before set_build');
+    // `create_adventurer` reads its region and its profession's kit (D-309) in one `bundle`:
+    // neither is an input of the flattening; the record starts again for `set_build`.
+    let created: u256 = read(recorder, selector!("kinds")).into();
+    assert(created == 0x2 + 0x20000000, 'create: region and kit');
+    store(recorder, selector!("kinds"), array![0].span());
     act(world, ALICE)
         .set_build(
             id,
@@ -1304,4 +1308,94 @@ fn test_buy_skill_worst_case() {
     hub.buy_skill(id, WARDEN_SKILL);
     assert(gold_of(world, id) == 0, '22nd price 1000');
     assert(read(world.hub, known_key(id)) == 0xfffff000 + 0xc00 + LIVE, '10 and 11 known');
+}
+
+// ---- The creation kit (D-309, CNT-01): `create_adventurer` reads its profession's `KIT`
+// --------------------------------------------------------------------------------------
+
+/// Writes `profession`'s kit: no weapon, `skills` (registry ids of that profession).
+fn write_kit(world: World, profession: u8, skills: [u16; 6]) {
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    IRegistryAdminDispatcher { contract_address: world.registry }
+        .set_record(KIT, profession.into(), KitTrait::new(0, skills).pack());
+}
+
+/// Alice's new adventurer of `profession`, her account registered at the first one.
+fn created(world: World, profession: u8, first: bool) -> u32 {
+    let hub = act(world, ALICE);
+    if first {
+        hub.register();
+    }
+    hub.create_adventurer('Aldric', profession)
+}
+
+// The purse is the price of the starter skills the kit names, bought from none known (450 for
+// design/03's six: 50 + 60 + 70 + 80 + 90 + 100), read from the content: a kit naming one skill
+// gives 50, a kit naming none gives no gold, and so does a profession without a `KIT`.
+#[test]
+#[available_gas(l2_gas: 80673306)] // ceil(1.05 × 76831720 measured)
+fn test_create_adventurer_kit_purse() {
+    let world = setup();
+    let none = created(world, VANGUARD, true);
+    assert(gold_of(world, none) == 0, 'no kit, no purse');
+    write_kit(world, VANGUARD, [1, 2, 3, 4, 5, 6]);
+    write_kit(world, WARDEN, [10, 0, 0, 0, 0, 0]);
+    write_kit(world, ARCANIST, [0; 6]);
+    let vanguard = created(world, VANGUARD, false);
+    let warden = created(world, WARDEN, false);
+    assert(gold_of(world, vanguard) == 450, 'six skills: 450');
+    assert(gold_of(world, warden) == 50, 'one skill: 50');
+    let bob = act(world, BOB);
+    bob.register();
+    let arcanist = bob.create_adventurer('Brenna', ARCANIST);
+    assert(gold_of(world, arcanist) == 0, 'a kit of none: 0');
+}
+
+// The purse buys exactly the six starter skills and leaves 0: a seventh is refused.
+#[test]
+#[available_gas(l2_gas: 70383164)] // ceil(1.05 × 67031584 measured)
+fn test_create_adventurer_purse_buys_the_bar() {
+    let world = setup();
+    write_kit(world, VANGUARD, [1, 2, 3, 4, 5, 6]);
+    let id = created(world, VANGUARD, true);
+    for skill in 1..7_u16 {
+        accepted(try_buy(world, ALICE, id, skill));
+    }
+    assert(gold_of(world, id) == 0, 'the purse spent');
+    refused(try_buy(world, ALICE, id, 7), SKILL_PRICE);
+}
+
+// The kit is content (pillar 6): rewriting the record changes what a new adventurer receives,
+// with no code change; one already created keeps its purse.
+#[test]
+#[available_gas(l2_gas: 69674042)] // ceil(1.05 × 66356230 measured)
+fn test_create_adventurer_kit_is_content() {
+    let world = setup();
+    write_kit(world, VANGUARD, [1, 2, 3, 4, 5, 6]);
+    let before = created(world, VANGUARD, true);
+    write_kit(world, VANGUARD, [1, 2, 3, 0, 0, 0]);
+    let after = created(world, VANGUARD, false);
+    assert(gold_of(world, before) == 450, 'kept');
+    assert(gold_of(world, after) == 50 + 60 + 70, 'three skills: 180');
+    let parts = IRegistryReadDispatcher { contract_address: world.registry }.record(KIT, 1);
+    assert(KitRecord::unpack(parts).count() == 3, 'the record read');
+}
+
+// D-144: `create_adventurer`'s cost with a six-skill kit against none, initialised (the list's
+// page exists): the `bundle` of the region and the kit, and the purse's new gold slot.
+#[test]
+#[available_gas(l2_gas: 71763920)] // ceil(1.05 × 68346590 measured)
+fn test_gas_create_adventurer_kit() {
+    let world = setup();
+    let hub = act(world, ALICE);
+    hub.register();
+    hub.create_adventurer('Aldric', ARCANIST);
+    let gas = get_available_gas();
+    hub.create_adventurer('Aldric', ARCANIST);
+    println!("gas create_adventurer initialised, no kit: {}", gas - get_available_gas());
+    write_kit(world, WARDEN, [10, 0, 0, 0, 0, 0]);
+    start_cheat_caller_address(world.hub, addr(ALICE));
+    let gas = get_available_gas();
+    hub.create_adventurer('Aldric', WARDEN);
+    println!("gas create_adventurer initialised, a kit and its purse: {}", gas - get_available_gas());
 }

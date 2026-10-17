@@ -1538,7 +1538,8 @@ fn test_set_record_reveal_records() {
 // that profession, and its weapon, when not 0, a `BASE` of the weapon slot; it is no input of the
 // flattening.
 #[test]
-#[available_gas(l2_gas: 26564895)] // ceil(1.05 × 25299900 measured)
+#[available_gas(l2_gas: 21640654)] // ceil(1.05 × 20610146 measured)
+#[feature("safe_dispatcher")]
 fn test_set_record_kit() {
     let r = Fixture::deploy();
     let none: [Entry; 3] = [Default::default(); 3];
@@ -1559,24 +1560,26 @@ fn test_set_record_kit() {
     };
     let before = r.version();
     let inputs = r.inputs();
+    let vanguard = 1;
     // Refused: a skill of the Warden, a skill the registry lacks, a chest piece for a weapon, a
-    // base never written, a gap, a skill twice.
-    assert_refused(try_write(r, KIT, kit(1, [1, 3, 0, 0, 0, 0])), kit_errors::SKILL_PROFESSION);
-    assert_refused(try_write(r, KIT, kit(1, [1, 4, 0, 0, 0, 0])), kit_errors::NO_SKILL);
-    assert_refused(try_write(r, KIT, kit(2, [1, 2, 0, 0, 0, 0])), kit_errors::NO_WEAPON);
-    assert_refused(try_write(r, KIT, kit(3, [1, 2, 0, 0, 0, 0])), kit_errors::NO_WEAPON);
-    assert_refused(try_write(r, KIT, kit(1, [1, 0, 2, 0, 0, 0])), kit_errors::GAP);
-    assert_refused(try_write(r, KIT, kit(1, [1, 2, 1, 0, 0, 0])), kit_errors::DUPLICATE);
-    // Accepted: the Vanguard's, with its axe; the Warden's with no weapon; then a seventh id is
-    // no profession's.
-    assert_accepted(try_write(r, KIT, kit(1, [1, 2, 0, 0, 0, 0])));
-    assert_accepted(try_write(r, KIT, kit(0, [3, 0, 0, 0, 0, 0])));
-    for _ in 3..7_u32 {
-        assert_accepted(try_write(r, KIT, kit(0, [0; 6])));
-    }
-    assert_refused(try_write(r, KIT, kit(0, [0; 6])), kit_errors::PROFESSION);
-    assert(r.admin.last_id(KIT) == 6, 'six kits');
-    assert(r.version() == before + 6 && r.inputs() == inputs, 'content, not an input');
+    // base never written, a gap, a skill twice; ids 0 and 7, no profession's.
+    let write = |id: u32, record: Span<felt252>| r.safe.set_record(KIT, id, record);
+    let skills = [1, 2, 0, 0, 0, 0];
+    assert_refused(write(vanguard, kit(1, [1, 3, 0, 0, 0, 0])), kit_errors::SKILL_PROFESSION);
+    assert_refused(write(vanguard, kit(1, [1, 4, 0, 0, 0, 0])), kit_errors::NO_SKILL);
+    assert_refused(write(vanguard, kit(2, skills)), kit_errors::NO_WEAPON);
+    assert_refused(write(vanguard, kit(3, skills)), kit_errors::NO_WEAPON);
+    assert_refused(write(vanguard, kit(1, [1, 0, 2, 0, 0, 0])), kit_errors::GAP);
+    assert_refused(write(vanguard, kit(1, [1, 2, 1, 0, 0, 0])), kit_errors::DUPLICATE);
+    assert_refused(write(7, kit(0, [0; 6])), kit_errors::PROFESSION);
+    assert_refused(write(0, kit(0, [0; 6])), ZERO_ID);
+    // Accepted in any order: the Warden's with no weapon, the Vanguard's with its axe, the last
+    // profession's.
+    assert_accepted(write(2, kit(0, [3, 0, 0, 0, 0, 0])));
+    assert_accepted(write(vanguard, kit(1, skills)));
+    assert_accepted(write(6, kit(0, [0; 6])));
+    assert(r.admin.last_id(KIT) == 0, 'composite: no last id');
+    assert(r.version() == before + 3 && r.inputs() == inputs, 'content, not an input');
     // A kit's weapon changed is a rewrite of its record.
     r.admin.set_record(KIT, 2, kit(1, [3, 0, 0, 0, 0, 0]));
     assert(KitRecord::unpack(r.read.record(KIT, 2)).weapon == 1, 'weapon rewritten');

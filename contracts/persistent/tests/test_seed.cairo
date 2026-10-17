@@ -712,7 +712,7 @@ impl SeedFixture of Fixture {
 // the gate zone, two weapon bases and the three kits).
 #[test]
 // gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
-#[available_gas(l2_gas: 164678966)] // ceil(1.05 × 156837110 measured)
+#[available_gas(l2_gas: 164066511)] // ceil(1.05 × 156253820 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
@@ -842,7 +842,7 @@ fn test_seed_written_and_read_back() {
     assert(hob.tier == 4 && hob.weapon.damage == 27 && hob.rank == 12, 'hobgoblin');
 
     // The creation kits (D-309): the Vanguard's axe, the Warden's bow, the Arcanist none.
-    assert(admin.last_id(BASE) == 2 && admin.last_id(KIT) == 3, 'two bases, three kits');
+    assert(admin.last_id(BASE) == 2 && admin.last_id(KIT) == 0, 'two bases; kits are composite');
     let axe = BaseRecord::unpack(at(BASE, 1));
     assert(axe.slot == slot::WEAPON && axe.hands == 1, 'base 1: the axe');
     let bow = BaseRecord::unpack(at(BASE, 2));
@@ -867,7 +867,7 @@ fn test_gas_seed_baseline() {
 // Writing the whole test region, 56 `set_record` (AC-4): this test less the baseline.
 #[test]
 // gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
-#[available_gas(l2_gas: 128234526)] // ceil(1.05 × 122128120 measured)
+#[available_gas(l2_gas: 127623122)] // ceil(1.05 × 121545830 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -876,7 +876,7 @@ fn test_gas_seed_write() {
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
 // gas: raised, CNT-01: the seed holds 30 more records (56, 89 slots: the MVP content and kits)
-#[available_gas(l2_gas: 194738355)] // ceil(1.05 × 185465100 measured)
+#[available_gas(l2_gas: 194059310)] // ceil(1.05 × 184818390 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);
