@@ -2002,6 +2002,7 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `register` | registered | `H.account` 2 (new); `H.account_of` 1 (new); `H.next_account` 1 (old) | 3 / 1 | 3 / 1 | 0 | — |
 | `set_account_owner`, 7 adventurers inside | changed | `H.account` 1 (old); `H.account_of` 2 (new/old); `I.member` 7 (old) | 1 / 9 | 1 / 9 | 2 | — |
 | `create_adventurer` | created | `H.account` 1 (old); `H.acct_list` 1 (first); `H.adventurer` 6 (new); `H.next_adventurer` 1 (old) | 7 / 2 | 6 / 3 | 2 | — |
+| `create_adventurer` | created, with a kit's purse | `H.account` 1 (old); `H.acct_list` 1 (first); `H.adventurer` 6 (new); `H.gold` 1 (new); `H.next_adventurer` 1 (old) | 8 / 2 | 7 / 3 | 2 | — |
 | `delete_adventurer` | deleted | `H.account` 1 (old); `H.acct_list` 2 (old); `H.core` 1 (old) | 0 / 4 | 0 / 4 | 1 | — |
 | `set_build` | set | `H.belt` 1 (old); `H.build` 1 (old); `H.equipped` 1 (old); `H.snapshot` 3 (first) | 3 / 3 | 0 / 6 | 4 | — |
 | `travel` | travelled | `H.place` 1 (old) | 0 / 1 | 0 / 1 | 2 | AdventurerLocated ×1 |
@@ -2151,7 +2152,7 @@ states' worst branches differ, both are named.
 | `play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, not adopted) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 68 → **19,177,695** | 46 / 22 → **38,564,487** |
 | `register` | registered | 0 | 0 | 0 | 3 / 1 → **2,636,720** (node, M) | 3 / 1 → **2,636,720** (node, M) |
 | `set_account_owner`, 7 adventurers inside | changed | 7 | 2 | 0 | 1 / 9 → **2,721,351** | 1 / 9 → **2,721,351** |
-| `create_adventurer` | created | 1 | 2 | 0 | 6 / 3 → **4,532,960** (node, M) | 7 / 2 → **4,894,960** (node, M) |
+| `create_adventurer` | created, with a kit's purse | 1 | 2 | 0 | 7 / 3 → **5,106,484** | 8 / 2 → **5,527,936** |
 | `delete_adventurer` | deleted | 0 | 1 | 0 | 0 / 4 → **1,150,347** | 0 / 4 → **1,150,347** |
 | `set_build` | set | 1 | 4 | 0 | 0 / 3 → **1,369,635** | 0 / 3 → **1,369,635** |
 | `travel` | travelled | 0 | 2 | 46,336 | 0 / 1 → **1,266,560** (node, M) | 0 / 1 → **1,266,560** (node, M) |
@@ -2205,8 +2206,10 @@ packing, the batch's codec, the probes, deployments). None executes an entrypoin
 implementing lots' benchmarks, each against its row above.
 
 **Targets replaced by measurements** (D-144, the rule in cost-budget.md §2): `register` 2,650,000;
-`create_adventurer` 4,894,960 cold, 4,532,960 initialised (node, M, HUB-ROWS #487; D-295, replacing
-D-144's 4,700,000 / 4,350,000); `delete_adventurer` 1,750,000;
+`create_adventurer` without a kit 5,054,960 cold, 4,652,960 initialised (node, M, CNT-01's lifecycle
+probe: the region and the `KIT` in one `bundle`; HUB-ROWS #487's 4,894,960 / 4,532,960 before, D-295,
+replacing D-144's 4,700,000 / 4,350,000), with a kit's purse 5,527,936 / 5,106,484 (E: that
+computation and one new `H.gold` slot; its node measure through `accounts_probe.py` is a later lot's); `delete_adventurer` 1,750,000;
 `set_account_owner` with 7 inside 3,700,000 (re-measured by ENG-06). The table above stays the
 script's output; these figures supersede its targets for those rows. `travel`'s row, 1,266,560
 (node, M), is a raw node receipt: net of the node's fixed part (189,141, ENG-06) it is 1,077,419,

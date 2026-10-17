@@ -15,7 +15,7 @@
 | `play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, not adopted) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 68 → **19,177,695** | 46 / 22 → **38,564,487** |
 | `register` | registered | 0 | 0 | 0 | 3 / 1 → **2,636,720** (node, M) | 3 / 1 → **2,636,720** (node, M) |
 | `set_account_owner`, 7 adventurers inside | changed | 7 | 2 | 0 | 1 / 9 → **2,721,351** | 1 / 9 → **2,721,351** |
-| `create_adventurer` | created | 1 | 2 | 0 | 6 / 3 → **4,532,960** (node, M) | 7 / 2 → **4,894,960** (node, M) |
+| `create_adventurer` | created, with a kit's purse | 1 | 2 | 0 | 7 / 3 → **5,106,484** | 8 / 2 → **5,527,936** |
 | `delete_adventurer` | deleted | 0 | 1 | 0 | 0 / 4 → **1,150,347** | 0 / 4 → **1,150,347** |
 | `set_build` | set | 1 | 4 | 0 | 0 / 3 → **1,369,635** | 0 / 3 → **1,369,635** |
 | `travel` | travelled | 0 | 2 | 46,336 | 0 / 1 → **1,266,560** (node, M) | 0 / 1 → **1,266,560** (node, M) |

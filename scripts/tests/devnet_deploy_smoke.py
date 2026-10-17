@@ -16,10 +16,10 @@ the script is run with `--build full`: the build key, the build read back, and t
 JSON says what the pack kept, and on the chain the adventurer leaves, `set_build` accepts the belt twice over
 (the pack holds twice the belt), refuses one more than that, and enters a second time with the same belt.
 
-SEED-02 (D-275, D-280): in `--full` the bar read back from the chain holds the four skills the JSON names
-(the instant attack, the activation skill, the trap and the REGENERATION skill), the belt holds both potions
-and `build.dropped` is empty; `Hub.instances` read from the chain's storage is the `Instances` address again
-after the gold harness; the second entry carries the whole bar and belt. Before any node, the gold step's own
+SEED-02 (D-275, D-280), CNT-01 (D-310): in `--full` the bar read back from the chain holds the two skills the
+JSON names (the instant attack, Cleave, and the activation skill, Second Wind: the seed's Vanguard has no trap
+and no REGENERATION skill, which `build.dropped` names), the belt holds both potions; `Hub.instances` read
+from the chain's storage is the `Instances` address again after the gold harness; the second entry carries the whole bar and belt. Before any node, the gold step's own
 checks run on a stub node: it refuses a chain id that is not a local devnet's, a node that is not a devnet and
 a non-local URL, and sends nothing then; on a devnet it credits exactly the four skills' price, restores
 `Hub.instances` and fails when the read-back is not the `Instances` address. The Keccak behind the storage
@@ -27,7 +27,7 @@ key is checked against a known selector.
 
 DEPLOY-BUILD-FOR: on this node, `check_modes` runs the two modes of `devnet_deploy.py` that build another account's
 adventurer. Predeployed account 1 is CV's "burner": it registers, creates an adventurer and enters; `--credit-only`
-credits it (the instance id read from the chain, no owner call), it leaves, buys the four skills, builds, and its
+credits it (the instance id read from the chain, no owner call), it leaves, buys the bar's skills, builds, and its
 next entry debits the belt (the pack holds twice the belt after the entry and the leave, not three times).
 `--give-build` builds a new adventurer of account 2 the same way, and the refusals run: a non-local node, a missing
 deployment, an index outside 1-9, an adventurer the account does not own, a credit of an adventurer that is not
@@ -43,6 +43,10 @@ import re
 import subprocess
 import sys
 import tempfile
+
+# CNT-01 (D-310): what `build_plan` drops of `--build full` on the seed's Vanguard bar, and why
+DROPPED = {"trap": "the seed has no trap skill of profession 1",
+           "regeneration_skill": "the seed has no skill with a REGENERATION entry"}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -219,15 +223,17 @@ def check_full(dep, node):
         assert kept and kept[0] >= kind["count"], f"no second entry in the pack: {build}"
     # `pack_after_entry` is derived by the script (no pack view): the chain checks below are the proof
     assert build["derived"] == ["pack_after_entry"], build
-    # SEED-02: nothing dropped, the four skills on the bar (read back from the chain by `check_build`)
-    assert build["dropped"] == {}, build["dropped"]
+    # CNT-01 (D-310): the seed's Vanguard bar is design/03's, of one weapon family: `build_plan` keeps
+    # its instant attack, Cleave (1), and its activation skill, Second Wind (4), and drops the trap and
+    # the REGENERATION skill, which no Vanguard skill of the seed is (read back from the chain by
+    # `check_build`)
+    assert build["dropped"] == DROPPED, build["dropped"]
     skills = build["skills"]
-    assert list(skills) == ["instant_attack", "activation_skill", "trap", "regeneration_skill"], skills
-    assert build["bar"][:4] == list(skills.values()) and build["bar"][4:] == [0] * 4, build["bar"]
-    assert len(set(skills.values())) == 4 and all(skills.values()), skills
+    assert skills == {"instant_attack": 1, "activation_skill": 4}, skills
+    assert build["bar"][:2] == [1, 4] and build["bar"][2:] == [0] * 6, build["bar"]
     on_chain = [(words[BUILD] >> (16 * slot)) % (1 << 16) for slot in range(8)]
     assert on_chain == build["bar"], on_chain
-    assert build["gold"] == 260, build["gold"]  # the four skills at D-277's prices, nothing over
+    assert build["gold"] == 260, build["gold"]  # the harness's credit (`GOLD`); the bar spends 50 + 60
     items = [b["item"] for b in build["belt"]]
     assert len(items) == 2 and items[0] != items[1], build["belt"]  # healing and REGENERATION potions
     # D-280: the harness gave `Hub.instances` back to the real `Instances`
@@ -362,7 +368,7 @@ def check_modes(dep):
         assert credited["instance_read_from"] == "Instances.placement", credited
         assert nonce(burner) == nonce_before, "--credit-only sent a transaction from the burner's account"
         # the gold itself has no read (`Hub.gold` and `balances` are NOT_IMPLEMENTED): it is proved by the
-        # four `buy_skill` below, which cost exactly 260 and are refused without it
+        # `buy_skill` below, the bar's two (CNT-01: 50 + 60 of the 260), refused without it
         assert devnet_deploy.hub_instances(burner, hub) == int(instances, 16), "Hub.instances not restored"
         # still inside, so an owner call refuses until the burner leaves; then its own calls build it
         try:
@@ -391,7 +397,7 @@ def check_modes(dep):
             given = json.load(f)
         assert int(given["account"], 16) == int(owner.address, 16) and given["adventurer_id"], given
         assert given["build"]["mode"] == "full" and given["build"]["gold"] == 260, given
-        assert given["build"]["belt"] == belt and given["build"]["dropped"] == {}, given["build"]
+        assert given["build"]["belt"] == belt and given["build"]["dropped"] == DROPPED, given["build"]
         assert set(given["build"]) == set(dep_full_keys()), sorted(given["build"])
         check_build_of(owner, given, hub)
         check_debit(owner, hub, instances, given["adventurer_id"], belt)

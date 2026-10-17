@@ -411,10 +411,21 @@ row("`register`", B("registered", 200_000, [], 0, {}, Keys().many(
 row("`set_account_owner`, 7 adventurers inside", B("changed", 200_000, ["instances"] * 7, 2, {}, Keys()
     .add(("H.account", ACCT, "owner"), "old").add(("H.account_of", "old owner"), "old").add(("H.account_of", "new owner"), "new")
     .many([("I.member", f"slot{i}", "controller") for i in range(7)], "old"), "E-19"))
-row("`create_adventurer`", B("created", 300_000, ["registry"], 2, {}, Keys()
-    .many([("H.adventurer", "new", w) for w in ("core", "place", "build", "belt", "equipped", "name")], "new")
-    .many([("H.next_adventurer",), ("H.account", ACCT, "record")], "old").add(("H.acct_list", ACCT, 0), "first"),
-    node=(4_532_960, 4_894_960)))
+# CNT-01 (D-309): the region and the profession's `KIT` read in one `bundle`; without a kit (the
+# probe's content), measured on the node by the lifecycle probe (M). With a kit naming skills, its
+# purse is one new `H.gold` slot: priced by the formula (E), the node measure through
+# `accounts_probe.py` left to a later lot.
+def created():
+    return (Keys()
+            .many([("H.adventurer", "new", w) for w in ("core", "place", "build", "belt", "equipped", "name")], "new")
+            .many([("H.next_adventurer",), ("H.account", ACCT, "record")], "old").add(("H.acct_list", ACCT, 0), "first"))
+
+
+row("`create_adventurer`", B("created", 300_000, ["registry"], 2, {}, created(), node=(4_652_960, 5_054_960)),
+    # The node's computation of the measured branch: 4,652,960 less the formula's other terms
+    # initialised (F, one call, 2 calldata felts, 6 N, 3 O) is 872,421 (852,969 cold): the larger.
+    B("created, with a kit's purse", 872_421, ["registry"], 2, {}, created().add(("H.gold", "new"), "new"),
+      "E: the measured branch's computation, plus the purse's slot (CNT-01), not measured on the node"))
 row("`delete_adventurer`", B("deleted", 200_000, [], 1, {}, Keys()
     .many([("H.core", ADV), ("H.account", ACCT, "record"), ("H.acct_list", ACCT, 0), ("H.acct_list", ACCT, 1)], "old"),
     "a swap removal: the hole's page, the last page"))
