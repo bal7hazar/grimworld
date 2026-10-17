@@ -1,19 +1,16 @@
 # Minimal CI of the agent tooling (FND-03), so that "merge on green CI" holds from the first pull
 # request. FND-02 builds the real CI of contracts and client beside it.
+# Since D-314 it is a reusable workflow, called only by the `tooling` job of ci.yml, so that `ci result`
+# (the one required check) needs it: one run per pull request or push, shown as `tooling / tooling`.
+# The caller's event reaches it unchanged (github.event_name, the base and before SHAs), and so does
+# its concurrency: ci.yml's group cancels a superseded pull-request run, this call with it.
 name: tooling
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
-
-# A new push to a pull request cancels the superseded run; runs on main are never cancelled.
-concurrency:
-  group: tooling-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   tooling:
