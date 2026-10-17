@@ -62,8 +62,9 @@ const AI_MARK: readonly (Mark | null)[] = [
 /** `ai::DEAD`: a goblin at or above it is gone from the map. */
 const DEAD = 6;
 
-/** The art's castes, by order; the seed's caste ids (1 …) wrap over them. */
-const CASTES: readonly Caste[] = ["runt", "skirmisher", "slinger", "shaman", "hobgoblin"];
+/** The art's castes in the order of the seed's caste ids (`contracts/seed/README.md`: 1 Runt, 2 Slinger,
+ * 3 Skirmisher, 4 Shaman, 5 Hobgoblin); a later id wraps over them. */
+const CASTES: readonly Caste[] = ["runt", "slinger", "skirmisher", "shaman", "hobgoblin"];
 const casteName = (id: number): Caste => CASTES[(Math.max(id, 1) - 1) % CASTES.length] ?? "runt";
 
 /** A goblin as the map draws it, or null for a dead one. */

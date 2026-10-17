@@ -10,6 +10,7 @@ import {
 import { SIGHT_RADIUS, distance } from "../sandbox/placeholders";
 import { initialState, toView } from "../sandbox/wiring";
 import { stateOf } from "../combat/fromWords";
+import { DEFAULT_NAMES } from "../combat/state";
 import { recordedBefore as noGoblins } from "../preview/recorded";
 import type { MirrorState } from "../preview/mirror";
 import {
@@ -46,6 +47,19 @@ describe("the words' tile and facing", () => {
 
 /** The mark of each AI state, `ai::ASLEEP` to `ai::RETURNING`. */
 const AI_MARKS = ["asleep", null, "alerted", "engaged", "fleeing", null];
+
+describe("the castes by the seed's ids (contracts/seed/README.md)", () => {
+  it("names castes 1-5 Runt, Slinger, Skirmisher, Shaman, Hobgoblin, on the map and in the names", () => {
+    const seed = ["runt", "slinger", "skirmisher", "shaman", "hobgoblin"];
+    const goblin = view().goblins[0]!;
+    seed.forEach((name, k) => {
+      const caste = BigInt(k + 1);
+      const state = (goblin.state & ~(0xffffn << 64n) & ~(0xffn << 24n)) | (caste << 64n);
+      expect(goblinActor({ ...goblin, state })?.caste, `caste ${k + 1}`).toBe(name);
+      expect(DEFAULT_NAMES.caste(k + 1), `caste ${k + 1}`).toBe(name);
+    });
+  });
+});
 
 describe("the world built from a recorded view and region (§6.2)", () => {
   it("draws the adventurer and the goblin where the view puts them", () => {
