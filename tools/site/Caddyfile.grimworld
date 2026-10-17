@@ -5,7 +5,8 @@
 grimworld.bal7hazar.com {
 	root * /home/claude/site/grimworld/current
 	encode zstd gzip
-	try_files {path} /index.html
+	# {path}/index.html serves the editor's folder page (/editor and /editor/); the rest falls back to the game.
+	try_files {path} {path}/index.html /index.html
 	file_server
 
 	# Optional: uncomment to protect the site with basic auth. Generate the hash with
