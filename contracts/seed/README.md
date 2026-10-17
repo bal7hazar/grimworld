@@ -70,8 +70,8 @@ design/04's Engaged row, CBT-05h/CBT-07); loot tables 0 until a `LOOT_TABLE` is 
 
 | Kind | Id | What |
 |---|---|---|
-| `CASTE` | 1 | Runt: tier 1, `swarm`, 50 %, armor 20, an axe (17, slashing, 1 tick, range 1), no energy, no skill, rank 4, flees below 30 % |
-| `CASTE` | 2 | Slinger: tier 1, `kite`, 40 %, armor 20 (+30 against types 4–7), a bow (21, blunt, 2 ticks, range 6), rank 4 |
+| `CASTE` | 1 | Runt: tier 1, `swarm`, 25 %, armor 20, an axe (9, slashing, 1 tick, range 1), no energy, no skill, rank 4, flees below 30 %; health and damage NUM-01's (D-311, was 50 % and 17) |
+| `CASTE` | 2 | Slinger: tier 1, `kite`, 20 %, armor 20 (+30 against types 4–7), a bow (11, blunt, 2 ticks, range 6), rank 4; health and damage NUM-01's (was 40 % and 21) |
 | `CASTE` | 3 | Skirmisher: tier 2, `flank`, 50 %, armor 40 (+20 against types 1–3), a sword (18, slashing, 1, 1), energy 20 / 2, Rending Cut (2), rank 6 |
 | `CASTE` | 4 | Shaman: tier 3, `support`, 60 %, armor 30, a staff (16, earth, 2, 6), energy 30 / 4, Mend Kin (20) then Stone Skin (17), rank 9 |
 | `CASTE` | 5 | Hobgoblin: tier 4, `brute`, 100 %, armor 60 (+20 against types 1–3), a maul (27, blunt, 2, 1), energy 20 / 2, Overhead Smash (21), rank 12 |
@@ -107,7 +107,7 @@ weapon's: an attack skill whose attribute is not the weapon's is refused in play
 | 11 | Snare | Warden, Trapping | Trap | 10, 2, 20, range 1, a tile | `TRAP`; `DAMAGE` piercing 10…40; `CONDITION` Crippled 3…8 (DS-32) |
 | 12 | Field Dressing | Warden, Survival | Skill | 5, 1, 15, self | `HEAL` 30…120; `CURE` Bleeding |
 | 13 | Sidestep | Warden, Fieldcraft | Stance | 5, 0, 20, self | `EVADE` melee for 2…6 |
-| 14 | Ember Bolt | Arcanist, Fire | Spell | 5, 1, 2, range 6 | `DAMAGE` fire 15…60 |
+| 14 | Ember Bolt | Arcanist, Fire | Spell | 5, 1, 2, range 6 | `DAMAGE` fire 25…60 (NUM-01, D-311: 15 before) |
 | 15 | Cinder Ring | Arcanist, Fire | Spell | 15, 2, 12, self | `DAMAGE` fire 20…80 and `CONDITION` Burning 1…3, `SELF`, `RING_1`, foes |
 | 16 | Rime Shard | Arcanist, Frost | Spell | 5, 1, 4, range 6 | `DAMAGE` cold 10…50; `CONDITION` Crippled 2…5 (FX-16) |
 | 17 | Stone Skin | Arcanist, Stone | Enchantment | 10, 1, 20, range 6, an ally | `ARMOR` 10…30 for 8…20, `ALLY`, allies (DS-22) |
