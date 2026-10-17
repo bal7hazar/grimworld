@@ -233,14 +233,19 @@ pub trait ITrapLibrary<T> {
 /// through `IFlattenLibraryLibraryDispatcher`, the class hash being its configuration.
 #[starknet::interface]
 pub trait IFlattenLibrary<T> {
+    /// `set_build`'s first checks of `build` (the `Build` word as stored, `models::sent_build`),
+    /// made where `Hub` made them, before every other (WPN-01, so that the refusals keep their
+    /// order): its attributes for these professions, `level` and guild `rank`
+    /// (`BuildAssert::assert_attributes`), then no skill twice on the bar (`assert_distinct`).
+    fn assert_build(self: @T, build: felt252, primary: u8, secondary: u8, level: u8, rank: u8);
+
     /// The snapshot's three packed words (`MemberStats`, `MemberBar`, `MemberKit`) of `build` (the
-    /// `Build` word as stored, `models::sent_build`),
-    /// once `Hub` has checked what precedes its `Registry.bundle` call: the bar's skills, the
-    /// belt's `potions` distinct items and the distinct modifier `ids` of the items `worn` have
-    /// their `parts`, in that order (`models::sent_build::BuildTrait::words`, WPN-01); `known` is
-    /// one a bar skill, `weapon` the one worn, packed (`WeaponTrait::pack`), at its `requirement`
-    /// (`ItemBase`'s, 0 for none).
-    /// Refuses what those checks and the flattening refuse.
+    /// `Build` word as stored), once `Hub` has checked what precedes its `Registry.bundle` call:
+    /// the bar's skills, the belt's `potions` distinct items and the distinct modifier `ids` of
+    /// the items `worn` have their `parts`, in that order (`models::sent_build::BuildTrait::words`,
+    /// WPN-01); `known` is one a bar skill, `weapon` the one worn, packed (`WeaponTrait::pack`), at
+    /// its `requirement` (`ItemBase`'s, 0 for none). Refuses what those checks and the flattening
+    /// refuse.
     fn words(
         self: @T,
         build: felt252,

@@ -451,8 +451,10 @@ pub mod Hub {
             let secondary = core.secondary();
             let sent = StoredBuildTrait::new(build, belt, equipped);
             let value = sent.build();
-            value.assert_attributes(primary, secondary, level, rank);
-            value.assert_distinct();
+            // The build's own checks first, in `FlattenLibrary` (WPN-01, D-310: out of `Hub`'s
+            // class, at the same point, so that every refusal keeps its order).
+            let flatten = IFlattenLibraryLibraryDispatcher { class_hash: self.get_flatten() };
+            flatten.assert_build(sent.build, primary, secondary, level, rank);
             let (items, counts) = sent.belt();
             BeltAssert::assert_counts(items, counts);
             let entities = sent.equipped().lanes.span();
@@ -484,9 +486,7 @@ pub mod Hub {
             let Equipment {
                 bases: _, worn, modifiers, weapon, requirement, personalised,
             } = equipment;
-            let (stats, bar, kit) = IFlattenLibraryLibraryDispatcher {
-                class_hash: self.get_flatten(),
-            }
+            let (stats, bar, kit) = flatten
                 .words(
                     sent.build,
                     known.span(),

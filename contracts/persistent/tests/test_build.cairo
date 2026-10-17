@@ -38,7 +38,7 @@ use grimworld_persistent::models::adventurer::errors::{
 use grimworld_persistent::models::adventurer::{AdventurerCore, Build, BuildTrait, NO_ELITE};
 use grimworld_persistent::models::item::errors::{A_COMPONENT, NOT_IN_PACK, UNIDENTIFIED};
 use grimworld_persistent::models::item::{
-    COMPONENT, Gold, IDENTIFIED, ItemBaseTrait, ItemMods, ItemModsTrait, Modifier,
+    COMPONENT, Gold, IDENTIFIED, ItemBase, ItemBaseTrait, ItemMods, ItemModsTrait, Modifier,
 };
 use grimworld_persistent::models::snapshot::StoredSnapshotTrait;
 use grimworld_persistent::models::stored_build::errors::{
@@ -351,7 +351,21 @@ fn flattened(
     world: World, id: u32, level: u8, ids: Span<u16>, belt_items: [u32; 4], counts: [u8; 4],
 ) -> (felt252, felt252, felt252) {
     let build: Build = StorePacking::unpack(read(world.hub, adventurer_word(id, 2)));
-    let loadout = build.loadout(level, core_of(world, id).profession, false, belt_items, counts);
+    let registry = IRegistryReadDispatcher { contract_address: world.registry };
+    let (_, _, skill_parts) = registry.bundle(build.request().span());
+    let key = map_entry_address(selector!("items"), array![101].span());
+    let weapon: ItemBase = StorePacking::unpack(read(world.hub, key));
+    let loadout = build
+        .loadout(
+            level,
+            core_of(world, id).profession,
+            build.bar_kinds(skill_parts),
+            weapon.weapon(),
+            weapon.requirement,
+            false,
+            belt_items,
+            counts,
+        );
     let mut worn: Array<Worn> = array![];
     for lane in 0..7_u8 {
         let key = map_entry_address(selector!("items"), array![(101 + lane.into())].span()) + 1;
@@ -367,7 +381,6 @@ fn flattened(
     for modifier in ids {
         requests.append((MODIFIER, (*modifier).into()));
     }
-    let registry = IRegistryReadDispatcher { contract_address: world.registry };
     let (_, _, parts) = registry.bundle(requests.span());
     let (stats, bar, kit) = SnapshotBuildTrait::words(@loadout, worn.span(), ids, parts);
     (stats, bar, StoredSnapshotTrait::seal(kit, epoch(world)))
