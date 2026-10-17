@@ -81,9 +81,9 @@ outcome and the state after equal the preview. It also checks a revert (`not con
 admission refusal, the bounds and the account's two calls, and it times 10 simulations of a few
 batches and 10 assemblies of the content (the number of `Registry.record` calls and the time).
 `PREVIEW_RECORD=<file>` writes a recording in their form, with the records read and the seed's
-castes, skill and potion, which the decoders' unit test checks against
+sheets (every caste of its table, skill 1, the potions 1 and 23), which the decoders' unit test checks against
 `contracts/seed/test-region.json`. The world is drawn from the deployment's entropy, so it
-differs from run to run unless the deployment is salted: to re-record `recorded-goblins.ts` (CLI-10n),
+differs from run to run unless the deployment is salted: to re-record `recorded-goblins.ts` (CLI-10n, CLI-10r),
 deploy with `devnet_deploy.py --salt 0x1` (the default empty build), run this test with `PREVIEW_RECORD=<file>`,
 and put the salt, the commit, the machine, the absolute build path and "a fixture CI does not reproduce"
 in the file's header (another worktree or machine gives another world; re-record after any contract

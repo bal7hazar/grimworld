@@ -837,6 +837,7 @@ rules 1–2). Pillar 6 and S-6: a zone or a quest is data.
 | `CONTRACT_POOL` | 23 | 1 | a hub's daily contracts (design/14) |
 | `SET_PIECE` | 24 | 2 | an authored chunk: terrain, placements (ADR-0006) |
 | `COUNTER` | 25 | 1 | what sets the bits of a title's "distinct" counter |
+| `KIT` | 29 | 1 | id = a profession's (1–6, composite): its starter weapon's `BASE` (0 none) and its starter skills, which price the purse `create_adventurer` credits (D-309, CNT-01) |
 
 Reads: `record(kind, id)`, `records(kind, ids)`, and **`bundle(requests) -> (version: u32,
 inputs: u32, records)`**: every record an invocation needs in **one call** (C ≈ 0.12–0.14 M),
@@ -924,6 +925,7 @@ value; no field straddles bit 128; `LIVE` in part 0.
 | `ITEM` | 0 | class 0–7 (1 ingredient, 2 material, 3 potion, 4 trophy, 5 stillstone, 6 heartstone, 7 quest, 8 failed brew) · region 8–23 · rarity 24–31 · value 32–63 · book index 64–71 · the potion's **entry** 128–224 · range 225–232 · bomb strength 233–240 (FX-18, FX-28) |
 | `BASE` | 0 | **slot 0–7** (1 weapon … 7 feet, as `ItemBase.slot`) · **hands 8–15** (1 or 2 on a weapon, 0 elsewhere); the rest of part 0 and part 1 (class, profession, damage by requirement, rating, look) are laid out by a later lot, appended after bit 15 (CBT-08a; `grimworld_logic::models::base`, which covers this prefix only) |
 | `BASE` | 1 | `LIVE` only, until then |
+| `KIT` | 0 | **weapon 0–15** (a `BASE` of the weapon slot, 0 none) · **skills 16–111** (six `SKILL` ids of the kit's profession, `u16` each, packed from the first, distinct; `grimworld_logic::models::kit`); `create_adventurer` reads it with `REGION` 1 in one `bundle` |
 | `MODIFIER` | 0 | slot type 0–7 (1 prefix, 2 suffix, 3 inscription, 4 insignia, 5 rune: `ItemMods`' order) · **benefit** 128–180 · **cost** 181–233 (a passive each; the cost fixed, id 0 for none) |
 | `ARMOR_SET` | 0 | 5 piece bases `u16` at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · the 3-piece bonus 128–180 · the 5-piece bonus 181–233 (a passive each) |
 | `CASTE` | 0 | tier 0–7 · AI profile 8–15 · health multiplier (percent) 16–31 · health regeneration + 10 32–39 · armor 40–47 · weapon 48–79 (class 48–51 · damage 52–67 · damage type 68–71 · ticks 72–75 · range 76–79) · energy (≤ 85) 80–87 · energy regeneration 88–95 · flee threshold 96–103 · rank of its skills 104–107 · boss 108 · armor per damage type 128–181 (type `t` at `128 + 6 (t − 1)`, ≤ 63) · loot table 182–197 |
@@ -2000,6 +2002,7 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `register` | registered | `H.account` 2 (new); `H.account_of` 1 (new); `H.next_account` 1 (old) | 3 / 1 | 3 / 1 | 0 | — |
 | `set_account_owner`, 7 adventurers inside | changed | `H.account` 1 (old); `H.account_of` 2 (new/old); `I.member` 7 (old) | 1 / 9 | 1 / 9 | 2 | — |
 | `create_adventurer` | created | `H.account` 1 (old); `H.acct_list` 1 (first); `H.adventurer` 6 (new); `H.next_adventurer` 1 (old) | 7 / 2 | 6 / 3 | 2 | — |
+| `create_adventurer` | created, with a kit's purse | `H.account` 1 (old); `H.acct_list` 1 (first); `H.adventurer` 6 (new); `H.gold` 1 (new); `H.next_adventurer` 1 (old) | 8 / 2 | 7 / 3 | 2 | — |
 | `delete_adventurer` | deleted | `H.account` 1 (old); `H.acct_list` 2 (old); `H.core` 1 (old) | 0 / 4 | 0 / 4 | 1 | — |
 | `set_build` | set | `H.belt` 1 (old); `H.build` 1 (old); `H.equipped` 1 (old); `H.snapshot` 3 (first) | 3 / 3 | 0 / 6 | 4 | — |
 | `travel` | travelled | `H.place` 1 (old) | 0 / 1 | 0 / 1 | 2 | AdventurerLocated ×1 |
@@ -2149,7 +2152,7 @@ states' worst branches differ, both are named.
 | `play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, not adopted) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 68 → **19,177,695** | 46 / 22 → **38,564,487** |
 | `register` | registered | 0 | 0 | 0 | 3 / 1 → **2,636,720** (node, M) | 3 / 1 → **2,636,720** (node, M) |
 | `set_account_owner`, 7 adventurers inside | changed | 7 | 2 | 0 | 1 / 9 → **2,721,351** | 1 / 9 → **2,721,351** |
-| `create_adventurer` | created | 1 | 2 | 0 | 6 / 3 → **4,532,960** (node, M) | 7 / 2 → **4,894,960** (node, M) |
+| `create_adventurer` | created, with a kit's purse | 1 | 2 | 0 | 7 / 3 → **5,106,484** | 8 / 2 → **5,527,936** |
 | `delete_adventurer` | deleted | 0 | 1 | 0 | 0 / 4 → **1,150,347** | 0 / 4 → **1,150,347** |
 | `set_build` | set | 1 | 4 | 0 | 0 / 3 → **1,369,635** | 0 / 3 → **1,369,635** |
 | `travel` | travelled | 0 | 2 | 46,336 | 0 / 1 → **1,266,560** (node, M) | 0 / 1 → **1,266,560** (node, M) |
@@ -2203,8 +2206,10 @@ packing, the batch's codec, the probes, deployments). None executes an entrypoin
 implementing lots' benchmarks, each against its row above.
 
 **Targets replaced by measurements** (D-144, the rule in cost-budget.md §2): `register` 2,650,000;
-`create_adventurer` 4,894,960 cold, 4,532,960 initialised (node, M, HUB-ROWS #487; D-295, replacing
-D-144's 4,700,000 / 4,350,000); `delete_adventurer` 1,750,000;
+`create_adventurer` without a kit 5,054,960 cold, 4,652,960 initialised (node, M, CNT-01's lifecycle
+probe: the region and the `KIT` in one `bundle`; HUB-ROWS #487's 4,894,960 / 4,532,960 before, D-295,
+replacing D-144's 4,700,000 / 4,350,000), with a kit's purse 5,527,936 / 5,106,484 (E: that
+computation and one new `H.gold` slot; its node measure through `accounts_probe.py` is a later lot's); `delete_adventurer` 1,750,000;
 `set_account_owner` with 7 inside 3,700,000 (re-measured by ENG-06). The table above stays the
 script's output; these figures supersede its targets for those rows. `travel`'s row, 1,266,560
 (node, M), is a raw node receipt: net of the node's fixed part (189,141, ENG-06) it is 1,077,419,

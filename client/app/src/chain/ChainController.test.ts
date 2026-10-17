@@ -4,7 +4,7 @@ import { readWorld } from "../combat/fromWords";
 import type { LogLine } from "../combat/log";
 import { actRow, contentOf } from "../combat/vectors.testkit";
 import type { PlayAction } from "../preview/actions";
-import type { MirrorState } from "../preview/mirror";
+import { type MirrorState, unpackFeatures } from "../preview/mirror";
 import type { MirrorResult } from "../preview/reconcile";
 import { recordedBefore } from "../preview/recorded-goblins";
 import { decodeInstanceView } from "../preview/view";
@@ -769,10 +769,13 @@ describe("what is refused before the batch (§4.4)", () => {
 });
 
 describe("interactions are not available (§4.4)", () => {
-  /** The recorded chunk 0 with a non-trap object (kind 2) on tile (1, 7), local tile 106. */
+  /** The recorded chunk 0 with a non-trap object (kind 2) on tile (1, 7), local tile 106, in its
+   * first free object slot (the recorded world may already hold one). */
   function withObject(): ChainState {
     const chain = recordedChain();
-    const object = (106n | (2n << 8n)) << 128n;
+    const chunk0 = chain.mirror.region.find((c) => c.chunk === 0)!;
+    const free = unpackFeatures(chunk0.features).objects.findIndex((o) => o.kind === 0);
+    const object = (106n | (2n << 8n)) << (128n + 32n * BigInt(free));
     const region = chain.mirror.region.map((c) =>
       c.chunk === 0 ? { ...c, features: c.features | object } : c,
     );

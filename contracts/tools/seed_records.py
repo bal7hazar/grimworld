@@ -21,8 +21,9 @@ def region(town, book, first, name):
     return [town + (book << 16) + (first << 32) + (short(name) << 128) + LIVE]
 
 
-def location(kind, width, target, floors, next_floor, entry_chunk, entry_tile, spawn_table=0):
-    low = (kind + (1 << 8) + (1 << 24) + (1 << 32) + (3 << 40) + (width << 56) + (width << 64)
+def location(kind, width, target, floors, next_floor, entry_chunk, entry_tile, spawn_table=0,
+             levels=(1, 3)):
+    low = (kind + (1 << 8) + (1 << 24) + (levels[0] << 32) + (levels[1] << 40) + (width << 56) + (width << 64)
            + (target << 72) + (floors << 80) + (next_floor << 88) + (spawn_table << 104))
     return [low + ((entry_chunk + (entry_tile << 8)) << 128) + LIVE, LIVE]
 
@@ -109,3 +110,50 @@ def spawn_table_record(row):
     bits = [row[1 + 2 * i] + (row[2 + 2 * i] << 16) for i in range(7)]
     low = sum(b << (24 * i) for i, b in enumerate(bits[:5]))
     return [low + ((bits[5] + (bits[6] << 24) + (row[15] << 48) + (row[16] << 56)) << 128) + LIVE]
+
+
+BASE, KIT = 12, 29  # CNT-01 (D-309)
+
+
+def base_record(row):
+    """`BaseRecord::pack`: the slot, then the hands, in part 0 (the prefix `BASE` lays out, D-158);
+    part 1 is `LIVE` only."""
+    _, slot, hands = row
+    return [slot + (hands << 8) + LIVE, LIVE]
+
+
+def kit_record(row):
+    """`KitRecord::pack`: the starter weapon's `BASE` (0 none), then the six starter skills, 16 bits
+    each."""
+    _, weapon, *skills = row
+    return [weapon + sum(sk << (16 * (i + 1)) for i, sk in enumerate(skills)) + LIVE]
+
+
+def quotas_record(row):
+    """`QuotaSetRecord::pack`: six `(kind 8 bits, param 16, count 8)` of 32 bits, four in the low limb."""
+    bits = [row[1 + 3 * i] + (row[2 + 3 * i] << 8) + (row[3 + 3 * i] << 24) for i in range(6)]
+    low = sum(b << (32 * i) for i, b in enumerate(bits[:4]))
+    return [low + ((bits[4] + (bits[5] << 32)) << 128) + LIVE]
+
+
+GATE_ZONE = 5  # CNT-01: the gate zone's `LOCATION`, and its `QUOTAS` (D-145)
+
+
+def gate_zone_and_kits():
+    """CNT-01's records that the deployments write after `devnet_deploy.seed_records()`'s, from
+    `contracts/seed/test-region.json`'s rows: the gate zone (`LOCATION` 5: a 1 x 1 meadow at level
+    `level_min` to `level_max`, no spawn table), its gates (7 and 8: the seed's after the deployments'
+    6), its Heart (`QUOTAS` 5, after the packs), the starter weapons' bases and the kits (D-309, after
+    the skills). In that order: a gate and a quota after their location."""
+    (zone,) = [r for r in seed_rows("locations", 31) if r[0] == GATE_ZONE]
+    _, kind, _, _, low, high, _, width, _, _, _, _, spawn, _, chunk, tile = zone[:16]
+    records = [(LOCATION, GATE_ZONE, location(kind, width, 0, 0, 0, chunk, tile, spawn_table=spawn,
+                                              levels=(low, high)))]
+    for row in seed_rows("gates", 10):
+        if row[1] == GATE_ZONE or row[2] == GATE_ZONE:
+            _, source, destination, ac, at, ec, et, gate_kind, _, _ = row
+            records.append((GATE, row[0], gate(source, destination, (ac, at), (ec, et), gate_kind)))
+    records += [(QUOTAS, r[0], quotas_record(r)) for r in seed_rows("quotas", 19) if r[0] == GATE_ZONE]
+    records += [(BASE, r[0], base_record(r)) for r in seed_rows("bases", 3)]
+    records += [(KIT, r[0], kit_record(r)) for r in seed_rows("kits", 8)]
+    return records

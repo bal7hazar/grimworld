@@ -89,10 +89,12 @@ pub mod Registry {
     use grimworld_logic::helpers::packing::{Counter, LIVE_HIGH};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
+    use grimworld_logic::models::base::{BaseRecord, slot};
     use grimworld_logic::models::caste::{
         CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
     };
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
+    use grimworld_logic::models::kit::{KitAssert, KitRecord, errors as kit_errors};
     use grimworld_logic::models::location::{
         INDEX_BOUND, LocationAssert, LocationRecord, errors as location_errors, map,
     };
@@ -101,11 +103,12 @@ pub mod Registry {
     use grimworld_logic::models::pack::{PackAssert, PackRecord};
     use grimworld_logic::models::quotas::{QuotaBoundsAssert, QuotaSetAssert, QuotaSetRecord};
     use grimworld_logic::models::set_piece::{SetPieceAssert, SetPieceRecord};
-    use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
+    use grimworld_logic::models::skill::{SkillAssert, SkillRecord, SkillTrait};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::types::content::{
-        ARMOR_SET, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KindAssert, KindTrait, LOCATION, MAX_READ,
-        MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, ZONE_CHUNK,
+        ARMOR_SET, BASE, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KIT, KindAssert, KindTrait,
+        LOCATION, MAX_READ, MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE, SHOP, SKILL, SPAWN_TABLE,
+        ZONE_CHUNK,
     };
     use grimworld_logic::types::reveal::outline::MAX_CHUNKS;
     use starknet::storage::{Map, StorageMapReadAccess};
@@ -285,6 +288,10 @@ pub mod Registry {
         ///   it names that the registry holds at most 63 strikes (DS-18, across records);
         /// - DS-18 in the other order: a `SKILL` above 63 strikes is refused while a caste names
         ///   its id (`caste_skills`), whether the skill is new or rewritten.
+        /// - `KIT` (D-309): `KitAssert::assert_legal` (its id a profession's, its skills packed and
+        ///   distinct), each skill it names a `SKILL` of that profession and its weapon, when not
+        ///   0, a `BASE` worn in the weapon slot: `create_adventurer` prices the purse from these
+        ///   skills and creates the weapon from that base without checking either again.
         /// - the chunk reveal's records (ENG-05): `QUOTAS`, `SPAWN_TABLE`, `PACK` and `SET_PIECE`,
         ///   each its model's `assert_legal` (kinds known and empty entries empty; a pack of at
         ///   most 5 at its fewest, E-3; a set piece's corners wall, D-134, and its placements on
@@ -361,6 +368,24 @@ pub mod Registry {
                     }
                 }
                 CasteAssert::assert_skills(skills.span());
+            } else if kind == KIT {
+                let kit = KitRecord::unpack(record);
+                kit.assert_legal(id);
+                for skill in kit.skills.span() {
+                    if *skill != 0 {
+                        let part = self.records.read((SKILL, (*skill).into(), 0));
+                        assert(part != 0, kit_errors::NO_SKILL);
+                        let (profession, _) = SkillTrait::profile(part);
+                        assert(profession.into() == id, kit_errors::SKILL_PROFESSION);
+                    }
+                }
+                if kit.weapon != 0 {
+                    let mut out = array![];
+                    self.read_into(BASE, kit.weapon.into(), KindTrait::parts(BASE), ref out);
+                    // A base never written reads as zeros: slot 0, not the weapon's.
+                    let base = BaseRecord::unpack(out.span());
+                    assert(base.slot == slot::WEAPON, kit_errors::NO_WEAPON);
+                }
             }
         }
 
@@ -388,7 +413,8 @@ pub mod Registry {
         /// `OUTLINE` a location (and a chunk below 225, or 255), `SHOP` a location as its hub (its
         /// existence only: that it is a town or an outpost is the content pipeline's check).
         /// `ZONE_CHUNK` a location and a chunk below 225, `BRIDGE` a location and a chunk below
-        /// 225, `CANDIDATES` a location (ENG-09). `TASK` and `QUEST` take the administrator's
+        /// 225, `CANDIDATES` a location (ENG-09); `KIT` a profession, which `KitAssert` checks with
+        /// the record (D-309). `TASK` and `QUEST` take the administrator's
         /// quiver ids as they are (D-145): that a quiver id exists is the content pipeline's check
         /// (OPS-01).
         #[inline(always)]
@@ -509,7 +535,7 @@ pub mod Registry {
     }
 }
 
-/// The flattening's input kinds (D-169): `SKILL`, `ITEM` and `MODIFIER`, and none of the 22 others.
+/// The flattening's input kinds (D-169): `SKILL`, `ITEM` and `MODIFIER`, and none of the 26 others.
 /// This guards the current list only (a change of it must change this test); that the list is what
 /// `Hub.set_build` asks the registry for is `test_build::test_set_build_requests_the_input_kinds`.
 #[cfg(test)]
@@ -519,7 +545,7 @@ mod inputs_tests {
 
     #[test]
     // gas: raised, ENG-09: three more kinds to loop over (LAST_KIND 28)
-    #[available_gas(l2_gas: 115815)] // ceil(1.05 × 110300 measured)
+    #[available_gas(l2_gas: 119669)] // ceil(1.05 × 113970 measured)
     fn test_flattening_inputs() {
         for kind in 1..LAST_KIND + 1 {
             let expected = kind == SKILL || kind == ITEM || kind == MODIFIER;

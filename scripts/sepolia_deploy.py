@@ -63,6 +63,7 @@ import urllib.parse
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import devnet_deploy as dd  # noqa: E402  the deployment order, the seed and the node, shared
+import seed_records as sr  # noqa: E402  CNT-01's records (devnet_deploy put contracts/tools on the path)
 
 REPO = "bal7hazar/grimworld"  # every `gh` call names it: the artefact is this repository's, whatever the checkout's remote
 NAME = "ops02a"
@@ -89,7 +90,7 @@ SUBMITTING = ("declare-from", "declare", "deploy", "invoke")
 WINDOW = 40  # blocks searched before the first latest seen: sncast's --wait polls for minutes
 FOUND_TRIES, FOUND_WAIT = 20, 3.0  # looking for the transaction an accepted-but-failed call left
 KINDS = {dd.REGION: "region", dd.LOCATION: "location", dd.GATE: "gate", dd.ITEM: "item",
-         9: "skill", 8: "caste", 7: "pack", 6: "spawn_table"}
+         9: "skill", 8: "caste", 7: "pack", 6: "spawn_table", 5: "quotas", 12: "base", 29: "kit"}
 
 
 class Redactor:
@@ -569,9 +570,27 @@ def needed_classes():
     return names.pairs
 
 
-def seed_ids():
+def seed_records(kits=True):
+    """The records this deployment writes: the devnet script's (`devnet_deploy.seed_records`), then
+    CNT-01's gate zone, its gates and Heart, the starter weapons' bases and the kits (D-309), from the
+    seed's rows (`seed_records.gate_zone_and_kits`); without the kits when `kits` is false."""
+    return dd.seed_records() + [r for r in sr.gate_zone_and_kits() if kits or r[0] != sr.KIT]
+
+
+def knows_kits(node, registry):
+    """Whether the artefact's `Registry` has the `KIT` kind (29, CNT-01): its `last_id` answers for it,
+    and a class built before CNT-01 refuses it (`registry: unknown kind`). A rehearsal of an artefact
+    of `main` older than the seed it writes (OPS-02a's smoke, on a pull request) then writes no kit."""
+    try:
+        node.view("persistent", registry, "last_id", sr.KIT)
+    except RuntimeError:
+        return False
+    return True
+
+
+def seed_ids(records=None):
     ids = {}
-    for kind, rid, _ in dd.seed_records():
+    for kind, rid, _ in (seed_records() if records is None else records):
         ids.setdefault(KINDS.get(kind, str(kind)), []).append(rid)
     return ids
 
@@ -676,7 +695,7 @@ def run(args, log, redact, environ):
         plan = needed_classes()
         log.say(f"plan: declare {len(plan)} classes from the artefact, deploy Registry, TxHashFate, Hub, "
                 f"Instances; set_zone_checks first, set_contracts, set_play_class keys 0-"
-                f"{len(dd.PLAY_CLASSES) - 1} (GoblinsLibrary last), then {len(dd.seed_records())} seed records")
+                f"{len(dd.PLAY_CLASSES) - 1} (GoblinsLibrary last), then {len(seed_records())} seed records")
         log.say(f"pace: {pace:g} s between transactions" + (" (rehearsal)" if args.devnet_rehearsal else ""))
         if args.dry_run:
             log.say("--dry-run: nothing sent")
@@ -688,7 +707,12 @@ def run(args, log, redact, environ):
             core = dd.deploy_core(node, address)
             log.say("classes: " + ", ".join(f"{k} {v}" for k, v in core["classes"].items()))
             log.say("contracts: " + ", ".join(f"{k} {core[k]}" for k in ("registry", "fate", "hub", "instances")))
-            dd.write_seed(node, core["registry"])
+            kits = knows_kits(node, core["registry"])
+            if not kits:
+                log.say("this artefact's Registry has no KIT kind (built before CNT-01): no kit written")
+            written = seed_records(kits)
+            for kind, rid, parts in written:
+                node.invoke(core["registry"], "set_record", kind, rid, len(parts), *parts)
             count, fee, unit = totals(node)
         except BaseException:  # what was sent so far, so that a retry knows what exists
             try:
@@ -705,7 +729,7 @@ def run(args, log, redact, environ):
             "classes": core["classes"],
             "contracts": {"registry": core["registry"], "tx_hash_fate": core["fate"], "hub": core["hub"],
                           "instances": core["instances"]},
-            "seed": {"records": len(dd.seed_records()), "ids": seed_ids()},
+            "seed": {"records": len(written), "ids": seed_ids(written)},
             "tools": {"sncast": sncast_version},
             "transactions": count, "total_fee": {"amount": str(fee), "unit": unit},
         }

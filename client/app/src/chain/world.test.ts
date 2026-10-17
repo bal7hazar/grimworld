@@ -10,6 +10,7 @@ import {
 import { SIGHT_RADIUS, distance } from "../sandbox/placeholders";
 import { initialState, toView } from "../sandbox/wiring";
 import { stateOf } from "../combat/fromWords";
+import { DEFAULT_NAMES } from "../combat/state";
 import { recordedBefore as noGoblins } from "../preview/recorded";
 import type { MirrorState } from "../preview/mirror";
 import {
@@ -44,17 +45,35 @@ describe("the words' tile and facing", () => {
   });
 });
 
+/** The mark of each AI state, `ai::ASLEEP` to `ai::RETURNING`. */
+const AI_MARKS = ["asleep", null, "alerted", "engaged", "fleeing", null];
+
+describe("the castes by the seed's ids (contracts/seed/README.md)", () => {
+  it("names castes 1-5 Runt, Slinger, Skirmisher, Shaman, Hobgoblin, on the map and in the names", () => {
+    const seed = ["runt", "slinger", "skirmisher", "shaman", "hobgoblin"];
+    const goblin = view().goblins[0]!;
+    seed.forEach((name, k) => {
+      const caste = BigInt(k + 1);
+      const state = (goblin.state & ~(0xffffn << 64n) & ~(0xffn << 24n)) | (caste << 64n);
+      const actor = goblinActor({ ...goblin, state });
+      expect(actor?.side === "goblin" ? actor.caste : null, `caste ${k + 1}`).toBe(name);
+      expect(DEFAULT_NAMES.caste(k + 1), `caste ${k + 1}`).toBe(name);
+    });
+  });
+});
+
 describe("the world built from a recorded view and region (§6.2)", () => {
   it("draws the adventurer and the goblin where the view puts them", () => {
     const world = chainWorld(recorded());
     const adventurer = world.actors.find((a) => a.id === world.adventurerId);
     expect(adventurer).toMatchObject({ side: "adventurer", tile: { x: 0, y: 7 }, facing: 0 });
     // The recording's first goblin: its entity, its tile (state bits 0-7 x, 8-15 y in chunk 0),
-    // on watch (ai 1: no mark)
+    // its mark from its AI state (bits 24-31; the marks by state are checked below)
     const [first] = view().goblins;
     const tile = { x: Number(first!.state & 0xffn), y: Number((first!.state >> 8n) & 0xffn) };
+    const mark = AI_MARKS[Number((first!.state >> 24n) & 0xffn)];
     const goblin = world.actors.find((a) => a.side === "goblin");
-    expect(goblin).toMatchObject({ id: first!.entity, tile, facing: 0, mark: null });
+    expect(goblin).toMatchObject({ id: first!.entity, tile, facing: 0, mark });
     expect(world.actors).toHaveLength(1 + view().goblins.length);
     // And so does the view the renderer gets from it
     const drawn = toView(initialState(world));
@@ -63,12 +82,21 @@ describe("the world built from a recorded view and region (§6.2)", () => {
     // shows it where the world holds it
     expect(distance(adventurer!.tile, tile)).toBeLessThanOrEqual(SIGHT_RADIUS);
     expect(drawn.actors.find((a) => a.id === first!.entity)?.tile).toEqual(tile);
-    // A goblin beyond sight is in the world and not on the map
-    const far = world.actors.find(
-      (a) => a.side === "goblin" && distance(adventurer!.tile, a.tile) > SIGHT_RADIUS,
-    );
-    expect(far).toBeDefined();
-    expect(drawn.actors.find((a) => a.id === far!.id)).toBeUndefined();
+  });
+
+  it("keeps a goblin beyond sight in the world and off the map", () => {
+    // The recorded world may draw every goblin in sight: its first goblin is moved to (14, 7)
+    const base = view();
+    const far = {
+      ...base.goblins[0]!,
+      state: (base.goblins[0]!.state & ~0xffffn) | (7n << 8n) | 14n,
+    };
+    const world = chainWorld({ ...recorded(), view: { ...base, goblins: [far] } });
+    const adventurer = world.actors.find((a) => a.id === world.adventurerId)!;
+    const goblin = world.actors.find((a) => a.id === far.entity);
+    expect(goblin?.tile).toEqual({ x: 14, y: 7 });
+    expect(distance(adventurer.tile, goblin!.tile)).toBeGreaterThan(SIGHT_RADIUS);
+    expect(toView(initialState(world)).actors.find((a) => a.id === far.entity)).toBeUndefined();
   });
 
   it("draws a goblin in sight where the view puts it", () => {
@@ -120,8 +148,7 @@ describe("the world built from a recorded view and region (§6.2)", () => {
       ...goblin,
       state: (goblin.state & ~(0xffn << 24n)) | (BigInt(ai) << 24n),
     });
-    const marks = ["asleep", null, "alerted", "engaged", "fleeing", null];
-    marks.forEach((mark, ai) => {
+    AI_MARKS.forEach((mark, ai) => {
       expect(goblinActor(withAi(ai))?.mark, `ai ${ai}`).toBe(mark);
     });
     expect(goblinActor(withAi(6))).toBeNull();

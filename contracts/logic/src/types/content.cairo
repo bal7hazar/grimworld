@@ -50,12 +50,15 @@ pub const BRIDGE: u8 = 27;
 /// The candidate chunks of an authored zone's quotas (D-215 ruling 3): id `location × 2 + k`, part
 /// `j` quota `3 k + j`'s.
 pub const CANDIDATES: u8 = 28;
+/// A profession's creation kit (D-309): id = the profession's id (composite, D-145's pattern);
+/// its starter weapon and the starter skills its purse is priced from.
+pub const KIT: u8 = 29;
 /// The last kind: kinds are 1 to `LAST_KIND`.
-pub const LAST_KIND: u8 = 28;
+pub const LAST_KIND: u8 = 29;
 
 /// Felts per record of each kind (index = kind; 0 is not a kind).
-pub const PARTS: [u8; 29] = [
-    0, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 3,
+pub const PARTS: [u8; 30] = [
+    0, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 3, 1,
 ];
 
 pub mod errors {
@@ -70,7 +73,8 @@ pub impl KindImpl of KindTrait {
     /// kinds take ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE` and
     /// `ZONE_CHUNK`:
     /// `location × 256 + chunk`; `BRIDGE`: `location × 4096 + chunk × 16 + k`; `CANDIDATES`:
-    /// `location × 2 + k`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by
+    /// `location × 2 + k`; `SHOP`: `hub × 16 + service`; `KIT`: its profession's id, 1 to 6): any
+    /// id whose parent exists; or given by
     /// quiver (`TASK`, `QUEST`: the administrator's quiver ids, taken as they are, D-145).
     /// `last_id`
     /// stays 0 for them.
@@ -86,6 +90,7 @@ pub impl KindImpl of KindTrait {
             && kind != ZONE_CHUNK
             && kind != BRIDGE
             && kind != CANDIDATES
+            && kind != KIT
     }
 
     /// Felts per record of `kind`.
@@ -141,14 +146,15 @@ mod tests {
     use super::{KindTrait, LAST_KIND};
 
     #[test]
-    // gas: raised, ENG-09: one more kind's parts asserted (25 and the last, 28)
-    #[available_gas(l2_gas: 13220)] // ceil(1.05 × 12590 measured)
+    // gas: raised, CNT-01: one more kind's parts asserted (28 and the last, 29)
+    #[available_gas(l2_gas: 14658)] // ceil(1.05 × 13960 measured)
     fn test_parts_per_kind() {
         assert(
             KindTrait::parts(2) == 2
                 && KindTrait::parts(15) == 3
                 && KindTrait::parts(25) == 1
-                && KindTrait::parts(LAST_KIND) == 3,
+                && KindTrait::parts(28) == 3
+                && KindTrait::parts(LAST_KIND) == 1,
             'parts per kind',
         );
     }

@@ -408,6 +408,17 @@ pub const PRICED_SKILLS: u8 = 20;
 
 #[generate_trait]
 pub impl SkillTrainerImpl of SkillTrainerTrait {
+    /// A new adventurer's purse (D-309): what its first `count` skills cost, bought in a row from
+    /// none known; `count` is how many starter skills its profession's `KIT` names, so that the
+    /// purse buys that bar and nothing more, priced by this table, never a second constant.
+    fn purse(count: u8) -> u64 {
+        let mut total: u64 = 0;
+        for known in 0..count {
+            total += Self::price(known);
+        }
+        total
+    }
+
     /// The price of a skill when the adventurer knows `known` (capped at `PRICED_SKILLS`).
     fn price(known: u8) -> u64 {
         if known >= PRICED_SKILLS {
@@ -1002,7 +1013,8 @@ mod tests {
     // SKILL-01: a skill learned in either limb, the count capped, the price's steps (design/15:
     // 50 for the first, 1,000 from the 21st; the 20 first cost 6,450 in all, as in the baseline).
     #[test]
-    #[available_gas(l2_gas: 479642)] // ceil(1.05 × 456801 measured)
+    // gas: raised, CNT-01: `SkillTrainerTrait` holds `purse` (D-309), the module's code moved
+    #[available_gas(l2_gas: 501431)] // ceil(1.05 × 477553 measured)
     fn test_skill_trainer() {
         let mut page: Bitmap = StorePacking::unpack(0);
         assert(KnownSkillsTrait::count(@page, PRICED_SKILLS) == 0, 'none known');

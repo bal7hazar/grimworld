@@ -18,6 +18,8 @@ pub mod held_passive;
 /// other model has its own file, with its checks and errors (D-143).
 pub mod index;
 pub mod item;
+/// A profession's creation kit, `KIT` (D-309).
+pub mod kit;
 /// What the flattening reads of a build besides its passives.
 pub mod loadout;
 pub mod location;

@@ -10,12 +10,13 @@ use grimworld_logic::interface::{
     IRegistryReadSafeDispatcherTrait,
 };
 use grimworld_logic::models::armor_set::{ArmorSetRecord, ArmorSetTrait};
-use grimworld_logic::models::base::slot as base_slot;
+use grimworld_logic::models::base::{BaseRecord, BaseTrait, slot as base_slot};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait, errors as caste_errors};
 use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::item::{
     ItemRecord, ItemTrait, class as item_class, errors as item_errors,
 };
+use grimworld_logic::models::kit::{KitRecord, KitTrait, errors as kit_errors};
 use grimworld_logic::models::location::{
     LocationRecord, LocationTrait, errors as location_errors, kind as location_kind,
 };
@@ -35,9 +36,9 @@ use grimworld_logic::models::spawn_table::{
 };
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::content::{
-    ARMOR_SET, BOOK, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KindTrait, LAST_KIND, LOCATION,
-    MODIFIER, OUTLINE, PACK, QUEST, QUOTAS, REGION, Record, SET_PIECE, SHOP, SKILL, SPAWN_TABLE,
-    TASK, ZONE_CHUNK,
+    ARMOR_SET, BASE, BOOK, BRIDGE, CANDIDATES, CASTE, GATE, ITEM, KIT, KindTrait, LAST_KIND,
+    LOCATION, MODIFIER, OUTLINE, PACK, QUEST, QUOTAS, REGION, Record, SET_PIECE, SHOP, SKILL,
+    SPAWN_TABLE, TASK, ZONE_CHUNK,
 };
 use grimworld_logic::types::effect::{
     Entry, EntryTrait, errors as entry_errors, filter, guard, kind, shape, target,
@@ -804,7 +805,10 @@ fn test_inputs_version_every_other_kind() {
             || kind == CANDIDATES
             || kind == GATE
             || kind == QUOTAS
-            || kind == OUTLINE {
+            || kind == OUTLINE
+            // A kit names skills and a weapon base, which it reads (D-309): its writes are
+            // `test_set_record_kit`'s
+            || kind == KIT {
             continue;
         }
         let id = next_id(r, kind);
@@ -1528,4 +1532,53 @@ fn test_set_record_reveal_records() {
     );
     assert_refused(try_write(r, SET_PIECE, SetPieceRecord::pack(@open)), set_piece_errors::CORNER);
     assert(r.admin.last_id(SET_PIECE) == 1, 'one set piece');
+}
+
+// D-309: a kit's id is a profession's, its skills are packed, distinct, in the registry and of
+// that profession, and its weapon, when not 0, a `BASE` of the weapon slot; it is no input of the
+// flattening.
+#[test]
+#[available_gas(l2_gas: 21640654)] // ceil(1.05 × 20610146 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_kit() {
+    let r = Fixture::deploy();
+    let none: [Entry; 3] = [Default::default(); 3];
+    let skill = |profession: u8| -> Span<felt252> {
+        SkillTrait::new(profession, 1, skill_kind::ATTACK, 0, 1, 1, 5, 1, target::FOE, false, none)
+            .pack()
+    };
+    // Skills 1 and 2 of the Vanguard, 3 of the Warden; base 1 an axe, base 2 a chest piece.
+    assert_accepted(try_write(r, SKILL, skill(1)));
+    assert_accepted(try_write(r, SKILL, skill(1)));
+    assert_accepted(try_write(r, SKILL, skill(2)));
+    assert_accepted(try_write(r, BASE, BaseTrait::new(base_slot::WEAPON, 1).pack()));
+    assert_accepted(try_write(r, BASE, BaseTrait::new(base_slot::CHEST, 0).pack()));
+    let kit = |weapon: u16, skills: [u16; 6]| -> Span<felt252> {
+        KitTrait::new(weapon, skills).pack()
+    };
+    let before = r.version();
+    let inputs = r.inputs();
+    let vanguard = 1;
+    // Refused: a skill of the Warden, a skill the registry lacks, a chest piece for a weapon, a
+    // base never written, a gap, a skill twice; ids 0 and 7, no profession's.
+    let write = |id: u32, record: Span<felt252>| r.safe.set_record(KIT, id, record);
+    let skills = [1, 2, 0, 0, 0, 0];
+    assert_refused(write(vanguard, kit(1, [1, 3, 0, 0, 0, 0])), kit_errors::SKILL_PROFESSION);
+    assert_refused(write(vanguard, kit(1, [1, 4, 0, 0, 0, 0])), kit_errors::NO_SKILL);
+    assert_refused(write(vanguard, kit(2, skills)), kit_errors::NO_WEAPON);
+    assert_refused(write(vanguard, kit(3, skills)), kit_errors::NO_WEAPON);
+    assert_refused(write(vanguard, kit(1, [1, 0, 2, 0, 0, 0])), kit_errors::GAP);
+    assert_refused(write(vanguard, kit(1, [1, 2, 1, 0, 0, 0])), kit_errors::DUPLICATE);
+    assert_refused(write(7, kit(0, [0; 6])), kit_errors::PROFESSION);
+    assert_refused(write(0, kit(0, [0; 6])), ZERO_ID);
+    // Accepted in any order: the Warden's with no weapon, the Vanguard's with its axe, the last
+    // profession's.
+    assert_accepted(write(2, kit(0, [3, 0, 0, 0, 0, 0])));
+    assert_accepted(write(vanguard, kit(1, skills)));
+    assert_accepted(write(6, kit(0, [0; 6])));
+    assert(r.admin.last_id(KIT) == 0, 'composite: no last id');
+    assert(r.version() == before + 3 && r.inputs() == inputs, 'content, not an input');
+    // A kit's weapon changed is a rewrite of its record.
+    r.admin.set_record(KIT, 2, kit(1, [3, 0, 0, 0, 0, 0]));
+    assert(KitRecord::unpack(r.read.record(KIT, 2)).weapon == 1, 'weapon rewritten');
 }

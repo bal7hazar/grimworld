@@ -395,12 +395,18 @@ describe.skipIf(!deploymentPath)("the batch preview on the local node", () => {
       `content read: ${calls} Registry.record calls (${view.goblins.length} goblins listed), ` +
         `median ${median(times).toFixed(1)} ms, max ${Math.max(...times).toFixed(1)} ms`,
     );
-    // The seed's sheets (contracts/seed/test-region.json: castes 1-3, skill 1; devnet_deploy.py's
-    // potion 1), kept for the decoders' unit test whatever the world drew
+    // The seed's sheets (contracts/seed/test-region.json: every caste, read from its table, and
+    // skill 1; devnet_deploy.py's potion 1 and REGENERATION potion 23), kept for the decoders'
+    // unit test whatever the world drew
     const seed = recording(registry);
-    for (const id of [1, 2, 3]) await seed(CASTE, id);
+    const table = JSON.parse(
+      readFileSync(new URL("../../../../contracts/seed/test-region.json", import.meta.url), "utf8"),
+    ) as { caste_fields: string[]; castes: number[] };
+    const columns = table.caste_fields.length;
+    for (let at = 0; at < table.castes.length; at += columns) await seed(CASTE, table.castes[at]!);
     await seed(SKILL, 1);
     await seed(ITEM, 1);
+    await seed(ITEM, 23);
   }, 60_000);
 
   it("writes the recorded traces when asked, with no key in them", () => {

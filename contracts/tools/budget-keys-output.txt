@@ -60,6 +60,7 @@
 | `register` | registered | `H.account` 2 (new); `H.account_of` 1 (new); `H.next_account` 1 (old) | 3 / 1 | 3 / 1 | 0 | — |
 | `set_account_owner`, 7 adventurers inside | changed | `H.account` 1 (old); `H.account_of` 2 (new/old); `I.member` 7 (old) | 1 / 9 | 1 / 9 | 2 | — |
 | `create_adventurer` | created | `H.account` 1 (old); `H.acct_list` 1 (first); `H.adventurer` 6 (new); `H.next_adventurer` 1 (old) | 7 / 2 | 6 / 3 | 2 | — |
+| `create_adventurer` | created, with a kit's purse | `H.account` 1 (old); `H.acct_list` 1 (first); `H.adventurer` 6 (new); `H.gold` 1 (new); `H.next_adventurer` 1 (old) | 8 / 2 | 7 / 3 | 2 | — |
 | `delete_adventurer` | deleted | `H.account` 1 (old); `H.acct_list` 2 (old); `H.core` 1 (old) | 0 / 4 | 0 / 4 | 1 | — |
 | `set_build` | set | `H.belt` 1 (old); `H.build` 1 (old); `H.equipped` 1 (old) | 0 / 3 | 0 / 3 | 4 | — |
 | `travel` | travelled | `H.place` 1 (old) | 0 / 1 | 0 / 1 | 2 | AdventurerLocated ×1 |

@@ -191,8 +191,9 @@ pub mod Hub {
         IResults, Results,
     };
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord};
+    use grimworld_logic::models::kit::{Kit, KitRecord, KitTrait};
     use grimworld_logic::models::region::{Region, RegionRecord};
-    use grimworld_logic::types::content::{GATE, REGION, SKILL, exists};
+    use grimworld_logic::types::content::{GATE, KIT, REGION, SKILL, exists};
     use grimworld_logic::types::profession::ProfessionAssert;
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::Map;
@@ -331,10 +332,13 @@ pub mod Hub {
             }
         }
 
-        /// D-32: a name and a primary profession; placed in region 1's town, read from the
-        /// registry (D-144: one `record` call), unlocked, at level 1, rank Wood.
+        /// D-32: a name and a primary profession; placed in region 1's town, unlocked, at level 1,
+        /// rank Wood, with its profession's kit (D-309): a purse that buys the starter skills its
+        /// `KIT` names (`SkillTrainerTrait::purse`). The region and the kit are read from the
+        /// registry in one `bundle` call (D-144); a profession without a `KIT` gets nothing.
         /// Writes (ENG-01 §9.3): the adventurer's six words new, its lane of the account's list
-        /// (new on a page's first lane), the account's record and `next_adventurer` overwritten.
+        /// (new on a page's first lane), the account's record and `next_adventurer` overwritten,
+        /// its gold new when the purse is not 0.
         fn create_adventurer(ref self: ContractState, name: felt252, profession: u8) -> u32 {
             let account_id = self.get_account_id(get_caller_address());
             AccountAssert::assert_has_account(account_id);
@@ -345,19 +349,24 @@ pub mod Hub {
             AccountAssert::assert_free_slot(slots, count);
 
             let adventurer_id = self.new_adventurer_id();
-            let (core, place, build) = AdventurerTrait::new(
-                account_id, profession, self.start_hub(),
-            );
+            let (hub, kit) = self.start(profession);
+            let (core, place, build) = AdventurerTrait::new(account_id, profession, hub);
             self.set_adventurer(adventurer_id, core, place, build, name);
             self.add_adventurer_id(account_id, count, adventurer_id);
             self.set_account_record(account_id, record.with_adventurer());
+            let purse = SkillTrainerTrait::purse(kit.count());
+            if purse != 0 {
+                self.set_gold(OwnerTrait::pack(adventurer_id), Gold { amount: purse });
+            }
             adventurer_id
         }
 
         /// D-33: frees the slot once the pack is empty. "Its inventory emptied", each checked by
         /// one read, without scanning (`AdventurerAssert::assert_emptied`): the pack's balances
         /// (`core.pack_lanes` = 0), its equipment (the compact list's first page is empty), what it
-        /// wears (`equipped` all 0), its gold (0). The belt names potion items; the potions
+        /// wears (`equipped` all 0), its gold (0), but for its kit (D-310): gold up to the purse
+        /// its profession's `KIT` gives is forfeited, written 0 (one `record` call, only when it
+        /// holds gold). The belt names potion items; the potions
         /// themselves are pack balances. The adventurer's record is never zeroed: `core.status` =
         /// `DELETED` marks it, and its id is never reused. Writes (ENG-01 §9.3): `core`, the
         /// account's record, the list's hole and last pages, all overwritten (one page while the
@@ -365,11 +374,24 @@ pub mod Hub {
         fn delete_adventurer(ref self: ContractState, adventurer_id: u32) {
             let (account_id, core, _) = self.owned_in_hub(adventurer_id);
             let (_, _, pack_lanes) = core.fields();
+            let pack = OwnerTrait::pack(adventurer_id);
+            let gold = self.get_gold(pack);
+            let mut kept = gold;
+            if gold.amount != 0 {
+                let (_, _, _, profession) = core.profile();
+                let parts = IRegistryReadDispatcher { contract_address: self.get_registry() }
+                    .record(KIT, profession.into());
+                let purse = SkillTrainerTrait::purse(KitRecord::unpack(parts).count());
+                if gold.amount <= purse {
+                    kept = Gold { amount: 0 };
+                    self.set_gold(pack, kept);
+                }
+            }
             AdventurerAssert::assert_emptied(
                 pack_lanes,
                 @self.get_pack_page(adventurer_id, 0),
                 @self.get_equipped(adventurer_id),
-                @self.get_gold(OwnerTrait::pack(adventurer_id)),
+                @kept,
             );
             let record = self.get_account_record(account_id);
             let (_, count) = record.counts();
@@ -800,12 +822,16 @@ pub mod Hub {
         /// Region 1's town (D-144), read from the registry: one `record` call. Refuses when the
         /// region is missing; a town id of 64 or more when it is placed (`unlocked` holds bits
         /// 0-63).
-        fn start_hub(self: @ContractState) -> u16 {
-            let parts = IRegistryReadDispatcher { contract_address: self.get_registry() }
-                .record(REGION, START_REGION);
-            AdventurerAssert::assert_start_region(exists(parts));
-            let region: Region = RegionRecord::unpack(parts);
-            region.town
+        /// Region 1's town and `profession`'s kit (D-309), in one `bundle` call: a kit never
+        /// written reads as zeros, no weapon and no skill.
+        fn start(self: @ContractState, profession: u8) -> (u16, Kit) {
+            let requests = array![(REGION, START_REGION), (KIT, profession.into())];
+            let (_, _, parts) = IRegistryReadDispatcher { contract_address: self.get_registry() }
+                .bundle(requests.span());
+            let region_parts = parts.slice(0, 1);
+            AdventurerAssert::assert_start_region(exists(region_parts));
+            let region: Region = RegionRecord::unpack(region_parts);
+            (region.town, KitRecord::unpack(parts.slice(1, 1)))
         }
     }
 }

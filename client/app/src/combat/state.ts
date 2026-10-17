@@ -179,8 +179,9 @@ export interface Names {
   caste(id: number): string;
 }
 
-/** The art's castes, by order, the seed's caste ids (1 …) wrapping over them, as `chain/world.ts` draws them. */
-const CASTES = ["runt", "skirmisher", "slinger", "shaman", "hobgoblin"] as const;
+/** The art's castes in the order of the seed's caste ids (`contracts/seed/README.md`: 1 Runt, 2 Slinger,
+ * 3 Skirmisher, 4 Shaman, 5 Hobgoblin), a later id wrapping over them, as `chain/world.ts` draws them. */
+const CASTES = ["runt", "slinger", "skirmisher", "shaman", "hobgoblin"] as const;
 
 export const DEFAULT_NAMES: Names = {
   skill: (id) => `Skill ${id}`,

@@ -446,8 +446,9 @@ describe.skipIf(found === undefined)("the chain mode's setup on the local node",
   });
 });
 
-// CLI-11d: skills and belt items on the deployment's own adventurer, built `--build full` (SEED-02:
-// four skills on the bar, a belt of healing ×2 and a REGENERATION potion), adventurer
+// CLI-11d: skills and belt items on the deployment's own adventurer, built `--build full` (CNT-01:
+// the bar's skills, the build's `bar`, an instant attack then an activation skill; a belt of
+// healing ×2 and a REGENERATION potion), adventurer
 // `adventurer_id`, which account 0 owns (the burner carries the same build since CLI-11d3, above).
 // Only simulated, never sent: the world is drawn again on every deployment (entropy), so no entity,
 // tile or goblin count is assumed; the targets come from the state read back.
@@ -513,7 +514,7 @@ describe.skipIf(found === undefined || fullBuild?.mode !== "full")(
       }
     });
 
-    it("puts the four skills on the bar and the two potions on the belt, from the mirror", async () => {
+    it("puts the build's skills on the bar and the two potions on the belt, from the mirror", async () => {
       const { controller } = await controllerOn();
       const view = controller.combat.snapshot().view;
       expect(view, "the combat view needs the state's content").not.toBeNull();
@@ -554,9 +555,12 @@ describe.skipIf(found === undefined || fullBuild?.mode !== "full")(
 
     it("plays a skill on the adventurer, then refuses it on recharge, the batch unchanged", async () => {
       const { stages, controller } = await controllerOn();
+      // The bar's activation skill (`devnet_deploy.py`'s second: Second Wind, skill 4, on its user)
+      const [, self] = full.bar.filter((id) => id !== 0);
       const wind = controller.combat
         .snapshot()
-        .view!.state.adventurer.bar.find((slot) => slot.skill?.id === 2)!;
+        .view!.state.adventurer.bar.find((slot) => slot.skill?.id === self)!;
+      expect(wind, `skill ${self} on the bar`).toBeDefined();
       controller.combat.slot({ kind: "skill", slot: wind.slot });
       controller.combat.slot({ kind: "skill", slot: wind.slot });
       expect(stages.get().planned.map((p) => p.action)).toEqual([
@@ -574,24 +578,6 @@ describe.skipIf(found === undefined || fullBuild?.mode !== "full")(
       expect(controller.combat.snapshot().view?.armed).toBeNull();
       expect(stages.get().planned).toHaveLength(1);
       expect(parity).toEqual([]);
-    }, 120_000);
-
-    it("plays the REGENERATION skill, and arms the trap without throwing", async () => {
-      const { stages, controller } = await controllerOn();
-      const bar = controller.combat.snapshot().view!.state.adventurer.bar;
-      const mending = bar.find((slot) => slot.skill?.id === 4)!;
-      const snare = bar.find((slot) => slot.skill?.id === 3)!;
-      // The trap's reach is `aiming`'s: near the location's edge it has none (see ChainController)
-      expect(() => controller.combat.slot({ kind: "skill", slot: snare.slot })).not.toThrow();
-      controller.combat.escape();
-      controller.combat.slot({ kind: "skill", slot: mending.slot });
-      controller.combat.slot({ kind: "skill", slot: mending.slot });
-      const preview = await answered(stages);
-      if (preview.kind !== "simulated" || preview.chain.kind !== "played") {
-        throw new Error(`not played: ${JSON.stringify(preview)}`);
-      }
-      expect(preview.chain.batch).toMatchObject({ played: 1, stop: Stop.None });
-      expect(preview.mismatches).toEqual([]);
     }, 120_000);
 
     it("refuses a strike before the batch: no adrenaline at the start, or out of reach", async () => {
