@@ -9,6 +9,11 @@
     newest deployment record (by date, then by `artefact.run`);
   * the refusals, each with its message and nothing sent: a local URL without `--devnet`, a remote URL with
     it, `--devnet` without `--out`, an `--out` under docs/reports, a Sepolia record with `--devnet`;
+  * the bookkeeping, on stubs: a reverted transaction and one whose call failed without a hash (the nonce
+    moved) stay in the record, the reverted one marked with its fee;
+  * two faults injected after `enter` (a `ValueError` in the crossing, an `OSError` from every view): the
+    run exits 1 and still writes its record, every transaction the account sent, why, and where the
+    adventurer is (inside its instance, read from the chain; or unknown, and why);
   * `scripts/devnet_deploy.py` deploys on the node, then the play runs from the second predeployed account:
     `--dry-run` sends nothing; the run exits 0 (a run that goblins stop, its record `"completed": false`,
     is followed by one from the next account, another draw, up to three) and the record says the member entered at least two chunks
@@ -34,6 +39,8 @@ import sepolia_play as play  # noqa: E402
 
 SCRIPT = os.path.join(ROOT, "scripts", "sepolia_play.py")
 FAKE = deploy_smoke.FAKE
+# A draw that stops (goblins block a corridor through 8 batches of Waits) was 1 in 9 in GATE-1a's devnet
+# measures (VPS, 2026-10-17): all three stopping is about 1 in 700 if the draws are independent.
 TRIES = 3
 
 
@@ -97,6 +104,109 @@ def check_board():
     assert os.path.basename(play.newest_record()).startswith("2026-"), "no record in deployments/sepolia"
 
 
+class Quiet:
+    def say(self, text, error=False):
+        pass
+
+
+def check_bookkeeping():
+    """`Play.invoke` keeps a transaction that reverted (`sncast` gave its hash, then the call failed) and one
+    whose call failed without a hash while the nonce moved (found by nonce); `fees` marks a reverted one and
+    counts its fee; `where` and the summary say where the adventurer is."""
+    class Node:
+        address = "0x1"
+
+        def __init__(self, mode):
+            self.mode, self.nonce, self.sent = mode, 5, []
+
+        def account_nonce(self):
+            return self.nonce
+
+        def invoke(self, *_):
+            self.nonce += 1
+            if self.mode == "reverted":
+                self.sent = self.sent + ["0xaa"]
+                raise RuntimeError("enter reverted: out of gas")
+            raise RuntimeError("sncast failed after the node took it")
+
+        def find_transaction(self, nonce):
+            assert nonce == 5, nonce
+            return {"transaction_hash": "0xbb"}
+
+        def rpc(self, method, params):
+            reverted = params["transaction_hash"] == "0xaa"
+            return {"actual_fee": {"amount": hex(7 if reverted else 3), "unit": "FRI"},
+                    "execution_status": "REVERTED" if reverted else "SUCCEEDED", "revert_reason": "out of gas"}
+
+    contracts = {"hub": "0x2", "instances": "0x3", "registry": "0x4"}
+    for mode, tx in (("reverted", "0xaa"), ("unreported", "0xbb")):
+        game = play.Play(Node(mode), Quiet(), contracts, 2)
+        try:
+            game.invoke("enter (gate 1)", "0x2", "enter", 1, 1)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("the failed call did not raise")
+        assert game.steps == [("enter (gate 1)", tx)], (mode, game.steps)
+    transactions, total = play.fees(Node("reverted"), [("a", "0xaa"), ("b", "0xbb")], str)
+    assert transactions[0]["reverted"] is True and transactions[0]["fee"] == "7" and "reverted" not in transactions[1]
+    assert total == {"amount": "10", "unit": "FRI"}, total
+    assert play.place_text({"kind": "instance", "instance": 9}) == "left inside instance 9"
+    assert play.place_text({"kind": "unknown", "why": "OSError: x"}) == "unknown: OSError: x"
+    assert play.where(play.Play(Node("x"), Quiet(), contracts, 2), str)["kind"] == "unknown"
+
+
+def injected(values, deployment, logs, name, patch):
+    """A run in this process with `patch` applied to `Play` (a fault after `enter`), then undone. Returns the
+    exit code, the record and its summary, checked for leaks."""
+    saved = {k: getattr(play.Play, k) for k in patch}
+    for k, v in patch.items():
+        setattr(play.Play, k, v)
+    record_path = os.path.join(logs, f"{name}.json")
+    environ = {**{k: v for k, v in os.environ.items() if not k.startswith(("STARKNET_", "NODE_"))}, **values,
+               "WITH_NODE_LOG_DIR": tempfile.mkdtemp(prefix="smoke-play-logs-")}
+    try:
+        code = play.main(["--devnet", "--deployment", deployment, "--out", record_path], environ)
+    finally:
+        for k, v in saved.items():
+            setattr(play.Play, k, v)
+    text, markdown = open(record_path).read(), open(record_path[:-5] + ".md").read()
+    log = open(os.path.join(environ["WITH_NODE_LOG_DIR"], "sepolia-play.log")).read()
+    Run.no_leak(type("R", (), {"values": values})(), text, markdown, log)
+    return code, json.loads(text), markdown
+
+
+def check_faults(values_a, values_b, deployment, logs, probe, dep):
+    """Review t-0273, finding 1: an error that is not the script's own, after `enter`, still writes the
+    record with every transaction sent and where the adventurer is."""
+    def cross(self):
+        raise ValueError("injected after enter")
+    code, record, markdown = injected(values_a, deployment, logs, "fault-value", {"cross": cross})
+    address = values_a["STARKNET_ACCOUNT_ADDRESS"]
+    assert code == 1 and record["completed"] is False, record
+    assert record["stopped"] == "ValueError: injected after enter", record["stopped"]
+    assert len(record["transactions"]) == nonce(probe, address) == 4, record["transactions"]
+    assert record["transactions"][-1]["what"] == "enter (gate 1)"
+    instance = probe.view("ephemeral", dep["contracts"]["instances"], "placement", record["adventurer_id"])
+    assert instance[2] == 1 and record["final_location"] == {"kind": "instance", "instance": instance[0]}, record
+    assert f"left inside instance {instance[0]}" in markdown, markdown
+
+    enter = play.Play.enter
+
+    def broken(self, gate):
+        enter(self, gate)
+
+        def view(*_, **__):
+            raise OSError("injected: the node went away")
+        self.node.view = view
+    code, record, markdown = injected(values_b, deployment, logs, "fault-os", {"enter": broken})
+    assert code == 1 and record["stopped"] == "OSError: injected: the node went away", record
+    assert len(record["transactions"]) == nonce(probe, values_b["STARKNET_ACCOUNT_ADDRESS"]) == 4
+    assert all(t["fee"] for t in record["transactions"]) and int(record["total_fee"]["amount"]) > 0
+    assert record["final_location"]["kind"] == "unknown" and "OSError" in record["final_location"]["why"]
+    assert "unknown: OSError" in markdown, markdown
+
+
 def check_refusals(real, deployment, logs):
     local = {**FAKE, "STARKNET_RPC_URL": "http://127.0.0.1:9/sentinelapikey7788"}
     Run(local, "--dry-run").refused("a local node runs only with --devnet")
@@ -119,6 +229,7 @@ def nonce(node, address):
 
 def main():
     check_board()
+    check_bookkeeping()
     print("sepolia_play_smoke: board ok")
     url = os.environ["NODE_URL"]
     logs = tempfile.mkdtemp(prefix="smoke-play-")
@@ -128,9 +239,11 @@ def main():
     assert deployed.returncode == 0, deployed.stderr[-3000:]
     dep = json.load(open(deployment))
     probe = devnet_deploy.Node(url, dep["account"], "unused", logs, name="smoke")
-    accounts = probe.rpc("devnet_getPredeployedAccounts", {})[1:1 + TRIES]  # the deployer is the first
+    predeployed = probe.rpc("devnet_getPredeployedAccounts", {})
+    accounts = predeployed[1:1 + TRIES]  # the deployer is the first; the faults take the two after these
     real = [{"STARKNET_NETWORK": FAKE["STARKNET_NETWORK"], "STARKNET_RPC_URL": url,
-             "STARKNET_ACCOUNT_ADDRESS": a["address"], "STARKNET_PRIVATE_KEY": a["private_key"]} for a in accounts]
+             "STARKNET_ACCOUNT_ADDRESS": a["address"], "STARKNET_PRIVATE_KEY": a["private_key"]}
+            for a in predeployed[1:3 + TRIES]]
     print(f"sepolia_play_smoke: deployed (commit {dep['commit'][:7]})")
 
     check_refusals(real[0], deployment, logs)
@@ -142,9 +255,12 @@ def main():
     assert dry.code == 0 and "--dry-run: nothing sent" in dry.stdout and "plan:" in dry.stdout, dry.stderr
     assert nonce(probe, accounts[0]["address"]) == 0 and not os.path.exists(record_path), "--dry-run sent or wrote"
 
+    check_faults(real[TRIES], real[TRIES + 1], deployment, logs, probe, dep)
+    print("sepolia_play_smoke: faults after enter recorded, with every transaction and the place")
+
     # The world is drawn at the entry: a draw whose goblins stop the run (no route, health below half) is
     # recorded as stopped, and another adventurer (another draw) plays; one of TRIES must reach the hub.
-    for attempt, values in enumerate(real, 1):
+    for attempt, values in enumerate(real[:TRIES], 1):
         record_path = os.path.join(logs, f"play-{attempt}.json")
         run = Run(values, "--devnet", "--deployment", deployment, "--out", record_path)
         print(run.stdout)

@@ -43,7 +43,10 @@ What it does, in order, and nothing is sent before step 5:
      the adventurer's id, the chunks crossed in order, the final location, the hits taken, the total fee,
      the times) and a
      short Markdown summary beside it, `docs/reports/GATE-1-sepolia-play-<date>-<record>.{json,md}` by
-     default. A stopped run writes what it sent, `"completed": false` and why.
+     default. A run that stops, on any error once a transaction is sent (a `SystemExit` or an interrupt
+     too, raised again after), writes what it sent, a reverted transaction marked with its fee,
+     `"completed": false`, why (the error's type and its redacted text) and where the adventurer is
+     (`final_location`: the hub, inside an instance, or unknown and why, read from the chain).
 
 **Goblins: the script never fights.** The zone names a spawn table, so a revealed chunk may hold a pack. The
 route never steps within 2 tiles of a pack's tile (its goblins stand there), nor on a living goblin, an
@@ -322,11 +325,22 @@ class Play:
         self.health, self.hits = None, []  # the health at the first board; each fall of it, where
 
     def invoke(self, what, contract, function, *calldata):
-        before = len(self.node.sent)
-        receipt = self.node.invoke(contract, function, *calldata)
-        for tx in self.node.sent[before:]:
-            self.steps.append((what, tx))
-        return receipt
+        """`Node.invoke`, every transaction it sent kept in `steps`, a reverted or failed one too (its fee is
+        paid): what `sncast` reported, in a `finally`; and when the call failed without a hash but the
+        account's nonce moved, the transaction the node took with that nonce."""
+        before, nonce = len(self.node.sent), self.node.account_nonce()
+        try:
+            return self.node.invoke(contract, function, *calldata)
+        except BaseException:
+            if len(self.node.sent) == before:
+                try:
+                    if self.node.account_nonce() > nonce:
+                        self.node.sent.append(self.node.find_transaction(nonce)["transaction_hash"])
+                except Exception as error:  # the call's own error is the one that goes on
+                    self.log.say(f"{what}: the nonce moved and its transaction was not found ({error})", error=True)
+            raise
+        finally:
+            self.steps += [(what, tx) for tx in self.node.sent[before:]]
 
     def adventurer_ids(self, account):
         words = self.node.view("persistent", self.hub, "account", account)  # owner, record, the ids' span
@@ -493,17 +507,52 @@ class Play:
             raise Stopped(f"leave by gate {gate}: the instance did not close Returned")
 
 
-def fees(node, steps):
-    """Each transaction's fee, from its receipt; the total (one unit)."""
-    out, total, units = [], 0, set()
+def fees(node, steps, redact):
+    """Each transaction's fee, from its receipt, a reverted one marked (its fee counts); the total (one
+    unit). A receipt that cannot be read leaves its fee null with the reason, and the total says how many
+    it misses."""
+    out, total, units, missing = [], 0, set(), 0
     for what, tx in steps:
-        paid = node.rpc("starknet_getTransactionReceipt", {"transaction_hash": tx})["actual_fee"]
-        out.append({"what": what, "hash": tx, "fee": str(int(paid["amount"], 16)), "unit": paid["unit"]})
-        total += int(paid["amount"], 16)
-        units.add(paid["unit"])
+        entry = {"what": what, "hash": tx}
+        try:
+            receipt = node.rpc("starknet_getTransactionReceipt", {"transaction_hash": tx})
+            paid = receipt["actual_fee"]
+            entry.update(fee=str(int(paid["amount"], 16)), unit=paid["unit"])
+            total += int(paid["amount"], 16)
+            units.add(paid["unit"])
+            if receipt.get("execution_status") == "REVERTED":
+                entry.update(reverted=True, revert_reason=str(redact(receipt.get("revert_reason", "")))[:500])
+        except Exception as error:
+            entry.update(fee=None, unit=None, error=f"{type(error).__name__}: {redact(error)}"[:500])
+            missing += 1
+        out.append(entry)
     if len(units) > 1:
         raise RuntimeError(f"fees in several units: {sorted(units)}")
-    return out, {"amount": str(total), "unit": units.pop() if units else "FRI"}
+    return out, {"amount": str(total), "unit": units.pop() if units else "FRI",
+                 **({"missing": missing} if missing else {})}
+
+
+def where(play, redact):
+    """Where the adventurer is, read from the chain as the success path reads it: in a hub, or inside an
+    instance; `unknown` with the reason when it cannot be read."""
+    if play.adventurer is None:
+        return {"kind": "unknown", "why": "no adventurer was created"}
+    try:
+        hub, inside = play.place()
+        placement = play.node.view("ephemeral", play.instances, "placement", play.adventurer)
+        if inside or placement[2]:
+            return {"kind": "instance", "instance": placement[0]}
+        return {"kind": "hub", "location": hub}
+    except Exception as error:
+        return {"kind": "unknown", "why": f"{type(error).__name__}: {redact(error)}"[:500]}
+
+
+def place_text(final):
+    if final["kind"] == "hub":
+        return f"in the hub, location {final['location']}"
+    if final["kind"] == "instance":
+        return f"left inside instance {final['instance']}"
+    return f"unknown: {final['why']}"
 
 
 def summary(record):
@@ -518,7 +567,7 @@ def summary(record):
              f"(location {record['gates']['in']['source']} to {record['gates']['in']['destination']})",
              "- Chunks crossed, in order: " + (", ".join(
                  f"{c['chunk']} (at {tuple(c['tile'])})" for c in record["chunks_crossed"]) or "none"),
-             f"- Final location: {record['final_location']}",
+             f"- Final location: {place_text(record['final_location'])}",
              f"- Hits taken (the script never attacks): {len(record['hits'])}" + "".join(
                  f"; at {tuple(h['tile'])}, health {h['health'][0]} to {h['health'][1]}" for h in record["hits"]),
              f"- Transactions: {len(record['transactions'])}, total fee {record['total_fee']['amount']} "
@@ -527,7 +576,8 @@ def summary(record):
     if not record["completed"]:
         lines.append(f"- Stopped: {record['stopped']}")
     lines += ["", "| # | Transaction | Hash | Fee |", "|---|---|---|---|"]
-    lines += [f"| {i} | {t['what']} | `{t['hash']}` | {t['fee']} {t['unit']} |"
+    lines += [f"| {i} | {t['what']}{' (reverted)' if t.get('reverted') else ''} | `{t['hash']}` | "
+              f"{t['fee'] if t['fee'] is not None else 'unknown'} {t['unit'] or ''} |"
               for i, t in enumerate(record["transactions"], 1)]
     return "\n".join(lines) + "\n"
 
@@ -623,7 +673,7 @@ def run(args, log, redact, environ):
 
         play = Play(node, log, contracts, args.chunks)
         play.version = node.view("persistent", contracts["registry"], "content_version")[0]
-        stopped, final = None, None
+        stopped, final, again = None, None, None
         try:
             play.create()
             play.enter(GATE_IN)
@@ -637,10 +687,20 @@ def run(args, log, redact, environ):
                 raise Stopped(f"after the leave: hub {hub}, inside {inside}, placement {placement}")
             final = {"kind": "hub", "location": hub}
             log.say(f"the hub is reached: adventurer {play.adventurer} in location {hub}")
-        except (Stopped, RuntimeError) as error:
-            stopped = str(redact(error))
+        except BaseException as error:
+            # Any error, once the run has begun, ends here: a record with what was sent and where the
+            # adventurer is. Nothing sent yet: the error goes on as before. SystemExit and
+            # KeyboardInterrupt are raised again once the record is written.
+            if not play.steps:
+                raise
+            if not isinstance(error, Exception):
+                again = error
+            stopped = str(redact(error)) if isinstance(error, Stopped) else \
+                f"{type(error).__name__}: {redact(error)}"
             log.say(f"stopped: {stopped}", error=True)
-        transactions, total = fees(node, play.steps)
+            final = where(play, redact)
+            log.say(f"where the adventurer is: {place_text(final)}", error=True)
+        transactions, total = fees(node, play.steps, redact)
         finished = datetime.datetime.now(datetime.timezone.utc)
         record = {
             "gate": "GATE-1 (D-308)", "network": "Starknet Sepolia" if not args.devnet else "devnet",
@@ -663,6 +723,8 @@ def run(args, log, redact, environ):
         write_new(os.path.splitext(out)[0] + ".md", markdown)
         log.say(f"{len(transactions)} transactions, total fee {total['amount']} {total['unit']}; record "
                 f"{os.path.basename(out)}")
+        if again is not None:
+            raise again
         return 0 if stopped is None else 1
     finally:
         shutil.rmtree(logs, ignore_errors=True)
