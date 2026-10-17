@@ -17,15 +17,6 @@ pub const HOB: u16 = 1;
 pub const RUNT: u16 = 2;
 pub const SMASH: u16 = 24;
 
-/// `2^n`.
-pub fn two(n: u32) -> felt252 {
-    let mut p: felt252 = 1;
-    for _ in 0..n {
-        p *= 2;
-    }
-    p
-}
-
 /// A member's hot fields and derived ones.
 #[derive(Copy, Drop)]
 pub struct MemberSpec {
@@ -64,18 +55,18 @@ pub impl FixtureImpl of Fixture {
     /// bar 1–8, belt items 100–103.
     fn member_words(spec: MemberSpec) -> MemberWords {
         let state = LIVE
-            + spec.status.into() * two(56)
-            + spec.health.into() * two(64)
-            + spec.energy.into() * two(80)
-            + spec.adrenaline.into() * two(96)
-            + spec.flags.into() * two(160);
+            + spec.status.into() * Self::two(56)
+            + spec.health.into() * Self::two(64)
+            + spec.energy.into() * Self::two(80)
+            + spec.adrenaline.into() * Self::two(96)
+            + spec.flags.into() * Self::two(160);
         let [bleeding, poison, burning, knocked] = spec.conditions;
         let timers = LIVE
             + NO_SLOT.into()
-            + bleeding.into() * two(64)
-            + poison.into() * two(96)
-            + burning.into() * two(128)
-            + knocked.into() * two(192);
+            + bleeding.into() * Self::two(64)
+            + poison.into() * Self::two(96)
+            + burning.into() * Self::two(128)
+            + knocked.into() * Self::two(192);
         let mut effects = LIVE;
         let bases = [0_u32, 56, 128, 184];
         let mut k = 0;
@@ -86,24 +77,24 @@ pub impl FixtureImpl of Fixture {
             } else {
                 0
             };
-            effects += (*carrier).into() * two(base)
-                + tag * two(base + 23)
-                + (*deadline).into() * two(base + 24)
-                + (*rank).into() * two(base + 52);
+            effects += (*carrier).into() * Self::two(base)
+                + tag * Self::two(base + 23)
+                + (*deadline).into() * Self::two(base + 24)
+                + (*rank).into() * Self::two(base + 52);
             k += 1;
         }
         let mut bar = LIVE;
         for slot in 0..8_u32 {
-            bar += (slot + 1).into() * two(16 * slot);
+            bar += (slot + 1).into() * Self::two(16 * slot);
         }
         let regen: i32 = spec.health_regen.into() + 10;
         let regen: felt252 = regen.into();
         let stats = LIVE
             + 480
-            + 20 * two(16)
-            + spec.energy_regen.into() * two(24)
-            + regen * two(32);
-        let kit = LIVE + 100 + 101 * two(32) + 102 * two(64) + 103 * two(96);
+            + 20 * Self::two(16)
+            + spec.energy_regen.into() * Self::two(24)
+            + regen * Self::two(32);
+        let kit = LIVE + 100 + 101 * Self::two(32) + 102 * Self::two(64) + 103 * Self::two(96);
         MemberWords { state, timers, effects, recharges: LIVE, stats, bar, kit }
     }
 
@@ -163,10 +154,10 @@ pub impl FixtureImpl of Fixture {
             caste_at: (caste - 1).into(),
             effect_at: ABSENT,
             state: LIVE
-                + ai::ENGAGED.into() * two(24)
-                + 100 * two(32)
-                + caste.into() * two(64)
-                + 10 * two(80),
+                + ai::ENGAGED.into() * Self::two(24)
+                + 100 * Self::two(32)
+                + caste.into() * Self::two(64)
+                + 10 * Self::two(80),
             timers: LIVE + activation::NONE.into(),
         }
     }
@@ -279,16 +270,31 @@ pub impl FixtureImpl of Fixture {
     fn held(carrier: u16, potion: bool, deadline: u32, rank: u8) -> Held {
         Held { carrier, potion, charges: 0, deadline, rank }
     }
-}
 
-/// Keeps a value from the compiler's constant folding, so that the path under test runs.
-#[inline(never)]
-pub fn opaque<T, +Drop<T>>(value: T) -> T {
-    value
-}
+    /// `2^n`.
+    fn two(n: u32) -> felt252 {
+        let mut p: felt252 = 1;
+        for _ in 0..n {
+            p *= 2;
+        }
+        p
+    }
 
-pub fn activation_of(goblin: @Goblin) -> (u8, u16, u32) {
-    (*goblin.act_slot, *goblin.act_target, *goblin.act_deadline)
+    /// Keeps a value from the compiler's constant folding, so that the path under test runs.
+    #[inline(never)]
+    fn opaque<T, +Drop<T>>(value: T) -> T {
+        value
+    }
+
+    fn activation_of(goblin: @Goblin) -> (u8, u16, u32) {
+        (*goblin.act_slot, *goblin.act_target, *goblin.act_deadline)
+    }
+
+    /// `ticks` ticks of the fixtures' content, `Idle`'s rules.
+    fn run(ref world: World, ticks: u8) {
+        let mut rules = Idle {};
+        TickTrait::run(ref world, @Self::sheets(), ticks, ref rules);
+    }
 }
 
 /// Test rules: record every hook's call; optionally take the member to 0 at an act of tick
@@ -330,10 +336,4 @@ pub impl ScriptRules of Rules<Script> {
         }
     }
     fn objectives(ref self: Script, ref world: World) {}
-}
-
-/// `ticks` ticks of the fixtures' content, `Idle`'s rules.
-pub fn run(ref world: World, ticks: u8) {
-    let mut rules = Idle {};
-    TickTrait::run(ref world, @Fixture::sheets(), ticks, ref rules);
 }

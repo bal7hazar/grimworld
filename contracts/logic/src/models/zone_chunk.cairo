@@ -299,39 +299,43 @@ mod tests {
     use crate::types::reveal::board::BoardTrait;
     use super::{Object, SetPack, ZoneChunk, ZoneChunkAssert, ZoneChunkRecord, ZoneChunkTrait};
 
-    fn sample() -> ZoneChunk {
-        ZoneChunk {
-            walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-                - BoardTrait::pow(16)
-                - BoardTrait::pow(17)
-                - BoardTrait::pow(18)
-                - BoardTrait::pow(19)
-                - BoardTrait::pow(112),
-            spawns: [SetPack { tile: 16, template: 0xabcd }, Default::default()],
-            objects: [
-                Object { tile: 17, kind: object::CHEST, state: 0, param: 3 }, Default::default(),
-                Object { tile: 18, kind: object::LEVER, state: 0, param: 0x1234 },
-            ],
-            tiles: [0, 0, 19, 0, 0, 112],
-            bridges: 15,
-            gates: [0xffff, 7],
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn sample() -> ZoneChunk {
+            ZoneChunk {
+                walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+                    - BoardTrait::pow(16)
+                    - BoardTrait::pow(17)
+                    - BoardTrait::pow(18)
+                    - BoardTrait::pow(19)
+                    - BoardTrait::pow(112),
+                spawns: [SetPack { tile: 16, template: 0xabcd }, Default::default()],
+                objects: [
+                    Object { tile: 17, kind: object::CHEST, state: 0, param: 3 },
+                    Default::default(),
+                    Object { tile: 18, kind: object::LEVER, state: 0, param: 0x1234 },
+                ],
+                tiles: [0, 0, 19, 0, 0, 112],
+                bridges: 15,
+                gates: [0xffff, 7],
+            }
         }
-    }
 
-    fn quotas() -> QuotaSet {
-        QuotaSet {
-            quotas: [
-                Default::default(), Default::default(),
-                Quota { kind: quota::HEART, param: 1, count: 1 }, Default::default(),
-                Default::default(), Quota { kind: quota::VEIN, param: 0, count: 1 },
-            ],
+        fn quotas() -> QuotaSet {
+            QuotaSet {
+                quotas: [
+                    Default::default(), Default::default(),
+                    Quota { kind: quota::HEART, param: 1, count: 1 }, Default::default(),
+                    Default::default(), Quota { kind: quota::VEIN, param: 0, count: 1 },
+                ],
+            }
         }
     }
 
     #[test]
     #[available_gas(l2_gas: 334551)] // ceil(1.05 × 318620 measured)
     fn test_zone_chunk_bits_and_round_trip() {
-        let record = sample();
+        let record = Fixture::sample();
         let parts = record.pack();
         assert(*parts[0] == record.walls + LIVE, 'plane');
         let wide: u256 = (*parts[1] - LIVE).into();
@@ -352,7 +356,7 @@ mod tests {
     #[available_gas(l2_gas: 279353)] // ceil(1.05 × 266050 measured)
     #[should_panic(expected: 'zone chunk: reserved plane')]
     fn test_zone_chunk_reserved_refused() {
-        let parts = sample().pack();
+        let parts = Fixture::sample().pack();
         ZoneChunkRecord::unpack(array![*parts[0] + BoardTrait::pow(225), *parts[1]].span());
     }
 
@@ -360,15 +364,15 @@ mod tests {
     #[available_gas(l2_gas: 134547)] // ceil(1.05 × 128140 measured)
     #[should_panic(expected: 'zone chunk: walls above 224')]
     fn test_zone_chunk_walls_refused() {
-        ZoneChunk { walls: BoardTrait::pow(225), ..sample() }.pack();
+        ZoneChunk { walls: BoardTrait::pow(225), ..Fixture::sample() }.pack();
     }
 
     #[test]
     #[available_gas(l2_gas: 681559)] // ceil(1.05 × 649103 measured)
     fn test_zone_chunk_legal_and_content() {
-        let record = sample();
+        let record = Fixture::sample();
         let candidates = array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span();
-        record.assert_legal(4, candidates, @quotas());
+        record.assert_legal(4, candidates, @Fixture::quotas());
         let content = BoardTrait::pow(16)
             + BoardTrait::pow(17)
             + BoardTrait::pow(18)
@@ -384,13 +388,15 @@ mod tests {
     fn test_zone_chunk_ring_refused() {
         // Tile 14 is on the ring (column 14): floor, but not of the interior
         let record = ZoneChunk {
-            walls: sample().walls - BoardTrait::pow(14),
+            walls: Fixture::sample().walls - BoardTrait::pow(14),
             spawns: [SetPack { tile: 14, template: 1 }, Default::default()],
-            ..sample(),
+            ..Fixture::sample(),
         };
         record
             .assert_legal(
-                4, array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(), @quotas(),
+                4,
+                array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(),
+                @Fixture::quotas(),
             );
     }
 
@@ -405,11 +411,13 @@ mod tests {
                 Object { tile: 18, kind: object::LEVER, state: 0, param: 0x1234 },
             ],
             spawns: [Default::default(), Default::default()],
-            ..sample(),
+            ..Fixture::sample(),
         };
         record
             .assert_legal(
-                4, array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(), @quotas(),
+                4,
+                array![0, 0, BoardTrait::pow(4), 0, 0, BoardTrait::pow(4)].span(),
+                @Fixture::quotas(),
             );
     }
 }

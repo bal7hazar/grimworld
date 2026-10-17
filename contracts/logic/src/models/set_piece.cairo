@@ -145,27 +145,30 @@ mod tests {
         assert(SetPieceRecord::unpack(parts) == piece, 'round trip');
     }
 
-    /// Walls on the ring and on the block of rows 2–4, columns 2–4; a pack and a collector
-    /// inside.
-    fn arena(pack: u8, item: Object) -> super::SetPiece {
-        let ring: felt252 = 0x1fffe000c00180030006000c00180030006000c00180030006000ffff;
-        let mut walls: felt252 = ring;
-        let mut row: u8 = 2;
-        while row != 5 {
-            walls += crate::types::reveal::board::BoardTrait::pow(row * 15 + 2) * 7;
-            row += 1;
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        /// Walls on the ring and on the block of rows 2–4, columns 2–4; a pack and a collector
+        /// inside.
+        fn arena(pack: u8, item: Object) -> super::SetPiece {
+            let ring: felt252 = 0x1fffe000c00180030006000c00180030006000c00180030006000ffff;
+            let mut walls: felt252 = ring;
+            let mut row: u8 = 2;
+            while row != 5 {
+                walls += crate::types::reveal::board::BoardTrait::pow(row * 15 + 2) * 7;
+                row += 1;
+            }
+            SetPieceTrait::new(
+                walls,
+                [SetPack { tile: pack, template: 1 }, Default::default()],
+                [item, Default::default(), Default::default()],
+            )
         }
-        SetPieceTrait::new(
-            walls,
-            [SetPack { tile: pack, template: 1 }, Default::default()],
-            [item, Default::default(), Default::default()],
-        )
     }
 
     #[test]
     #[available_gas(l2_gas: 117015)] // ceil(1.05 × 111442 measured)
     fn test_set_piece_legal() {
-        arena(112, Object { tile: 100, kind: 5, state: 0, param: 3 }).assert_legal();
+        Fixture::arena(112, Object { tile: 100, kind: 5, state: 0, param: 3 }).assert_legal();
     }
 
     #[test]
@@ -173,28 +176,28 @@ mod tests {
     #[available_gas(l2_gas: 77584)] // ceil(1.05 × 73889 measured)
     fn test_set_piece_pack_on_a_wall_refused() {
         // Tile 47 (row 3, column 2) is in the wall block.
-        arena(47, Object { tile: 100, kind: 5, state: 0, param: 3 }).assert_legal();
+        Fixture::arena(47, Object { tile: 100, kind: 5, state: 0, param: 3 }).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'set piece: tile not floor')]
     #[available_gas(l2_gas: 106977)] // ceil(1.05 × 101882 measured)
     fn test_set_piece_object_on_the_ring_refused() {
-        arena(112, Object { tile: 105, kind: 6, state: 0, param: 1 }).assert_legal();
+        Fixture::arena(112, Object { tile: 105, kind: 6, state: 0, param: 1 }).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'set piece: object')]
     #[available_gas(l2_gas: 83810)] // ceil(1.05 × 79819 measured)
     fn test_set_piece_placed_trap_refused() {
-        arena(112, Object { tile: 100, kind: 9, state: 0, param: 1 }).assert_legal();
+        Fixture::arena(112, Object { tile: 100, kind: 9, state: 0, param: 1 }).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'set piece: corner not wall')]
     #[available_gas(l2_gas: 53368)] // ceil(1.05 × 50826 measured)
     fn test_set_piece_open_corner_refused() {
-        let piece = arena(112, Default::default());
+        let piece = Fixture::arena(112, Default::default());
         let open = super::SetPiece { walls: piece.walls - 1, ..piece };
         open.assert_legal();
     }

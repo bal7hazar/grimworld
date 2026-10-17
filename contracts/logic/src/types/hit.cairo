@@ -401,56 +401,304 @@ mod tests {
         MAX_BASE, weapon,
     };
 
-    /// A plain sword hit from the front, strength equal to armor (x = 0, `table(0) = 2^16`), at
-    /// base 100, no modifier.
-    fn sword() -> Hit {
-        Hit {
-            class: HitClass::Weapon,
-            weapon: weapon::SWORD,
-            melee: true,
-            arc: Arc::Front,
-            in_front: true,
-            strength: 40,
-            base: 100,
-            percent: 0,
-            percent_above_half: 0,
-            penetration: 0,
-            health: 0,
-            max_health: 0,
-            weakened: false,
-            blind: false,
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        /// A plain sword hit from the front, strength equal to armor (x = 0, `table(0) = 2^16`), at
+        /// base 100, no modifier.
+        fn sword() -> Hit {
+            Hit {
+                class: HitClass::Weapon,
+                weapon: weapon::SWORD,
+                melee: true,
+                arc: Arc::Front,
+                in_front: true,
+                strength: 40,
+                base: 100,
+                percent: 0,
+                percent_above_half: 0,
+                penetration: 0,
+                health: 0,
+                max_health: 0,
+                weakened: false,
+                blind: false,
+            }
         }
-    }
 
-    /// A target of armor 40 in all, at full health, holding nothing.
-    fn goblin() -> HitTarget {
-        HitTarget {
-            armor: 40,
-            armor_effects: 0,
-            armor_stance: 0,
-            armor_enchanted: 0,
-            in_stance: false,
-            enchanted: false,
-            armor_vs: 0,
-            block: 0,
-            evade: false,
-            knocked_down: false,
-            asleep: false,
-            halve: false,
-            health: 100,
-            max_health: 100,
+        /// A target of armor 40 in all, at full health, holding nothing.
+        fn goblin() -> HitTarget {
+            HitTarget {
+                armor: 40,
+                armor_effects: 0,
+                armor_stance: 0,
+                armor_enchanted: 0,
+                in_stance: false,
+                enchanted: false,
+                armor_vs: 0,
+                block: 0,
+                evade: false,
+                knocked_down: false,
+                asleep: false,
+                halve: false,
+                health: 100,
+                max_health: 100,
+            }
         }
-    }
 
-    fn landed(outcome: HitOutcome) -> Landed {
-        match outcome {
-            HitOutcome::Landed(landed) => landed,
-            _ => core::panic_with_felt252('not landed'),
+        fn landed(outcome: HitOutcome) -> Landed {
+            match outcome {
+                HitOutcome::Landed(landed) => landed,
+                _ => core::panic_with_felt252('not landed'),
+            }
         }
-    }
 
-    fn damage(hit: Hit, target: HitTarget) -> u16 {
-        landed(hit.resolve(@target)).damage
+        fn damage(hit: Hit, target: HitTarget) -> u16 {
+            Self::landed(hit.resolve(@target)).damage
+        }
+
+        /// The next draw below `bound` of a 64-bit linear congruential sequence (Knuth's MMIX
+        /// constants): deterministic, for the tests only.
+        fn draw(ref state: u128, bound: u128) -> u128 {
+            state = (state * 6364136223846793005 + 1442695040888963407) % 0x10000000000000000;
+            (state / 0x100000000) % bound
+        }
+
+        fn signed(ref state: u128, low: i32, span: u128) -> i32 {
+            let v: i32 = Self::draw(ref state, span).try_into().unwrap();
+            low + v
+        }
+
+        fn flag(ref state: u128, one_in: u128) -> bool {
+            Self::draw(ref state, one_in) == 0
+        }
+
+        /// A legal case from a seed: every field over its legal range, the edges often.
+        fn case(seed: u64) -> (Hit, HitTarget) {
+            let mut s: u128 = seed.into();
+            let class = match Self::draw(ref s, 4) {
+                0 => HitClass::Weapon,
+                1 => HitClass::Spell,
+                2 => HitClass::Item,
+                _ => HitClass::Trap,
+            };
+            let arc = match Self::draw(ref s, 4) {
+                0 => Arc::Front,
+                1 => Arc::FrontSide,
+                2 => Arc::RearSide,
+                _ => Arc::Back,
+            };
+            let base = if Self::flag(ref s, 2) {
+                Self::draw(ref s, 120)
+            } else {
+                Self::draw(ref s, MAX_BASE.into() + 1)
+            };
+            let source_max = Self::draw(ref s, 1000);
+            let hit = Hit {
+                class,
+                weapon: Self::draw(ref s, weapon::LAST.into() + 1).try_into().unwrap(),
+                melee: Self::flag(ref s, 2),
+                arc,
+                in_front: Self::flag(ref s, 2),
+                strength: Self::draw(ref s, 766).try_into().unwrap(),
+                base: base.try_into().unwrap(),
+                percent: Self::signed(ref s, -127, 255).try_into().unwrap(),
+                percent_above_half: Self::signed(ref s, -127, 255).try_into().unwrap(),
+                penetration: Self::draw(ref s, 301).try_into().unwrap(),
+                health: Self::draw(ref s, source_max + 1).try_into().unwrap(),
+                max_health: source_max.try_into().unwrap(),
+                weakened: Self::flag(ref s, 4),
+                blind: Self::flag(ref s, 4),
+            };
+            let armor = if Self::flag(ref s, 8) {
+                Self::signed(ref s, -32768, 65536)
+            } else {
+                Self::signed(ref s, -300, 1301)
+            };
+            let block = if Self::flag(ref s, 3) {
+                Self::draw(ref s, MAX_BLOCK_U128 + 1)
+            } else {
+                0
+            };
+            let max_health = Self::draw(ref s, 2000);
+            let target = HitTarget {
+                armor: armor.try_into().unwrap(),
+                armor_effects: Self::draw(ref s, 1021).try_into().unwrap(),
+                armor_stance: Self::signed(ref s, -18, 37).try_into().unwrap(),
+                armor_enchanted: Self::signed(ref s, -18, 37).try_into().unwrap(),
+                in_stance: Self::flag(ref s, 2),
+                enchanted: Self::flag(ref s, 2),
+                armor_vs: Self::draw(ref s, 64).try_into().unwrap(),
+                block: block.try_into().unwrap(),
+                evade: Self::flag(ref s, 3),
+                knocked_down: Self::flag(ref s, 4),
+                asleep: Self::flag(ref s, 6),
+                halve: Self::flag(ref s, 3),
+                health: Self::draw(ref s, max_health + 1).try_into().unwrap(),
+                max_health: max_health.try_into().unwrap(),
+            };
+            (hit, target)
+        }
+
+        /// Track CV's hand-picked cases (CBT-05a): (200) an axe from the front-side arc, landing
+        /// below the clamp: no axe bonus; (201) the `ABOVE_HALF` damage passive at exactly half
+        /// health, with a non-zero percent: it does not apply; (202) FX-19's halving when the hit
+        /// leaves the target at exactly half: `2 (h ⊖ d) < max` fails, no halving.
+        fn cv_cases() -> Array<(Hit, HitTarget)> {
+            array![
+                (Hit { weapon: weapon::AXE, arc: Arc::FrontSide, ..Self::sword() }, Self::goblin()),
+                (
+                    Hit { percent_above_half: 20, health: 50, max_health: 100, ..Self::sword() },
+                    Self::goblin(),
+                ),
+                (
+                    Hit { base: 60, ..Self::sword() },
+                    HitTarget { halve: true, health: 300, max_health: 480, ..Self::goblin() },
+                ),
+            ]
+        }
+
+        /// The hand-written cases: the edges above, so that the mirror meets each.
+        fn edges() -> Array<(Hit, HitTarget)> {
+            let zero = HitTarget { armor: 0, ..Self::goblin() };
+            array![
+                (Self::sword(), Self::goblin()),
+                (Hit { arc: Arc::Back, ..Self::sword() }, Self::goblin()),
+                (Hit { arc: Arc::RearSide, weapon: weapon::AXE, ..Self::sword() }, Self::goblin()),
+                (Hit { arc: Arc::Back, weapon: weapon::AXE, ..Self::sword() }, Self::goblin()),
+                (
+                    Self::sword(),
+                    HitTarget { knocked_down: true, block: 2, evade: true, ..Self::goblin() },
+                ),
+                (Self::sword(), HitTarget { asleep: true, block: 2, ..Self::goblin() }),
+                (Self::sword(), HitTarget { asleep: true, evade: true, ..Self::goblin() }),
+                (Self::sword(), HitTarget { block: 2, ..Self::goblin() }),
+                (
+                    Hit { arc: Arc::RearSide, ..Self::sword() },
+                    HitTarget { block: 2, ..Self::goblin() },
+                ),
+                (
+                    Hit { arc: Arc::Back, ..Self::sword() },
+                    HitTarget { evade: true, ..Self::goblin() },
+                ),
+                (
+                    Hit { melee: false, ..Self::sword() },
+                    HitTarget { evade: true, ..Self::goblin() },
+                ),
+                (
+                    Hit { blind: true, in_front: false, ..Self::sword() },
+                    HitTarget { block: 1, ..Self::goblin() },
+                ),
+                (Hit { blind: true, in_front: true, ..Self::sword() }, Self::goblin()),
+                (Hit { weakened: true, arc: Arc::Back, ..Self::sword() }, Self::goblin()),
+                (
+                    Hit { penetration: 300, ..Self::sword() },
+                    HitTarget { armor: 41, ..Self::goblin() },
+                ),
+                (
+                    Hit { penetration: 25, ..Self::sword() },
+                    HitTarget { armor: -500, ..Self::goblin() },
+                ),
+                (
+                    Self::sword(),
+                    HitTarget { armor: -30, armor_effects: 20, armor_vs: 50, ..Self::goblin() },
+                ),
+                (Hit { strength: 765, ..Self::sword() }, zero),
+                (
+                    Hit { strength: 0, ..Self::sword() },
+                    HitTarget { armor: 32767, ..Self::goblin() },
+                ),
+                (Hit { percent: -120, weakened: true, ..Self::sword() }, Self::goblin()),
+                (Hit { base: 0, ..Self::sword() }, Self::goblin()),
+                (
+                    Hit {
+                        base: MAX_BASE,
+                        strength: 255,
+                        percent: 127,
+                        percent_above_half: 127,
+                        health: 1,
+                        max_health: 1,
+                        arc: Arc::Back,
+                        weapon: weapon::AXE,
+                        ..Self::sword(),
+                    },
+                    zero,
+                ),
+                (
+                    Hit { base: 100, ..Self::sword() },
+                    HitTarget { halve: true, health: 300, max_health: 480, ..Self::goblin() },
+                ),
+                (
+                    Hit { base: 301, ..Self::sword() },
+                    HitTarget { halve: true, health: 300, max_health: 480, ..Self::goblin() },
+                ),
+                (
+                    Hit { class: HitClass::Spell, penetration: 100, percent: 15, ..Self::sword() },
+                    HitTarget { armor: 41, block: 3, knocked_down: true, ..Self::goblin() },
+                ),
+                (
+                    Hit {
+                        class: HitClass::Item,
+                        strength: 200,
+                        base: 50,
+                        penetration: 100,
+                        ..Self::sword(),
+                    },
+                    Self::goblin(),
+                ),
+                (
+                    Hit { class: HitClass::Trap, strength: 60, percent: 50, ..Self::sword() },
+                    Self::goblin(),
+                ),
+            ]
+        }
+
+        fn hex(felts: Span<felt252>) -> ByteArray {
+            let mut out: ByteArray = "[";
+            let mut first = true;
+            for felt in felts {
+                if !first {
+                    out.append(@",");
+                }
+                first = false;
+                let wide: u256 = (*felt).into();
+                out.append(@format!("\"0x{:x}\"", wide));
+            }
+            out.append(@"]");
+            out
+        }
+
+        fn check_vectors(first: u32, last: u32, expected: felt252) {
+            let mut cases = Self::edges();
+            let mut seed: u64 = 1;
+            while cases.len() < VECTORS {
+                cases.append(Self::case(seed));
+                seed += 1;
+            }
+            // Track CV's three (their mutation check of the mirror), after the seeded cases so that
+            // no earlier id moves: ids 200, 201, 202.
+            cases.append_span(Self::cv_cases().span());
+            assert(cases.len() == TOTAL, 'vectors: case count moved');
+            let mut digest: Array<felt252> = array![];
+            let mut id: u32 = first;
+            for (hit, target) in cases.span().slice(first, last - first) {
+                let mut input: Array<felt252> = array![];
+                hit.serialize(ref input);
+                target.serialize(ref input);
+                let mut output: Array<felt252> = array![];
+                hit.resolve(target).serialize(ref output);
+                println!(
+                    "{{\"id\":{},\"case\":{},\"ok\":{}}}",
+                    id,
+                    Self::hex(input.span()),
+                    Self::hex(output.span()),
+                );
+                digest.append(core::poseidon::poseidon_hash_span(input.span()));
+                digest.append(core::poseidon::poseidon_hash_span(output.span()));
+                id += 1;
+            }
+            let digest = core::poseidon::poseidon_hash_span(digest.span());
+            println!("digest {}", digest);
+            assert(digest == expected, 'vectors moved: regenerate');
+        }
     }
 
     // ---- §5.4: strength and base by class ----------------------------------------------------
@@ -471,9 +719,9 @@ mod tests {
     fn test_strength_level() {
         assert(HitTrait::level_strength(20) == 60, '3 x 20');
         assert(HitTrait::level_strength(255) == 765, '3 x 255');
-        let bomb = Hit { class: HitClass::Item, strength: 200, base: 50, ..sword() };
+        let bomb = Hit { class: HitClass::Item, strength: 200, base: 50, ..Fixture::sword() };
         // x = 200 − 40 = 160, clamped to 80: × 4.
-        assert(damage(bomb, goblin()) == 200, 'recipe strength');
+        assert(Fixture::damage(bomb, Fixture::goblin()) == 200, 'recipe strength');
     }
 
     // Base: the weapon's damage after requirement, + `ATTACK_BONUS` (§3.1, design/15).
@@ -493,42 +741,66 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 41927)] // ceil(1.05 × 39930 measured)
     fn test_arcs_weapon() {
-        assert(damage(sword(), goblin()) == 100, 'front');
-        assert(damage(Hit { arc: Arc::FrontSide, ..sword() }, goblin()) == 100, 'front-side');
-        assert(damage(Hit { arc: Arc::RearSide, ..sword() }, goblin()) == 100, 'flank: no bonus');
-        let back = landed(Hit { arc: Arc::Back, ..sword() }.resolve(@goblin()));
+        assert(Fixture::damage(Fixture::sword(), Fixture::goblin()) == 100, 'front');
+        assert(
+            Fixture::damage(
+                Hit { arc: Arc::FrontSide, ..Fixture::sword() }, Fixture::goblin(),
+            ) == 100,
+            'front-side',
+        );
+        assert(
+            Fixture::damage(
+                Hit { arc: Arc::RearSide, ..Fixture::sword() }, Fixture::goblin(),
+            ) == 100,
+            'flank: no bonus',
+        );
+        let back = Fixture::landed(
+            Hit { arc: Arc::Back, ..Fixture::sword() }.resolve(@Fixture::goblin()),
+        );
         assert(back.damage == 140 && back.critical, 'back: critical +40');
     }
 
     #[test]
     #[available_gas(l2_gas: 50411)] // ceil(1.05 × 48010 measured)
     fn test_axe() {
-        let axe = Hit { weapon: weapon::AXE, ..sword() };
-        assert(damage(axe, goblin()) == 100, 'front: none');
-        assert(damage(Hit { arc: Arc::FrontSide, ..axe }, goblin()) == 100, 'front-side: none');
-        assert(damage(Hit { arc: Arc::RearSide, ..axe }, goblin()) == 125, 'rear-side +25');
-        assert(damage(Hit { arc: Arc::Back, ..axe }, goblin()) == 165, 'back +40 +25');
-        let down = HitTarget { knocked_down: true, ..goblin() };
-        assert(damage(axe, down) == 140, 'knocked down: critical only');
+        let axe = Hit { weapon: weapon::AXE, ..Fixture::sword() };
+        assert(Fixture::damage(axe, Fixture::goblin()) == 100, 'front: none');
+        assert(
+            Fixture::damage(Hit { arc: Arc::FrontSide, ..axe }, Fixture::goblin()) == 100,
+            'front-side: none',
+        );
+        assert(
+            Fixture::damage(Hit { arc: Arc::RearSide, ..axe }, Fixture::goblin()) == 125,
+            'rear-side +25',
+        );
+        assert(
+            Fixture::damage(Hit { arc: Arc::Back, ..axe }, Fixture::goblin()) == 165,
+            'back +40 +25',
+        );
+        let down = HitTarget { knocked_down: true, ..Fixture::goblin() };
+        assert(Fixture::damage(axe, down) == 140, 'knocked down: critical only');
     }
 
     // Knocked down or asleep: critical from any arc (design/04, §3.2), once.
     #[test]
     #[available_gas(l2_gas: 33128)] // ceil(1.05 × 31550 measured)
     fn test_critical_any_arc() {
-        let down = HitTarget { knocked_down: true, ..goblin() };
-        let asleep = HitTarget { asleep: true, ..goblin() };
-        let result = landed(sword().resolve(@down));
+        let down = HitTarget { knocked_down: true, ..Fixture::goblin() };
+        let asleep = HitTarget { asleep: true, ..Fixture::goblin() };
+        let result = Fixture::landed(Fixture::sword().resolve(@down));
         assert(result.damage == 140 && result.critical, 'knocked down, front');
-        assert(damage(sword(), asleep) == 140, 'asleep, front');
-        assert(damage(Hit { arc: Arc::Back, ..sword() }, down) == 140, 'one critical');
+        assert(Fixture::damage(Fixture::sword(), asleep) == 140, 'asleep, front');
+        assert(
+            Fixture::damage(Hit { arc: Arc::Back, ..Fixture::sword() }, down) == 140,
+            'one critical',
+        );
     }
 
     // Arcs, critical, block, evasion, weakness are weapon-only (§5.4, FX-27).
     #[test]
     #[available_gas(l2_gas: 77144)] // ceil(1.05 × 73470 measured)
     fn test_other_classes_take_no_arc() {
-        let target = HitTarget { knocked_down: true, block: 3, evade: true, ..goblin() };
+        let target = HitTarget { knocked_down: true, block: 3, evade: true, ..Fixture::goblin() };
         let mut classes = array![HitClass::Spell, HitClass::Item, HitClass::Trap];
         while let Option::Some(class) = classes.pop_front() {
             let hit = Hit {
@@ -538,9 +810,9 @@ mod tests {
                 weakened: true,
                 blind: true,
                 in_front: false,
-                ..sword(),
+                ..Fixture::sword(),
             };
-            let result = landed(hit.resolve(@target));
+            let result = Fixture::landed(hit.resolve(@target));
             assert(result.damage == 100 && !result.critical, 'no arc, no stop');
         }
     }
@@ -549,9 +821,12 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 24434)] // ceil(1.05 × 23270 measured)
     fn test_weakness() {
-        let weak = Hit { weakened: true, ..sword() };
-        assert(damage(weak, goblin()) == 67, '-33');
-        assert(damage(Hit { arc: Arc::Back, ..weak }, goblin()) == 107, 'critical and weak');
+        let weak = Hit { weakened: true, ..Fixture::sword() };
+        assert(Fixture::damage(weak, Fixture::goblin()) == 67, '-33');
+        assert(
+            Fixture::damage(Hit { arc: Arc::Back, ..weak }, Fixture::goblin()) == 107,
+            'critical and weak',
+        );
     }
 
     // ---- §5.6: miss, block, evasion -----------------------------------------------------------
@@ -559,25 +834,31 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 33128)] // ceil(1.05 × 31550 measured)
     fn test_block_by_arc() {
-        let target = HitTarget { block: 2, ..goblin() };
-        assert(sword().resolve(@target) == HitOutcome::Blocked, 'front blocked');
-        let side = Hit { arc: Arc::FrontSide, ..sword() };
+        let target = HitTarget { block: 2, ..Fixture::goblin() };
+        assert(Fixture::sword().resolve(@target) == HitOutcome::Blocked, 'front blocked');
+        let side = Hit { arc: Arc::FrontSide, ..Fixture::sword() };
         assert(side.resolve(@target) == HitOutcome::Blocked, 'front-side blocked');
-        assert(damage(Hit { arc: Arc::RearSide, ..sword() }, target) == 100, 'flank ignores');
-        assert(damage(Hit { arc: Arc::Back, ..sword() }, target) == 140, 'back ignores');
-        let none = HitTarget { block: 0, ..goblin() };
-        assert(damage(sword(), none) == 100, '0 charges: ended');
-        let bow = Hit { melee: false, ..sword() };
+        assert(
+            Fixture::damage(Hit { arc: Arc::RearSide, ..Fixture::sword() }, target) == 100,
+            'flank ignores',
+        );
+        assert(
+            Fixture::damage(Hit { arc: Arc::Back, ..Fixture::sword() }, target) == 140,
+            'back ignores',
+        );
+        let none = HitTarget { block: 0, ..Fixture::goblin() };
+        assert(Fixture::damage(Fixture::sword(), none) == 100, '0 charges: ended');
+        let bow = Hit { melee: false, ..Fixture::sword() };
         assert(bow.resolve(@target) == HitOutcome::Blocked, 'a ranged hit is blocked');
     }
 
     #[test]
     #[available_gas(l2_gas: 24434)] // ceil(1.05 × 23270 measured)
     fn test_block_knocked_down_or_asleep() {
-        let down = HitTarget { block: 2, knocked_down: true, ..goblin() };
-        assert(damage(sword(), down) == 140, 'knocked down: no block');
-        let asleep = HitTarget { block: 2, asleep: true, ..goblin() };
-        assert(damage(sword(), asleep) == 140, 'asleep: first not blocked');
+        let down = HitTarget { block: 2, knocked_down: true, ..Fixture::goblin() };
+        assert(Fixture::damage(Fixture::sword(), down) == 140, 'knocked down: no block');
+        let asleep = HitTarget { block: 2, asleep: true, ..Fixture::goblin() };
+        assert(Fixture::damage(Fixture::sword(), asleep) == 140, 'asleep: first not blocked');
     }
 
     // Evasion: melee weapon hits from every arc (FX-11); not a knocked-down target (FX-7).
@@ -585,21 +866,28 @@ mod tests {
     // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
     #[available_gas(l2_gas: 81911)] // ceil(1.05 × 78010 measured)
     fn test_evade() {
-        let target = HitTarget { evade: true, ..goblin() };
+        let target = HitTarget { evade: true, ..Fixture::goblin() };
         let mut arcs = array![Arc::Front, Arc::FrontSide, Arc::RearSide, Arc::Back];
         while let Option::Some(arc) = arcs.pop_front() {
-            assert(Hit { arc, ..sword() }.resolve(@target) == HitOutcome::Evaded, 'every arc');
+            assert(
+                Hit { arc, ..Fixture::sword() }.resolve(@target) == HitOutcome::Evaded, 'every arc',
+            );
         }
-        assert(damage(Hit { melee: false, ..sword() }, target) == 100, 'ranged not evaded');
+        assert(
+            Fixture::damage(Hit { melee: false, ..Fixture::sword() }, target) == 100,
+            'ranged not evaded',
+        );
         let down = HitTarget { knocked_down: true, ..target };
-        assert(damage(sword(), down) == 140, 'knocked down: no evasion');
+        assert(Fixture::damage(Fixture::sword(), down) == 140, 'knocked down: no evasion');
         // D-179: a sleeping target neither blocks nor evades its first hit.
         let asleep = HitTarget { asleep: true, ..target };
-        assert(damage(sword(), asleep) == 140, 'asleep: no evasion');
+        assert(Fixture::damage(Fixture::sword(), asleep) == 140, 'asleep: no evasion');
         // Block comes before evasion (§5.5 step 2's order): a charge is spent, not an evasion.
         let both = HitTarget { block: 1, ..target };
-        assert(sword().resolve(@both) == HitOutcome::Blocked, 'block first');
-        assert(Hit { arc: Arc::Back, ..sword() }.resolve(@both) == HitOutcome::Evaded, 'back');
+        assert(Fixture::sword().resolve(@both) == HitOutcome::Blocked, 'block first');
+        assert(
+            Hit { arc: Arc::Back, ..Fixture::sword() }.resolve(@both) == HitOutcome::Evaded, 'back',
+        );
     }
 
     // Blind (P): a weapon hit misses unless the target is on the source's front tile; before a
@@ -607,13 +895,13 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_blind_miss() {
-        let blind = Hit { blind: true, in_front: false, ..sword() };
-        let target = HitTarget { block: 1, ..goblin() };
+        let blind = Hit { blind: true, in_front: false, ..Fixture::sword() };
+        let target = HitTarget { block: 1, ..Fixture::goblin() };
         assert(blind.resolve(@target) == HitOutcome::Missed, 'missed');
-        assert(blind.resolve(@goblin()) == HitOutcome::Missed, 'missed, no block');
+        assert(blind.resolve(@Fixture::goblin()) == HitOutcome::Missed, 'missed, no block');
         let front = Hit { in_front: true, ..blind };
         assert(front.resolve(@target) == HitOutcome::Blocked, 'on the front tile');
-        assert(damage(front, goblin()) == 100, 'lands');
+        assert(Fixture::damage(front, Fixture::goblin()) == 100, 'lands');
     }
 
     // ---- §5.5 step 3: armor -------------------------------------------------------------------
@@ -630,18 +918,21 @@ mod tests {
             in_stance: true,
             enchanted: true,
             armor_vs: 11,
-            ..goblin(),
+            ..Fixture::goblin(),
         };
-        assert(sword().armor(@target) == 40, 'all terms');
+        assert(Fixture::sword().armor(@target) == 40, 'all terms');
         let out = HitTarget { in_stance: false, enchanted: false, ..target };
-        assert(sword().armor(@out) == 36, 'guards false');
+        assert(Fixture::sword().armor(@out) == 36, 'guards false');
         let mut classes = array![HitClass::Weapon, HitClass::Spell, HitClass::Item, HitClass::Trap];
         while let Option::Some(class) = classes.pop_front() {
-            assert(damage(Hit { class, ..sword() }, target) == 100, 'armor for every class');
+            assert(
+                Fixture::damage(Hit { class, ..Fixture::sword() }, target) == 100,
+                'armor for every class',
+            );
         }
         // +40 armor halves damage (design/04).
-        let plus40 = HitTarget { armor: 80, ..goblin() };
-        assert(damage(sword(), plus40) == 50, '+40 halves');
+        let plus40 = HitTarget { armor: 80, ..Fixture::goblin() };
+        assert(Fixture::damage(Fixture::sword(), plus40) == 50, '+40 halves');
     }
 
     // §6: armor below 0 counts 0 before penetration (D-140, F-20); a negative term counts
@@ -649,33 +940,35 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_armor_below_zero() {
-        let negative = HitTarget { armor: -500, armor_effects: 20, ..goblin() };
-        assert(sword().armor(@negative) == 0, 'floored');
-        let pen = Hit { penetration: 50, ..sword() };
+        let negative = HitTarget { armor: -500, armor_effects: 20, ..Fixture::goblin() };
+        assert(Fixture::sword().armor(@negative) == 0, 'floored');
+        let pen = Hit { penetration: 50, ..Fixture::sword() };
         assert(pen.armor(@negative) == 0, 'floored before penetration');
         // −30 + 20 + 50: the negative term counts before the floor.
-        let mixed = HitTarget { armor: -30, armor_effects: 20, armor_vs: 50, ..goblin() };
-        assert(sword().armor(@mixed) == 40, 'negative counts');
-        let stance = HitTarget { armor_stance: -18, in_stance: true, armor: 10, ..goblin() };
-        assert(sword().armor(@stance) == 0, 'guarded negative');
+        let mixed = HitTarget { armor: -30, armor_effects: 20, armor_vs: 50, ..Fixture::goblin() };
+        assert(Fixture::sword().armor(@mixed) == 40, 'negative counts');
+        let stance = HitTarget {
+            armor_stance: -18, in_stance: true, armor: 10, ..Fixture::goblin(),
+        };
+        assert(Fixture::sword().armor(@stance) == 0, 'guarded negative');
         // Strength 40 against armor 0: x = 40, × 2.
-        assert(damage(sword(), negative) == 200, 'damage at armor 0');
+        assert(Fixture::damage(Fixture::sword(), negative) == 200, 'damage at armor 0');
     }
 
     // §6: penetration capped at 100 (FX-9); truncated; weapon and spell only (§5.4).
     #[test]
     #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_penetration() {
-        let target = HitTarget { armor: 41, ..goblin() };
-        assert(Hit { penetration: 25, ..sword() }.armor(@target) == 31, '41 - 10');
-        assert(Hit { penetration: 100, ..sword() }.armor(@target) == 0, '100 %');
-        assert(Hit { penetration: 300, ..sword() }.armor(@target) == 0, 'above 100: 100');
-        assert(Hit { penetration: 0xFFFF, ..sword() }.armor(@target) == 0, 'u16 max');
-        let spell = Hit { class: HitClass::Spell, penetration: 100, ..sword() };
+        let target = HitTarget { armor: 41, ..Fixture::goblin() };
+        assert(Hit { penetration: 25, ..Fixture::sword() }.armor(@target) == 31, '41 - 10');
+        assert(Hit { penetration: 100, ..Fixture::sword() }.armor(@target) == 0, '100 %');
+        assert(Hit { penetration: 300, ..Fixture::sword() }.armor(@target) == 0, 'above 100: 100');
+        assert(Hit { penetration: 0xFFFF, ..Fixture::sword() }.armor(@target) == 0, 'u16 max');
+        let spell = Hit { class: HitClass::Spell, penetration: 100, ..Fixture::sword() };
         assert(spell.armor(@target) == 0, 'spell');
-        let bomb = Hit { class: HitClass::Item, penetration: 100, ..sword() };
+        let bomb = Hit { class: HitClass::Item, penetration: 100, ..Fixture::sword() };
         assert(bomb.armor(@target) == 41, 'bomb: none');
-        let trap = Hit { class: HitClass::Trap, penetration: 100, ..sword() };
+        let trap = Hit { class: HitClass::Trap, penetration: 100, ..Fixture::sword() };
         assert(trap.armor(@target) == 41, 'trap: none');
     }
 
@@ -685,49 +978,51 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 40730)] // ceil(1.05 × 38790 measured)
     fn test_exponent_clamps() {
-        let zero = HitTarget { armor: 0, ..goblin() };
-        assert(damage(Hit { strength: 80, ..sword() }, zero) == 400, 'x = 80');
-        assert(damage(Hit { strength: 765, ..sword() }, zero) == 400, 'x above 80');
-        let heavy = HitTarget { armor: 160, ..goblin() };
-        assert(damage(Hit { strength: 0, ..sword() }, heavy) == 6, 'x = -160');
-        let wall = HitTarget { armor: 32767, armor_effects: 0xFFFF, ..goblin() };
-        assert(damage(Hit { strength: 0, ..sword() }, wall) == 6, 'x below -160');
+        let zero = HitTarget { armor: 0, ..Fixture::goblin() };
+        assert(Fixture::damage(Hit { strength: 80, ..Fixture::sword() }, zero) == 400, 'x = 80');
+        assert(
+            Fixture::damage(Hit { strength: 765, ..Fixture::sword() }, zero) == 400, 'x above 80',
+        );
+        let heavy = HitTarget { armor: 160, ..Fixture::goblin() };
+        assert(Fixture::damage(Hit { strength: 0, ..Fixture::sword() }, heavy) == 6, 'x = -160');
+        let wall = HitTarget { armor: 32767, armor_effects: 0xFFFF, ..Fixture::goblin() };
+        assert(Fixture::damage(Hit { strength: 0, ..Fixture::sword() }, wall) == 6, 'x below -160');
     }
 
     // The percents summed once, truncated (X-5, D-140); `DAMAGE_PERCENT` by guard; ≥ −100.
     #[test]
     #[available_gas(l2_gas: 59315)] // ceil(1.05 × 56490 measured)
     fn test_percents() {
-        let hit = Hit { base: 33, percent: 15, ..sword() };
+        let hit = Hit { base: 33, percent: 15, ..Fixture::sword() };
         // ⌊33 × 115 / 100⌋ = 37 (37.95).
-        assert(damage(hit, goblin()) == 37, 'summed, truncated');
+        assert(Fixture::damage(hit, Fixture::goblin()) == 37, 'summed, truncated');
         let guarded = Hit { percent_above_half: 15, health: 241, max_health: 480, ..hit };
-        assert(damage(guarded, goblin()) == 42, 'above half: +30');
+        assert(Fixture::damage(guarded, Fixture::goblin()) == 42, 'above half: +30');
         let half = Hit { health: 240, ..guarded };
-        assert(damage(half, goblin()) == 37, 'exactly half: no');
+        assert(Fixture::damage(half, Fixture::goblin()) == 37, 'exactly half: no');
         let spell = Hit { class: HitClass::Spell, ..guarded };
-        assert(damage(spell, goblin()) == 42, 'spell reads them');
+        assert(Fixture::damage(spell, Fixture::goblin()) == 42, 'spell reads them');
         let bomb = Hit { class: HitClass::Item, ..guarded };
-        assert(damage(bomb, goblin()) == 33, 'bomb does not');
+        assert(Fixture::damage(bomb, Fixture::goblin()) == 33, 'bomb does not');
         let trap = Hit { class: HitClass::Trap, ..guarded };
-        assert(damage(trap, goblin()) == 33, 'trap does not');
+        assert(Fixture::damage(trap, Fixture::goblin()) == 33, 'trap does not');
     }
 
     // §6: a sum below −100 is −100; the hit lands with 0 damage, and is a hit (FX-10).
     #[test]
     #[available_gas(l2_gas: 14889)] // ceil(1.05 × 14180 measured)
     fn test_percent_floor_and_zero_hit() {
-        let hit = Hit { percent: -120, weakened: true, ..sword() };
-        assert(hit.percent(@goblin(), false) == -100, 'floored');
-        let result = landed(hit.resolve(@goblin()));
+        let hit = Hit { percent: -120, weakened: true, ..Fixture::sword() };
+        assert(hit.percent(@Fixture::goblin(), false) == -100, 'floored');
+        let result = Fixture::landed(hit.resolve(@Fixture::goblin()));
         assert(result.damage == 0, '0 damage');
-        let at = Hit { percent: -100, ..sword() };
-        assert(landed(at.resolve(@goblin())).damage == 0, 'at -100');
-        let tiny = Hit { base: 0, ..sword() };
+        let at = Hit { percent: -100, ..Fixture::sword() };
+        assert(Fixture::landed(at.resolve(@Fixture::goblin())).damage == 0, 'at -100');
+        let tiny = Hit { base: 0, ..Fixture::sword() };
         assert(
             tiny
                 .resolve(
-                    @goblin(),
+                    @Fixture::goblin(),
                 ) == HitOutcome::Landed(Landed { damage: 0, critical: false, halved: false }),
             'base 0 lands',
         );
@@ -737,7 +1032,7 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 38199)] // ceil(1.05 × 36380 measured)
     fn test_damage_bounds() {
-        let zero = HitTarget { armor: 0, ..goblin() };
+        let zero = HitTarget { armor: 0, ..Fixture::goblin() };
         let top = Hit {
             base: MAX_BASE,
             strength: 255,
@@ -747,17 +1042,17 @@ mod tests {
             max_health: 1,
             arc: Arc::Back,
             weapon: weapon::AXE,
-            ..sword(),
+            ..Fixture::sword(),
         };
         // x = 255 clamps to 80: 33,022 × 4 = 132,088, × (100 + 319) %: above 65,535, clamped.
-        assert(damage(top, zero) == 0xFFFF, 'clamped to 65535');
+        assert(Fixture::damage(top, zero) == 0xFFFF, 'clamped to 65535');
         // 132,088 × 40 % = 52,835 (52,835.2): under the clamp, truncated.
         assert(top.damage(0, -60) == 52835, 'below the clamp');
-        let exact = Hit { base: 16383, strength: 80, ..sword() };
-        assert(damage(exact, zero) == 65532, 'just below');
-        let low = Hit { base: 1, strength: 0, ..sword() };
-        let heavy = HitTarget { armor: 1000, ..goblin() };
-        assert(damage(low, heavy) == 0, 'truncated to 0');
+        let exact = Hit { base: 16383, strength: 80, ..Fixture::sword() };
+        assert(Fixture::damage(exact, zero) == 65532, 'just below');
+        let low = Hit { base: 1, strength: 0, ..Fixture::sword() };
+        let heavy = HitTarget { armor: 1000, ..Fixture::goblin() };
+        assert(Fixture::damage(low, heavy) == 0, 'truncated to 0');
     }
 
     // ---- FX-19: the halving ---------------------------------------------------------------------
@@ -765,26 +1060,26 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 84599)] // ceil(1.05 × 80570 measured)
     fn test_halve_first_heavy_hit() {
-        let held = HitTarget { halve: true, health: 300, max_health: 480, ..goblin() };
+        let held = HitTarget { halve: true, health: 300, max_health: 480, ..Fixture::goblin() };
         // 2 × 300 ≥ 480 and 2 × (300 − 100) < 480: halved to 50.
-        let hit = Hit { base: 100, ..sword() };
-        let result = landed(hit.resolve(@held));
+        let hit = Hit { base: 100, ..Fixture::sword() };
+        let result = Fixture::landed(hit.resolve(@held));
         assert(result.damage == 50 && result.halved, 'halved');
         // 300 − 50 = 250, 500 ≥ 480: not crossing.
-        let light = Hit { base: 50, ..sword() };
-        assert(!landed(light.resolve(@held)).halved, 'not crossing');
+        let light = Hit { base: 50, ..Fixture::sword() };
+        assert(!Fixture::landed(light.resolve(@held)).halved, 'not crossing');
         let below = HitTarget { health: 239, ..held };
-        assert(!landed(hit.resolve(@below)).halved, 'already below');
+        assert(!Fixture::landed(hit.resolve(@below)).halved, 'already below');
         // Exactly 50 % before: 2h ≥ max holds.
         let half = HitTarget { health: 240, ..held };
-        assert(landed(hit.resolve(@half)).damage == 50, 'from exactly half');
+        assert(Fixture::landed(hit.resolve(@half)).damage == 50, 'from exactly half');
         // A killing blow above health: h ⊖ d = 0; halved, truncated: 301 → 150.
-        let lethal = Hit { base: 301, ..sword() };
-        assert(landed(lethal.resolve(@held)).damage == 150, 'lethal halved');
+        let lethal = Hit { base: 301, ..Fixture::sword() };
+        assert(Fixture::landed(lethal.resolve(@held)).damage == 150, 'lethal halved');
         let spent = HitTarget { halve: false, ..held };
-        assert(landed(hit.resolve(@spent)).damage == 100, 'spent');
+        assert(Fixture::landed(hit.resolve(@spent)).damage == 100, 'spent');
         let spell = Hit { class: HitClass::Spell, ..hit };
-        assert(!landed(spell.resolve(@held)).halved, 'weapon only');
+        assert(!Fixture::landed(spell.resolve(@held)).halved, 'weapon only');
         assert(held.halve(1) == (1, false), 'a scratch');
     }
 
@@ -797,17 +1092,17 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_spell_at_equal_strength_and_armor() {
-        let area = Hit { class: HitClass::Spell, base: 50, strength: 60, ..sword() };
-        let target = HitTarget { armor: 60, ..goblin() };
-        assert(damage(area, target) == 50, '50');
+        let area = Hit { class: HitClass::Spell, base: 50, strength: 60, ..Fixture::sword() };
+        let target = HitTarget { armor: 60, ..Fixture::goblin() };
+        assert(Fixture::damage(area, target) == 50, '50');
     }
 
     // §10.8: a killing blow lands with its full damage; death is the executor's (steps 5–9).
     #[test]
     #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_example_10_8() {
-        let weak = HitTarget { health: 20, ..goblin() };
-        assert(damage(sword(), weak) == 100, 'lands above health');
+        let weak = HitTarget { health: 20, ..Fixture::goblin() };
+        assert(Fixture::damage(Fixture::sword(), weak) == 100, 'lands above health');
     }
 
     // ---- What an input may not be -------------------------------------------------------------
@@ -816,114 +1111,35 @@ mod tests {
     #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: base above its bound')]
     fn test_base_refused() {
-        HitAssert::assert_valid(@Hit { base: MAX_BASE + 1, ..sword() }, @goblin());
+        HitAssert::assert_valid(
+            @Hit { base: MAX_BASE + 1, ..Fixture::sword() }, @Fixture::goblin(),
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: health above max')]
     fn test_target_health_refused() {
-        HitAssert::assert_valid(@sword(), @HitTarget { health: 101, ..goblin() });
+        HitAssert::assert_valid(@Fixture::sword(), @HitTarget { health: 101, ..Fixture::goblin() });
     }
 
     #[test]
     #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: health above max')]
     fn test_source_health_refused() {
-        HitAssert::assert_valid(@Hit { health: 2, max_health: 1, ..sword() }, @goblin());
+        HitAssert::assert_valid(
+            @Hit { health: 2, max_health: 1, ..Fixture::sword() }, @Fixture::goblin(),
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: block charges')]
     fn test_block_refused() {
-        HitAssert::assert_valid(@sword(), @HitTarget { block: 64, ..goblin() });
+        HitAssert::assert_valid(@Fixture::sword(), @HitTarget { block: 64, ..Fixture::goblin() });
     }
 
     // ---- No panic on a legal input (D-140) ----------------------------------------------------
-
-    /// The next draw below `bound` of a 64-bit linear congruential sequence (Knuth's MMIX
-    /// constants): deterministic, for the tests only.
-    fn draw(ref state: u128, bound: u128) -> u128 {
-        state = (state * 6364136223846793005 + 1442695040888963407) % 0x10000000000000000;
-        (state / 0x100000000) % bound
-    }
-
-    fn signed(ref state: u128, low: i32, span: u128) -> i32 {
-        let v: i32 = draw(ref state, span).try_into().unwrap();
-        low + v
-    }
-
-    fn flag(ref state: u128, one_in: u128) -> bool {
-        draw(ref state, one_in) == 0
-    }
-
-    /// A legal case from a seed: every field over its legal range, the edges often.
-    fn case(seed: u64) -> (Hit, HitTarget) {
-        let mut s: u128 = seed.into();
-        let class = match draw(ref s, 4) {
-            0 => HitClass::Weapon,
-            1 => HitClass::Spell,
-            2 => HitClass::Item,
-            _ => HitClass::Trap,
-        };
-        let arc = match draw(ref s, 4) {
-            0 => Arc::Front,
-            1 => Arc::FrontSide,
-            2 => Arc::RearSide,
-            _ => Arc::Back,
-        };
-        let base = if flag(ref s, 2) {
-            draw(ref s, 120)
-        } else {
-            draw(ref s, MAX_BASE.into() + 1)
-        };
-        let source_max = draw(ref s, 1000);
-        let hit = Hit {
-            class,
-            weapon: draw(ref s, weapon::LAST.into() + 1).try_into().unwrap(),
-            melee: flag(ref s, 2),
-            arc,
-            in_front: flag(ref s, 2),
-            strength: draw(ref s, 766).try_into().unwrap(),
-            base: base.try_into().unwrap(),
-            percent: signed(ref s, -127, 255).try_into().unwrap(),
-            percent_above_half: signed(ref s, -127, 255).try_into().unwrap(),
-            penetration: draw(ref s, 301).try_into().unwrap(),
-            health: draw(ref s, source_max + 1).try_into().unwrap(),
-            max_health: source_max.try_into().unwrap(),
-            weakened: flag(ref s, 4),
-            blind: flag(ref s, 4),
-        };
-        let armor = if flag(ref s, 8) {
-            signed(ref s, -32768, 65536)
-        } else {
-            signed(ref s, -300, 1301)
-        };
-        let block = if flag(ref s, 3) {
-            draw(ref s, MAX_BLOCK_U128 + 1)
-        } else {
-            0
-        };
-        let max_health = draw(ref s, 2000);
-        let target = HitTarget {
-            armor: armor.try_into().unwrap(),
-            armor_effects: draw(ref s, 1021).try_into().unwrap(),
-            armor_stance: signed(ref s, -18, 37).try_into().unwrap(),
-            armor_enchanted: signed(ref s, -18, 37).try_into().unwrap(),
-            in_stance: flag(ref s, 2),
-            enchanted: flag(ref s, 2),
-            armor_vs: draw(ref s, 64).try_into().unwrap(),
-            block: block.try_into().unwrap(),
-            evade: flag(ref s, 3),
-            knocked_down: flag(ref s, 4),
-            asleep: flag(ref s, 6),
-            halve: flag(ref s, 3),
-            health: draw(ref s, max_health + 1).try_into().unwrap(),
-            max_health: max_health.try_into().unwrap(),
-        };
-        (hit, target)
-    }
 
     const MAX_BLOCK_U128: u128 = 63;
 
@@ -933,7 +1149,7 @@ mod tests {
     // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
     #[available_gas(l2_gas: 533211)] // ceil(1.05 × 507820 measured)
     fn test_fuzz_no_panic(seed: u64) {
-        let (hit, target) = case(seed);
+        let (hit, target) = Fixture::case(seed);
         match hit.resolve(@target) {
             HitOutcome::Landed(landed) => {
                 if hit.class != HitClass::Weapon {
@@ -949,110 +1165,22 @@ mod tests {
         }
     }
 
-    /// Track CV's hand-picked cases (CBT-05a): (200) an axe from the front-side arc, landing below
-    /// the clamp: no axe bonus; (201) the `ABOVE_HALF` damage passive at exactly half health,
-    /// with a non-zero percent: it does not apply; (202) FX-19's halving when the hit leaves the
-    /// target at exactly half: `2 (h ⊖ d) < max` fails, no halving.
-    fn cv_cases() -> Array<(Hit, HitTarget)> {
-        array![
-            (Hit { weapon: weapon::AXE, arc: Arc::FrontSide, ..sword() }, goblin()),
-            (Hit { percent_above_half: 20, health: 50, max_health: 100, ..sword() }, goblin()),
-            (
-                Hit { base: 60, ..sword() },
-                HitTarget { halve: true, health: 300, max_health: 480, ..goblin() },
-            ),
-        ]
-    }
-
     // Track CV's cases, each pinned: the axe front-side 100 (no +25); above half at exactly half
     // 100 (no +20); 300 − 60 = 240 = half of 480: not halved.
     #[test]
     #[available_gas(l2_gas: 162614)] // ceil(1.05 × 154870 measured)
     fn test_cv_cases() {
-        let cases = cv_cases();
+        let cases = Fixture::cv_cases();
         let (axe, target) = *cases[0];
-        assert(damage(axe, target) == 100, 'axe front-side: no bonus');
+        assert(Fixture::damage(axe, target) == 100, 'axe front-side: no bonus');
         let (half, target) = *cases[1];
-        assert(damage(half, target) == 100, 'exactly half: no above-half');
+        assert(Fixture::damage(half, target) == 100, 'exactly half: no above-half');
         let (hit, target) = *cases[2];
-        let landed = landed(hit.resolve(@target));
+        let landed = Fixture::landed(hit.resolve(@target));
         assert(landed.damage == 60 && !landed.halved, 'left at half: not halved');
     }
 
     // ---- The vector table for the TypeScript mirror (D-140, SPK-4) ---------------------------
-
-    /// The hand-written cases: the edges above, so that the mirror meets each.
-    fn edges() -> Array<(Hit, HitTarget)> {
-        let zero = HitTarget { armor: 0, ..goblin() };
-        array![
-            (sword(), goblin()), (Hit { arc: Arc::Back, ..sword() }, goblin()),
-            (Hit { arc: Arc::RearSide, weapon: weapon::AXE, ..sword() }, goblin()),
-            (Hit { arc: Arc::Back, weapon: weapon::AXE, ..sword() }, goblin()),
-            (sword(), HitTarget { knocked_down: true, block: 2, evade: true, ..goblin() }),
-            (sword(), HitTarget { asleep: true, block: 2, ..goblin() }),
-            (sword(), HitTarget { asleep: true, evade: true, ..goblin() }),
-            (sword(), HitTarget { block: 2, ..goblin() }),
-            (Hit { arc: Arc::RearSide, ..sword() }, HitTarget { block: 2, ..goblin() }),
-            (Hit { arc: Arc::Back, ..sword() }, HitTarget { evade: true, ..goblin() }),
-            (Hit { melee: false, ..sword() }, HitTarget { evade: true, ..goblin() }),
-            (Hit { blind: true, in_front: false, ..sword() }, HitTarget { block: 1, ..goblin() }),
-            (Hit { blind: true, in_front: true, ..sword() }, goblin()),
-            (Hit { weakened: true, arc: Arc::Back, ..sword() }, goblin()),
-            (Hit { penetration: 300, ..sword() }, HitTarget { armor: 41, ..goblin() }),
-            (Hit { penetration: 25, ..sword() }, HitTarget { armor: -500, ..goblin() }),
-            (sword(), HitTarget { armor: -30, armor_effects: 20, armor_vs: 50, ..goblin() }),
-            (Hit { strength: 765, ..sword() }, zero),
-            (Hit { strength: 0, ..sword() }, HitTarget { armor: 32767, ..goblin() }),
-            (Hit { percent: -120, weakened: true, ..sword() }, goblin()),
-            (Hit { base: 0, ..sword() }, goblin()),
-            (
-                Hit {
-                    base: MAX_BASE,
-                    strength: 255,
-                    percent: 127,
-                    percent_above_half: 127,
-                    health: 1,
-                    max_health: 1,
-                    arc: Arc::Back,
-                    weapon: weapon::AXE,
-                    ..sword(),
-                },
-                zero,
-            ),
-            (
-                Hit { base: 100, ..sword() },
-                HitTarget { halve: true, health: 300, max_health: 480, ..goblin() },
-            ),
-            (
-                Hit { base: 301, ..sword() },
-                HitTarget { halve: true, health: 300, max_health: 480, ..goblin() },
-            ),
-            (
-                Hit { class: HitClass::Spell, penetration: 100, percent: 15, ..sword() },
-                HitTarget { armor: 41, block: 3, knocked_down: true, ..goblin() },
-            ),
-            (
-                Hit { class: HitClass::Item, strength: 200, base: 50, penetration: 100, ..sword() },
-                goblin(),
-            ),
-            (Hit { class: HitClass::Trap, strength: 60, percent: 50, ..sword() }, goblin()),
-        ]
-    }
-
-    fn hex(felts: Span<felt252>) -> ByteArray {
-        let mut out: ByteArray = "[";
-        let mut first = true;
-        for felt in felts {
-            if !first {
-                out.append(@",");
-            }
-            first = false;
-            let wide: u256 = (*felt).into();
-            out.append(@format!("\"0x{:x}\"", wide));
-        }
-        out.append(@"]");
-        out
-    }
 
     /// Cases in the table: the edges, then legal cases from seeds 1, 2, …
     const VECTORS: u32 = 200;
@@ -1061,65 +1189,35 @@ mod tests {
     // form), and a digest of every case and outcome: a change to a rule or to the cases fails here
     // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation). FND-23: in
     // five parts of consecutive ids, each with its digest, so that a test's trace stays small.
-    fn check_vectors(first: u32, last: u32, expected: felt252) {
-        let mut cases = edges();
-        let mut seed: u64 = 1;
-        while cases.len() < VECTORS {
-            cases.append(case(seed));
-            seed += 1;
-        }
-        // Track CV's three (their mutation check of the mirror), after the seeded cases so that
-        // no earlier id moves: ids 200, 201, 202.
-        cases.append_span(cv_cases().span());
-        assert(cases.len() == TOTAL, 'vectors: case count moved');
-        let mut digest: Array<felt252> = array![];
-        let mut id: u32 = first;
-        for (hit, target) in cases.span().slice(first, last - first) {
-            let mut input: Array<felt252> = array![];
-            hit.serialize(ref input);
-            target.serialize(ref input);
-            let mut output: Array<felt252> = array![];
-            hit.resolve(target).serialize(ref output);
-            println!(
-                "{{\"id\":{},\"case\":{},\"ok\":{}}}", id, hex(input.span()), hex(output.span()),
-            );
-            digest.append(core::poseidon::poseidon_hash_span(input.span()));
-            digest.append(core::poseidon::poseidon_hash_span(output.span()));
-            id += 1;
-        }
-        let digest = core::poseidon::poseidon_hash_span(digest.span());
-        println!("digest {}", digest);
-        assert(digest == expected, 'vectors moved: regenerate');
-    }
 
     #[test]
     #[available_gas(l2_gas: 196721826)] // ceil(1.05 × 187354120 measured)
     fn test_vectors_0() {
-        check_vectors(0, 41, DIGEST_0);
+        Fixture::check_vectors(0, 41, DIGEST_0);
     }
 
     #[test]
     #[available_gas(l2_gas: 250046790)] // ceil(1.05 × 238139800 measured)
     fn test_vectors_1() {
-        check_vectors(41, 82, DIGEST_1);
+        Fixture::check_vectors(41, 82, DIGEST_1);
     }
 
     #[test]
     #[available_gas(l2_gas: 263136275)] // ceil(1.05 × 250605976 measured)
     fn test_vectors_2() {
-        check_vectors(82, 123, DIGEST_2);
+        Fixture::check_vectors(82, 123, DIGEST_2);
     }
 
     #[test]
     #[available_gas(l2_gas: 244421575)] // ceil(1.05 × 232782452 measured)
     fn test_vectors_3() {
-        check_vectors(123, 164, DIGEST_3);
+        Fixture::check_vectors(123, 164, DIGEST_3);
     }
 
     #[test]
     #[available_gas(l2_gas: 248287639)] // ceil(1.05 × 236464418 measured)
     fn test_vectors_4() {
-        check_vectors(164, TOTAL, DIGEST_4);
+        Fixture::check_vectors(164, TOTAL, DIGEST_4);
     }
 
     /// The cases of the table: `VECTORS`, then track CV's three.

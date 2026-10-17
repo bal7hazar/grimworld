@@ -228,39 +228,43 @@ mod tests {
     // oracle): distinct, within 2, by row. A chunk's rows have the window's parity when its local
     // row 0 is even, and are a row up (`+ 15`) when it is odd; `member` takes the global parity of
     // the tile's row.
-    fn check_members(tile: u8, chunk_odd: bool) {
-        let shift: u8 = if chunk_odd {
-            15
-        } else {
-            0
-        };
-        let (row, _) = DivRem::div_rem(tile, 15);
-        let odd = (row % 2 == 1) != chunk_odd;
-        let mut seen: felt252 = 0;
-        let mut last_row: u8 = 0;
-        let mut k: u8 = 0;
-        while k != NEAR {
-            let member = PackPlacementTrait::member(tile, k, odd).unwrap();
-            assert(WindowTrait::distance(tile + shift, member + shift) <= 2, 'within 2');
-            let (row, _) = DivRem::div_rem(member, 15);
-            assert(row >= last_row, 'by row');
-            last_row = row;
-            let bit = Bits::pow(member);
-            let wide: u256 = seen.into();
-            assert(!Bits::get(wide, member), 'distinct');
-            seen += bit;
-            k += 1;
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn check_members(tile: u8, chunk_odd: bool) {
+            let shift: u8 = if chunk_odd {
+                15
+            } else {
+                0
+            };
+            let (row, _) = DivRem::div_rem(tile, 15);
+            let odd = (row % 2 == 1) != chunk_odd;
+            let mut seen: felt252 = 0;
+            let mut last_row: u8 = 0;
+            let mut k: u8 = 0;
+            while k != NEAR {
+                let member = PackPlacementTrait::member(tile, k, odd).unwrap();
+                assert(WindowTrait::distance(tile + shift, member + shift) <= 2, 'within 2');
+                let (row, _) = DivRem::div_rem(member, 15);
+                assert(row >= last_row, 'by row');
+                last_row = row;
+                let bit = Bits::pow(member);
+                let wide: u256 = seen.into();
+                assert(!Bits::get(wide, member), 'distinct');
+                seen += bit;
+                k += 1;
+            }
+            assert(PackPlacementTrait::member(tile, CENTRE, odd) == Some(tile), 'centre');
         }
-        assert(PackPlacementTrait::member(tile, CENTRE, odd) == Some(tile), 'centre');
     }
+
 
     #[test]
     #[available_gas(l2_gas: 2671692)] // ceil(1.05 × 2544468 measured)
     fn test_member_offsets() {
-        check_members(6 * 15 + 7, false);
-        check_members(7 * 15 + 7, false);
-        check_members(6 * 15 + 7, true);
-        check_members(7 * 15 + 7, true);
+        Fixture::check_members(6 * 15 + 7, false);
+        Fixture::check_members(7 * 15 + 7, false);
+        Fixture::check_members(6 * 15 + 7, true);
+        Fixture::check_members(7 * 15 + 7, true);
         // Outside the chunk: off the West column, below row 0, off the East one, above row 14.
         assert(PackPlacementTrait::member(14, 11, false).is_none(), 'west');
         assert(PackPlacementTrait::member(7, 0, false).is_none(), 'south');

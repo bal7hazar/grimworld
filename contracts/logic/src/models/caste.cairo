@@ -298,43 +298,43 @@ mod tests {
                 true,
             )
         }
-    }
 
-    /// A caste at design/20's bounds (DS-18, DS-29): multiplier 1,000 %, energy 85, regeneration 10
-    /// pips, weapon damage 255, flee 100, health regeneration 20.
-    fn caste_at_bounds() -> Caste {
-        CasteTrait::new(
-            6,
-            1,
-            1000,
-            20,
-            40,
-            [0; 9],
-            WeaponTrait::new(weapon::MAUL, 255, damage::BLUNT, 2, 1),
-            85,
-            10,
-            [1, 0, 0, 0],
-            15,
-            100,
-            0,
-            false,
-        )
-    }
+        /// A caste at design/20's bounds (DS-18, DS-29): multiplier 1,000 %, energy 85,
+        /// regeneration 10 pips, weapon damage 255, flee 100, health regeneration 20.
+        fn caste_at_bounds() -> Caste {
+            CasteTrait::new(
+                6,
+                1,
+                1000,
+                20,
+                40,
+                [0; 9],
+                WeaponTrait::new(weapon::MAUL, 255, damage::BLUNT, 2, 1),
+                85,
+                10,
+                [1, 0, 0, 0],
+                15,
+                100,
+                0,
+                false,
+            )
+        }
 
-    fn skill_of(adrenaline: u8) -> Skill {
-        SkillTrait::new(
-            1,
-            1,
-            skill_kind::ATTACK,
-            0,
-            adrenaline,
-            1,
-            5,
-            1,
-            target::FOE,
-            false,
-            [Default::default(); 3],
-        )
+        fn skill_of(adrenaline: u8) -> Skill {
+            SkillTrait::new(
+                1,
+                1,
+                skill_kind::ATTACK,
+                0,
+                adrenaline,
+                1,
+                5,
+                1,
+                target::FOE,
+                false,
+                [Default::default(); 3],
+            )
+        }
     }
 
     // §7.3: `CASTE`, 2 parts, 243 bits over 4 limbs, no field straddling one.
@@ -457,7 +457,7 @@ mod tests {
     #[should_panic(expected: 'caste: health above 1000 %')]
     #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
     fn test_caste_multiplier_1001_refused() {
-        let caste = Caste { health: 1001, ..caste_at_bounds() };
+        let caste = Caste { health: 1001, ..Fixture::caste_at_bounds() };
         Record::<Caste>::pack(@caste);
     }
 
@@ -465,7 +465,7 @@ mod tests {
     #[should_panic(expected: 'caste: energy regen above 10')]
     #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
     fn test_caste_energy_regen_refused() {
-        let caste = Caste { energy_regen: 11, ..caste_at_bounds() };
+        let caste = Caste { energy_regen: 11, ..Fixture::caste_at_bounds() };
         Record::<Caste>::pack(@caste);
     }
 
@@ -474,7 +474,8 @@ mod tests {
     #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
     fn test_caste_weapon_damage_refused() {
         let caste = Caste {
-            weapon: WeaponTrait::new(weapon::MAUL, 256, damage::BLUNT, 2, 1), ..caste_at_bounds(),
+            weapon: WeaponTrait::new(weapon::MAUL, 256, damage::BLUNT, 2, 1),
+            ..Fixture::caste_at_bounds(),
         };
         Record::<Caste>::pack(@caste);
     }
@@ -483,7 +484,7 @@ mod tests {
     #[should_panic(expected: 'caste: flee above 100')]
     #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
     fn test_caste_flee_refused() {
-        let caste = Caste { flee: 101, ..caste_at_bounds() };
+        let caste = Caste { flee: 101, ..Fixture::caste_at_bounds() };
         Record::<Caste>::pack(@caste);
     }
 
@@ -491,7 +492,7 @@ mod tests {
     #[should_panic(expected: 'caste: skill adrenaline')]
     #[available_gas(l2_gas: 49413)] // ceil(1.05 × 47060 measured)
     fn test_caste_skill_of_64_strikes_refused() {
-        CasteAssert::assert_skills(array![skill_of(63), skill_of(64)].span());
+        CasteAssert::assert_skills(array![Fixture::skill_of(63), Fixture::skill_of(64)].span());
     }
 
     // §6 test 9 (DS-29): a caste's health regeneration 21 is refused at `pack`;
@@ -501,7 +502,7 @@ mod tests {
     #[should_panic(expected: 'caste: health regen')]
     #[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
     fn test_caste_health_regen_21_refused_at_pack() {
-        let caste = Caste { health_regen: 21, ..caste_at_bounds() };
+        let caste = Caste { health_regen: 21, ..Fixture::caste_at_bounds() };
         Record::<Caste>::pack(@caste);
     }
 }

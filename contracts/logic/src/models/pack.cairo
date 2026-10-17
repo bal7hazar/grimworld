@@ -224,16 +224,21 @@ mod tests {
         assert(pack.caste(5, 4) == 8, '5');
     }
 
-    fn template(first: PackCaste, second: PackCaste) -> super::Pack {
-        PackTrait::new(
-            [first, second, Default::default(), Default::default(), Default::default()], 0,
-        )
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn template(first: PackCaste, second: PackCaste) -> super::Pack {
+            PackTrait::new(
+                [first, second, Default::default(), Default::default(), Default::default()], 0,
+            )
+        }
     }
 
     #[test]
     #[available_gas(l2_gas: 34703)] // ceil(1.05 × 33050 measured)
     fn test_pack_legal() {
-        template(PackCaste { caste: 1, min: 2, max: 3 }, PackCaste { caste: 2, min: 3, max: 9 })
+        Fixture::template(
+            PackCaste { caste: 1, min: 2, max: 3 }, PackCaste { caste: 2, min: 3, max: 9 },
+        )
             .assert_legal();
     }
 
@@ -241,7 +246,9 @@ mod tests {
     #[should_panic(expected: 'pack: empty with bounds')]
     #[available_gas(l2_gas: 26471)] // ceil(1.05 × 25210 measured)
     fn test_pack_empty_with_bounds_refused() {
-        template(PackCaste { caste: 1, min: 1, max: 1 }, PackCaste { caste: 0, min: 0, max: 2 })
+        Fixture::template(
+            PackCaste { caste: 1, min: 1, max: 1 }, PackCaste { caste: 0, min: 0, max: 2 },
+        )
             .assert_legal();
     }
 
@@ -249,14 +256,16 @@ mod tests {
     #[should_panic(expected: 'pack: no caste')]
     #[available_gas(l2_gas: 36110)] // ceil(1.05 × 34390 measured)
     fn test_pack_no_caste_refused() {
-        template(Default::default(), Default::default()).assert_legal();
+        Fixture::template(Default::default(), Default::default()).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'pack: min above 5')]
     #[available_gas(l2_gas: 35858)] // ceil(1.05 × 34150 measured)
     fn test_pack_min_above_five_refused() {
-        template(PackCaste { caste: 1, min: 3, max: 3 }, PackCaste { caste: 2, min: 3, max: 4 })
+        Fixture::template(
+            PackCaste { caste: 1, min: 3, max: 3 }, PackCaste { caste: 2, min: 3, max: 4 },
+        )
             .assert_legal();
     }
 }

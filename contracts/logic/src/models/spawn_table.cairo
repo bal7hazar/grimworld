@@ -169,35 +169,38 @@ mod tests {
         assert(table.pick(2) == 5, '2');
     }
 
-    fn table(first: Spawn, density: u8) -> super::SpawnTable {
-        SpawnTableTrait::new(
-            [
-                first, Default::default(), Default::default(), Default::default(),
-                Default::default(), Default::default(), Default::default(),
-            ],
-            density,
-            0,
-        )
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn table(first: Spawn, density: u8) -> super::SpawnTable {
+            SpawnTableTrait::new(
+                [
+                    first, Default::default(), Default::default(), Default::default(),
+                    Default::default(), Default::default(), Default::default(),
+                ],
+                density,
+                0,
+            )
+        }
     }
 
     #[test]
     #[available_gas(l2_gas: 54327)] // ceil(1.05 × 51740 measured)
     fn test_spawn_table_legal() {
-        table(Spawn { template: 1, weight: 3 }, 128).assert_legal();
-        table(Default::default(), 0).assert_legal();
+        Fixture::table(Spawn { template: 1, weight: 3 }, 128).assert_legal();
+        Fixture::table(Default::default(), 0).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'spawn table: empty weighted')]
     #[available_gas(l2_gas: 11183)] // ceil(1.05 × 10650 measured)
     fn test_spawn_table_empty_weighted_refused() {
-        table(Spawn { template: 0, weight: 3 }, 0).assert_legal();
+        Fixture::table(Spawn { template: 0, weight: 3 }, 0).assert_legal();
     }
 
     #[test]
     #[should_panic(expected: 'spawn table: no weight')]
     #[available_gas(l2_gas: 39039)] // ceil(1.05 × 37180 measured)
     fn test_spawn_table_density_without_weight_refused() {
-        table(Spawn { template: 2, weight: 0 }, 64).assert_legal();
+        Fixture::table(Spawn { template: 2, weight: 0 }, 64).assert_legal();
     }
 }

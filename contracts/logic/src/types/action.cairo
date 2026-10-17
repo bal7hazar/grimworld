@@ -478,7 +478,7 @@ mod tests {
     use crate::types::batch::Action;
     use crate::types::combat::{damage, skill_kind, weapon};
     use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
-    use crate::types::executor::tests::{AT, SNARE, at, content, entry, goblin, member, skill};
+    use crate::types::executor::tests::{AT, ExecutorFixture, SNARE};
     use crate::types::executor::{
         Board, BoardTrait, Carrier, Executed, Executor, ExecutorCarry, ExecutorTrait,
     };
@@ -486,7 +486,7 @@ mod tests {
     use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, Held, PotionSheet, Sheets, flag};
     use crate::types::trap::Ground;
     use crate::types::window::{FAR, WindowTrait};
-    use crate::types::world::fixtures::{Fixture, two};
+    use crate::types::world::fixtures::Fixture;
     use crate::types::world::{Actor, World, WorldTrait};
     use super::{ActionTrait, Carry, FIELDCRAFT_PER_RANK, Illegal, QuickCastTrait};
 
@@ -504,110 +504,123 @@ mod tests {
     const BOMB: u32 = 100;
     const CLOCK: u32 = 200;
 
-    /// The executor's content (armor 40), its Snare as design/19 §10.10's (10 / 2 / 20), and:
-    /// a glyph (`NEXT_SPELL_COST` 4, 10 ticks); a fire spell (5 energy, activation 3, range 6, 40
-    /// fire on a foe); a Warden skill (8 energy, instant, a heal); a stance (instant); an attack
-    /// skill of 2 adrenaline; an instant heal on an ally of range 6. Belt slot 0's bomb: 30 fire on
-    /// `DISC_1` around a tile, range 6.
-    fn bench() -> Content {
-        let none: Entry = Default::default();
-        let bomb = entry(
-            kind::DAMAGE, damage::FIRE, 30, 30, target::TILE, shape::DISC_1, filter::FOES,
-        );
-        let base = content(
-            40,
-            array![PotionSheet { id: BOMB, entry: bomb.pack(), range: 6, ..Default::default() }]
-                .span(),
-        );
-        let mut skills = array![];
-        for sheet in base.skills {
-            let mut sheet = *sheet;
-            if sheet.id == SNARE {
-                sheet.energy = 10;
-                sheet.activation = 2;
-                sheet.recharge = 20;
+    #[generate_trait]
+    impl ActionFixtureImpl of ActionFixture {
+        /// The executor's content (armor 40), its Snare as design/19 §10.10's (10 / 2 / 20), and:
+        /// a glyph (`NEXT_SPELL_COST` 4, 10 ticks); a fire spell (5 energy, activation 3, range 6,
+        /// 40 fire on a foe); a Warden skill (8 energy, instant, a heal); a stance (instant); an
+        /// attack skill of 2 adrenaline; an instant heal on an ally of range 6. Belt slot 0's bomb:
+        /// 30 fire on `DISC_1` around a tile, range 6.
+        fn bench() -> Content {
+            let none: Entry = Default::default();
+            let bomb = ExecutorFixture::entry(
+                kind::DAMAGE, damage::FIRE, 30, 30, target::TILE, shape::DISC_1, filter::FOES,
+            );
+            let base = ExecutorFixture::content(
+                40,
+                array![PotionSheet { id: BOMB, entry: bomb.pack(), range: 6, ..Default::default() }]
+                    .span(),
+            );
+            let mut skills = array![];
+            for sheet in base.skills {
+                let mut sheet = *sheet;
+                if sheet.id == SNARE {
+                    sheet.energy = 10;
+                    sheet.activation = 2;
+                    sheet.recharge = 20;
+                }
+                skills.append(sheet);
             }
+            let glyph = EntryTrait::new(
+                kind::NEXT_SPELL_COST,
+                0,
+                4,
+                4,
+                10,
+                10,
+                0,
+                target::SELF,
+                shape::SINGLE,
+                filter::ALLIES,
+                0,
+                0,
+            );
+            let mut sheet = ExecutorFixture::skill(
+                GLYPH, skill_kind::GLYPH, 0, [glyph, none, none],
+            );
+            sheet.activation = 0;
             skills.append(sheet);
+            let fire = ExecutorFixture::entry(
+                kind::DAMAGE, damage::FIRE, 40, 40, target::FOE, shape::SINGLE, filter::FOES,
+            );
+            let mut sheet = ExecutorFixture::skill(FIRE, skill_kind::SPELL, 6, [fire, none, none]);
+            sheet.energy = 5;
+            sheet.activation = 3;
+            skills.append(sheet);
+            let heal = ExecutorFixture::entry(
+                kind::HEAL, 0, 10, 10, target::SELF, shape::SINGLE, filter::ALLIES,
+            );
+            let mut sheet = ExecutorFixture::skill(FIELD, skill_kind::SKILL, 0, [heal, none, none]);
+            sheet.energy = 8;
+            sheet.profession = 2;
+            sheet.activation = 0;
+            skills.append(sheet);
+            let mut sheet = ExecutorFixture::skill(
+                STANCE, skill_kind::STANCE, 0, [heal, none, none],
+            );
+            sheet.activation = 0;
+            skills.append(sheet);
+            let mut sheet = ExecutorFixture::skill(RAGE, skill_kind::ATTACK, 1, [none, none, none]);
+            sheet.adrenaline = 2;
+            sheet.activation = 0;
+            skills.append(sheet);
+            let mend = ExecutorFixture::entry(
+                kind::HEAL, 0, 10, 10, target::ALLY, shape::SINGLE, filter::ALLIES,
+            );
+            let mut sheet = ExecutorFixture::skill(MEND, skill_kind::SKILL, 6, [mend, none, none]);
+            sheet.activation = 0;
+            skills.append(sheet);
+            Content { skills: skills.span(), potions: base.potions, castes: base.castes }
         }
-        let glyph = EntryTrait::new(
-            kind::NEXT_SPELL_COST,
-            0,
-            4,
-            4,
-            10,
-            10,
-            0,
-            target::SELF,
-            shape::SINGLE,
-            filter::ALLIES,
-            0,
-            0,
-        );
-        let mut sheet = skill(GLYPH, skill_kind::GLYPH, 0, [glyph, none, none]);
-        sheet.activation = 0;
-        skills.append(sheet);
-        let fire = entry(
-            kind::DAMAGE, damage::FIRE, 40, 40, target::FOE, shape::SINGLE, filter::FOES,
-        );
-        let mut sheet = skill(FIRE, skill_kind::SPELL, 6, [fire, none, none]);
-        sheet.energy = 5;
-        sheet.activation = 3;
-        skills.append(sheet);
-        let heal = entry(kind::HEAL, 0, 10, 10, target::SELF, shape::SINGLE, filter::ALLIES);
-        let mut sheet = skill(FIELD, skill_kind::SKILL, 0, [heal, none, none]);
-        sheet.energy = 8;
-        sheet.profession = 2;
-        sheet.activation = 0;
-        skills.append(sheet);
-        let mut sheet = skill(STANCE, skill_kind::STANCE, 0, [heal, none, none]);
-        sheet.activation = 0;
-        skills.append(sheet);
-        let mut sheet = skill(RAGE, skill_kind::ATTACK, 1, [none, none, none]);
-        sheet.adrenaline = 2;
-        sheet.activation = 0;
-        skills.append(sheet);
-        let mend = entry(kind::HEAL, 0, 10, 10, target::ALLY, shape::SINGLE, filter::ALLIES);
-        let mut sheet = skill(MEND, skill_kind::SKILL, 6, [mend, none, none]);
-        sheet.activation = 0;
-        skills.append(sheet);
-        Content { skills: skills.span(), potions: base.potions, castes: base.castes }
-    }
 
-    /// `id` on bar `slot` at `rank`, at its position in `sheets`.
-    fn equip(ref member: Member, sheets: @Sheets, slot: u8, id: u16, rank: u8) {
-        let lane: u128 = two(16 * slot.into()).try_into().unwrap();
-        let old = member.skill(slot);
-        member.words.bar += (id.into() - old.into()) * two(16 * slot.into());
-        let position: u128 = at(sheets, id).into();
-        member.bar_at = member.bar_at - member.position(slot) * lane + position * lane;
-        member.words.stats += rank.into() * two(128 + 4 * slot.into());
-    }
-
-    /// The member at `AT` (a sword), 10 energy, with `ids` on bar slots 0 on, rank 12.
-    fn adventurer(sheets: @Sheets, ids: Span<u16>) -> Member {
-        let mut member = member(AT, 0, weapon::SWORD);
-        let mut slot: u8 = 0;
-        for id in ids {
-            equip(ref member, sheets, slot, *id, 12);
-            slot += 1;
+        /// `id` on bar `slot` at `rank`, at its position in `sheets`.
+        fn equip(ref member: Member, sheets: @Sheets, slot: u8, id: u16, rank: u8) {
+            let lane: u128 = Fixture::two(16 * slot.into()).try_into().unwrap();
+            let old = member.skill(slot);
+            member.words.bar += (id.into() - old.into()) * Fixture::two(16 * slot.into());
+            let position: u128 = ExecutorFixture::at(sheets, id).into();
+            member.bar_at = member.bar_at - member.position(slot) * lane + position * lane;
+            member.words.stats += rank.into() * Fixture::two(128 + 4 * slot.into());
         }
-        member
-    }
 
-    /// The location's tile `x + 256 y` of the window's `position` (the board at the origin).
-    fn tile(position: u8) -> u16 {
-        (position % 15).into() + 256 * (position / 15).into()
-    }
+        /// The member at `AT` (a sword), 10 energy, with `ids` on bar slots 0 on, rank 12.
+        fn adventurer(sheets: @Sheets, ids: Span<u16>) -> Member {
+            let mut member = ExecutorFixture::member(AT, 0, weapon::SWORD);
+            let mut slot: u8 = 0;
+            for id in ids {
+                Self::equip(ref member, sheets, slot, *id, 12);
+                slot += 1;
+            }
+            member
+        }
 
-    fn fresh() -> Executor {
-        let mut rules = ExecutorTrait::new(crate::types::executor::tests::board());
-        rules.ground = array![(0, FeaturesTrait::empty())];
-        rules
-    }
+        /// The location's tile `x + 256 y` of the window's `position` (the board at the origin).
+        fn tile(position: u8) -> u16 {
+            (position % 15).into() + 256 * (position / 15).into()
+        }
 
-    fn act(ref world: World, sheets: @Sheets, action: Action) -> Result<u8, Illegal> {
-        let mut rules = fresh();
-        ActionTrait::act(ref world, sheets, ref rules, 0, action)
+        fn fresh() -> Executor {
+            let mut rules = ExecutorTrait::new(
+                crate::types::executor::tests::ExecutorFixture::board(),
+            );
+            rules.ground = array![(0, FeaturesTrait::empty())];
+            rules
+        }
+
+        fn act(ref world: World, sheets: @Sheets, action: Action) -> Result<u8, Illegal> {
+            let mut rules = Self::fresh();
+            ActionTrait::act(ref world, sheets, ref rules, 0, action)
+        }
     }
 
     // ---- Legal actions and their tick costs ---------------------------------------------------
@@ -618,23 +631,32 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 10564147)] // ceil(1.05 × 10061092 measured)
     fn test_wait_turn_knocked() {
-        let sheets = bench().sheets();
+        let sheets = ActionFixture::bench().sheets();
         let mut world = Fixture::world(
-            CLOCK, array![adventurer(@sheets, array![].span())], array![],
+            CLOCK, array![ActionFixture::adventurer(@sheets, array![].span())], array![],
         );
         let before = world.member(0);
-        assert(act(ref world, @sheets, Action::Wait) == Ok(1), 'wait 1');
+        assert(ActionFixture::act(ref world, @sheets, Action::Wait) == Ok(1), 'wait 1');
         assert(world.member(0) == before, 'wait writes nothing');
-        assert(act(ref world, @sheets, Action::Turn(3)) == Ok(0), 'turn 0');
+        assert(ActionFixture::act(ref world, @sheets, Action::Turn(3)) == Ok(0), 'turn 0');
         let (_, _, facing) = world.member(0).place();
         assert(facing == 3 && world.member(0).flags & flag::TURNED != 0, 'turned');
-        assert(act(ref world, @sheets, Action::Turn(4)) == Err(Illegal::Turned), 'second turn');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Turn(4)) == Err(Illegal::Turned),
+            'second turn',
+        );
         let mut member = world.member(0);
         member.knocked = CLOCK + 1;
         world.set_member(0, member);
-        assert(act(ref world, @sheets, Action::Attack(8)) == Err(Illegal::Knocked), 'knocked');
-        assert(act(ref world, @sheets, Action::Wait) == Ok(1), 'knocked: wait');
-        assert(act(ref world, @sheets, Action::Move(0)) == Err(Illegal::Knocked), 'knocked: move');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Attack(8)) == Err(Illegal::Knocked),
+            'knocked',
+        );
+        assert(ActionFixture::act(ref world, @sheets, Action::Wait) == Ok(1), 'knocked: wait');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Move(0)) == Err(Illegal::Knocked),
+            'knocked: move',
+        );
     }
 
     // The clock past `LAST_TICK` refuses any action (E-4); an adventurer at 0 acts no more; Move
@@ -643,19 +665,29 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 10359930)] // ceil(1.05 × 9866600 measured)
     fn test_clock_absent_kind() {
-        let sheets = bench().sheets();
+        let sheets = ActionFixture::bench().sheets();
         let mut world = Fixture::world(
-            LAST_TICK + 1, array![adventurer(@sheets, array![].span())], array![],
+            LAST_TICK + 1, array![ActionFixture::adventurer(@sheets, array![].span())], array![],
         );
-        assert(act(ref world, @sheets, Action::Wait) == Err(Illegal::Clock), 'clock');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Wait) == Err(Illegal::Clock), 'clock',
+        );
         world.clock = LAST_TICK;
-        assert(act(ref world, @sheets, Action::Wait) == Ok(1), 'at LAST_TICK');
-        assert(act(ref world, @sheets, Action::Move(0)) == Err(Illegal::Kind), 'move: ENG-07');
-        assert(act(ref world, @sheets, Action::Interact(0)) == Err(Illegal::Kind), 'interact');
+        assert(ActionFixture::act(ref world, @sheets, Action::Wait) == Ok(1), 'at LAST_TICK');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Move(0)) == Err(Illegal::Kind),
+            'move: ENG-07',
+        );
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Interact(0)) == Err(Illegal::Kind),
+            'interact',
+        );
         let mut member = world.member(0);
         member.health = 0;
         world.set_member(0, member);
-        assert(act(ref world, @sheets, Action::Wait) == Err(Illegal::Absent), 'absent');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Wait) == Err(Illegal::Absent), 'absent',
+        );
     }
 
     // A weapon attack lands now and costs the weapon's `k` (1 here): the goblin hit, the member
@@ -664,19 +696,34 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 13418201)] // ceil(1.05 × 12779239 measured)
     fn test_attack() {
-        let sheets = bench().sheets();
+        let sheets = ActionFixture::bench().sheets();
         let near = AT + 1;
         let far = AT + 3;
         let mut world = Fixture::world(
             CLOCK,
-            array![adventurer(@sheets, array![].span())],
-            array![goblin(8, near, 0, 100), goblin(9, far, 0, 100), goblin(10, AT - 1, 0, 0)],
+            array![ActionFixture::adventurer(@sheets, array![].span())],
+            array![
+                ExecutorFixture::goblin(8, near, 0, 100), ExecutorFixture::goblin(9, far, 0, 100),
+                ExecutorFixture::goblin(10, AT - 1, 0, 0),
+            ],
         );
-        assert(act(ref world, @sheets, Action::Attack(77)) == Err(Illegal::Target), 'no such');
-        assert(act(ref world, @sheets, Action::Attack(0)) == Err(Illegal::Target), 'a member');
-        assert(act(ref world, @sheets, Action::Attack(10)) == Err(Illegal::Target), 'dead');
-        assert(act(ref world, @sheets, Action::Attack(9)) == Err(Illegal::Reach), 'out of reach');
-        assert(act(ref world, @sheets, Action::Attack(8)) == Ok(1), 'k = 1');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Attack(77)) == Err(Illegal::Target),
+            'no such',
+        );
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Attack(0)) == Err(Illegal::Target),
+            'a member',
+        );
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Attack(10)) == Err(Illegal::Target),
+            'dead',
+        );
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Attack(9)) == Err(Illegal::Reach),
+            'out of reach',
+        );
+        assert(ActionFixture::act(ref world, @sheets, Action::Attack(8)) == Ok(1), 'k = 1');
         assert(world.goblin(0).health < 100, 'hit now');
         let (_, _, facing) = world.member(0).place();
         assert(facing == WindowTrait::facing(AT, near, 0), 'faces it');
@@ -688,17 +735,21 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 12336834)] // ceil(1.05 × 11749365 measured)
     fn test_spell_activation() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![FIRE].span());
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![FIRE].span());
         member.bar_at = member.bar_at | (ABSENT_LANE * 0x10000);
         let foe = AT + 4;
-        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, foe, 0, 100)]);
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![ExecutorFixture::goblin(8, foe, 0, 100)],
+        );
         assert(
-            act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Err(Illegal::Empty),
+            ActionFixture::act(
+                ref world, @sheets, Action::Skill((1, Target::Entity(8))),
+            ) == Err(Illegal::Empty),
             'empty slot',
         );
         assert(
-            act(
+            ActionFixture::act(
                 ref world, @sheets, Action::Skill((0, Target::Tile(foe.into()))),
             ) == Err(Illegal::Target),
             'a tile',
@@ -707,7 +758,7 @@ mod tests {
         member.set_recharge(0, CLOCK + 1);
         world.set_member(0, member);
         assert(
-            act(
+            ActionFixture::act(
                 ref world, @sheets, Action::Skill((0, Target::Entity(8))),
             ) == Err(Illegal::Recharging),
             'recharging',
@@ -717,13 +768,18 @@ mod tests {
         member.energy = 14;
         world.set_member(0, member);
         assert(
-            act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Err(Illegal::Energy),
+            ActionFixture::act(
+                ref world, @sheets, Action::Skill((0, Target::Entity(8))),
+            ) == Err(Illegal::Energy),
             'energy short',
         );
         let mut member = world.member(0);
         member.energy = 30;
         world.set_member(0, member);
-        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3), 'n = 3');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3),
+            'n = 3',
+        );
         let member = world.member(0);
         assert(member.energy == 15 && member.act_slot == 0, 'paid, started');
         assert(member.act_deadline == CLOCK + 3 && member.act_target == 8, 'A = c + n');
@@ -737,22 +793,27 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 14293085)] // ceil(1.05 × 13612461 measured)
     fn test_instant_and_attack_skill() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![STANCE, FIELD, RAGE].span());
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![STANCE, FIELD, RAGE].span());
         member.health = 300;
-        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 1, 0, 100)]);
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![ExecutorFixture::goblin(8, AT + 1, 0, 100)],
+        );
         assert(
-            act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0), 'instant: 0',
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0),
+            'instant: 0',
         );
         let member = world.member(0);
         assert(member.flags & flag::INSTANT != 0 && member.health == 310, 'now, flagged');
         assert(member.recharge(0) == CLOCK + 1 + 10 - 1, 'R = c + r');
         assert(
-            act(ref world, @sheets, Action::Skill((1, Target::Entity(0)))) == Err(Illegal::Instant),
+            ActionFixture::act(
+                ref world, @sheets, Action::Skill((1, Target::Entity(0))),
+            ) == Err(Illegal::Instant),
             'second instant',
         );
         assert(
-            act(
+            ActionFixture::act(
                 ref world, @sheets, Action::Skill((2, Target::Entity(8))),
             ) == Err(Illegal::Adrenaline),
             'adrenaline short',
@@ -761,7 +822,7 @@ mod tests {
         member.adrenaline = 9;
         world.set_member(0, member);
         assert(
-            act(ref world, @sheets, Action::Skill((2, Target::Entity(8)))) == Ok(1),
+            ActionFixture::act(ref world, @sheets, Action::Skill((2, Target::Entity(8)))) == Ok(1),
             'attack skill: k',
         );
         assert(world.member(0).adrenaline == 1 && world.goblin(0).health < 100, 'paid, landed');
@@ -773,13 +834,13 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 13453209)] // ceil(1.05 × 12812580 measured)
     fn test_energy_reductions() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![FIELD, FIRE, MEND].span());
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![FIELD, FIRE, MEND].span());
         // A Warden, Fieldcraft 12: the Warden skill's 8 energy floored at 0.
-        member.words.stats += 2 * two(72) + 12 * two(80);
+        member.words.stats += 2 * Fixture::two(72) + 12 * Fixture::two(80);
         assert(FIELDCRAFT_PER_RANK == 1, 'one a rank');
         member.energy = 0;
-        let glyph = at(@sheets, GLYPH);
+        let glyph = ExecutorFixture::at(@sheets, GLYPH);
         member
             .set_effect(
                 0,
@@ -787,14 +848,18 @@ mod tests {
                 0,
             );
         member.effect_at = (member.effect_at & ~0xFFFF_u128) | glyph.into();
-        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 4, 0, 100)]);
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![ExecutorFixture::goblin(8, AT + 4, 0, 100)],
+        );
         assert(
-            act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0),
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0),
             'fieldcraft: free',
         );
         assert(world.member(0).effect_of(0).deadline == CLOCK + 5, 'not a spell: kept');
         assert(
-            act(ref world, @sheets, Action::Skill((2, Target::Entity(0)))) == Err(Illegal::Instant),
+            ActionFixture::act(
+                ref world, @sheets, Action::Skill((2, Target::Entity(0))),
+            ) == Err(Illegal::Instant),
             'instant',
         );
         let mut member = world.member(0);
@@ -802,7 +867,10 @@ mod tests {
         member.energy = 3;
         world.set_member(0, member);
         // The spell's 5 less the glyph's 4: 1 energy, 3 thirds.
-        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(3), 'glyph: 1');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(3),
+            'glyph: 1',
+        );
         let member = world.member(0);
         assert(member.energy == 0 && member.effect_of(0).deadline == CLOCK, 'consumed');
     }
@@ -813,21 +881,31 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 12936453)] // ceil(1.05 × 12320431 measured)
     fn test_ally_and_self() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![MEND, STANCE].span());
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![MEND, STANCE].span());
         member.health = 300;
-        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 1, 0, 100)]);
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![ExecutorFixture::goblin(8, AT + 1, 0, 100)],
+        );
         assert(
-            act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Err(Illegal::Target),
+            ActionFixture::act(
+                ref world, @sheets, Action::Skill((0, Target::Entity(8))),
+            ) == Err(Illegal::Target),
             'a goblin',
         );
-        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(0), 'self');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(0),
+            'self',
+        );
         let (_, _, facing) = world.member(0).place();
         assert(facing == 0, 'facing unchanged');
         let mut member = world.member(0);
         member.flags = 0;
         world.set_member(0, member);
-        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0), 'an ally');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0),
+            'an ally',
+        );
         assert(world.member(0).health == 320, 'healed twice');
     }
 
@@ -838,27 +916,42 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 12812935)] // ceil(1.05 × 12202795 measured)
     fn test_item_bomb() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![].span());
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![].span());
         member.set_belt_count(0, 1);
         let centre = AT + 2;
         let mut world = Fixture::world(
-            CLOCK, array![member], array![goblin(8, centre, 0, 100), goblin(9, centre + 1, 0, 100)],
+            CLOCK,
+            array![member],
+            array![
+                ExecutorFixture::goblin(8, centre, 0, 100),
+                ExecutorFixture::goblin(9, centre + 1, 0, 100),
+            ],
         );
         assert(
-            act(ref world, @sheets, Action::Item((1, 8))) == Err(Illegal::Empty), 'not in content',
+            ActionFixture::act(ref world, @sheets, Action::Item((1, 8))) == Err(Illegal::Empty),
+            'not in content',
         );
         assert(
-            act(ref world, @sheets, Action::Item((0, tile(AT + 7 * 15)))) == Err(Illegal::Reach),
+            ActionFixture::act(
+                ref world, @sheets, Action::Item((0, ActionFixture::tile(AT + 7 * 15))),
+            ) == Err(Illegal::Reach),
             'out of reach',
         );
-        assert(act(ref world, @sheets, Action::Item((0, tile(centre)))) == Ok(1), 'one tick');
+        assert(
+            ActionFixture::act(
+                ref world, @sheets, Action::Item((0, ActionFixture::tile(centre))),
+            ) == Ok(1),
+            'one tick',
+        );
         assert(world.member(0).belt_count(0) == 0, 'count 0');
         assert(world.goblin(0).health < 100 && world.goblin(1).health < 100, 'both hit');
         let (_, _, facing) = world.member(0).place();
         assert(facing == WindowTrait::facing(AT, centre, 0), 'faces the tile');
         assert(
-            act(ref world, @sheets, Action::Item((0, tile(centre)))) == Err(Illegal::Belt),
+            ActionFixture::act(
+                ref world, @sheets, Action::Item((0, ActionFixture::tile(centre))),
+            ) == Err(Illegal::Belt),
             'count 0',
         );
     }
@@ -874,17 +967,17 @@ mod tests {
     #[available_gas(l2_gas: 19427184)] // ceil(1.05 × 18502080 measured)
     fn test_seed_potions_drunk() {
         // The healing potion (items 1, 8, 15, 22): 20 health to its holder.
-        let base = bench();
+        let base = ActionFixture::bench();
         let sheet = PotionSheet { id: BOMB, entry: SEED_HEAL, ..Default::default() };
         let sheets = Content {
             skills: base.skills, potions: array![sheet].span(), castes: base.castes,
         }
             .sheets();
-        let mut member = adventurer(@sheets, array![].span());
+        let mut member = ActionFixture::adventurer(@sheets, array![].span());
         member.set_belt_count(0, 1);
         member.health = 100;
         let mut world = Fixture::world(CLOCK, array![member], array![]);
-        assert(act(ref world, @sheets, Action::Item((0, 0))) == Ok(1), 'drunk');
+        assert(ActionFixture::act(ref world, @sheets, Action::Item((0, 0))) == Ok(1), 'drunk');
         assert(world.member(0).health == 120, 'the holder is healed');
         // The REGENERATION potion (item 23): the holder holds the effect.
         let sheet = PotionSheet { id: BOMB, entry: SEED_REGEN, regen: 3, ..Default::default() };
@@ -892,10 +985,10 @@ mod tests {
             skills: base.skills, potions: array![sheet].span(), castes: base.castes,
         }
             .sheets();
-        let mut member = adventurer(@sheets, array![].span());
+        let mut member = ActionFixture::adventurer(@sheets, array![].span());
         member.set_belt_count(0, 1);
         let mut world = Fixture::world(CLOCK, array![member], array![]);
-        assert(act(ref world, @sheets, Action::Item((0, 0))) == Ok(1), 'drunk');
+        assert(ActionFixture::act(ref world, @sheets, Action::Item((0, 0))) == Ok(1), 'drunk');
         let member = world.member(0);
         let mut held = false;
         for slot in 0..4_u8 {
@@ -912,23 +1005,27 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 12440172)] // ceil(1.05 × 11847782 measured)
     fn test_trap_tile() {
-        let sheets = bench().sheets();
-        let member = adventurer(@sheets, array![SNARE].span());
+        let sheets = ActionFixture::bench().sheets();
+        let member = ActionFixture::adventurer(@sheets, array![SNARE].span());
         let spot: u16 = 7 + 256 * 9;
         let position = 7 + 15 * 9;
-        let mut world = Fixture::world(300, array![member], array![goblin(8, position, 0, 100)]);
+        let mut world = Fixture::world(
+            300, array![member], array![ExecutorFixture::goblin(8, position, 0, 100)],
+        );
         assert(
-            act(ref world, @sheets, Action::Skill((0, Target::Tile(spot)))) == Err(Illegal::Trap),
+            ActionFixture::act(
+                ref world, @sheets, Action::Skill((0, Target::Tile(spot))),
+            ) == Err(Illegal::Trap),
             'occupied',
         );
-        world.set_goblin(0, goblin(8, position + 1, 0, 0));
-        let mut rules = fresh();
+        world.set_goblin(0, ExecutorFixture::goblin(8, position + 1, 0, 0));
+        let mut rules = ActionFixture::fresh();
         rules
             .board =
                 BoardTrait::new(
                     WindowTrait::new(
                         0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-                            - two(position.into()),
+                            - Fixture::two(position.into()),
                     ),
                     0,
                     0,
@@ -940,7 +1037,7 @@ mod tests {
             ) == Err(Illegal::Reach),
             'a wall',
         );
-        let mut rules = fresh();
+        let mut rules = ActionFixture::fresh();
         let chest = crate::models::chunk::Object {
             tile: 1, kind: crate::models::chunk::object::CHEST, state: 0, param: 0,
         };
@@ -960,7 +1057,10 @@ mod tests {
             ) == Err(Illegal::Trap),
             'full chunk',
         );
-        assert(act(ref world, @sheets, Action::Skill((0, Target::Tile(spot)))) == Ok(2), 'n = 2');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Tile(spot)))) == Ok(2),
+            'n = 2',
+        );
         let member = world.member(0);
         assert(
             member.act_deadline == 302 && member.act_target == spot && member.act_tile == 1,
@@ -973,11 +1073,16 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 11316399)] // ceil(1.05 × 10777522 measured)
     fn test_facing_first_step() {
-        let sheets = bench().sheets();
-        let member = adventurer(@sheets, array![FIRE].span());
+        let sheets = ActionFixture::bench().sheets();
+        let member = ActionFixture::adventurer(@sheets, array![FIRE].span());
         let foe = AT + 2 * 15 + 1;
-        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, foe, 0, 100)]);
-        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3), 'started');
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![ExecutorFixture::goblin(8, foe, 0, 100)],
+        );
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3),
+            'started',
+        );
         let (_, _, facing) = world.member(0).place();
         assert(facing == WindowTrait::facing(AT, foe, 0) && facing != FAR, 'first step');
     }
@@ -1001,8 +1106,8 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 10412275)] // ceil(1.05 × 9916452 measured)
     fn test_example_fifth_cast_interrupted() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![FIRE].span());
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![FIRE].span());
         member.set_casts(0, 4);
         let (casts, bonus) = QuickCastTrait::count([member.casts(0), 0], [(1, 5), (0, 0)], 1);
         assert(casts == [0, 0] && bonus == 1, 'fifth: bonus');
@@ -1028,13 +1133,18 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 13620659)] // ceil(1.05 × 12972056 measured)
     fn test_example_fifth_cast_through_act() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![FIRE, FIRE].span());
-        member.words.bar += 5 * two(212);
-        member.words.stats += two(168);
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![FIRE, FIRE].span());
+        member.words.bar += 5 * Fixture::two(212);
+        member.words.stats += Fixture::two(168);
         member.set_casts(0, 4);
-        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 4, 0, 100)]);
-        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(2), 'n = 2');
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![ExecutorFixture::goblin(8, AT + 4, 0, 100)],
+        );
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(2),
+            'n = 2',
+        );
         let mut member = world.member(0);
         assert(member.casts(0) == 0 && member.act_deadline == 202, 'casts 0, A = 202');
         assert(member.energy == 15, 'paid');
@@ -1043,13 +1153,19 @@ mod tests {
         assert(member.recharge(0) == 201 + 10 - 1 && member.energy == 15, 'R from 201, paid');
         world.set_member(0, member);
         world.clock = member.recharge(0);
-        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3), 'n = 3');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3),
+            'n = 3',
+        );
         let mut member = world.member(0);
         assert(member.casts(0) == 1, 'next: casts 1');
         member.act_slot = crate::types::tick::NO_SLOT;
         member.energy = 15;
         world.set_member(0, member);
-        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(3), 'slot 1');
+        assert(
+            ActionFixture::act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(3),
+            'slot 1',
+        );
         assert(world.member(0).casts(0) == 1, 'slot 1 counts for none');
     }
 
@@ -1059,19 +1175,24 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 13089415)] // ceil(1.05 × 12466109 measured)
     fn test_attack_skill_without_its_weapon() {
-        let sheets = bench().sheets();
-        let mut member = adventurer(@sheets, array![RAGE, RAGE].span());
+        let sheets = ActionFixture::bench().sheets();
+        let mut member = ActionFixture::adventurer(@sheets, array![RAGE, RAGE].span());
         member.adrenaline = 9;
-        member.words.stats += two(40);
-        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 1, 0, 100)]);
+        member.words.stats += Fixture::two(40);
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![ExecutorFixture::goblin(8, AT + 1, 0, 100)],
+        );
         let before = world.member(0);
         assert(
-            act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Err(Illegal::Kind),
+            ActionFixture::act(
+                ref world, @sheets, Action::Skill((0, Target::Entity(8))),
+            ) == Err(Illegal::Kind),
             'not its weapon',
         );
         assert(world.member(0) == before && world.goblin(0).health == 100, 'nothing written');
         assert(
-            act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(1), 'its weapon',
+            ActionFixture::act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(1),
+            'its weapon',
         );
         assert(world.goblin(0).health < 100, 'landed');
     }
@@ -1121,7 +1242,7 @@ mod tests {
     // gas: raised, RV-03a2: four more refusals (#447's review)
     #[available_gas(l2_gas: 47372276)] // ceil(1.05 × 45116453 measured)
     fn test_no_carry_before_a_refusal() {
-        let base = bench();
+        let base = ActionFixture::bench();
         let mut skills = array![];
         for sheet in base.skills {
             let mut sheet = *sheet;
@@ -1132,7 +1253,7 @@ mod tests {
         }
         let mut potions = array![];
         potions.append_span(base.potions);
-        let dart = entry(
+        let dart = ExecutorFixture::entry(
             kind::DAMAGE, damage::PIERCING, 20, 20, target::FOE, shape::SINGLE, filter::FOES,
         );
         potions.append(PotionSheet { id: 102, entry: dart.pack(), range: 4, ..Default::default() });
@@ -1140,7 +1261,7 @@ mod tests {
             .sheets();
         let kit = array![STANCE, FIRE, RAGE, SNARE].span();
         let mut cases: Array<(u32, Member, Action, Result<u8, Illegal>)> = array![];
-        let base = adventurer(@sheets, kit);
+        let base = ActionFixture::adventurer(@sheets, kit);
         cases.append((LAST_TICK + 1, base, Action::Wait, Err(Illegal::Clock)));
         let mut m = base;
         m.health = 0;
@@ -1155,7 +1276,10 @@ mod tests {
         m.flags = flag::INSTANT;
         cases.append((CLOCK, m, Action::Skill((0, Target::Entity(0))), Err(Illegal::Instant)));
         cases.append((CLOCK, base, Action::Item((3, 8)), Err(Illegal::Empty)));
-        cases.append((CLOCK, base, Action::Item((0, tile(AT + 2))), Err(Illegal::Belt)));
+        cases
+            .append(
+                (CLOCK, base, Action::Item((0, ActionFixture::tile(AT + 2))), Err(Illegal::Belt)),
+            );
         let mut m = base;
         m.set_recharge(0, CLOCK + 1);
         cases.append((CLOCK, m, Action::Skill((0, Target::Entity(0))), Err(Illegal::Recharging)));
@@ -1169,22 +1293,37 @@ mod tests {
         cases.append((CLOCK, base, Action::Skill((1, Target::Entity(10))), Err(Illegal::Reach)));
         cases
             .append(
-                (CLOCK, base, Action::Skill((1, Target::Tile(tile(AT + 1)))), Err(Illegal::Target)),
+                (
+                    CLOCK,
+                    base,
+                    Action::Skill((1, Target::Tile(ActionFixture::tile(AT + 1)))),
+                    Err(Illegal::Target),
+                ),
             );
         let mut m = base;
         m.set_belt_count(0, 1);
-        cases.append((CLOCK, m, Action::Item((0, tile(AT + 7))), Err(Illegal::Reach)));
+        cases
+            .append(
+                (CLOCK, m, Action::Item((0, ActionFixture::tile(AT + 7))), Err(Illegal::Reach)),
+            );
         let mut m = base;
         m.set_belt_count(2, 1);
         cases.append((CLOCK, m, Action::Item((2, 0)), Err(Illegal::Target)));
         let mut m = base;
         m.energy = 30;
         cases
-            .append((CLOCK, m, Action::Skill((3, Target::Tile(tile(AT + 1)))), Err(Illegal::Trap)));
+            .append(
+                (
+                    CLOCK,
+                    m,
+                    Action::Skill((3, Target::Tile(ActionFixture::tile(AT + 1)))),
+                    Err(Illegal::Trap),
+                ),
+            );
         cases.append((CLOCK, base, Action::Move(0), Err(Illegal::Kind)));
         let mut m = base;
         m.adrenaline = 9;
-        m.words.stats += two(42);
+        m.words.stats += Fixture::two(42);
         cases.append((CLOCK, m, Action::Skill((2, Target::Entity(8))), Err(Illegal::Kind)));
         // The legal ones that carry: a weapon attack, an instant skill, an attack skill, a potion.
         cases.append((CLOCK, base, Action::Attack(8), Ok(1)));
@@ -1194,21 +1333,25 @@ mod tests {
         cases.append((CLOCK, m, Action::Skill((2, Target::Entity(8))), Ok(1)));
         let mut m = base;
         m.set_belt_count(0, 1);
-        cases.append((CLOCK, m, Action::Item((0, tile(AT + 2))), Ok(1)));
+        cases.append((CLOCK, m, Action::Item((0, ActionFixture::tile(AT + 2))), Ok(1)));
         let mut m = base;
         m.energy = 30;
-        cases.append((CLOCK, m, Action::Skill((3, Target::Tile(tile(AT + 2)))), Ok(0)));
+        cases
+            .append(
+                (CLOCK, m, Action::Skill((3, Target::Tile(ActionFixture::tile(AT + 2)))), Ok(0)),
+            );
         let mut refused = 0;
         for (clock, member, action, expected) in cases {
             let mut world = Fixture::world(
                 clock,
                 array![member],
                 array![
-                    goblin(8, AT + 1, 0, 100), goblin(9, AT + 3, 0, 100),
-                    goblin(10, AT + 7, 0, 100),
+                    ExecutorFixture::goblin(8, AT + 1, 0, 100),
+                    ExecutorFixture::goblin(9, AT + 3, 0, 100),
+                    ExecutorFixture::goblin(10, AT + 7, 0, 100),
                 ],
             );
-            let mut spy = Spy { rules: fresh(), carried: 0 };
+            let mut spy = Spy { rules: ActionFixture::fresh(), carried: 0 };
             let result = ActionTrait::act(ref world, @sheets, ref spy, 0, action);
             assert(result == expected, 'the expected result');
             if result.is_err() {

@@ -41,113 +41,480 @@ const HEART: u16 = 3;
 /// The set piece's id.
 const PIECE: u16 = 9;
 
-fn packs() -> Span<(u16, Pack)> {
-    array![
-        (
-            1,
-            Pack {
-                castes: [
-                    PackCaste { caste: 1, min: 1, max: 2 }, PackCaste { caste: 2, min: 1, max: 3 },
-                    Default::default(), Default::default(), Default::default(),
+#[generate_trait]
+impl FixtureImpl of Fixture {
+    fn packs() -> Span<(u16, Pack)> {
+        array![
+            (
+                1,
+                Pack {
+                    castes: [
+                        PackCaste { caste: 1, min: 1, max: 2 },
+                        PackCaste { caste: 2, min: 1, max: 3 }, Default::default(),
+                        Default::default(), Default::default(),
+                    ],
+                    level: 0,
+                },
+            ),
+            (
+                2,
+                Pack {
+                    castes: [
+                        PackCaste { caste: 3, min: 1, max: 1 }, Default::default(),
+                        Default::default(), Default::default(), Default::default(),
+                    ],
+                    level: 2,
+                },
+            ),
+            (
+                HEART,
+                Pack {
+                    castes: [
+                        PackCaste { caste: 4, min: 1, max: 2 }, Default::default(),
+                        Default::default(), Default::default(), Default::default(),
+                    ],
+                    level: 0,
+                },
+            ),
+        ]
+            .span()
+    }
+
+    /// A floor's quotas: the exit (quota 0), a vein, the Heart (template `HEART`); with review
+    /// t-0088's set piece of 2 packs and 3 objects listed **before** the exit and the Heart when
+    /// `piece`.
+    fn quotas(piece: bool) -> QuotaSet {
+        if piece {
+            QuotaSet {
+                quotas: [
+                    Quota { kind: quota::SET_PIECE, param: PIECE, count: 1 },
+                    Quota { kind: quota::EXIT, param: 5, count: 1 },
+                    Quota { kind: quota::HEART, param: HEART, count: 1 },
+                    Quota { kind: quota::VEIN, param: 0, count: 1 }, Default::default(),
+                    Default::default(),
                 ],
-                level: 0,
-            },
-        ),
-        (
-            2,
-            Pack {
-                castes: [
-                    PackCaste { caste: 3, min: 1, max: 1 }, Default::default(), Default::default(),
+            }
+        } else {
+            QuotaSet {
+                quotas: [
+                    Quota { kind: quota::EXIT, param: 5, count: 1 },
+                    Quota { kind: quota::VEIN, param: 0, count: 1 },
+                    Quota { kind: quota::HEART, param: HEART, count: 1 }, Default::default(),
                     Default::default(), Default::default(),
                 ],
-                level: 2,
-            },
-        ),
-        (
-            HEART,
-            Pack {
-                castes: [
-                    PackCaste { caste: 4, min: 1, max: 2 }, Default::default(), Default::default(),
-                    Default::default(), Default::default(),
+            }
+        }
+    }
+
+    /// The set piece: its interior all floor, 2 packs and 3 objects off the spine.
+    fn pieces(piece: bool) -> Span<(u16, SetPiece)> {
+        if !piece {
+            return array![].span();
+        }
+        let set = SetPiece {
+            walls: BOARD - INTERIOR,
+            packs: [SetPack { tile: 64, template: 1 }, SetPack { tile: 160, template: 2 }],
+            objects: [
+                Object { tile: 70, kind: object::CHEST, state: 0, param: 0 },
+                Object { tile: 154, kind: object::LEVER, state: 0, param: 0 },
+                Object { tile: 94, kind: object::CHEST, state: 0, param: 0 },
+            ],
+        };
+        array![(PIECE, set)].span()
+    }
+
+    /// The location's `Site` as `Instances::site` reads it for a dungeon floor of `n` chunks: no
+    /// outline yet, no mask (a dungeon has none, ENG-10b's brief, ruling 11).
+    fn location(n: u8, piece: bool) -> Site {
+        Site {
+            target: n,
+            biome: biome::CAVE,
+            level_min: 3,
+            level_max: 5,
+            width: 15,
+            height: 15,
+            entry_chunk: ENTRY,
+            chunk_set: 0,
+            west: 0,
+            north: 0,
+            masks: array![].span(),
+            anchors: array![(ENTRY, 112)].span(),
+            quotas: Self::quotas(piece),
+            tasks: array![].span(),
+            spawn: SpawnTable {
+                spawns: [
+                    Spawn { template: 1, weight: 3 }, Spawn { template: 2, weight: 1 },
+                    Default::default(), Default::default(), Default::default(), Default::default(),
+                    Default::default(),
                 ],
-                level: 0,
+                density: 160,
+                trap: 0,
             },
-        ),
-    ]
-        .span()
-}
-
-/// A floor's quotas: the exit (quota 0), a vein, the Heart (template `HEART`); with review t-0088's
-/// set piece of 2 packs and 3 objects listed **before** the exit and the Heart when `piece`.
-fn quotas(piece: bool) -> QuotaSet {
-    if piece {
-        QuotaSet {
-            quotas: [
-                Quota { kind: quota::SET_PIECE, param: PIECE, count: 1 },
-                Quota { kind: quota::EXIT, param: 5, count: 1 },
-                Quota { kind: quota::HEART, param: HEART, count: 1 },
-                Quota { kind: quota::VEIN, param: 0, count: 1 }, Default::default(),
-                Default::default(),
-            ],
-        }
-    } else {
-        QuotaSet {
-            quotas: [
-                Quota { kind: quota::EXIT, param: 5, count: 1 },
-                Quota { kind: quota::VEIN, param: 0, count: 1 },
-                Quota { kind: quota::HEART, param: HEART, count: 1 }, Default::default(),
-                Default::default(), Default::default(),
-            ],
+            packs: Self::packs(),
+            pieces: Self::pieces(piece),
         }
     }
-}
 
-/// The set piece: its interior all floor, 2 packs and 3 objects off the spine.
-fn pieces(piece: bool) -> Span<(u16, SetPiece)> {
-    if !piece {
-        return array![].span();
+    /// A floor as `Instances::begin` creates it from `entropy`: `HostsLibrary::floor` (the class
+    /// `hosts`) gives the outline, the hosts and the mask of the entry chunk (the chunk sight
+    /// touches from the entry tile), and the `Site` takes them as `begin` does; every other chunk
+    /// of the outline gets its hosts above its mask from the same hosts (`with_hosts`), as an
+    /// invocation that reveals in a dungeon sets them.
+    fn create(hosts: ClassHash, entropy: felt252, n: u8, piece: bool) -> Floor {
+        let mut site = Self::location(n, piece);
+        let progress = ProgressTrait::new(@site, entropy);
+        let plan = PlacementTrait::plan(@site, progress.left.span());
+        let (outline, drawn, entry) = IHostsLibraryLibraryDispatcher { class_hash: hosts }
+            .floor(ENTRY, n, 15, 15, plan, site.pieces, array![ENTRY].span(), entropy, INSTANCE);
+        let mut masks: Array<(u8, felt252)> = array![];
+        for chunk in Self::chunks(outline.chunks) {
+            masks.append((chunk, PlacementTrait::with_hosts(0, drawn, chunk)));
+        }
+        assert(
+            entry == array![(ENTRY, PlacementTrait::with_hosts(0, drawn, ENTRY))].span(), 'mask',
+        );
+        site.chunk_set = outline.chunks;
+        site.west = outline.west;
+        site.north = outline.north;
+        site.masks = masks.span();
+        let (far, depth) = outline.far(ENTRY);
+        Floor { site, outline, far, depth, hosts: drawn }
     }
-    let set = SetPiece {
-        walls: BOARD - INTERIOR,
-        packs: [SetPack { tile: 64, template: 1 }, SetPack { tile: 160, template: 2 }],
-        objects: [
-            Object { tile: 70, kind: object::CHEST, state: 0, param: 0 },
-            Object { tile: 154, kind: object::LEVER, state: 0, param: 0 },
-            Object { tile: 94, kind: object::CHEST, state: 0, param: 0 },
-        ],
-    };
-    array![(PIECE, set)].span()
-}
 
-/// The location's `Site` as `Instances::site` reads it for a dungeon floor of `n` chunks: no
-/// outline yet, no mask (a dungeon has none, ENG-10b's brief, ruling 11).
-fn location(n: u8, piece: bool) -> Site {
-    Site {
-        target: n,
-        biome: biome::CAVE,
-        level_min: 3,
-        level_max: 5,
-        width: 15,
-        height: 15,
-        entry_chunk: ENTRY,
-        chunk_set: 0,
-        west: 0,
-        north: 0,
-        masks: array![].span(),
-        anchors: array![(ENTRY, 112)].span(),
-        quotas: quotas(piece),
-        tasks: array![].span(),
-        spawn: SpawnTable {
-            spawns: [
-                Spawn { template: 1, weight: 3 }, Spawn { template: 2, weight: 1 },
-                Default::default(), Default::default(), Default::default(), Default::default(),
-                Default::default(),
-            ],
-            density: 160,
-            trap: 0,
-        },
-        packs: packs(),
-        pieces: pieces(piece),
+    /// The chunks of `set`, by index.
+    fn chunks(set: felt252) -> Array<u8> {
+        let mut out: Array<u8> = array![];
+        let count = BoardTrait::count(set);
+        let mut i: u8 = 0;
+        while i != count {
+            out.append(BoardTrait::nth(set, i));
+            i += 1;
+        }
+        out
+    }
+
+    /// Reveals `order` one chunk a call, every revealed chunk known.
+    fn reveal_in_order(
+        site: @Site, entropy: felt252, order: Span<u8>,
+    ) -> (Progress, Array<Revealed>) {
+        let mut progress = ProgressTrait::new(site, entropy);
+        let mut known: Array<(u8, Terrain)> = array![];
+        let mut out: Array<Revealed> = array![];
+        for chunk in order {
+            let revealed = RevealTrait::reveal(
+                site, ref progress, INSTANCE, known.span(), array![*chunk].span(),
+            );
+            for entry in revealed {
+                known.append((entry.chunk, entry.terrain));
+                out.append(entry);
+            }
+        }
+        (progress, out)
+    }
+
+    fn outcome(progress: @Progress, out: Span<Revealed>) -> Outcome {
+        let mut exit: u8 = 255;
+        let mut exit_tile: u8 = 255;
+        let mut exits: u8 = 0;
+        let mut heart: u8 = 255;
+        let mut hearts: u8 = 0;
+        let mut edges: felt252 = 0;
+        let mut rings: felt252 = 0;
+        let mut set: felt252 = 0;
+        let mut west: felt252 = 0;
+        let mut north: felt252 = 0;
+        let mut walls: Felt252Dict<felt252> = Default::default();
+        for entry in out {
+            let chunk = *entry.chunk;
+            let terrain = *entry.terrain;
+            let features: Features = *entry.features;
+            for item in features.objects.span() {
+                if *item.kind == object::EXIT {
+                    exit = chunk;
+                    exit_tile = *item.tile;
+                    exits += 1;
+                }
+            }
+            for pack in features.packs.span() {
+                if *pack.count != 0 && *pack.template == HEART {
+                    heart = chunk;
+                    hearts += 1;
+                }
+            }
+            edges += poseidon_hash_span([chunk.into(), terrain.edges.into()].span());
+            let ring = BoardTrait::minus(BOARD - terrain.walls, INTERIOR);
+            rings += poseidon_hash_span([chunk.into(), ring].span());
+            walls.insert(chunk.into(), terrain.walls);
+            // The outline read back from the edges (West, East, South, North)
+            set = BoardTrait::or(set, BoardTrait::pow(chunk));
+            let e = terrain.edges;
+            if e % 2 == 1 {
+                west = BoardTrait::or(west, BoardTrait::pow(chunk));
+            }
+            if (e / 2) % 2 == 1 {
+                west = BoardTrait::or(west, BoardTrait::pow(chunk - 1));
+            }
+            if (e / 4) % 2 == 1 {
+                north = BoardTrait::or(north, BoardTrait::pow(chunk - 15));
+            }
+            if (e / 8) % 2 == 1 {
+                north = BoardTrait::or(north, BoardTrait::pow(chunk));
+            }
+        }
+        let walked = Outline { chunks: set, west, north };
+        let (distance, tiles) = if exit == 255 {
+            (255, 65535)
+        } else {
+            (
+                walked.distance(ENTRY, exit),
+                Self::walk(ref walls, *progress.revealed, ENTRY, 112, exit, exit_tile),
+            )
+        };
+        Outcome {
+            revealed: *progress.revealed,
+            exit,
+            exit_tile,
+            exits,
+            heart,
+            hearts,
+            edges,
+            rings,
+            distance,
+            tiles,
+        }
+    }
+
+    /// A chunk's tile `(x, y)`, global: `15 cx + column`, `15 cy + row`.
+    fn global(chunk: u8, tile: u8) -> (u32, u32) {
+        let (cy, cx) = DivRem::div_rem(chunk, 15);
+        let (row, column) = DivRem::div_rem(tile, 15);
+        (15 * cx.into() + column.into(), 15 * cy.into() + row.into())
+    }
+
+    /// The walked distance in tiles from the entry chunk's tile `from` to `chunk`'s tile `to`, on
+    /// the revealed floor; 65535 when not reached (SPK-17's `fixtures::walk`). A breadth-first
+    /// walk, bit-parallel: each chunk's layer grows by `BoardTrait::dilate` (the engine's hex
+    /// neighbours with the chunk's row parity) within its floor, and the layer's ring tiles cross
+    /// the seams one by one, by their global neighbours (odd-r: an even global row's northern and
+    /// southern neighbours are `x − 1` and `x`, an odd row's `x` and `x + 1`; a corner is wall,
+    /// so no step reaches a diagonal chunk).
+    fn walk(
+        ref walls: Felt252Dict<felt252>, revealed: felt252, entry: u8, from: u8, chunk: u8, to: u8,
+    ) -> u32 {
+        let members = Self::chunks(revealed);
+        let mut reached: Felt252Dict<felt252> = Default::default();
+        let mut layer: Felt252Dict<felt252> = Default::default();
+        reached.insert(entry.into(), BoardTrait::pow(from));
+        layer.insert(entry.into(), BoardTrait::pow(from));
+        let mut d: u32 = 0;
+        let mut found: u32 = 65535;
+        let mut moving = true;
+        while found == 65535 && moving {
+            if BoardTrait::has(reached.get(chunk.into()), to) {
+                found = d;
+                break;
+            }
+            let mut next: Felt252Dict<felt252> = Default::default();
+            for c in members.span() {
+                let c = *c;
+                let front = layer.get(c.into());
+                if front != 0 {
+                    let (cy, _) = DivRem::div_rem(c, 15);
+                    let odd = cy % 2 == 1;
+                    let floor = BOARD - walls.get(c.into());
+                    let grown = BoardTrait::and(BoardTrait::dilate(front, odd), floor);
+                    next.insert(c.into(), BoardTrait::or(next.get(c.into()), grown));
+                    // [Compute] Across the seams: the layer's ring tiles, one by one
+                    for tile in Self::chunks(BoardTrait::minus(front, INTERIOR)) {
+                        let (x, y) = Self::global(c, tile);
+                        let (lo, hi) = if y % 2 == 0 {
+                            (x + 255, x + 256)
+                        } else {
+                            (x + 256, x + 257)
+                        };
+                        let around: Array<(u32, u32)> = array![
+                            (x + 257, y + 1), (x + 255, y + 1), (lo, y + 2), (hi, y + 2), (lo, y),
+                            (hi, y),
+                        ];
+                        for entry in around {
+                            let (sx, sy) = entry;
+                            if sx >= 256 && sy >= 1 && sx - 256 < 225 && sy - 1 < 225 {
+                                let (nx, ny) = (sx - 256, sy - 1);
+                                let other: u8 = (15 * (ny / 15) + nx / 15).try_into().unwrap();
+                                if other != c && BoardTrait::has(revealed, other) {
+                                    let t: u8 = (15 * (ny % 15) + nx % 15).try_into().unwrap();
+                                    if !BoardTrait::has(walls.get(other.into()), t) {
+                                        next
+                                            .insert(
+                                                other.into(),
+                                                BoardTrait::or(
+                                                    next.get(other.into()), BoardTrait::pow(t),
+                                                ),
+                                            );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // [Compute] The new layer: what was not reached yet
+            moving = false;
+            for c in members.span() {
+                let c = *c;
+                let fresh = BoardTrait::minus(next.get(c.into()), reached.get(c.into()));
+                layer.insert(c.into(), fresh);
+                if fresh != 0 {
+                    moving = true;
+                    reached.insert(c.into(), BoardTrait::or(reached.get(c.into()), fresh));
+                }
+            }
+            d += 1;
+        }
+        found
+    }
+
+    /// A permutation of `items` drawn from `seed` (Fisher–Yates), its first item kept first.
+    fn shuffled(items: Span<u8>, seed: felt252) -> Array<u8> {
+        let mut dict: Felt252Dict<u8> = Default::default();
+        let n = items.len();
+        let mut i: u32 = 0;
+        while i != n {
+            dict.insert(i.into(), *items[i]);
+            i += 1;
+        }
+        let mut k: u32 = n;
+        while k > 2 {
+            k -= 1;
+            // Swap item `k` with an item in `[1, k]`
+            let word: u256 = poseidon_hash_span([seed, k.into()].span()).into();
+            let bound: u128 = k.into();
+            let (_, j) = DivRem::div_rem(word.low, bound.try_into().unwrap());
+            let j: felt252 = (j + 1).try_into().unwrap();
+            let a = dict.get(k.into());
+            let b = dict.get(j);
+            dict.insert(k.into(), b);
+            dict.insert(j, a);
+        }
+        let mut out: Array<u8> = array![];
+        let mut i: u32 = 0;
+        while i != n {
+            out.append(dict.get(i.into()));
+            i += 1;
+        }
+        out
+    }
+
+    /// The seven required orders of one floor, the entry first in each, as `create` reveals it: by
+    /// index, backward, nearest first, farthest first, two drawn, t-0077's forcing order.
+    fn orders(outline: @Outline, entropy: felt252) -> Array<Array<u8>> {
+        let mut rest: Array<u8> = array![];
+        for c in Self::chunks(*outline.chunks) {
+            if c != ENTRY {
+                rest.append(c);
+            }
+        }
+        let mut ascending = array![ENTRY];
+        let mut descending = array![ENTRY];
+        for c in rest.span() {
+            ascending.append(*c);
+        }
+        let mut k = rest.len();
+        while k != 0 {
+            k -= 1;
+            descending.append(*rest[k]);
+        }
+        // By distance through the open seams (`layers`: the farthest first, the entry's left out)
+        let layers = outline.layers(ENTRY);
+        let mut nearest = array![ENTRY];
+        let mut d = layers.len();
+        while d != 0 {
+            d -= 1;
+            for c in Self::chunks(*layers[d]) {
+                nearest.append(c);
+            }
+        }
+        let mut farthest = array![ENTRY];
+        for layer in layers.span() {
+            for c in Self::chunks(*layer) {
+                farthest.append(c);
+            }
+        }
+        // t-0077's forcing order: `X`, the entry's first neighbour, revealed last
+        let x = *Self::chunks(*layers[layers.len() - 1])[0];
+        let mut forcing = array![ENTRY];
+        for c in rest.span() {
+            if *c != x {
+                forcing.append(*c);
+            }
+        }
+        forcing.append(x);
+        let drawn_1 = Self::shuffled(
+            ascending.span(), poseidon_hash_span([entropy, 'order 1'].span()),
+        );
+        let drawn_2 = Self::shuffled(
+            ascending.span(), poseidon_hash_span([entropy, 'order 2'].span()),
+        );
+        array![ascending, descending, nearest, farthest, drawn_1, drawn_2, forcing]
+    }
+
+    /// The gate on one floor of `n` chunks: the floor of entropy `first`; with review t-0088's set
+    /// piece when `piece`, the `skip`-th floor from `first` (counted from 0) whose farthest layer
+    /// is one chunk. One floor a test, for snforge's steps (FND-23). Prints the floor's walk in
+    /// tiles.
+    fn zero_residue(n: u8, first: u32, skip: u32, piece: bool) {
+        let hosts = *declare("HostsLibrary").unwrap().contract_class().class_hash;
+        let mut seen: u32 = 0;
+        let mut done = false;
+        let mut i: u32 = first;
+        while !done {
+            let entropy = poseidon_hash_span(['eng10b residue', i.into()].span());
+            i += 1;
+            let floor = Self::create(hosts, entropy, n, piece);
+            if piece && BoardTrait::count(floor.far) != 1 {
+                continue;
+            }
+            if piece && seen != skip {
+                seen += 1;
+                continue;
+            }
+            done = true;
+            if piece {
+                // Review t-0089, note 2: the set piece (quota 0) hosted, never on the farthest
+                // chunk, which the exit and the Heart took first
+                let at = *floor.hosts[0];
+                assert(at != 0, 'the set piece hosted');
+                assert(BoardTrait::and(at, floor.far) == 0, 'the set piece off the far chunk');
+            }
+            let mut reference: Option<Outcome> = Option::None;
+            for order in Self::orders(@floor.outline, entropy) {
+                let (progress, out) = Self::reveal_in_order(@floor.site, entropy, order.span());
+                let got = Self::outcome(@progress, out.span());
+                assert(progress.count == n, 'every chunk revealed');
+                assert(got.revealed == floor.outline.chunks, 'the outline revealed');
+                assert(got.exits == 1, 'one exit');
+                assert(got.hearts == 1, 'one Heart');
+                assert(BoardTrait::has(floor.far, got.exit), 'the exit at the farthest');
+                assert(BoardTrait::has(floor.far, got.heart), 'the Heart at the farthest');
+                assert(BoardTrait::has(CORE, got.exit_tile), 'the exit on the core');
+                assert(got.distance == floor.depth, 'its distance the depth');
+                assert(got.tiles != 65535, 'the exit reached');
+                match reference {
+                    Option::None => { reference = Option::Some(got); },
+                    Option::Some(first) => { assert(got == first, 'the same in every order'); },
+                }
+            }
+            let got = reference.unwrap();
+            println!(
+                "floor {} (N = {}): exit chunk {} at {} chunks, {} tiles; Heart chunk {}",
+                i - 1,
+                n,
+                got.exit,
+                got.distance,
+                got.tiles,
+                got.heart,
+            );
+        }
     }
 }
 
@@ -158,59 +525,6 @@ struct Floor {
     far: felt252,
     depth: u8,
     hosts: Span<felt252>,
-}
-
-/// A floor as `Instances::begin` creates it from `entropy`: `HostsLibrary::floor` (the class
-/// `hosts`) gives the outline, the hosts and the mask of the entry chunk (the chunk sight touches
-/// from the entry tile), and the `Site` takes them as `begin` does; every other chunk of the
-/// outline gets its hosts above its mask from the same hosts (`with_hosts`), as an invocation that
-/// reveals in a dungeon sets them.
-fn create(hosts: ClassHash, entropy: felt252, n: u8, piece: bool) -> Floor {
-    let mut site = location(n, piece);
-    let progress = ProgressTrait::new(@site, entropy);
-    let plan = PlacementTrait::plan(@site, progress.left.span());
-    let (outline, drawn, entry) = IHostsLibraryLibraryDispatcher { class_hash: hosts }
-        .floor(ENTRY, n, 15, 15, plan, site.pieces, array![ENTRY].span(), entropy, INSTANCE);
-    let mut masks: Array<(u8, felt252)> = array![];
-    for chunk in chunks(outline.chunks) {
-        masks.append((chunk, PlacementTrait::with_hosts(0, drawn, chunk)));
-    }
-    assert(entry == array![(ENTRY, PlacementTrait::with_hosts(0, drawn, ENTRY))].span(), 'mask');
-    site.chunk_set = outline.chunks;
-    site.west = outline.west;
-    site.north = outline.north;
-    site.masks = masks.span();
-    let (far, depth) = outline.far(ENTRY);
-    Floor { site, outline, far, depth, hosts: drawn }
-}
-
-/// The chunks of `set`, by index.
-fn chunks(set: felt252) -> Array<u8> {
-    let mut out: Array<u8> = array![];
-    let count = BoardTrait::count(set);
-    let mut i: u8 = 0;
-    while i != count {
-        out.append(BoardTrait::nth(set, i));
-        i += 1;
-    }
-    out
-}
-
-/// Reveals `order` one chunk a call, every revealed chunk known.
-fn reveal_in_order(site: @Site, entropy: felt252, order: Span<u8>) -> (Progress, Array<Revealed>) {
-    let mut progress = ProgressTrait::new(site, entropy);
-    let mut known: Array<(u8, Terrain)> = array![];
-    let mut out: Array<Revealed> = array![];
-    for chunk in order {
-        let revealed = RevealTrait::reveal(
-            site, ref progress, INSTANCE, known.span(), array![*chunk].span(),
-        );
-        for entry in revealed {
-            known.append((entry.chunk, entry.terrain));
-            out.append(entry);
-        }
-    }
-    (progress, out)
 }
 
 /// What a revealed floor shows, whatever the order: the chunks revealed, the exit's chunk and
@@ -232,400 +546,100 @@ struct Outcome {
     tiles: u32,
 }
 
-fn outcome(progress: @Progress, out: Span<Revealed>) -> Outcome {
-    let mut exit: u8 = 255;
-    let mut exit_tile: u8 = 255;
-    let mut exits: u8 = 0;
-    let mut heart: u8 = 255;
-    let mut hearts: u8 = 0;
-    let mut edges: felt252 = 0;
-    let mut rings: felt252 = 0;
-    let mut set: felt252 = 0;
-    let mut west: felt252 = 0;
-    let mut north: felt252 = 0;
-    let mut walls: Felt252Dict<felt252> = Default::default();
-    for entry in out {
-        let chunk = *entry.chunk;
-        let terrain = *entry.terrain;
-        let features: Features = *entry.features;
-        for item in features.objects.span() {
-            if *item.kind == object::EXIT {
-                exit = chunk;
-                exit_tile = *item.tile;
-                exits += 1;
-            }
-        }
-        for pack in features.packs.span() {
-            if *pack.count != 0 && *pack.template == HEART {
-                heart = chunk;
-                hearts += 1;
-            }
-        }
-        edges += poseidon_hash_span([chunk.into(), terrain.edges.into()].span());
-        let ring = BoardTrait::minus(BOARD - terrain.walls, INTERIOR);
-        rings += poseidon_hash_span([chunk.into(), ring].span());
-        walls.insert(chunk.into(), terrain.walls);
-        // The outline read back from the edges (West, East, South, North)
-        set = BoardTrait::or(set, BoardTrait::pow(chunk));
-        let e = terrain.edges;
-        if e % 2 == 1 {
-            west = BoardTrait::or(west, BoardTrait::pow(chunk));
-        }
-        if (e / 2) % 2 == 1 {
-            west = BoardTrait::or(west, BoardTrait::pow(chunk - 1));
-        }
-        if (e / 4) % 2 == 1 {
-            north = BoardTrait::or(north, BoardTrait::pow(chunk - 15));
-        }
-        if (e / 8) % 2 == 1 {
-            north = BoardTrait::or(north, BoardTrait::pow(chunk));
-        }
-    }
-    let walked = Outline { chunks: set, west, north };
-    let (distance, tiles) = if exit == 255 {
-        (255, 65535)
-    } else {
-        (
-            walked.distance(ENTRY, exit),
-            walk(ref walls, *progress.revealed, ENTRY, 112, exit, exit_tile),
-        )
-    };
-    Outcome {
-        revealed: *progress.revealed,
-        exit,
-        exit_tile,
-        exits,
-        heart,
-        hearts,
-        edges,
-        rings,
-        distance,
-        tiles,
-    }
-}
-
-/// A chunk's tile `(x, y)`, global: `15 cx + column`, `15 cy + row`.
-fn global(chunk: u8, tile: u8) -> (u32, u32) {
-    let (cy, cx) = DivRem::div_rem(chunk, 15);
-    let (row, column) = DivRem::div_rem(tile, 15);
-    (15 * cx.into() + column.into(), 15 * cy.into() + row.into())
-}
-
-/// The walked distance in tiles from the entry chunk's tile `from` to `chunk`'s tile `to`, on the
-/// revealed floor; 65535 when not reached (SPK-17's `fixtures::walk`). A breadth-first walk,
-/// bit-parallel: each chunk's layer grows by `BoardTrait::dilate` (the engine's hex neighbours with
-/// the chunk's row parity) within its floor, and the layer's ring tiles cross the seams one by one,
-/// by their global neighbours (odd-r: an even global row's northern and southern neighbours are
-/// `x − 1` and `x`, an odd row's `x` and `x + 1`; a corner is wall, so no step reaches a diagonal
-/// chunk).
-fn walk(
-    ref walls: Felt252Dict<felt252>, revealed: felt252, entry: u8, from: u8, chunk: u8, to: u8,
-) -> u32 {
-    let members = chunks(revealed);
-    let mut reached: Felt252Dict<felt252> = Default::default();
-    let mut layer: Felt252Dict<felt252> = Default::default();
-    reached.insert(entry.into(), BoardTrait::pow(from));
-    layer.insert(entry.into(), BoardTrait::pow(from));
-    let mut d: u32 = 0;
-    let mut found: u32 = 65535;
-    let mut moving = true;
-    while found == 65535 && moving {
-        if BoardTrait::has(reached.get(chunk.into()), to) {
-            found = d;
-            break;
-        }
-        let mut next: Felt252Dict<felt252> = Default::default();
-        for c in members.span() {
-            let c = *c;
-            let front = layer.get(c.into());
-            if front != 0 {
-                let (cy, _) = DivRem::div_rem(c, 15);
-                let odd = cy % 2 == 1;
-                let floor = BOARD - walls.get(c.into());
-                let grown = BoardTrait::and(BoardTrait::dilate(front, odd), floor);
-                next.insert(c.into(), BoardTrait::or(next.get(c.into()), grown));
-                // [Compute] Across the seams: the layer's ring tiles, one by one
-                for tile in chunks(BoardTrait::minus(front, INTERIOR)) {
-                    let (x, y) = global(c, tile);
-                    let (lo, hi) = if y % 2 == 0 {
-                        (x + 255, x + 256)
-                    } else {
-                        (x + 256, x + 257)
-                    };
-                    let around: Array<(u32, u32)> = array![
-                        (x + 257, y + 1), (x + 255, y + 1), (lo, y + 2), (hi, y + 2), (lo, y),
-                        (hi, y),
-                    ];
-                    for entry in around {
-                        let (sx, sy) = entry;
-                        if sx >= 256 && sy >= 1 && sx - 256 < 225 && sy - 1 < 225 {
-                            let (nx, ny) = (sx - 256, sy - 1);
-                            let other: u8 = (15 * (ny / 15) + nx / 15).try_into().unwrap();
-                            if other != c && BoardTrait::has(revealed, other) {
-                                let t: u8 = (15 * (ny % 15) + nx % 15).try_into().unwrap();
-                                if !BoardTrait::has(walls.get(other.into()), t) {
-                                    next
-                                        .insert(
-                                            other.into(),
-                                            BoardTrait::or(
-                                                next.get(other.into()), BoardTrait::pow(t),
-                                            ),
-                                        );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // [Compute] The new layer: what was not reached yet
-        moving = false;
-        for c in members.span() {
-            let c = *c;
-            let fresh = BoardTrait::minus(next.get(c.into()), reached.get(c.into()));
-            layer.insert(c.into(), fresh);
-            if fresh != 0 {
-                moving = true;
-                reached.insert(c.into(), BoardTrait::or(reached.get(c.into()), fresh));
-            }
-        }
-        d += 1;
-    }
-    found
-}
-
-/// A permutation of `items` drawn from `seed` (Fisher–Yates), its first item kept first.
-fn shuffled(items: Span<u8>, seed: felt252) -> Array<u8> {
-    let mut dict: Felt252Dict<u8> = Default::default();
-    let n = items.len();
-    let mut i: u32 = 0;
-    while i != n {
-        dict.insert(i.into(), *items[i]);
-        i += 1;
-    }
-    let mut k: u32 = n;
-    while k > 2 {
-        k -= 1;
-        // Swap item `k` with an item in `[1, k]`
-        let word: u256 = poseidon_hash_span([seed, k.into()].span()).into();
-        let bound: u128 = k.into();
-        let (_, j) = DivRem::div_rem(word.low, bound.try_into().unwrap());
-        let j: felt252 = (j + 1).try_into().unwrap();
-        let a = dict.get(k.into());
-        let b = dict.get(j);
-        dict.insert(k.into(), b);
-        dict.insert(j, a);
-    }
-    let mut out: Array<u8> = array![];
-    let mut i: u32 = 0;
-    while i != n {
-        out.append(dict.get(i.into()));
-        i += 1;
-    }
-    out
-}
-
-/// The seven required orders of one floor, the entry first in each, as `create` reveals it: by
-/// index, backward, nearest first, farthest first, two drawn, t-0077's forcing order.
-fn orders(outline: @Outline, entropy: felt252) -> Array<Array<u8>> {
-    let mut rest: Array<u8> = array![];
-    for c in chunks(*outline.chunks) {
-        if c != ENTRY {
-            rest.append(c);
-        }
-    }
-    let mut ascending = array![ENTRY];
-    let mut descending = array![ENTRY];
-    for c in rest.span() {
-        ascending.append(*c);
-    }
-    let mut k = rest.len();
-    while k != 0 {
-        k -= 1;
-        descending.append(*rest[k]);
-    }
-    // By distance through the open seams (`layers`: the farthest first, the entry's left out)
-    let layers = outline.layers(ENTRY);
-    let mut nearest = array![ENTRY];
-    let mut d = layers.len();
-    while d != 0 {
-        d -= 1;
-        for c in chunks(*layers[d]) {
-            nearest.append(c);
-        }
-    }
-    let mut farthest = array![ENTRY];
-    for layer in layers.span() {
-        for c in chunks(*layer) {
-            farthest.append(c);
-        }
-    }
-    // t-0077's forcing order: `X`, the entry's first neighbour, revealed last
-    let x = *chunks(*layers[layers.len() - 1])[0];
-    let mut forcing = array![ENTRY];
-    for c in rest.span() {
-        if *c != x {
-            forcing.append(*c);
-        }
-    }
-    forcing.append(x);
-    let drawn_1 = shuffled(ascending.span(), poseidon_hash_span([entropy, 'order 1'].span()));
-    let drawn_2 = shuffled(ascending.span(), poseidon_hash_span([entropy, 'order 2'].span()));
-    array![ascending, descending, nearest, farthest, drawn_1, drawn_2, forcing]
-}
-
-/// The gate on one floor of `n` chunks: the floor of entropy `first`; with review t-0088's set
-/// piece when `piece`, the `skip`-th floor from `first` (counted from 0) whose farthest layer is
-/// one chunk. One floor a test, for snforge's steps (FND-23). Prints the floor's walk in tiles.
-fn zero_residue(n: u8, first: u32, skip: u32, piece: bool) {
-    let hosts = *declare("HostsLibrary").unwrap().contract_class().class_hash;
-    let mut seen: u32 = 0;
-    let mut done = false;
-    let mut i: u32 = first;
-    while !done {
-        let entropy = poseidon_hash_span(['eng10b residue', i.into()].span());
-        i += 1;
-        let floor = create(hosts, entropy, n, piece);
-        if piece && BoardTrait::count(floor.far) != 1 {
-            continue;
-        }
-        if piece && seen != skip {
-            seen += 1;
-            continue;
-        }
-        done = true;
-        if piece {
-            // Review t-0089, note 2: the set piece (quota 0) hosted, never on the farthest chunk,
-            // which the exit and the Heart took first
-            let at = *floor.hosts[0];
-            assert(at != 0, 'the set piece hosted');
-            assert(BoardTrait::and(at, floor.far) == 0, 'the set piece off the far chunk');
-        }
-        let mut reference: Option<Outcome> = Option::None;
-        for order in orders(@floor.outline, entropy) {
-            let (progress, out) = reveal_in_order(@floor.site, entropy, order.span());
-            let got = outcome(@progress, out.span());
-            assert(progress.count == n, 'every chunk revealed');
-            assert(got.revealed == floor.outline.chunks, 'the outline revealed');
-            assert(got.exits == 1, 'one exit');
-            assert(got.hearts == 1, 'one Heart');
-            assert(BoardTrait::has(floor.far, got.exit), 'the exit at the farthest');
-            assert(BoardTrait::has(floor.far, got.heart), 'the Heart at the farthest');
-            assert(BoardTrait::has(CORE, got.exit_tile), 'the exit on the core');
-            assert(got.distance == floor.depth, 'its distance the depth');
-            assert(got.tiles != 65535, 'the exit reached');
-            match reference {
-                Option::None => { reference = Option::Some(got); },
-                Option::Some(first) => { assert(got == first, 'the same in every order'); },
-            }
-        }
-        let got = reference.unwrap();
-        println!(
-            "floor {} (N = {}): exit chunk {} at {} chunks, {} tiles; Heart chunk {}",
-            i - 1,
-            n,
-            got.exit,
-            got.distance,
-            got.tiles,
-            got.heart,
-        );
-    }
-}
-
 #[test]
 #[available_gas(l2_gas: 331507845)] // ceil(1.05 × 315721757 measured)
 fn test_zero_residue_n6_0() {
-    zero_residue(6, 0, 0, false);
+    Fixture::zero_residue(6, 0, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 392147115)] // ceil(1.05 × 373473442 measured)
 fn test_zero_residue_n6_1() {
-    zero_residue(6, 1, 0, false);
+    Fixture::zero_residue(6, 1, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 357065989)] // ceil(1.05 × 340062846 measured)
 fn test_zero_residue_n6_2() {
-    zero_residue(6, 2, 0, false);
+    Fixture::zero_residue(6, 2, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 345886959)] // ceil(1.05 × 329416151 measured)
 fn test_zero_residue_n6_3() {
-    zero_residue(6, 3, 0, false);
+    Fixture::zero_residue(6, 3, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 364154527)] // ceil(1.05 × 346813835 measured)
 fn test_zero_residue_n6_4() {
-    zero_residue(6, 4, 0, false);
+    Fixture::zero_residue(6, 4, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 330312208)] // ceil(1.05 × 314583055 measured)
 fn test_zero_residue_n6_5() {
-    zero_residue(6, 5, 0, false);
+    Fixture::zero_residue(6, 5, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 348053330)] // ceil(1.05 × 331479361 measured)
 fn test_zero_residue_n6_6() {
-    zero_residue(6, 6, 0, false);
+    Fixture::zero_residue(6, 6, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 308380354)] // ceil(1.05 × 293695575 measured)
 fn test_zero_residue_n6_7() {
-    zero_residue(6, 7, 0, false);
+    Fixture::zero_residue(6, 7, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 605282185)] // ceil(1.05 × 576459223 measured)
 fn test_zero_residue_n12_0() {
-    zero_residue(12, 0, 0, false);
+    Fixture::zero_residue(12, 0, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 682571097)] // ceil(1.05 × 650067711 measured)
 fn test_zero_residue_n12_1() {
-    zero_residue(12, 1, 0, false);
+    Fixture::zero_residue(12, 1, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 686383472)] // ceil(1.05 × 653698544 measured)
 fn test_zero_residue_n12_2() {
-    zero_residue(12, 2, 0, false);
+    Fixture::zero_residue(12, 2, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 760877247)] // ceil(1.05 × 724644997 measured)
 fn test_zero_residue_n12_3() {
-    zero_residue(12, 3, 0, false);
+    Fixture::zero_residue(12, 3, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 755099649)] // ceil(1.05 × 719142522 measured)
 fn test_zero_residue_n12_4() {
-    zero_residue(12, 4, 0, false);
+    Fixture::zero_residue(12, 4, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 679070294)] // ceil(1.05 × 646733613 measured)
 fn test_zero_residue_n12_5() {
-    zero_residue(12, 5, 0, false);
+    Fixture::zero_residue(12, 5, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 836692483)] // ceil(1.05 × 796849983 measured)
 fn test_zero_residue_n12_6() {
-    zero_residue(12, 6, 0, false);
+    Fixture::zero_residue(12, 6, 0, false);
 }
 
 #[test]
 #[available_gas(l2_gas: 754433328)] // ceil(1.05 × 718507931 measured)
 fn test_zero_residue_n12_7() {
-    zero_residue(12, 7, 0, false);
+    Fixture::zero_residue(12, 7, 0, false);
 }
 
 // Review t-0088's major 1 (A4): a farthest layer of one chunk, a set piece (2 packs, 3 objects)
@@ -634,35 +648,35 @@ fn test_zero_residue_n12_7() {
 #[test]
 #[available_gas(l2_gas: 311302973)] // ceil(1.05 × 296479021 measured)
 fn test_zero_residue_piece_n6_0() {
-    zero_residue(6, 100, 0, true);
+    Fixture::zero_residue(6, 100, 0, true);
 }
 
 #[test]
 #[available_gas(l2_gas: 379978078)] // ceil(1.05 × 361883883 measured)
 fn test_zero_residue_piece_n6_1() {
-    zero_residue(6, 100, 1, true);
+    Fixture::zero_residue(6, 100, 1, true);
 }
 
 #[test]
 #[available_gas(l2_gas: 375366593)] // ceil(1.05 × 357491993 measured)
 fn test_zero_residue_piece_n6_2() {
-    zero_residue(6, 100, 2, true);
+    Fixture::zero_residue(6, 100, 2, true);
 }
 
 #[test]
 #[available_gas(l2_gas: 383581217)] // ceil(1.05 × 365315444 measured)
 fn test_zero_residue_piece_n6_3() {
-    zero_residue(6, 100, 3, true);
+    Fixture::zero_residue(6, 100, 3, true);
 }
 
 #[test]
 #[available_gas(l2_gas: 662822233)] // ceil(1.05 × 631259269 measured)
 fn test_zero_residue_piece_n12_0() {
-    zero_residue(12, 100, 0, true);
+    Fixture::zero_residue(12, 100, 0, true);
 }
 
 #[test]
 #[available_gas(l2_gas: 696383695)] // ceil(1.05 × 663222566 measured)
 fn test_zero_residue_piece_n12_1() {
-    zero_residue(12, 100, 1, true);
+    Fixture::zero_residue(12, 100, 1, true);
 }

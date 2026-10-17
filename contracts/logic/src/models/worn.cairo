@@ -138,7 +138,7 @@ pub impl WornAssert of WornAssertTrait {
 #[cfg(test)]
 pub mod tests {
     use crate::models::base::slot as base_slot;
-    use crate::models::build::tests::{cost, held, passive};
+    use crate::models::build::tests::BuildFixture;
     use crate::models::held_passive::HeldPassive;
     use crate::models::index::Modifier;
     use crate::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
@@ -148,38 +148,43 @@ pub mod tests {
 
     // ---- the items worn (CBT-02e, D-168: `WornTrait::held`) ---------------------------------
 
-    /// The `MODIFIER` records of the tests below, one part each as the registry stores them: 1 a
-    /// prefix and 2 a suffix (life steal 1…5, costing 7 armor against cold), 3 an insignia made
-    /// for the chest (armor against fire 1…7, no cost), 4 a rune (fire 1…7, costing 7 against
-    /// cold).
-    pub fn worn_records() -> (Span<u16>, Span<felt252>) {
-        let cold = PassiveTrait::new(id::ARMOR_VS, damage::COLD, 0, 0, 7, 7);
-        let steal = PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5);
-        let fire = PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7);
-        let none: Passive = Default::default();
-        let records: Array<Modifier> = array![
-            ModifierTrait::new(modifier_slot::PREFIX, steal, cold),
-            ModifierTrait::new(modifier_slot::SUFFIX, steal, cold),
-            ModifierTrait::insignia(base_slot::CHEST, fire, none),
-            ModifierTrait::new(modifier_slot::RUNE, fire, cold),
-        ];
-        let mut parts = array![];
-        for record in records.span() {
-            parts.append(*ModifierRecord::pack(record)[0]);
+    #[generate_trait]
+    pub impl WornFixtureImpl of WornFixture {
+        /// The `MODIFIER` records of the tests below, one part each as the registry stores them: 1
+        /// a prefix and 2 a suffix (life steal 1…5, costing 7 armor against cold), 3 an insignia
+        /// made for the chest (armor against fire 1…7, no cost), 4 a rune (fire 1…7, costing 7
+        /// against cold).
+        fn worn_records() -> (Span<u16>, Span<felt252>) {
+            let cold = PassiveTrait::new(id::ARMOR_VS, damage::COLD, 0, 0, 7, 7);
+            let steal = PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5);
+            let fire = PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7);
+            let none: Passive = Default::default();
+            let records: Array<Modifier> = array![
+                ModifierTrait::new(modifier_slot::PREFIX, steal, cold),
+                ModifierTrait::new(modifier_slot::SUFFIX, steal, cold),
+                ModifierTrait::insignia(base_slot::CHEST, fire, none),
+                ModifierTrait::new(modifier_slot::RUNE, fire, cold),
+            ];
+            let mut parts = array![];
+            for record in records.span() {
+                parts.append(*ModifierRecord::pack(record)[0]);
+            }
+            (array![1, 2, 3, 4].span(), parts.span())
         }
-        (array![1, 2, 3, 4].span(), parts.span())
-    }
 
-    /// A sword (lane 0) holding modifiers 1 and 2 rolled at 5 and 3, and a chest (lane 2) holding
-    /// the insignia rolled at 6 and the rune at 7.
-    pub fn worn_items() -> Span<Worn> {
-        array![
-            Worn {
-                lane: 0, slot: base_slot::WEAPON, ids: [1, 2, 0, 0, 0], values: [5, 3, 0, 0, 0],
-            },
-            Worn { lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 3, 4], values: [0, 0, 0, 6, 7] },
-        ]
-            .span()
+        /// A sword (lane 0) holding modifiers 1 and 2 rolled at 5 and 3, and a chest (lane 2)
+        /// holding the insignia rolled at 6 and the rune at 7.
+        fn worn_items() -> Span<Worn> {
+            array![
+                Worn {
+                    lane: 0, slot: base_slot::WEAPON, ids: [1, 2, 0, 0, 0], values: [5, 3, 0, 0, 0],
+                },
+                Worn {
+                    lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 3, 4], values: [0, 0, 0, 6, 7],
+                },
+            ]
+                .span()
+        }
     }
 
     // Each modifier's benefit at its rolled value, then its cost; instances `5 × lane + slot`; the
@@ -187,14 +192,18 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 710777)] // ceil(1.05 × 676930 measured)
     fn test_worn_held() {
-        let (ids, records) = worn_records();
-        let held_passives = WornTrait::held(worn_items(), ids, records);
-        let cold = passive(id::ARMOR_VS, damage::COLD, 7);
+        let (ids, records) = WornFixture::worn_records();
+        let held_passives = WornTrait::held(WornFixture::worn_items(), ids, records);
+        let cold = BuildFixture::passive(id::ARMOR_VS, damage::COLD, 7);
         let expected = array![
-            held(PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5), Source::Prefix, 0, 1),
-            cost(cold, Source::Prefix, 0, 1),
-            held(PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 3), Source::Suffix, 1, 2),
-            cost(cold, Source::Suffix, 1, 2),
+            BuildFixture::held(
+                PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5), Source::Prefix, 0, 1,
+            ),
+            BuildFixture::cost(cold, Source::Prefix, 0, 1),
+            BuildFixture::held(
+                PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 3), Source::Suffix, 1, 2,
+            ),
+            BuildFixture::cost(cold, Source::Suffix, 1, 2),
             HeldPassive {
                 passive: PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 6),
                 source: Source::Insignia,
@@ -203,8 +212,10 @@ pub mod tests {
                 benefit: true,
                 piece: base_slot::CHEST,
             },
-            held(PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7), Source::Rune, 14, 4),
-            cost(cold, Source::Rune, 14, 4),
+            BuildFixture::held(
+                PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7), Source::Rune, 14, 4,
+            ),
+            BuildFixture::cost(cold, Source::Rune, 14, 4),
         ];
         assert(held_passives == expected, 'held');
     }
@@ -213,8 +224,8 @@ pub mod tests {
     #[available_gas(l2_gas: 357903)] // ceil(1.05 × 340860 measured)
     #[should_panic(expected: 'item: no such modifier')]
     fn test_worn_unknown_modifier_refused() {
-        let (ids, _) = worn_records();
-        WornTrait::held(worn_items(), ids, array![0, 0, 0, 0].span());
+        let (ids, _) = WornFixture::worn_records();
+        WornTrait::held(WornFixture::worn_items(), ids, array![0, 0, 0, 0].span());
     }
 
     // A rune (4) in the insignia's slot.
@@ -222,7 +233,7 @@ pub mod tests {
     #[available_gas(l2_gas: 546851)] // ceil(1.05 × 520810 measured)
     #[should_panic(expected: 'item: modifier slot type')]
     fn test_worn_slot_type_refused() {
-        let (ids, records) = worn_records();
+        let (ids, records) = WornFixture::worn_records();
         let item = Worn {
             lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 4, 0], values: [0, 0, 0, 7, 0],
         };
@@ -234,7 +245,7 @@ pub mod tests {
     #[available_gas(l2_gas: 540120)] // ceil(1.05 × 514400 measured)
     #[should_panic(expected: 'item: modifier value')]
     fn test_worn_value_above_refused() {
-        let (ids, records) = worn_records();
+        let (ids, records) = WornFixture::worn_records();
         let item = Worn {
             lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 0, 4], values: [0, 0, 0, 0, 8],
         };
@@ -245,7 +256,7 @@ pub mod tests {
     #[available_gas(l2_gas: 539627)] // ceil(1.05 × 513930 measured)
     #[should_panic(expected: 'item: modifier value')]
     fn test_worn_value_below_refused() {
-        let (ids, records) = worn_records();
+        let (ids, records) = WornFixture::worn_records();
         let item = Worn {
             lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 0, 4], values: [0, 0, 0, 0, 0],
         };
@@ -257,7 +268,7 @@ pub mod tests {
     #[available_gas(l2_gas: 544394)] // ceil(1.05 × 518470 measured)
     #[should_panic(expected: 'item: insignia piece')]
     fn test_worn_insignia_piece_refused() {
-        let (ids, records) = worn_records();
+        let (ids, records) = WornFixture::worn_records();
         let item = Worn {
             lane: 3, slot: base_slot::LEGS, ids: [0, 0, 0, 3, 0], values: [0, 0, 0, 6, 0],
         };

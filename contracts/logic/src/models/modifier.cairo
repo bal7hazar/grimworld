@@ -245,10 +245,6 @@ mod tests {
         }
     }
 
-    fn passive(id: u8, param: u8, value: i16) -> Passive {
-        PassiveTrait::new(id, param, 0, 0, value, value)
-    }
-
     // §4, §7.2: `MODIFIER`, 1 part: slot type low, benefit and cost high.
     #[test]
     #[available_gas(l2_gas: 345734)] // ceil(1.05 × 329270 measured)
@@ -686,7 +682,7 @@ mod tests {
     #[available_gas(l2_gas: 267246)] // ceil(1.05 × 254520 measured)
     fn test_insignia_record_piece() {
         let legs = ModifierTrait::insignia(
-            base_slot::LEGS, passive(id::MAX_HEALTH, 0, 10), Default::default(),
+            base_slot::LEGS, Fixture::passive(id::MAX_HEALTH, 0, 10), Default::default(),
         );
         legs.assert_legal();
         let parts = Record::<Modifier>::pack(@legs);
@@ -697,7 +693,9 @@ mod tests {
     #[should_panic(expected: 'modifier: health above piece')]
     #[available_gas(l2_gas: 152082)] // ceil(1.05 × 144840 measured)
     fn test_insignia_record_above_piece_refused() {
-        ModifierTrait::insignia(base_slot::LEGS, passive(id::MAX_HEALTH, 0, 11), Default::default())
+        ModifierTrait::insignia(
+            base_slot::LEGS, Fixture::passive(id::MAX_HEALTH, 0, 11), Default::default(),
+        )
             .assert_legal();
     }
 
@@ -705,7 +703,9 @@ mod tests {
     #[should_panic(expected: 'modifier: piece')]
     #[available_gas(l2_gas: 145635)] // ceil(1.05 × 138700 measured)
     fn test_insignia_record_without_piece_refused() {
-        ModifierTrait::new(slot::INSIGNIA, passive(id::MAX_HEALTH, 0, 5), Default::default())
+        ModifierTrait::new(
+            slot::INSIGNIA, Fixture::passive(id::MAX_HEALTH, 0, 5), Default::default(),
+        )
             .assert_legal();
     }
 
@@ -716,7 +716,9 @@ mod tests {
     #[available_gas(l2_gas: 126074)] // ceil(1.05 × 120070 measured)
     fn test_cancelling_rune_refused() {
         ModifierTrait::new(
-            slot::RUNE, passive(id::MAX_HEALTH, 0, -32717), passive(id::MAX_HEALTH, 0, 32767),
+            slot::RUNE,
+            Fixture::passive(id::MAX_HEALTH, 0, -32717),
+            Fixture::passive(id::MAX_HEALTH, 0, 32767),
         )
             .assert_legal();
     }
@@ -728,8 +730,8 @@ mod tests {
     fn test_cancelling_attribute_rune_refused() {
         ModifierTrait::new(
             slot::RUNE,
-            passive(id::ATTRIBUTE, PRIMARY, 32767),
-            passive(id::ATTRIBUTE, PRIMARY, -32764),
+            Fixture::passive(id::ATTRIBUTE, PRIMARY, 32767),
+            Fixture::passive(id::ATTRIBUTE, PRIMARY, -32764),
         )
             .assert_legal();
     }
@@ -739,7 +741,9 @@ mod tests {
     #[should_panic(expected: 'passive: per-source bound')]
     #[available_gas(l2_gas: 126567)] // ceil(1.05 × 120540 measured)
     fn test_modifier_beyond_bound_refused() {
-        ModifierTrait::new(slot::PREFIX, passive(id::MAX_HEALTH, 0, 31), Default::default())
+        ModifierTrait::new(
+            slot::PREFIX, Fixture::passive(id::MAX_HEALTH, 0, 31), Default::default(),
+        )
             .assert_legal();
     }
 }

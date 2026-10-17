@@ -1097,18 +1097,50 @@ mod tests {
     use crate::types::combat::{condition, skill_kind};
     use crate::types::infliction::{Infliction, InflictionTrait};
     use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, Sheets, flag, status};
-    use crate::types::world::fixtures::{Fixture, LIVE, opaque, two};
+    use crate::types::world::fixtures::{Fixture, LIVE};
     use super::{
         Member, MemberAssert, MemberConditionTrait, MemberLifecycleTrait, MemberSnapshotTrait,
         MemberTickTrait, MemberTrait, MemberWords, MemberWordsTrait,
     };
 
-    /// A member whose kit holds "Rending" (`CONDITION_DURATION` Bleeding +33 %) and
-    /// *Hob-breaker*'s `KNOCKDOWN_FLAT` +1.
-    fn rending() -> Member {
-        let mut words = Fixture::member_words(Fixture::spec());
-        words.kit += condition::BLEEDING.into() * two(144) + 33 * two(148) + two(200);
-        Fixture::load_member(words, @Fixture::content())
+    #[generate_trait]
+    impl MemberFixtureImpl of MemberFixture {
+        /// A member whose kit holds "Rending" (`CONDITION_DURATION` Bleeding +33 %) and
+        /// *Hob-breaker*'s `KNOCKDOWN_FLAT` +1.
+        fn rending() -> Member {
+            let mut words = Fixture::member_words(Fixture::spec());
+            words.kit += condition::BLEEDING.into() * Fixture::two(144)
+                + 33 * Fixture::two(148)
+                + Fixture::two(200);
+            Fixture::load_member(words, @Fixture::content())
+        }
+
+        /// CBT-04's application before SPK-15's L2 (fix loop 2, D-172), kept as the oracle of the
+        /// in-place `apply` and `knock` (docs/CAIRO.md §2): the lifecycle's `inflict`, then the
+        /// interrupt on a knock-down.
+        fn oracle(
+            ref member: Member,
+            condition: u8,
+            v: i32,
+            source: @Infliction,
+            t0: u32,
+            sheets: @Sheets,
+        ) {
+            if !member.is_alive() {
+                return;
+            }
+            member.inflict(condition, t0, source.duration(condition, v));
+            if condition == condition::KNOCKED_DOWN {
+                member.interrupt(t0, sheets);
+            }
+        }
+
+        fn condition_cost_state() -> (Member, Sheets) {
+            let mut member = Fixture::opaque(Fixture::member(Fixture::spec()));
+            member.start(Fixture::opaque(2), 9, 2, Fixture::opaque(200));
+            member.bleeding = Fixture::opaque(205);
+            (member, Fixture::opaque(Fixture::sheets()))
+        }
     }
 
     // CBT-04, applying (§5.7, §3.2's `CONDITION`): the kit's passives read in the words; Rending
@@ -1120,7 +1152,7 @@ mod tests {
     #[available_gas(l2_gas: 7694715)] // ceil(1.05 × 7328300 measured)
     fn test_member_apply() {
         let sheets = Fixture::sheets();
-        let mut member = rending();
+        let mut member = MemberFixture::rending();
         let source = member.infliction();
         assert(
             source == Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 },
@@ -1236,21 +1268,6 @@ mod tests {
         assert(member.move_ticks(61 + 1, true) == 1, 'movement: 1');
     }
 
-    /// CBT-04's application before SPK-15's L2 (fix loop 2, D-172), kept as the oracle of the
-    /// in-place `apply` and `knock` (docs/CAIRO.md §2): the lifecycle's `inflict`, then the
-    /// interrupt on a knock-down.
-    fn oracle(
-        ref member: Member, condition: u8, v: i32, source: @Infliction, t0: u32, sheets: @Sheets,
-    ) {
-        if !member.is_alive() {
-            return;
-        }
-        member.inflict(condition, t0, source.duration(condition, v));
-        if condition == condition::KNOCKED_DOWN {
-            member.interrupt(t0, sheets);
-        }
-    }
-
     // L2's equivalence (fix loop 2): `apply` (conditions 1–4) and `knock` give the oracle's
     // member on every condition, at the values 1, 20, 0 (clamped to 1) and 40,000 (clamped to
     // 32,767), with "Rending" and without a passive, activating or not, a condition held to be
@@ -1262,7 +1279,7 @@ mod tests {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
         let none: Infliction = Default::default();
-        let (activating, _) = condition_cost_state();
+        let (activating, _) = MemberFixture::condition_cost_state();
         let mut held = Fixture::member(Fixture::spec());
         held.poison = 230;
         held.knocked = 230;
@@ -1281,7 +1298,7 @@ mod tests {
                 for v in array![1_i32, 20, 0, 40000].span() {
                     for source in array![rending, none].span() {
                         let mut expected = *state;
-                        oracle(ref expected, *c, *v, source, 201, @sheets);
+                        MemberFixture::oracle(ref expected, *c, *v, source, 201, @sheets);
                         let mut member = *state;
                         if *c == condition::KNOCKED_DOWN {
                             member.knock(*v, source, 201, @sheets);
@@ -1330,19 +1347,13 @@ mod tests {
     // paths, measured to show that each function is charged one cost whatever path runs: a
     // knock-down on a member without an activation that does not lengthen a held one, and an
     // application on a member not alive.
-    fn condition_cost_state() -> (Member, Sheets) {
-        let mut member = opaque(Fixture::member(Fixture::spec()));
-        member.start(opaque(2), 9, 2, opaque(200));
-        member.bleeding = opaque(205);
-        (member, opaque(Fixture::sheets()))
-    }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5389902)] // ceil(1.05 × 5133240 measured)
     fn test_cost_member_condition_base() {
-        let (member, _sheets) = condition_cost_state();
-        opaque(member);
+        let (member, _sheets) = MemberFixture::condition_cost_state();
+        Fixture::opaque(member);
     }
 
     // The base of the pairs that give a source.
@@ -1350,28 +1361,28 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5390742)] // ceil(1.05 × 5134040 measured)
     fn test_cost_member_source_base() {
-        let (member, _sheets) = condition_cost_state();
-        let _source: Infliction = opaque(Default::default());
-        opaque(member);
+        let (member, _sheets) = MemberFixture::condition_cost_state();
+        let _source: Infliction = Fixture::opaque(Default::default());
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5409852)] // ceil(1.05 × 5152240 measured)
     fn test_cost_member_infliction() {
-        let (member, _sheets) = condition_cost_state();
-        opaque(member.infliction());
-        opaque(member);
+        let (member, _sheets) = MemberFixture::condition_cost_state();
+        Fixture::opaque(member.infliction());
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5449994)] // ceil(1.05 × 5190470 measured)
     fn test_cost_member_knock() {
-        let (mut member, sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        member.knock(opaque(2), @source, opaque(201), @sheets);
-        opaque(member);
+        let (mut member, sheets) = MemberFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        member.knock(Fixture::opaque(2), @source, Fixture::opaque(201), @sheets);
+        Fixture::opaque(member);
     }
 
     // The other paths' bases: no activation and a longer knock-down held; at 0 health.
@@ -1379,64 +1390,82 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5392212)] // ceil(1.05 × 5135440 measured)
     fn test_cost_member_idle_base() {
-        let (mut member, _sheets) = condition_cost_state();
+        let (mut member, _sheets) = MemberFixture::condition_cost_state();
         member.clear();
-        member.knocked = opaque(230);
-        let _source: Infliction = opaque(Default::default());
-        opaque(member);
+        member.knocked = Fixture::opaque(230);
+        let _source: Infliction = Fixture::opaque(Default::default());
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5392212)] // ceil(1.05 × 5135440 measured)
     fn test_cost_member_zero_base() {
-        let (mut member, _sheets) = condition_cost_state();
-        member.health = opaque(0);
-        let _source: Infliction = opaque(Default::default());
-        opaque(member);
+        let (mut member, _sheets) = MemberFixture::condition_cost_state();
+        member.health = Fixture::opaque(0);
+        let _source: Infliction = Fixture::opaque(Default::default());
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5450414)] // ceil(1.05 × 5190870 measured)
     fn test_cost_member_knock_idle() {
-        let (mut member, sheets) = condition_cost_state();
+        let (mut member, sheets) = MemberFixture::condition_cost_state();
         member.clear();
-        member.knocked = opaque(230);
-        let source: Infliction = opaque(Default::default());
-        member.knock(opaque(2), @source, opaque(201), @sheets);
-        opaque(member);
+        member.knocked = Fixture::opaque(230);
+        let source: Infliction = Fixture::opaque(Default::default());
+        member.knock(Fixture::opaque(2), @source, Fixture::opaque(201), @sheets);
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5424857)] // ceil(1.05 × 5166530 measured)
     fn test_cost_member_apply_crippled() {
-        let (mut member, _sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        member.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(201));
-        opaque(member);
+        let (mut member, _sheets) = MemberFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        member
+            .apply(
+                Fixture::opaque(condition::CRIPPLED),
+                Fixture::opaque(20),
+                @source,
+                Fixture::opaque(201),
+            );
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5424857)] // ceil(1.05 × 5166530 measured)
     fn test_cost_member_apply_bleeding() {
-        let (mut member, _sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        member.apply(opaque(condition::BLEEDING), opaque(20), @source, opaque(201));
-        opaque(member);
+        let (mut member, _sheets) = MemberFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        member
+            .apply(
+                Fixture::opaque(condition::BLEEDING),
+                Fixture::opaque(20),
+                @source,
+                Fixture::opaque(201),
+            );
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5425277)] // ceil(1.05 × 5166930 measured)
     fn test_cost_member_apply_not_alive() {
-        let (mut member, _sheets) = condition_cost_state();
-        member.health = opaque(0);
-        let source: Infliction = opaque(Default::default());
-        member.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(201));
-        opaque(member);
+        let (mut member, _sheets) = MemberFixture::condition_cost_state();
+        member.health = Fixture::opaque(0);
+        let source: Infliction = Fixture::opaque(Default::default());
+        member
+            .apply(
+                Fixture::opaque(condition::CRIPPLED),
+                Fixture::opaque(20),
+                @source,
+                Fixture::opaque(201),
+            );
+        Fixture::opaque(member);
     }
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
@@ -1444,34 +1473,39 @@ mod tests {
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5487321)] // ceil(1.05 × 5226020 measured)
     fn test_cost_member_oracle() {
-        let (mut member, sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        oracle(
-            ref member, opaque(condition::KNOCKED_DOWN), opaque(2), @source, opaque(201), @sheets,
+        let (mut member, sheets) = MemberFixture::condition_cost_state();
+        let source: Infliction = Fixture::opaque(Default::default());
+        MemberFixture::oracle(
+            ref member,
+            Fixture::opaque(condition::KNOCKED_DOWN),
+            Fixture::opaque(2),
+            @source,
+            Fixture::opaque(201),
+            @sheets,
         );
-        opaque(member);
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5428784)] // ceil(1.05 × 5170270 measured)
     fn test_cost_member_cure() {
-        let (mut member, _sheets) = condition_cost_state();
-        member.cure(opaque(condition::BLEEDING), opaque(201));
-        opaque(member);
+        let (mut member, _sheets) = MemberFixture::condition_cost_state();
+        member.cure(Fixture::opaque(condition::BLEEDING), Fixture::opaque(201));
+        Fixture::opaque(member);
     }
 
     #[test]
     // gas: raised, ENG-07: perception, the AI, Board's origin (D-233 to D-236)
     #[available_gas(l2_gas: 5401589)] // ceil(1.05 × 5144370 measured)
     fn test_cost_member_predicates() {
-        let (member, _sheets) = condition_cost_state();
-        let t = opaque(201);
-        opaque(member.can_act(t));
-        opaque(member.takes_critical(t));
-        opaque(member.can_defend(t));
-        opaque(member.move_ticks(t, opaque(false)));
-        opaque(member);
+        let (member, _sheets) = MemberFixture::condition_cost_state();
+        let t = Fixture::opaque(201);
+        Fixture::opaque(member.can_act(t));
+        Fixture::opaque(member.takes_critical(t));
+        Fixture::opaque(member.can_defend(t));
+        Fixture::opaque(member.move_ticks(t, Fixture::opaque(false)));
+        Fixture::opaque(member);
     }
 
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
@@ -1536,8 +1570,13 @@ mod tests {
     fn test_member_bar_positions() {
         let mut words = Fixture::member_words(Fixture::spec());
         // Bar slot 7 empty, slot 0 skill 8: the content lists 8 first.
-        words.bar = LIVE + 8 + 2 * two(16) + 3 * two(32) + 4 * two(48) + 5 * two(64);
-        words.bar += 6 * two(80) + 7 * two(96);
+        words.bar = LIVE
+            + 8
+            + 2 * Fixture::two(16)
+            + 3 * Fixture::two(32)
+            + 4 * Fixture::two(48)
+            + 5 * Fixture::two(64);
+        words.bar += 6 * Fixture::two(80) + 7 * Fixture::two(96);
         let mut skills = array![Fixture::skill(8, skill_kind::SPELL, 1, 10)];
         for id in 1..8_u16 {
             skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
@@ -1644,7 +1683,11 @@ mod tests {
         assert(member.effect_of(0) == Fixture::held(11, false, 95, 7), 'later: replaced whole');
         // Belt slots 0 and 2 hold one item: one carrier.
         let mut words = member.store();
-        words.kit = LIVE + 100 + 101 * two(32) + 100 * two(64) + 103 * two(96);
+        words.kit = LIVE
+            + 100
+            + 101 * Fixture::two(32)
+            + 100 * Fixture::two(64)
+            + 103 * Fixture::two(96);
         let mut member = Fixture::load_member(words, @content);
         let first = member.hold(Fixture::held(0, true, 99, 0), 0, false, 81, @sheets);
         let second = member.hold(Fixture::held(2, true, 120, 0), 0, false, 81, @sheets);
@@ -1674,7 +1717,7 @@ mod tests {
         };
         let mut words = Fixture::member_words(Fixture::spec());
         // `ADRENALINE_EVERY_N` = 3 in the kit (bits 160–167).
-        words.kit += 3 * two(160);
+        words.kit += 3 * Fixture::two(160);
         let mut member = Fixture::load_member(words, @content);
         assert(member.adrenaline_cap == 24, 'cap: 6 strikes');
         member.land_weapon_hit();
@@ -1707,7 +1750,7 @@ mod tests {
         let quick_bit = array![168_u32, 170, 172, 174, 242, 244, 246, 248].span();
         for slot in 0..8_u8 {
             let at: u32 = slot.into();
-            let stats = LIVE + 3 * two(*quick_bit[at]) + two(40 + at);
+            let stats = LIVE + 3 * Fixture::two(*quick_bit[at]) + Fixture::two(40 + at);
             let words = MemberWords { stats, ..member.words };
             let one = Member { words, ..member };
             for other in 0..8_u8 {
@@ -1724,9 +1767,9 @@ mod tests {
         let pairs = array![1_u8, 2, 3, 1, 2, 3, 1, 2].span();
         let mut stats = LIVE;
         for slot in 0..8_u32 {
-            stats += (*pairs[slot]).into() * two(*quick_bit[slot]);
+            stats += (*pairs[slot]).into() * Fixture::two(*quick_bit[slot]);
             if slot % 2 == 0 {
-                stats += two(40 + slot);
+                stats += Fixture::two(40 + slot);
             }
         }
         let words = MemberWords { stats, ..member.words };

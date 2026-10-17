@@ -218,20 +218,23 @@ mod tests {
     use crate::types::Target;
     use super::{Action, ActionCodeTrait, BatchTrait};
 
-    fn ten() -> Array<Action> {
-        array![
-            Action::Move(0), Action::Turn(5), Action::Wait, Action::Attack(0xFFFF),
-            Action::Skill((7, Target::Tile(0xFFFF))), Action::Item((3, 0xFFFF)),
-            Action::Interact(0xE0E0), Action::Skill((0, Target::Entity(9))), Action::Move(5),
-            Action::Attack(8),
-        ]
+    #[generate_trait]
+    impl FixtureImpl of Fixture {
+        fn ten() -> Array<Action> {
+            array![
+                Action::Move(0), Action::Turn(5), Action::Wait, Action::Attack(0xFFFF),
+                Action::Skill((7, Target::Tile(0xFFFF))), Action::Item((3, 0xFFFF)),
+                Action::Interact(0xE0E0), Action::Skill((0, Target::Entity(9))), Action::Move(5),
+                Action::Attack(8),
+            ]
+        }
     }
 
     // Every kind, every argument at its widest, ten actions: decoding gives them back in order.
     #[test]
     #[available_gas(l2_gas: 378557)] // ceil(1.05 × 360530 measured)
     fn test_batch_round_trip() {
-        let actions = ten();
+        let actions = Fixture::ten();
         let word = BatchTrait::encode(actions.span()).unwrap();
         assert(BatchTrait::decode(word).unwrap() == actions, 'round trip');
     }
@@ -265,7 +268,7 @@ mod tests {
     #[available_gas(l2_gas: 99624)] // ceil(1.05 × 94880 measured)
     fn test_batch_refusals() {
         assert(BatchTrait::encode(array![].span()).is_none(), 'empty encoded');
-        let mut eleven = ten();
+        let mut eleven = Fixture::ten();
         eleven.append(Action::Wait);
         assert(BatchTrait::encode(eleven.span()).is_none(), 'eleven encoded');
         assert(BatchTrait::decode(0).is_none(), 'count 0');

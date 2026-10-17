@@ -637,7 +637,7 @@ pub mod tests {
     use crate::models::snapshot::{Snapshot, SnapshotTrait};
     use crate::models::snapshot_words::SnapshotWords;
     use crate::models::worn::WornTrait;
-    use crate::models::worn::tests::{worn_items, worn_records};
+    use crate::models::worn::tests::WornFixture;
     use crate::types::combat::{condition, damage, weapon};
     use crate::types::effect::{guard, scope};
     use crate::types::passive::{
@@ -774,340 +774,408 @@ pub mod tests {
     }
 
 
-    /// CBT-02's flattening of a legal build, the oracle.
-    fn oracle(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
-        let level: i32 = (*loadout.level).into();
-        let profession = *loadout.profession;
-        let light = profession == 3;
-        let primary = match (*loadout.points).get(0) {
-            Option::Some(entry) => {
-                let (attribute, _) = *entry.unbox();
-                attribute
-            },
-            Option::None => 0,
-        };
-        let primary_rank = Oracle::rank(*loadout.points, held, primary);
+    #[generate_trait]
+    pub impl BuildFixtureImpl of BuildFixture {
+        /// CBT-02's flattening of a legal build, the oracle.
+        fn oracle(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
+            let level: i32 = (*loadout.level).into();
+            let profession = *loadout.profession;
+            let light = profession == 3;
+            let primary = match (*loadout.points).get(0) {
+                Option::Some(entry) => {
+                    let (attribute, _) = *entry.unbox();
+                    attribute
+                },
+                Option::None => 0,
+            };
+            let primary_rank = Oracle::rank(*loadout.points, held, primary);
 
-        // Maxima and regeneration, signed, with DS-2's floors.
-        let health = 100 + 20 * (level - 1) + Oracle::health(held);
-        let base_energy: i32 = ProfessionTrait::energy(profession).into();
-        let wellspring = if light {
-            WELLSPRING_ENERGY_PER_RANK * primary_rank.into()
-        } else {
-            0
-        };
-        let light_energy = if light {
-            LIGHT_ENERGY
-        } else {
-            0
-        };
-        let energy = base_energy + wellspring + light_energy + Oracle::total(held, id::MAX_ENERGY);
-        let base_regen: i32 = ProfessionTrait::energy_regen(profession).into();
-        let light_regen = if light {
-            LIGHT_ENERGY_REGEN
-        } else {
-            0
-        };
-        let energy_regen = base_regen + light_regen + Oracle::total(held, id::ENERGY_REGEN);
-        BuildAssert::assert_floors(health, energy, energy_regen);
-        let health_regen = 10 + Oracle::total(held, id::HEALTH_REGEN);
-
-        // Armor against each type: the class's innate, then saturated (FX-23).
-        let mut armor_vs: Array<u8> = array![];
-        for t in 1..10_u8 {
-            let innate = if profession == 1 && t <= damage::BLUNT {
-                HEAVY_VS_PHYSICAL
-            } else if profession == 2 && t >= damage::FIRE && t <= damage::EARTH {
-                MEDIUM_VS_ELEMENTAL
+            // Maxima and regeneration, signed, with DS-2's floors.
+            let health = 100 + 20 * (level - 1) + Oracle::health(held);
+            let base_energy: i32 = ProfessionTrait::energy(profession).into();
+            let wellspring = if light {
+                WELLSPRING_ENERGY_PER_RANK * primary_rank.into()
             } else {
                 0
             };
-            let sum: u32 = innate + fit(Oracle::total_param(held, id::ARMOR_VS, t));
-            armor_vs.append(saturate(sum, MAX_ARMOR_VS).try_into().unwrap());
-        }
+            let light_energy = if light {
+                LIGHT_ENERGY
+            } else {
+                0
+            };
+            let energy = base_energy
+                + wellspring
+                + light_energy
+                + Oracle::total(held, id::MAX_ENERGY);
+            let base_regen: i32 = ProfessionTrait::energy_regen(profession).into();
+            let light_regen = if light {
+                LIGHT_ENERGY_REGEN
+            } else {
+                0
+            };
+            let energy_regen = base_regen + light_regen + Oracle::total(held, id::ENERGY_REGEN);
+            BuildAssert::assert_floors(health, energy, energy_regen);
+            let health_regen = 10 + Oracle::total(held, id::HEALTH_REGEN);
 
-        // Ranks of the bar's attributes, 4 bits each.
-        let mut ranks: u64 = 0;
-        let mut shift: u64 = 1;
-        for attribute in loadout.bar_attributes.span() {
-            ranks += Oracle::rank(*loadout.points, held, *attribute).into() * shift;
-            shift *= 16;
-        }
-        let ranks: u32 = ranks.try_into().unwrap();
-
-        // The weapon (DS-4, DS-9).
-        let mut weapon_damage: u32 = (*loadout.weapon_damage).into();
-        if *loadout.personalised {
-            weapon_damage = weapon_damage * PERSONALISED_DAMAGE_PERCENT / 100;
-        }
-        let strength: u16 = STRENGTH_PER_RANK
-            * Oracle::rank(*loadout.points, held, *loadout.weapon_attribute).into();
-        let cap: u16 = (*loadout.strength_cap).into();
-        let strength = if strength > cap {
-            cap
-        } else {
-            strength
-        };
-        let mut damage_type = *loadout.damage_type;
-        let mut replaced = false;
-        for h in held {
-            if *h.passive.id == id::DAMAGE_TYPE {
-                damage_type = *h.passive.param;
-                replaced = true;
+            // Armor against each type: the class's innate, then saturated (FX-23).
+            let mut armor_vs: Array<u8> = array![];
+            for t in 1..10_u8 {
+                let innate = if profession == 1 && t <= damage::BLUNT {
+                    HEAVY_VS_PHYSICAL
+                } else if profession == 2 && t >= damage::FIRE && t <= damage::EARTH {
+                    MEDIUM_VS_ELEMENTAL
+                } else {
+                    0
+                };
+                let sum: u32 = innate + fit(Oracle::total_param(held, id::ARMOR_VS, t));
+                armor_vs.append(saturate(sum, MAX_ARMOR_VS).try_into().unwrap());
             }
-        }
 
-        // Quick-cast pairs: the attribute's build-local index (D-157 A).
-        let mut pairs: Array<QuickCast> = array![];
-        for h in held {
-            if *h.passive.id == id::QUICK_CAST_EVERY_N {
-                let mut index: u32 = 16;
-                let mut k: u32 = 0;
-                for (attribute, _) in *loadout.points {
-                    if *attribute == *h.passive.param && index == 16 {
-                        index = k;
+            // Ranks of the bar's attributes, 4 bits each.
+            let mut ranks: u64 = 0;
+            let mut shift: u64 = 1;
+            for attribute in loadout.bar_attributes.span() {
+                ranks += Oracle::rank(*loadout.points, held, *attribute).into() * shift;
+                shift *= 16;
+            }
+            let ranks: u32 = ranks.try_into().unwrap();
+
+            // The weapon (DS-4, DS-9).
+            let mut weapon_damage: u32 = (*loadout.weapon_damage).into();
+            if *loadout.personalised {
+                weapon_damage = weapon_damage * PERSONALISED_DAMAGE_PERCENT / 100;
+            }
+            let strength: u16 = STRENGTH_PER_RANK
+                * Oracle::rank(*loadout.points, held, *loadout.weapon_attribute).into();
+            let cap: u16 = (*loadout.strength_cap).into();
+            let strength = if strength > cap {
+                cap
+            } else {
+                strength
+            };
+            let mut damage_type = *loadout.damage_type;
+            let mut replaced = false;
+            for h in held {
+                if *h.passive.id == id::DAMAGE_TYPE {
+                    damage_type = *h.passive.param;
+                    replaced = true;
+                }
+            }
+
+            // Quick-cast pairs: the attribute's build-local index (D-157 A).
+            let mut pairs: Array<QuickCast> = array![];
+            for h in held {
+                if *h.passive.id == id::QUICK_CAST_EVERY_N {
+                    let mut index: u32 = 16;
+                    let mut k: u32 = 0;
+                    for (attribute, _) in *loadout.points {
+                        if *attribute == *h.passive.param && index == 16 {
+                            index = k;
+                        }
+                        k += 1;
                     }
-                    k += 1;
+                    pairs
+                        .append(
+                            QuickCast {
+                                attribute: index.try_into().unwrap(),
+                                every: fit((*h.passive.max).into()),
+                            },
+                        );
                 }
-                pairs
-                    .append(
-                        QuickCast {
-                            attribute: index.try_into().unwrap(),
-                            every: fit((*h.passive.max).into()),
-                        },
-                    );
             }
-        }
-        while pairs.len() < 2 {
-            pairs.append(Default::default());
+            while pairs.len() < 2 {
+                pairs.append(Default::default());
+            }
+
+            // The attribute mappings (CBT-05f): a slot counts for a pair whose passive names its
+            // attribute (not 0); an attack skill of another attribute than the weapon's needs it.
+            let mut named: Array<u8> = array![];
+            for h in held {
+                if *h.passive.id == id::QUICK_CAST_EVERY_N {
+                    named.append(*h.passive.param);
+                }
+            }
+            let mut quick_cast_slots: u16 = 0;
+            let mut weapon_required: u8 = 0;
+            let mut slot: u32 = 0;
+            for attribute in loadout.bar_attributes.span() {
+                let mut p: u32 = 0;
+                for param in named.span() {
+                    if *attribute != 0 && *attribute == *param {
+                        quick_cast_slots += Oracle::bit(2 * slot + p).try_into().unwrap();
+                    }
+                    p += 1;
+                }
+                let attacks: u32 = (*loadout.bar_attacks).into();
+                let attack = attacks / Oracle::bit(slot) % 2 == 1;
+                if attack && *attribute != *loadout.weapon_attribute {
+                    weapon_required += Oracle::bit(slot).try_into().unwrap();
+                }
+                slot += 1;
+            }
+
+            let mut every: u8 = 0;
+            for h in held {
+                if *h.passive.id == id::ADRENALINE_EVERY_N {
+                    let n: u8 = fit((*h.passive.max).into());
+                    if every == 0 || n < every {
+                        every = n;
+                    }
+                }
+            }
+            let mut halving = false;
+            for h in held {
+                if *h.passive.id == id::HALVE_FIRST_HEAVY_HIT {
+                    halving = true;
+                }
+            }
+            let mut conditions: Array<Passive> = array![];
+            for h in held {
+                conditions.append(*h.passive);
+            }
+            let (condition, condition_duration) = MemberKitTrait::condition_duration(
+                conditions.span(),
+            );
+            let rating: i32 = (*loadout.rating).into();
+            let d = |guard: u8, class: u8| -> i8 {
+                fit(Oracle::total_scoped(held, id::DAMAGE_PERCENT, guard, class))
+            };
+            let p = |class: u8| -> u8 {
+                fit(Oracle::total_scoped(held, id::PENETRATION, guard::ALWAYS, class))
+            };
+            let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = [
+                *armor_vs[0], *armor_vs[1], *armor_vs[2], *armor_vs[3], *armor_vs[4], *armor_vs[5],
+                *armor_vs[6], *armor_vs[7], *armor_vs[8],
+            ];
+            Snapshot {
+                stats: MemberStats {
+                    max_health: fit(health),
+                    max_energy: fit(energy),
+                    energy_regen: fit(energy_regen),
+                    health_regen: fit(health_regen),
+                    armor_vs: [v1, v2, v3, v4, v5, v6, v7, v8, v9],
+                    level: *loadout.level,
+                    profession,
+                    primary_rank,
+                    weapon: *loadout.weapon,
+                    weapon_damage: weapon_damage.try_into().expect(errors::OVERFLOW),
+                    weapon_ticks: *loadout.weapon_ticks,
+                    weapon_range: *loadout.weapon_range,
+                    weapon_strength: strength.try_into().unwrap(),
+                    ranks,
+                    damage_type,
+                    requirement_met: *loadout.requirement_met,
+                    set_bonuses: *loadout.set_bonuses,
+                    quick_cast_slots,
+                    weapon_required,
+                },
+                bar: MemberBar {
+                    skills: *loadout.skills,
+                    elite_slot: *loadout.elite_slot,
+                    damage: [
+                        d(guard::ALWAYS, HIT_WEAPON), d(guard::ALWAYS, HIT_ATTACK_SKILL),
+                        d(guard::ALWAYS, HIT_SPELL), d(guard::ABOVE_HALF, HIT_WEAPON),
+                        d(guard::ABOVE_HALF, HIT_ATTACK_SKILL), d(guard::ABOVE_HALF, HIT_SPELL),
+                    ],
+                    penetration: [p(HIT_WEAPON), p(HIT_ATTACK_SKILL), p(HIT_SPELL)],
+                    quick_cast: [*pairs[0], *pairs[1]],
+                    armor: fit(rating + Oracle::total_scoped(held, id::ARMOR, guard::ALWAYS, 0)),
+                },
+                kit: MemberKit {
+                    belt: *loadout.belt,
+                    life_steal: fit(Oracle::total(held, id::LIFE_STEAL_ON_HIT)),
+                    energy_on_hit: fit(Oracle::total(held, id::ENERGY_ON_HIT)),
+                    condition,
+                    condition_duration,
+                    enchantment_duration: saturate(
+                        fit(Oracle::total(held, id::ENCHANT_DURATION)), MAX_DURATION_BONUS_PERCENT,
+                    )
+                        .try_into()
+                        .unwrap(),
+                    double_adrenaline_every: every,
+                    // Freed (DS-3): the final maximum is `max_health`.
+                    health_bonus: 0,
+                    armor_stance: fit(
+                        Oracle::total_scoped(held, id::ARMOR, guard::IN_STANCE, HIT_WEAPON),
+                    ),
+                    armor_enchanted: fit(
+                        Oracle::total_scoped(held, id::ARMOR, guard::ENCHANTED, HIT_WEAPON),
+                    ),
+                    knockdown: saturate(fit(Oracle::total(held, id::KNOCKDOWN_FLAT)), MAX_KNOCKDOWN)
+                        .try_into()
+                        .unwrap(),
+                    halving,
+                },
+                belt_counts: *loadout.belt_counts,
+            }
         }
 
-        // The attribute mappings (CBT-05f): a slot counts for a pair whose passive names its
-        // attribute (not 0); an attack skill of another attribute than the weapon's needs it.
-        let mut named: Array<u8> = array![];
-        for h in held {
-            if *h.passive.id == id::QUICK_CAST_EVERY_N {
-                named.append(*h.passive.param);
-            }
-        }
-        let mut quick_cast_slots: u16 = 0;
-        let mut weapon_required: u8 = 0;
-        let mut slot: u32 = 0;
-        for attribute in loadout.bar_attributes.span() {
-            let mut p: u32 = 0;
-            for param in named.span() {
-                if *attribute != 0 && *attribute == *param {
-                    quick_cast_slots += Oracle::bit(2 * slot + p).try_into().unwrap();
-                }
-                p += 1;
-            }
-            let attacks: u32 = (*loadout.bar_attacks).into();
-            let attack = attacks / Oracle::bit(slot) % 2 == 1;
-            if attack && *attribute != *loadout.weapon_attribute {
-                weapon_required += Oracle::bit(slot).try_into().unwrap();
-            }
-            slot += 1;
+        fn passive(id: u8, param: u8, value: i16) -> Passive {
+            PassiveTrait::new(id, param, 0, 0, value, value)
         }
 
-        let mut every: u8 = 0;
-        for h in held {
-            if *h.passive.id == id::ADRENALINE_EVERY_N {
-                let n: u8 = fit((*h.passive.max).into());
-                if every == 0 || n < every {
-                    every = n;
-                }
+        fn scoped(id: u8, guard: u8, scope: u8, value: i16) -> Passive {
+            PassiveTrait::new(id, 0, guard, scope, value, value)
+        }
+
+        /// The piece an insignia of instance 5–9 is worn on: chest, legs, head, hands, feet (the
+        /// order of `sources()`); 0 for every other source.
+        fn piece(source: Source, instance: u8) -> u8 {
+            if source == Source::Insignia && instance >= 5 {
+                base_slot::CHEST + (instance - 5)
+            } else if source == Source::Insignia {
+                base_slot::CHEST
+            } else {
+                0
             }
         }
-        let mut halving = false;
-        for h in held {
-            if *h.passive.id == id::HALVE_FIRST_HEAVY_HIT {
-                halving = true;
+
+        fn held(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
+            HeldPassive {
+                passive,
+                source,
+                instance,
+                modifier,
+                benefit: true,
+                piece: Self::piece(source, instance),
             }
         }
-        let mut conditions: Array<Passive> = array![];
-        for h in held {
-            conditions.append(*h.passive);
+
+        fn cost(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
+            HeldPassive {
+                passive,
+                source,
+                instance,
+                modifier,
+                benefit: false,
+                piece: Self::piece(source, instance),
+            }
         }
-        let (condition, condition_duration) = MemberKitTrait::condition_duration(conditions.span());
-        let rating: i32 = (*loadout.rating).into();
-        let d = |guard: u8, class: u8| -> i8 {
-            fit(Oracle::total_scoped(held, id::DAMAGE_PERCENT, guard, class))
-        };
-        let p = |class: u8| -> u8 {
-            fit(Oracle::total_scoped(held, id::PENETRATION, guard::ALWAYS, class))
-        };
-        let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = [
-            *armor_vs[0], *armor_vs[1], *armor_vs[2], *armor_vs[3], *armor_vs[4], *armor_vs[5],
-            *armor_vs[6], *armor_vs[7], *armor_vs[8],
-        ];
-        Snapshot {
-            stats: MemberStats {
-                max_health: fit(health),
-                max_energy: fit(energy),
-                energy_regen: fit(energy_regen),
-                health_regen: fit(health_regen),
-                armor_vs: [v1, v2, v3, v4, v5, v6, v7, v8, v9],
-                level: *loadout.level,
+
+        /// A level-`level` build of `profession`: 12 points in its primary, 10 in another, a sword
+        /// (damage 18 at requirement, ticks 1, range 1) of the other attribute, strength cap 75.
+        fn loadout(profession: u8, level: u8) -> Loadout {
+            Loadout {
+                level,
                 profession,
-                primary_rank,
-                weapon: *loadout.weapon,
-                weapon_damage: weapon_damage.try_into().expect(errors::OVERFLOW),
-                weapon_ticks: *loadout.weapon_ticks,
-                weapon_range: *loadout.weapon_range,
-                weapon_strength: strength.try_into().unwrap(),
-                ranks,
-                damage_type,
-                requirement_met: *loadout.requirement_met,
-                set_bonuses: *loadout.set_bonuses,
-                quick_cast_slots,
-                weapon_required,
-            },
-            bar: MemberBar {
-                skills: *loadout.skills,
-                elite_slot: *loadout.elite_slot,
-                damage: [
-                    d(guard::ALWAYS, HIT_WEAPON), d(guard::ALWAYS, HIT_ATTACK_SKILL),
-                    d(guard::ALWAYS, HIT_SPELL), d(guard::ABOVE_HALF, HIT_WEAPON),
-                    d(guard::ABOVE_HALF, HIT_ATTACK_SKILL), d(guard::ABOVE_HALF, HIT_SPELL),
-                ],
-                penetration: [p(HIT_WEAPON), p(HIT_ATTACK_SKILL), p(HIT_SPELL)],
-                quick_cast: [*pairs[0], *pairs[1]],
-                armor: fit(rating + Oracle::total_scoped(held, id::ARMOR, guard::ALWAYS, 0)),
-            },
-            kit: MemberKit {
-                belt: *loadout.belt,
-                life_steal: fit(Oracle::total(held, id::LIFE_STEAL_ON_HIT)),
-                energy_on_hit: fit(Oracle::total(held, id::ENERGY_ON_HIT)),
-                condition,
-                condition_duration,
-                enchantment_duration: saturate(
-                    fit(Oracle::total(held, id::ENCHANT_DURATION)), MAX_DURATION_BONUS_PERCENT,
-                )
-                    .try_into()
-                    .unwrap(),
-                double_adrenaline_every: every,
-                // Freed (DS-3): the final maximum is `max_health`.
-                health_bonus: 0,
-                armor_stance: fit(
-                    Oracle::total_scoped(held, id::ARMOR, guard::IN_STANCE, HIT_WEAPON),
-                ),
-                armor_enchanted: fit(
-                    Oracle::total_scoped(held, id::ARMOR, guard::ENCHANTED, HIT_WEAPON),
-                ),
-                knockdown: saturate(fit(Oracle::total(held, id::KNOCKDOWN_FLAT)), MAX_KNOCKDOWN)
-                    .try_into()
-                    .unwrap(),
-                halving,
-            },
-            belt_counts: *loadout.belt_counts,
+                points: array![(PRIMARY, 12), (OTHER, 10)].span(),
+                bar_attributes: [PRIMARY, OTHER, 0, 0, 0, 0, 0, 0],
+                bar_attacks: 0,
+                skills: [1, 2, 0, 0, 0, 0, 0, 0],
+                elite_slot: 255,
+                weapon: weapon::SWORD,
+                weapon_damage: 18,
+                weapon_ticks: 1,
+                weapon_range: 1,
+                damage_type: damage::SLASHING,
+                weapon_attribute: OTHER,
+                requirement_met: 1,
+                personalised: false,
+                strength_cap: 75,
+                rating: 0,
+                set_bonuses: 0,
+                belt: [0; 4],
+                belt_counts: [0; 4],
+            }
+        }
+
+        /// The 17 sources of design/20 §1.2, instances 0–16: a prefix, 2 suffixes, 2
+        /// inscriptions, 5 insignias, 5 runes, 2 set bonuses.
+        fn sources() -> Span<Source> {
+            array![
+                Source::Prefix, Source::Suffix, Source::Suffix, Source::Inscription,
+                Source::Inscription, Source::Insignia, Source::Insignia, Source::Insignia,
+                Source::Insignia, Source::Insignia, Source::Rune, Source::Rune, Source::Rune,
+                Source::Rune, Source::Rune, Source::SetBonus, Source::SetBonus,
+            ]
+                .span()
+        }
+
+        /// One passive on each source of `on` (a subset of the 17), instance `i`, modifier id
+        /// `100 + i`.
+        fn everywhere(p: Passive, on: Span<Source>) -> Array<HeldPassive> {
+            let mut all = array![];
+            let mut i: u8 = 0;
+            for source in Self::sources() {
+                let mut take = false;
+                for kind in on {
+                    if *kind == *source {
+                        take = true;
+                    }
+                }
+                if take {
+                    all.append(Self::held(p, *source, i, 100 + i.into()));
+                }
+                i += 1;
+            }
+            all
+        }
+
+        fn held_slots() -> Span<Source> {
+            array![Source::Prefix, Source::Suffix, Source::Inscription].span()
+        }
+
+        /// The flattening, checked against the oracle on the same build.
+        fn flatten(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
+            let snapshot = SnapshotBuildTrait::build(loadout, held);
+            assert(snapshot == Self::oracle(loadout, held), 'differs from the oracle');
+            snapshot
+        }
+
+        /// The widest build design/20 §1.2 counts, each passive on one of the flattening's
+        /// costliest paths: 17 sources, 32 passives. The held slots: a damage percent on all hits
+        /// (two-level lanes) and an energy regeneration cost (the table's path); the insignias: an
+        /// enchantment duration (the table) and a guarded armor cost; the runes: five health runes
+        /// of distinct ids (their identity pass, 25 comparisons) and an attribute cost (each rank a
+        /// pass over them); the set bonuses: a knock-down, the table's last entry. The loadout's
+        /// eight bar skills and its weapon name the rune's attribute.
+        fn widest() -> (Loadout, Array<HeldPassive>) {
+            let mut all = array![];
+            let mut i: u8 = 0;
+            for source in Self::sources() {
+                let s = *source;
+                let modifier: u32 = 100 + i.into();
+                if s == Source::Prefix || s == Source::Suffix || s == Source::Inscription {
+                    all
+                        .append(
+                            Self::held(
+                                Self::scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 1),
+                                s,
+                                i,
+                                modifier,
+                            ),
+                        );
+                    all.append(Self::cost(Self::passive(id::ENERGY_REGEN, 0, 0), s, i, modifier));
+                } else if s == Source::Insignia {
+                    all
+                        .append(
+                            Self::held(Self::passive(id::ENCHANT_DURATION, 0, 1), s, i, modifier),
+                        );
+                    all
+                        .append(
+                            Self::cost(
+                                PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, 1, 1),
+                                s,
+                                i,
+                                modifier,
+                            ),
+                        );
+                } else if s == Source::Rune {
+                    all.append(Self::held(Self::passive(id::MAX_HEALTH, 0, 1), s, i, modifier));
+                    all.append(Self::cost(Self::passive(id::ATTRIBUTE, OTHER, 1), s, i, modifier));
+                } else {
+                    all.append(Self::held(Self::passive(id::KNOCKDOWN_FLAT, 0, 1), s, i, modifier));
+                }
+                i += 1;
+            }
+            let build = Loadout { bar_attributes: [OTHER; 8], ..Self::loadout(3, 20) };
+            (build, all)
         }
     }
 
     /// Attribute ids of the fixtures (content's global ids, D-157 A): the primary first.
     const PRIMARY: u8 = 13;
     const OTHER: u8 = 14;
-
-    pub fn passive(id: u8, param: u8, value: i16) -> Passive {
-        PassiveTrait::new(id, param, 0, 0, value, value)
-    }
-
-    fn scoped(id: u8, guard: u8, scope: u8, value: i16) -> Passive {
-        PassiveTrait::new(id, 0, guard, scope, value, value)
-    }
-
-    /// The piece an insignia of instance 5–9 is worn on: chest, legs, head, hands, feet (the
-    /// order of `sources()`); 0 for every other source.
-    fn piece(source: Source, instance: u8) -> u8 {
-        if source == Source::Insignia && instance >= 5 {
-            base_slot::CHEST + (instance - 5)
-        } else if source == Source::Insignia {
-            base_slot::CHEST
-        } else {
-            0
-        }
-    }
-
-    pub fn held(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
-        HeldPassive {
-            passive, source, instance, modifier, benefit: true, piece: piece(source, instance),
-        }
-    }
-
-    pub fn cost(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
-        HeldPassive {
-            passive, source, instance, modifier, benefit: false, piece: piece(source, instance),
-        }
-    }
-
-    /// A level-`level` build of `profession`: 12 points in its primary, 10 in another, a sword
-    /// (damage 18 at requirement, ticks 1, range 1) of the other attribute, strength cap 75.
-    fn loadout(profession: u8, level: u8) -> Loadout {
-        Loadout {
-            level,
-            profession,
-            points: array![(PRIMARY, 12), (OTHER, 10)].span(),
-            bar_attributes: [PRIMARY, OTHER, 0, 0, 0, 0, 0, 0],
-            bar_attacks: 0,
-            skills: [1, 2, 0, 0, 0, 0, 0, 0],
-            elite_slot: 255,
-            weapon: weapon::SWORD,
-            weapon_damage: 18,
-            weapon_ticks: 1,
-            weapon_range: 1,
-            damage_type: damage::SLASHING,
-            weapon_attribute: OTHER,
-            requirement_met: 1,
-            personalised: false,
-            strength_cap: 75,
-            rating: 0,
-            set_bonuses: 0,
-            belt: [0; 4],
-            belt_counts: [0; 4],
-        }
-    }
-
-    /// The 17 sources of design/20 §1.2, instances 0–16: a prefix, 2 suffixes, 2 inscriptions,
-    /// 5 insignias, 5 runes, 2 set bonuses.
-    fn sources() -> Span<Source> {
-        array![
-            Source::Prefix, Source::Suffix, Source::Suffix, Source::Inscription,
-            Source::Inscription, Source::Insignia, Source::Insignia, Source::Insignia,
-            Source::Insignia, Source::Insignia, Source::Rune, Source::Rune, Source::Rune,
-            Source::Rune, Source::Rune, Source::SetBonus, Source::SetBonus,
-        ]
-            .span()
-    }
-
-    /// One passive on each source of `on` (a subset of the 17), instance `i`, modifier id
-    /// `100 + i`.
-    fn everywhere(p: Passive, on: Span<Source>) -> Array<HeldPassive> {
-        let mut all = array![];
-        let mut i: u8 = 0;
-        for source in sources() {
-            let mut take = false;
-            for kind in on {
-                if *kind == *source {
-                    take = true;
-                }
-            }
-            if take {
-                all.append(held(p, *source, i, 100 + i.into()));
-            }
-            i += 1;
-        }
-        all
-    }
-
-    fn held_slots() -> Span<Source> {
-        array![Source::Prefix, Source::Suffix, Source::Inscription].span()
-    }
-
-    /// The flattening, checked against the oracle on the same build.
-    fn flatten(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
-        let snapshot = SnapshotBuildTrait::build(loadout, held);
-        assert(snapshot == oracle(loadout, held), 'differs from the oracle');
-        snapshot
-    }
 
     // design/20 §6 test 2 (AUD-182-2), the extremal builds at the envelope: every source that
     // may hold a statistic at its per-source maximum (and, where no floor refuses it, its
@@ -1118,45 +1186,70 @@ pub mod tests {
     fn test_envelope_builds() {
         // Held slots at 30, insignias at their pieces' 15 / 10 / 5 / 5 / 5 (DS-23), runes and
         // set bonuses at 50.
-        let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
+        let mut all = BuildFixture::everywhere(
+            BuildFixture::passive(id::MAX_HEALTH, 0, 30), BuildFixture::held_slots(),
+        );
         let mut k: u8 = 0;
         for value in array![15_i16, 10, 5, 5, 5] {
-            all.append(held(passive(id::MAX_HEALTH, 0, value), Source::Insignia, 5 + k, 200));
+            all
+                .append(
+                    BuildFixture::held(
+                        BuildFixture::passive(id::MAX_HEALTH, 0, value),
+                        Source::Insignia,
+                        5 + k,
+                        200,
+                    ),
+                );
             k += 1;
         }
-        for h in everywhere(
-            passive(id::MAX_HEALTH, 0, 50), array![Source::Rune, Source::SetBonus].span(),
+        for h in BuildFixture::everywhere(
+            BuildFixture::passive(id::MAX_HEALTH, 0, 50),
+            array![Source::Rune, Source::SetBonus].span(),
         ) {
             all.append(h);
         }
-        let top = flatten(@loadout(1, 20), all.span());
+        let top = BuildFixture::flatten(@BuildFixture::loadout(1, 20), all.span());
         assert(top.stats.max_health == 1020, 'max health 1,020');
-        let low = flatten(
-            @loadout(3, 20),
-            everywhere(
-                passive(id::HEALTH_REGEN, 0, -1),
+        let low = BuildFixture::flatten(
+            @BuildFixture::loadout(3, 20),
+            BuildFixture::everywhere(
+                BuildFixture::passive(id::HEALTH_REGEN, 0, -1),
                 array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus]
                     .span(),
             )
                 .span(),
         );
         assert(low.stats.health_regen == 3, 'health regen 3');
-        let high = flatten(
-            @loadout(3, 20),
-            everywhere(passive(id::HEALTH_REGEN, 0, 1), array![Source::SetBonus].span()).span(),
+        let high = BuildFixture::flatten(
+            @BuildFixture::loadout(3, 20),
+            BuildFixture::everywhere(
+                BuildFixture::passive(id::HEALTH_REGEN, 0, 1), array![Source::SetBonus].span(),
+            )
+                .span(),
         );
         assert(high.stats.health_regen == 12, 'health regen 12');
-        let steal = flatten(
-            @loadout(3, 20), everywhere(passive(id::LIFE_STEAL_ON_HIT, 0, 5), held_slots()).span(),
+        let steal = BuildFixture::flatten(
+            @BuildFixture::loadout(3, 20),
+            BuildFixture::everywhere(
+                BuildFixture::passive(id::LIFE_STEAL_ON_HIT, 0, 5), BuildFixture::held_slots(),
+            )
+                .span(),
         );
         assert(steal.kit.life_steal == 25, 'life steal 25');
-        let hit = flatten(
-            @loadout(3, 20), everywhere(passive(id::ENERGY_ON_HIT, 0, 1), held_slots()).span(),
+        let hit = BuildFixture::flatten(
+            @BuildFixture::loadout(3, 20),
+            BuildFixture::everywhere(
+                BuildFixture::passive(id::ENERGY_ON_HIT, 0, 1), BuildFixture::held_slots(),
+            )
+                .span(),
         );
         assert(hit.kit.energy_on_hit == 5, 'energy on hit 5');
-        let regen = flatten(
-            @loadout(3, 20),
-            everywhere(passive(id::ENERGY_REGEN, 0, 1), array![Source::SetBonus].span()).span(),
+        let regen = BuildFixture::flatten(
+            @BuildFixture::loadout(3, 20),
+            BuildFixture::everywhere(
+                BuildFixture::passive(id::ENERGY_REGEN, 0, 1), array![Source::SetBonus].span(),
+            )
+                .span(),
         );
         assert(regen.stats.energy_regen == 7, 'energy regen 7');
     }
@@ -1168,19 +1261,30 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 4498807)] // ceil(1.05 × 4284578 measured)
     fn test_extremal_max_health() {
-        let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
+        let mut all = BuildFixture::everywhere(
+            BuildFixture::passive(id::MAX_HEALTH, 0, 30), BuildFixture::held_slots(),
+        );
         let insignias = [15_i16, 10, 5, 5, 5];
         let mut k: u8 = 0;
         for value in insignias.span() {
-            all.append(held(passive(id::MAX_HEALTH, 0, *value), Source::Insignia, 5 + k, 200));
+            all
+                .append(
+                    BuildFixture::held(
+                        BuildFixture::passive(id::MAX_HEALTH, 0, *value),
+                        Source::Insignia,
+                        5 + k,
+                        200,
+                    ),
+                );
             k += 1;
         }
-        for held_passive in everywhere(
-            passive(id::MAX_HEALTH, 0, 50), array![Source::Rune, Source::SetBonus].span(),
+        for held_passive in BuildFixture::everywhere(
+            BuildFixture::passive(id::MAX_HEALTH, 0, 50),
+            array![Source::Rune, Source::SetBonus].span(),
         ) {
             all.append(held_passive);
         }
-        let snapshot = flatten(@loadout(1, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), all.span());
         assert(snapshot.stats.max_health == 1020, 'max health 1,020');
         assert(snapshot.kit.health_bonus == 0, 'health bonus freed');
     }
@@ -1192,12 +1296,21 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 2701349)] // ceil(1.05 × 2572713 measured)
     fn test_extremal_max_energy_and_rank() {
-        let mut all = everywhere(passive(id::MAX_ENERGY, 0, 5), held_slots());
-        all.append(held(passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300));
-        for h in everywhere(passive(id::MAX_ENERGY, 0, 5), array![Source::SetBonus].span()) {
+        let mut all = BuildFixture::everywhere(
+            BuildFixture::passive(id::MAX_ENERGY, 0, 5), BuildFixture::held_slots(),
+        );
+        all
+            .append(
+                BuildFixture::held(
+                    BuildFixture::passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300,
+                ),
+            );
+        for h in BuildFixture::everywhere(
+            BuildFixture::passive(id::MAX_ENERGY, 0, 5), array![Source::SetBonus].span(),
+        ) {
             all.append(h);
         }
-        let snapshot = flatten(@loadout(3, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(3, 20), all.span());
         assert(snapshot.stats.max_energy == 130, 'max energy 130');
         assert(snapshot.stats.primary_rank == 15, 'rank 15');
         // The bar's ranks: slot 0 the primary (15), slot 1 the other (10), 4 bits each.
@@ -1212,9 +1325,13 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 1413608)] // ceil(1.05 × 1346293 measured)
     fn test_ranks_of_every_bar_slot() {
-        let all = array![held(passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300)];
-        let build = Loadout { bar_attributes: [PRIMARY; 8], ..loadout(3, 20) };
-        let snapshot = flatten(@build, all.span());
+        let all = array![
+            BuildFixture::held(
+                BuildFixture::passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300,
+            ),
+        ];
+        let build = Loadout { bar_attributes: [PRIMARY; 8], ..BuildFixture::loadout(3, 20) };
+        let snapshot = BuildFixture::flatten(@build, all.span());
         assert(snapshot.stats.ranks == 0xffffffff, 'eight ranks of 15');
     }
 
@@ -1230,13 +1347,13 @@ pub mod tests {
             weapon_damage: 27,
             weapon_ticks: 2,
             personalised: true,
-            ..loadout(1, 20),
+            ..BuildFixture::loadout(1, 20),
         };
-        let snapshot = flatten(@maul, array![].span());
+        let snapshot = BuildFixture::flatten(@maul, array![].span());
         assert(snapshot.stats.weapon_damage == 32, 'weapon damage 32');
         assert(snapshot.stats.weapon_strength == 50, '5 x 10');
         let capped = Loadout { strength_cap: 40, ..maul };
-        let snapshot = flatten(@capped, array![].span());
+        let snapshot = BuildFixture::flatten(@capped, array![].span());
         assert(snapshot.stats.weapon_strength == 40, 'capped by level');
     }
 
@@ -1248,21 +1365,46 @@ pub mod tests {
     fn test_other_fields_within_envelopes() {
         let mut all = array![];
         let mut i: u8 = 0;
-        for source in sources() {
+        for source in BuildFixture::sources() {
             let s = *source;
             let modifier: u32 = 100 + i.into();
             if s == Source::Prefix || s == Source::Suffix || s == Source::Inscription {
-                all.append(held(passive(id::LIFE_STEAL_ON_HIT, 0, 5), s, i, modifier));
-                all.append(cost(passive(id::ENERGY_REGEN, 0, -1), s, i, modifier));
+                all
+                    .append(
+                        BuildFixture::held(
+                            BuildFixture::passive(id::LIFE_STEAL_ON_HIT, 0, 5), s, i, modifier,
+                        ),
+                    );
+                all
+                    .append(
+                        BuildFixture::cost(
+                            BuildFixture::passive(id::ENERGY_REGEN, 0, -1), s, i, modifier,
+                        ),
+                    );
             } else if s == Source::SetBonus {
-                all.append(held(passive(id::HEALTH_REGEN, 0, 1), s, i, modifier));
+                all
+                    .append(
+                        BuildFixture::held(
+                            BuildFixture::passive(id::HEALTH_REGEN, 0, 1), s, i, modifier,
+                        ),
+                    );
             } else {
-                all.append(held(passive(id::ARMOR_VS, damage::FIRE, 7), s, i, modifier));
-                all.append(cost(passive(id::ARMOR_VS, damage::COLD, 7), s, i, modifier));
+                all
+                    .append(
+                        BuildFixture::held(
+                            BuildFixture::passive(id::ARMOR_VS, damage::FIRE, 7), s, i, modifier,
+                        ),
+                    );
+                all
+                    .append(
+                        BuildFixture::cost(
+                            BuildFixture::passive(id::ARMOR_VS, damage::COLD, 7), s, i, modifier,
+                        ),
+                    );
             }
             i += 1;
         }
-        let snapshot = flatten(@loadout(3, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(3, 20), all.span());
         assert(snapshot.kit.life_steal == 25, 'life steal 25');
         // 4 + 1 (light) − 5 = 0, the floor.
         assert(snapshot.stats.energy_regen == 0, 'energy regen 0');
@@ -1283,79 +1425,100 @@ pub mod tests {
     #[available_gas(l2_gas: 3941993)] // ceil(1.05 × 3754279 measured)
     fn test_lanes_against_the_oracle() {
         let all = array![
-            held(
-                scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::WEAPON, -18),
+            BuildFixture::held(
+                BuildFixture::scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::WEAPON, -18),
                 Source::Prefix,
                 0,
                 1,
             ),
-            cost(scoped(id::PENETRATION, guard::ALWAYS, scope::WEAPON, 36), Source::Prefix, 0, 1),
-            held(
-                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ATTACK_SKILL, 18),
+            BuildFixture::cost(
+                BuildFixture::scoped(id::PENETRATION, guard::ALWAYS, scope::WEAPON, 36),
+                Source::Prefix,
+                0,
+                1,
+            ),
+            BuildFixture::held(
+                BuildFixture::scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ATTACK_SKILL, 18),
                 Source::Suffix,
                 1,
                 2,
             ),
-            cost(passive(id::MAX_ENERGY, 0, -5), Source::Suffix, 1, 2),
-            held(
-                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::SPELL, -18), Source::Suffix, 2, 3,
+            BuildFixture::cost(BuildFixture::passive(id::MAX_ENERGY, 0, -5), Source::Suffix, 1, 2),
+            BuildFixture::held(
+                BuildFixture::scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::SPELL, -18),
+                Source::Suffix,
+                2,
+                3,
             ),
-            cost(passive(id::HEALTH_REGEN, 0, -1), Source::Suffix, 2, 3),
-            held(
-                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 18),
+            BuildFixture::cost(
+                BuildFixture::passive(id::HEALTH_REGEN, 0, -1), Source::Suffix, 2, 3,
+            ),
+            BuildFixture::held(
+                BuildFixture::scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 18),
                 Source::Inscription,
                 3,
                 4,
             ),
-            cost(
-                scoped(id::PENETRATION, guard::ALWAYS, scope::SPELL, 36), Source::Inscription, 3, 4,
+            BuildFixture::cost(
+                BuildFixture::scoped(id::PENETRATION, guard::ALWAYS, scope::SPELL, 36),
+                Source::Inscription,
+                3,
+                4,
             ),
-            held(
-                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, -18),
+            BuildFixture::held(
+                BuildFixture::scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, -18),
                 Source::Inscription,
                 4,
                 5,
             ),
-            cost(passive(id::ENERGY_REGEN, 0, -1), Source::Inscription, 4, 5),
-            held(
+            BuildFixture::cost(
+                BuildFixture::passive(id::ENERGY_REGEN, 0, -1), Source::Inscription, 4, 5,
+            ),
+            BuildFixture::held(
                 PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, 18, 18),
                 Source::Insignia,
                 5,
                 6,
             ),
-            cost(
+            BuildFixture::cost(
                 PassiveTrait::new(id::ARMOR, 0, guard::ENCHANTED, 0, -18, -18),
                 Source::Insignia,
                 5,
                 6,
             ),
-            held(
+            BuildFixture::held(
                 PassiveTrait::new(id::ARMOR, 0, guard::ALWAYS, 0, -255, -255),
                 Source::Insignia,
                 6,
                 7,
             ),
-            cost(passive(id::ENCHANT_DURATION, 0, 20), Source::Insignia, 6, 7),
-            held(passive(id::ARMOR_VS, damage::SLASHING, 7), Source::Rune, 10, 8),
-            cost(
+            BuildFixture::cost(
+                BuildFixture::passive(id::ENCHANT_DURATION, 0, 20), Source::Insignia, 6, 7,
+            ),
+            BuildFixture::held(
+                BuildFixture::passive(id::ARMOR_VS, damage::SLASHING, 7), Source::Rune, 10, 8,
+            ),
+            BuildFixture::cost(
                 PassiveTrait::new(id::ARMOR, 0, guard::ALWAYS, 0, -255, -255), Source::Rune, 10, 8,
             ),
-            held(passive(id::ARMOR_VS, damage::HOLY, 7), Source::Rune, 11, 9),
-            cost(passive(id::MAX_HEALTH, 0, -75), Source::Rune, 11, 9),
-            held(
-                scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::SPELL, 18),
+            BuildFixture::held(
+                BuildFixture::passive(id::ARMOR_VS, damage::HOLY, 7), Source::Rune, 11, 9,
+            ),
+            BuildFixture::cost(BuildFixture::passive(id::MAX_HEALTH, 0, -75), Source::Rune, 11, 9),
+            BuildFixture::held(
+                BuildFixture::scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::SPELL, 18),
                 Source::SetBonus,
                 15,
                 0,
             ),
-            held(
+            BuildFixture::held(
                 PassiveTrait::new(id::ARMOR, 0, guard::ENCHANTED, 0, 18, 18),
                 Source::SetBonus,
                 16,
                 0,
             ),
         ];
-        let snapshot = flatten(@loadout(1, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), all.span());
         // Lanes: [weapon, attack skill, spell] always, then above half.
         assert(snapshot.bar.damage == [0, 18, -18, -18, -18, 18], 'damage lanes');
         assert(snapshot.bar.penetration == [36, 36, 36], 'penetration lanes');
@@ -1375,13 +1538,33 @@ pub mod tests {
         let mut all = array![];
         let mut i: u8 = 10;
         while i < 15 {
-            all.append(held(passive(id::ARMOR, 0, 5), Source::Rune, i, 400));
-            all.append(cost(passive(id::MAX_HEALTH, 0, -75), Source::Rune, i, 400));
+            all
+                .append(
+                    BuildFixture::held(
+                        BuildFixture::passive(id::ARMOR, 0, 5), Source::Rune, i, 400,
+                    ),
+                );
+            all
+                .append(
+                    BuildFixture::cost(
+                        BuildFixture::passive(id::MAX_HEALTH, 0, -75), Source::Rune, i, 400,
+                    ),
+                );
             i += 1;
         }
-        all.append(held(passive(id::MAX_HEALTH, 0, -75), Source::SetBonus, 15, 0));
-        all.append(held(passive(id::MAX_HEALTH, 0, -75), Source::SetBonus, 16, 0));
-        SnapshotBuildTrait::build(@loadout(1, 1), all.span());
+        all
+            .append(
+                BuildFixture::held(
+                    BuildFixture::passive(id::MAX_HEALTH, 0, -75), Source::SetBonus, 15, 0,
+                ),
+            );
+        all
+            .append(
+                BuildFixture::held(
+                    BuildFixture::passive(id::MAX_HEALTH, 0, -75), Source::SetBonus, 16, 0,
+                ),
+            );
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 1), all.span());
     }
 
     #[test]
@@ -1389,11 +1572,11 @@ pub mod tests {
     #[available_gas(l2_gas: 772499)] // ceil(1.05 × 735713 measured)
     fn test_floor_max_energy_refused() {
         // A Vanguard's 20, five held slots and two set bonuses at −5: −15.
-        let all = everywhere(
-            passive(id::MAX_ENERGY, 0, -5),
+        let all = BuildFixture::everywhere(
+            BuildFixture::passive(id::MAX_ENERGY, 0, -5),
             array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus].span(),
         );
-        SnapshotBuildTrait::build(@loadout(1, 1), all.span());
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 1), all.span());
     }
 
     #[test]
@@ -1401,11 +1584,11 @@ pub mod tests {
     #[available_gas(l2_gas: 772499)] // ceil(1.05 × 735713 measured)
     fn test_floor_energy_regen_refused() {
         // A Vanguard's 2 pips, five held slots and two set bonuses at −1: −5.
-        let all = everywhere(
-            passive(id::ENERGY_REGEN, 0, -1),
+        let all = BuildFixture::everywhere(
+            BuildFixture::passive(id::ENERGY_REGEN, 0, -1),
             array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus].span(),
         );
-        SnapshotBuildTrait::build(@loadout(1, 1), all.span());
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 1), all.span());
     }
 
     // §6 test 4 (DS-5): enchantment 340 → 50 (17 sources at 20), knock-down 4 → 3, armor
@@ -1415,25 +1598,40 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 12143421)] // ceil(1.05 × 11565162 measured)
     fn test_saturation() {
-        let all = everywhere(passive(id::ENCHANT_DURATION, 0, 20), sources());
-        let snapshot = flatten(@loadout(2, 20), all.span());
-        assert(snapshot.kit.enchantment_duration == 50, 'enchantment 340 -> 50');
-        let all = everywhere(
-            passive(id::KNOCKDOWN_FLAT, 0, 1), array![Source::Suffix, Source::Inscription].span(),
+        let all = BuildFixture::everywhere(
+            BuildFixture::passive(id::ENCHANT_DURATION, 0, 20), BuildFixture::sources(),
         );
-        let snapshot = flatten(@loadout(2, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(2, 20), all.span());
+        assert(snapshot.kit.enchantment_duration == 50, 'enchantment 340 -> 50');
+        let all = BuildFixture::everywhere(
+            BuildFixture::passive(id::KNOCKDOWN_FLAT, 0, 1),
+            array![Source::Suffix, Source::Inscription].span(),
+        );
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(2, 20), all.span());
         assert(snapshot.kit.knockdown == 3, 'knock-down 4 -> 3');
-        let all = everywhere(passive(id::ARMOR_VS, damage::FIRE, 7), sources());
-        let snapshot = flatten(@loadout(2, 20), all.span());
+        let all = BuildFixture::everywhere(
+            BuildFixture::passive(id::ARMOR_VS, damage::FIRE, 7), BuildFixture::sources(),
+        );
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(2, 20), all.span());
         let [_, _, _, fire, _, _, _, _, _] = snapshot.stats.armor_vs;
         assert(fire == 63, 'armor vs 149 -> 63');
         // A prefix's condition duration, benefit and cost of one condition, summed: 20 + 13,
         // the prefix's bound 33 (DS-5); one prefix, so no legal build reaches the saturation.
         let all = array![
-            held(passive(id::CONDITION_DURATION, condition::POISON, 20), Source::Prefix, 0, 1),
-            cost(passive(id::CONDITION_DURATION, condition::POISON, 13), Source::Prefix, 0, 1),
+            BuildFixture::held(
+                BuildFixture::passive(id::CONDITION_DURATION, condition::POISON, 20),
+                Source::Prefix,
+                0,
+                1,
+            ),
+            BuildFixture::cost(
+                BuildFixture::passive(id::CONDITION_DURATION, condition::POISON, 13),
+                Source::Prefix,
+                0,
+                1,
+            ),
         ];
-        let snapshot = flatten(@loadout(2, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(2, 20), all.span());
         assert(snapshot.kit.condition == condition::POISON, 'condition');
         assert(snapshot.kit.condition_duration == 33, 'condition 20 + 13');
     }
@@ -1444,12 +1642,18 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 2669117)] // ceil(1.05 × 2542016 measured)
     fn test_rune_identity() {
-        let rune = passive(id::MAX_HEALTH, 0, 50);
-        let same = array![held(rune, Source::Rune, 10, 7), held(rune, Source::Rune, 11, 7)];
-        let snapshot = flatten(@loadout(1, 20), same.span());
+        let rune = BuildFixture::passive(id::MAX_HEALTH, 0, 50);
+        let same = array![
+            BuildFixture::held(rune, Source::Rune, 10, 7),
+            BuildFixture::held(rune, Source::Rune, 11, 7),
+        ];
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), same.span());
         assert(snapshot.stats.max_health == 480 + 50, 'one id: once');
-        let two = array![held(rune, Source::Rune, 10, 7), held(rune, Source::Rune, 11, 8)];
-        let snapshot = flatten(@loadout(1, 20), two.span());
+        let two = array![
+            BuildFixture::held(rune, Source::Rune, 10, 7),
+            BuildFixture::held(rune, Source::Rune, 11, 8),
+        ];
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), two.span());
         assert(snapshot.stats.max_health == 480 + 100, 'two ids: both');
     }
 
@@ -1459,16 +1663,16 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 2009378)] // ceil(1.05 × 1913693 measured)
     fn test_repeated_rune_id() {
-        let benefit = passive(id::MAX_HEALTH, 0, 50);
-        let price = passive(id::MAX_HEALTH, 0, -75);
+        let benefit = BuildFixture::passive(id::MAX_HEALTH, 0, 50);
+        let price = BuildFixture::passive(id::MAX_HEALTH, 0, -75);
         let mut all = array![];
         let mut i: u8 = 10;
         while i < 13 {
-            all.append(held(benefit, Source::Rune, i, 9));
-            all.append(cost(price, Source::Rune, i, 9));
+            all.append(BuildFixture::held(benefit, Source::Rune, i, 9));
+            all.append(BuildFixture::cost(price, Source::Rune, i, 9));
             i += 1;
         }
-        let snapshot = flatten(@loadout(1, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), all.span());
         assert(snapshot.stats.max_health == 480 + 50 - 225, 'benefit once, costs all');
     }
 
@@ -1479,11 +1683,17 @@ pub mod tests {
     #[available_gas(l2_gas: 1569722)] // ceil(1.05 × 1494973 measured)
     fn test_rune_attribute_contribution() {
         let all = array![
-            held(passive(id::ATTRIBUTE, PRIMARY, 1), Source::Rune, 10, 7),
-            cost(passive(id::ATTRIBUTE, PRIMARY, 2), Source::Rune, 10, 7),
-            held(passive(id::ATTRIBUTE, PRIMARY, 2), Source::Rune, 11, 8),
+            BuildFixture::held(
+                BuildFixture::passive(id::ATTRIBUTE, PRIMARY, 1), Source::Rune, 10, 7,
+            ),
+            BuildFixture::cost(
+                BuildFixture::passive(id::ATTRIBUTE, PRIMARY, 2), Source::Rune, 10, 7,
+            ),
+            BuildFixture::held(
+                BuildFixture::passive(id::ATTRIBUTE, PRIMARY, 2), Source::Rune, 11, 8,
+            ),
         ];
-        let snapshot = flatten(@loadout(3, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(3, 20), all.span());
         assert(snapshot.stats.primary_rank == 15, '12 + (1 + 2)');
     }
 
@@ -1493,8 +1703,10 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 4528186)] // ceil(1.05 × 4312558 measured)
     fn test_counts_at_bounds() {
-        let all = everywhere(passive(id::ARMOR, 0, 1), sources());
-        let snapshot = flatten(@loadout(1, 20), all.span());
+        let all = BuildFixture::everywhere(
+            BuildFixture::passive(id::ARMOR, 0, 1), BuildFixture::sources(),
+        );
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), all.span());
         assert(snapshot.bar.armor == 17, '17 sources');
     }
 
@@ -1505,10 +1717,13 @@ pub mod tests {
         let mut all = array![];
         let mut i: u8 = 0;
         while i < 6 {
-            all.append(held(passive(id::ARMOR, 0, 5), Source::Rune, i, 1));
+            all
+                .append(
+                    BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::Rune, i, 1),
+                );
             i += 1;
         }
-        SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 20), all.span());
     }
 
     #[test]
@@ -1516,10 +1731,10 @@ pub mod tests {
     #[available_gas(l2_gas: 186211)] // ceil(1.05 × 177343 measured)
     fn test_second_prefix_refused() {
         let all = array![
-            held(passive(id::ARMOR, 0, 5), Source::Prefix, 0, 1),
-            held(passive(id::ARMOR, 0, 5), Source::Prefix, 5, 1),
+            BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::Prefix, 0, 1),
+            BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::Prefix, 5, 1),
         ];
-        SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 20), all.span());
     }
 
     #[test]
@@ -1527,11 +1742,11 @@ pub mod tests {
     #[available_gas(l2_gas: 203746)] // ceil(1.05 × 194043 measured)
     fn test_third_set_bonus_refused() {
         let all = array![
-            held(passive(id::ARMOR, 0, 5), Source::SetBonus, 15, 0),
-            held(passive(id::ARMOR, 0, 5), Source::SetBonus, 16, 0),
-            held(passive(id::ARMOR, 0, 5), Source::SetBonus, 17, 0),
+            BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::SetBonus, 15, 0),
+            BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::SetBonus, 16, 0),
+            BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::SetBonus, 17, 0),
         ];
-        SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 20), all.span());
     }
 
     // Instances are numbered upward, so that none is counted twice: a passive of an earlier
@@ -1541,10 +1756,10 @@ pub mod tests {
     #[available_gas(l2_gas: 189238)] // ceil(1.05 × 180226 measured)
     fn test_instances_out_of_order_refused() {
         let all = array![
-            held(passive(id::ARMOR, 0, 5), Source::Rune, 11, 1),
-            held(passive(id::ARMOR, 0, 5), Source::Rune, 10, 1),
+            BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::Rune, 11, 1),
+            BuildFixture::held(BuildFixture::passive(id::ARMOR, 0, 5), Source::Rune, 10, 1),
         ];
-        SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 20), all.span());
     }
 
     // DS-23: one insignia a piece.
@@ -1552,11 +1767,15 @@ pub mod tests {
     #[should_panic(expected: 'build: two insignias a piece')]
     #[available_gas(l2_gas: 191635)] // ceil(1.05 × 182509 measured)
     fn test_two_insignias_on_a_piece_refused() {
-        let mut first = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 5, 200);
-        let mut second = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 6, 200);
+        let mut first = BuildFixture::held(
+            BuildFixture::passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 5, 200,
+        );
+        let mut second = BuildFixture::held(
+            BuildFixture::passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 6, 200,
+        );
         first.piece = base_slot::HEAD;
         second.piece = base_slot::HEAD;
-        SnapshotBuildTrait::build(@loadout(1, 20), array![first, second].span());
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 20), array![first, second].span());
     }
 
     // A quick-cast pair names an attribute of the build (D-157 A): its index; one the build does
@@ -1566,10 +1785,17 @@ pub mod tests {
     #[available_gas(l2_gas: 1438178)] // ceil(1.05 × 1369693 measured)
     fn test_quick_cast_pairs() {
         let all = array![
-            held(passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1),
-            held(passive(id::QUICK_CAST_EVERY_N, PRIMARY, 9), Source::Inscription, 4, 2),
+            BuildFixture::held(
+                BuildFixture::passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1,
+            ),
+            BuildFixture::held(
+                BuildFixture::passive(id::QUICK_CAST_EVERY_N, PRIMARY, 9),
+                Source::Inscription,
+                4,
+                2,
+            ),
         ];
-        let snapshot = flatten(@loadout(1, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), all.span());
         let [first, second] = snapshot.bar.quick_cast;
         assert(first == QuickCast { attribute: 1, every: 4 }, 'other: index 1');
         assert(second == QuickCast { attribute: 0, every: 9 }, 'primary: index 0');
@@ -1582,20 +1808,27 @@ pub mod tests {
     #[available_gas(l2_gas: 2699284)] // ceil(1.05 × 2570746 measured)
     fn test_attribute_mappings() {
         let all = array![
-            held(passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1),
-            held(passive(id::QUICK_CAST_EVERY_N, PRIMARY, 9), Source::Inscription, 4, 2),
+            BuildFixture::held(
+                BuildFixture::passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1,
+            ),
+            BuildFixture::held(
+                BuildFixture::passive(id::QUICK_CAST_EVERY_N, PRIMARY, 9),
+                Source::Inscription,
+                4,
+                2,
+            ),
         ];
         let build = Loadout {
             bar_attributes: [PRIMARY, OTHER, OTHER, 0, 0, 0, 0, PRIMARY],
             bar_attacks: 0x83,
-            ..loadout(1, 20),
+            ..BuildFixture::loadout(1, 20),
         };
-        let snapshot = flatten(@build, all.span());
+        let snapshot = BuildFixture::flatten(@build, all.span());
         // Slot 0 pair 1, slots 1 and 2 pair 0, slot 7 pair 1.
         assert(snapshot.stats.quick_cast_slots == 0x2 + 0x4 + 0x10 + 0x8000, 'quick-cast slots');
         // Attacks on 0 (PRIMARY), 1 (OTHER, the weapon's), 7 (PRIMARY).
         assert(snapshot.stats.weapon_required == 0x81, 'weapon required');
-        let snapshot = flatten(@build, array![].span());
+        let snapshot = BuildFixture::flatten(@build, array![].span());
         assert(snapshot.stats.quick_cast_slots == 0, 'no pair');
         assert(snapshot.stats.weapon_required == 0x81, 'kept without pairs');
     }
@@ -1605,8 +1838,12 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 195671)] // ceil(1.05 × 186353 measured)
     fn test_quick_cast_attribute_not_held_refused() {
-        let all = array![held(passive(id::QUICK_CAST_EVERY_N, 99, 4), Source::Inscription, 3, 1)];
-        SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+        let all = array![
+            BuildFixture::held(
+                BuildFixture::passive(id::QUICK_CAST_EVERY_N, 99, 4), Source::Inscription, 3, 1,
+            ),
+        ];
+        SnapshotBuildTrait::build(@BuildFixture::loadout(1, 20), all.span());
     }
 
     // The passives that are not summed: the lowest N, the damage type, halving.
@@ -1615,12 +1852,20 @@ pub mod tests {
     #[available_gas(l2_gas: 1576757)] // ceil(1.05 × 1501673 measured)
     fn test_passives_not_summed() {
         let all = array![
-            held(passive(id::DAMAGE_TYPE, damage::FIRE, 0), Source::Prefix, 0, 1),
-            cost(passive(id::ADRENALINE_EVERY_N, 0, 9), Source::Prefix, 0, 1),
-            held(passive(id::ADRENALINE_EVERY_N, 0, 5), Source::Suffix, 1, 2),
-            held(passive(id::HALVE_FIRST_HEAVY_HIT, 0, 0), Source::Rune, 10, 3),
+            BuildFixture::held(
+                BuildFixture::passive(id::DAMAGE_TYPE, damage::FIRE, 0), Source::Prefix, 0, 1,
+            ),
+            BuildFixture::cost(
+                BuildFixture::passive(id::ADRENALINE_EVERY_N, 0, 9), Source::Prefix, 0, 1,
+            ),
+            BuildFixture::held(
+                BuildFixture::passive(id::ADRENALINE_EVERY_N, 0, 5), Source::Suffix, 1, 2,
+            ),
+            BuildFixture::held(
+                BuildFixture::passive(id::HALVE_FIRST_HEAVY_HIT, 0, 0), Source::Rune, 10, 3,
+            ),
         ];
-        let snapshot = flatten(@loadout(1, 20), all.span());
+        let snapshot = BuildFixture::flatten(@BuildFixture::loadout(1, 20), all.span());
         assert(snapshot.stats.damage_type == damage::FIRE, 'damage type');
         assert(snapshot.kit.double_adrenaline_every == 5, 'the lowest N');
         assert(snapshot.kit.halving, 'halving');
@@ -1630,58 +1875,11 @@ pub mod tests {
     // ---- the flattening's cost (docs/CAIRO.md §2: a benchmark on the worst case)
     // ----------------
 
-    /// The widest build design/20 §1.2 counts, each passive on one of the flattening's costliest
-    /// paths: 17 sources, 32 passives. The held slots: a damage percent on all hits (two-level
-    /// lanes) and an energy regeneration cost (the table's path); the insignias: an enchantment
-    /// duration (the table) and a guarded armor cost; the runes: five health runes of distinct
-    /// ids (their identity pass, 25 comparisons) and an attribute cost (each rank a pass over
-    /// them); the set bonuses: a knock-down, the table's last entry. The loadout's eight bar
-    /// skills and its weapon name the rune's attribute.
-    fn widest() -> (Loadout, Array<HeldPassive>) {
-        let mut all = array![];
-        let mut i: u8 = 0;
-        for source in sources() {
-            let s = *source;
-            let modifier: u32 = 100 + i.into();
-            if s == Source::Prefix || s == Source::Suffix || s == Source::Inscription {
-                all
-                    .append(
-                        held(
-                            scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 1),
-                            s,
-                            i,
-                            modifier,
-                        ),
-                    );
-                all.append(cost(passive(id::ENERGY_REGEN, 0, 0), s, i, modifier));
-            } else if s == Source::Insignia {
-                all.append(held(passive(id::ENCHANT_DURATION, 0, 1), s, i, modifier));
-                all
-                    .append(
-                        cost(
-                            PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, 1, 1),
-                            s,
-                            i,
-                            modifier,
-                        ),
-                    );
-            } else if s == Source::Rune {
-                all.append(held(passive(id::MAX_HEALTH, 0, 1), s, i, modifier));
-                all.append(cost(passive(id::ATTRIBUTE, OTHER, 1), s, i, modifier));
-            } else {
-                all.append(held(passive(id::KNOCKDOWN_FLAT, 0, 1), s, i, modifier));
-            }
-            i += 1;
-        }
-        let build = Loadout { bar_attributes: [OTHER; 8], ..loadout(3, 20) };
-        (build, all)
-    }
-
     // The baseline of the two below: the widest build's inputs, not flattened.
     #[test]
     #[available_gas(l2_gas: 294483)] // ceil(1.05 × 280460 measured)
     fn test_cost_build_baseline() {
-        let (build, all) = widest();
+        let (build, all) = BuildFixture::widest();
         assert(all.len() == 32 && build.level == 20, 'the widest build');
     }
 
@@ -1689,7 +1887,7 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 2003325)] // ceil(1.05 × 1907928 measured)
     fn test_cost_build_widest() {
-        let (build, all) = widest();
+        let (build, all) = BuildFixture::widest();
         assert(all.len() == 32 && build.level == 20, 'the widest build');
         let snapshot = SnapshotBuildTrait::build(@build, all.span());
         assert(snapshot.stats.max_health == 480 + 5, 'five runes');
@@ -1699,9 +1897,9 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 11516001)] // ceil(1.05 × 10967620 measured)
     fn test_cost_oracle_widest() {
-        let (build, all) = widest();
+        let (build, all) = BuildFixture::widest();
         assert(all.len() == 32 && build.level == 20, 'the widest build');
-        let snapshot = oracle(@build, all.span());
+        let snapshot = BuildFixture::oracle(@build, all.span());
         assert(snapshot.stats.max_health == 480 + 5, 'five runes');
     }
 
@@ -1709,8 +1907,8 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 13293208)] // ceil(1.05 × 12660198 measured)
     fn test_widest_against_the_oracle() {
-        let (build, all) = widest();
-        let snapshot = flatten(@build, all.span());
+        let (build, all) = BuildFixture::widest();
+        let snapshot = BuildFixture::flatten(@build, all.span());
         assert(snapshot.stats.ranks == 0xbbbbbbbb, 'eight ranks of 10 + 1');
         assert(snapshot.kit.knockdown == 2 && snapshot.kit.enchantment_duration == 5, 'kit');
     }
@@ -1719,7 +1917,7 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 395654)] // ceil(1.05 × 376813 measured)
     fn test_cost_build_empty() {
-        let snapshot = SnapshotBuildTrait::build(@loadout(3, 20), array![].span());
+        let snapshot = SnapshotBuildTrait::build(@BuildFixture::loadout(3, 20), array![].span());
         assert(snapshot.stats.max_health == 480, 'no passive');
     }
 
@@ -1727,7 +1925,7 @@ pub mod tests {
     // gas: raised, CBT-05f: the attribute mappings in the flattening, its oracle and MemberStats
     #[available_gas(l2_gas: 373506)] // ceil(1.05 × 355720 measured)
     fn test_cost_oracle_empty() {
-        let snapshot = oracle(@loadout(3, 20), array![].span());
+        let snapshot = BuildFixture::oracle(@BuildFixture::loadout(3, 20), array![].span());
         assert(snapshot.stats.max_health == 480, 'no passive');
     }
 
@@ -1735,10 +1933,12 @@ pub mod tests {
     #[test]
     #[available_gas(l2_gas: 4034340)] // ceil(1.05 × 3842228 measured)
     fn test_words_are_the_flattening() {
-        let (ids, records) = worn_records();
-        let build = loadout(1, 20);
-        let (stats, bar, kit) = SnapshotBuildTrait::words(@build, worn_items(), ids, records);
-        let held_passives = WornTrait::held(worn_items(), ids, records);
+        let (ids, records) = WornFixture::worn_records();
+        let build = BuildFixture::loadout(1, 20);
+        let (stats, bar, kit) = SnapshotBuildTrait::words(
+            @build, WornFixture::worn_items(), ids, records,
+        );
+        let held_passives = WornTrait::held(WornFixture::worn_items(), ids, records);
         let snapshot = SnapshotBuildTrait::build(@build, held_passives.span());
         assert(
             SnapshotWords { stats, bar, kit, belt_counts: build.belt_counts } == snapshot.words(),

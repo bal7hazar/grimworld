@@ -95,10 +95,6 @@ mod tests {
         }
     }
 
-    fn passive(id: u8, param: u8, value: i16) -> Passive {
-        PassiveTrait::new(id, param, 0, 0, value, value)
-    }
-
     // §7.2: `ARMOR_SET`, 1 part: 5 piece bases low, 2 bonuses high.
     #[test]
     #[available_gas(l2_gas: 256683)] // ceil(1.05 × 244460 measured)
@@ -162,7 +158,7 @@ mod tests {
     #[should_panic(expected: 'passive: per-source bound')]
     #[available_gas(l2_gas: 20916)] // ceil(1.05 × 19920 measured)
     fn test_set_bonus_beyond_bound_refused() {
-        let knock = passive(id::KNOCKDOWN_FLAT, 0, 2);
+        let knock = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 2);
         ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]).assert_legal();
     }
 }

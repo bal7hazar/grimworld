@@ -778,7 +778,7 @@ One line: `{"id", "fn", "case", "ok"}`, every felt in hex, every value its Cairo
 negative integer `P − |v|`).
 
 **Row 0** (`fn` `content`): `case` empty, `ok` the table's `Content` (`tick_content`): the executor tests'
-(`types::executor::tests::content(40, …)`: the fixtures' bar skills 1–8, castes Hob (1) and Runt (2) of armor 40, a
+(`types::executor::tests::ExecutorFixture::content(40, …)`: the fixtures' bar skills 1–8, castes Hob (1) and Runt (2) of armor 40, a
 sword of 30, range 1, rank 12; Cinder Ring 40, Brace 43, Snare 45 and the others), with the castes' skills made the AI's
 cases: Hob (`k` 1) slot 0 skill 24, an attack skill of activation 2 and 1 strike (4 quarters); slot 1 skill 25, an
 instant fire spell (40 on a foe, range 2, 5 energy: 15 thirds, recharge 6); slot 2 skill 26, an instant trap skill
