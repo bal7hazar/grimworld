@@ -1,12 +1,21 @@
 #!/usr/bin/env node
-// CNT-01's fight check (D-309, item 5): each MVP profession at level 1, with its kit (the six
-// starter skills of `contracts/seed/test-region.json`'s `KIT` row and its starter weapon), against
-// the gate pack (`PACK` 5, the Heart of the gate zone, `LOCATION` 5), fought on track CV's mirror of
-// the tick (`client/sim`). Prints, per profession, whether it wins, the ticks it took and the health
-// left, then a JSON line.
+// CNT-01's fight check (D-309 item 5, D-310 item 1): each MVP profession at level 1, with its kit
+// (the six starter skills of `contracts/seed/test-region.json`'s `KIT` row), against the gate pack
+// (`PACK` 5, the Heart of the gate zone, `LOCATION` 5), fought on track CV's mirror of the tick
+// (`client/sim`), over `--seeds` placements of the pack. Prints, per case and profession, the wins,
+// the ticks and the health left (mean and worst), then a JSON line.
 //
-//   node scripts/gate2_sim.mjs [--goblins N]   (after `pnpm install --frozen-lockfile`, for
-//                                              @scure/starknet; N: the pack's first N goblins only)
+//   node scripts/gate2_sim.mjs [--seeds N] [--goblins N]
+//
+// (after `pnpm install --frozen-lockfile`, for @scure/starknet). `--goblins N` fights the pack's
+// first N goblins only. The cases:
+// - weapons `inert`, as the chain is until WPN-01 (`Build::loadout` passes weapon 0), or `kit`, the
+//   weapon WPN-01 would give (design/15's base at requirement 0);
+// - ranks `today` (a caste's one rank, design/20 §2.2), `a` (D-310 (a): a goblin's rank follows its
+//   level, rank 0 at level 1, the gate pack's level) or `a+b` (and (b): rank 1 in the profession's
+//   primary attribute at creation).
+// A seed draws what the entry draw decides of a Heart in a 1 × 1 zone: the pack's tile (at least 3
+// from the entry), its goblins' tiles (within 2 of it) and their alert (asleep or watching).
 //
 // The sim is TypeScript only: a module hook resolves its extensionless imports and strips its
 // types (`node:module`'s `stripTypeScriptTypes`, as `client/sim/src/parity/mutate.ts` does), so no
@@ -50,6 +59,7 @@ const sim = await import(new URL("index.ts", SRC).href);
 const { LIVE, actionAct, distance, facing, goblinPlace, indexSheets, loadWorld, memberPlace } = sim;
 const { runSegment, tickTicks, trapTrigger } = sim;
 const { board, position } = await import(new URL("movement.ts", SRC).href);
+const { neighbor } = await import(new URL("window.ts", SRC).href);
 const CLASSES = { act: actionAct, ticks: tickTicks, trigger: trapTrigger };
 
 // ---- the seed
@@ -108,65 +118,106 @@ const CONTENT = {
 };
 const SHEETS = indexSheets(CONTENT);
 
-// ---- the adventurer: level 1, as `create_adventurer` and `set_build` would make it
+// ---- the adventurer: level 1, as `create_adventurer` and `set_build` make it (`build.cairo`'s
+// flattening of an empty build: no attribute point at level 1, design/03)
 
-/** design/03's profession table (`types::profession`): energy, regeneration pips, armor. */
+/** design/03's profession table (`types::profession`) and the flattening's class terms (DS-7): energy
+ * and regeneration with light armor's +20 and +1 for the Arcanist, the innate armor per type
+ * (heavy +20 against types 1–3, medium +30 against 4–7), armor, the primary attribute's id. */
 const PROFESSIONS = {
-  1: { name: "Vanguard", energy: 20, regen: 2, armor: 80 },
-  2: { name: "Warden", energy: 25, regen: 3, armor: 70 },
-  3: { name: "Arcanist", energy: 30, regen: 4, armor: 60 },
+  1: { name: "Vanguard", energy: 20, regen: 2, armor: 80, vs: [20, 20, 20, 0, 0, 0, 0, 0, 0], primary: 1 },
+  2: { name: "Warden", energy: 25, regen: 3, armor: 70, vs: [0, 0, 0, 30, 30, 30, 30, 0, 0], primary: 6 },
+  3: { name: "Arcanist", energy: 50, regen: 5, armor: 60, vs: [0, 0, 0, 0, 0, 0, 0, 0, 0], primary: 10 },
 };
-/**
- * The starter weapons this lot proposes (design/15 *Weapons*, a common one at requirement 0, so its
- * requirement is met at rank 0; design/04: the class's damage type): weapon class, damage, ticks,
- * range, damage type. `BASE` lays out none of these yet (D-158): see the report.
- */
+/** The weapons WPN-01 would give (design/15 *Weapons*, a common one at requirement 0, met at rank 0;
+ * design/04: the class's damage type): class, damage, ticks, range, type. */
 const WEAPONS = {
   1: { class: 2, damage: 9, ticks: 1, range: 1, type: 1 }, // the axe: slashing
   2: { class: 4, damage: 11, ticks: 2, range: 6, type: 2 }, // the bow: piercing
 };
+const INERT = { class: 0, damage: 0, ticks: 0, range: 0, type: 0 };
+const WELLSPRING_ENERGY_PER_RANK = 3;
 const LEVEL = 1;
-const at = process.argv.indexOf("--goblins");
-const ONLY = at === -1 ? 5 : Number(process.argv[at + 1]);
 const MAX_HEALTH = 100 + 20 * (LEVEL - 1);
-const MEMBER = { x: 0, y: 7 }; // the gate zone's entry: chunk 0, tile 105 (row 7, column 0)
+const ENTRY = { x: 0, y: 7 }; // the gate zone's entry: chunk 0, tile 105 (row 7, column 0)
 
-function memberWords(profession) {
+const flag = (name, otherwise) => {
+  const at = process.argv.indexOf(name);
+  return at === -1 ? otherwise : Number(process.argv[at + 1]);
+};
+const SEEDS = flag("--seeds", 20);
+const ONLY = flag("--goblins", 5);
+
+function memberWords(profession, weapons, primaryRank) {
   const p = PROFESSIONS[profession];
   const kit = KITS.get(profession);
-  const w = kit[1] === 0 ? { class: 0, damage: 0, ticks: 0, range: 0, type: 0 } : WEAPONS[profession];
-  // Level 1 has no attribute point (design/03: 5 a level from 2): every rank 0; the strength cap
-  // is 0 until BAL-01's curve (DS-9), so a weapon's strength is 0.
-  const low = b(MAX_HEALTH) + (b(p.energy) << 16n) + (b(p.regen) << 24n) + (10n << 32n)
-    + (b(LEVEL) << 64n) + (b(profession) << 72n) + (b(w.class) << 88n) + (b(w.damage) << 96n)
-    + (b(w.ticks) << 104n) + (b(w.range) << 112n);
-  const high = (b(w.type) << 32n) + ((w.class === 0 ? 0n : 1n) << 48n);
+  const w = weapons === "kit" && kit[1] !== 0 ? WEAPONS[profession] : INERT;
   const skills = kit.slice(2, 8);
+  const energy = p.energy + (profession === 3 ? WELLSPRING_ENERGY_PER_RANK * primaryRank : 0);
+  // The rank of each bar skill's attribute (`MemberStats.ranks`, 4 bits a slot): the primary's.
+  const ranks = skills.reduce(
+    (acc, s, i) => acc + (SKILLS.get(s)[2] === p.primary ? b(primaryRank) << b(4 * i) : 0n), 0n);
+  const [v1, v2, v3, v4, v5, v6, v7, v8, v9] = p.vs.map(b);
+  const low = b(MAX_HEALTH) + (b(energy) << 16n) + (b(p.regen) << 24n) + (10n << 32n)
+    + (v1 << 48n) + (v2 << 54n) + (b(LEVEL) << 64n) + (b(profession) << 72n)
+    + (b(primaryRank) << 80n) + (b(w.class) << 88n) + (b(w.damage) << 96n) + (b(w.ticks) << 104n)
+    + (b(w.range) << 112n);
+  const high = ranks + (b(w.type) << 32n) + ((w.class === 0 ? 0n : 1n) << 48n) + (v3 << 72n)
+    + (v4 << 78n) + (v5 << 84n) + (v6 << 90n) + (v7 << 96n) + (v8 << 102n) + (v9 << 108n);
   const bar = skills.reduce((acc, s, i) => acc + (b(s) << b(16 * i)), 0n);
-  const armor = b(p.armor) & 0xffffn;
   return {
-    state: LIVE + 1n + (b(MEMBER.x) << 32n) + (b(MEMBER.y) << 40n) + (b(MAX_HEALTH) << 64n)
-      + (b(p.energy * 3) << 80n),
+    state: LIVE + 1n + (b(ENTRY.x) << 32n) + (b(ENTRY.y) << 40n) + (b(MAX_HEALTH) << 64n)
+      + (b(energy * 3) << 80n),
     timers: LIVE + 255n,
     effects: LIVE,
     recharges: LIVE,
     stats: LIVE + low + (high << 128n),
-    bar: LIVE + bar + ((255n + (armor << 104n)) << 128n),
+    bar: LIVE + bar + ((255n + ((b(p.armor) & 0xffffn) << 104n)) << 128n),
     kit: LIVE,
   };
 }
 
 // ---- the gate pack: `PACK` 5 at the gate zone's level (its Heart takes `level_max`)
 
-const ENGAGED = 3;
 const DEAD = 6;
 const GATE_ZONE = 5;
 const gatePack = QUOTAS.find((q) => q[0] === GATE_ZONE)[2];
 const gateLevel = LOCATIONS.get(GATE_ZONE)[5];
-/** Where the pack stands: 5 tiles in from the entry, its goblins within 2 of its tile. */
-const SPOTS = [[5, 7], [6, 6], [6, 8], [5, 5], [5, 9]];
 
-function goblinWords() {
+/** mulberry32: a seed's draws, reproducible. */
+function rng(seed) {
+  let a = seed >>> 0;
+  return (n) => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (((t ^ (t >>> 14)) >>> 0) % n);
+  };
+}
+
+/** The hex distance between two tiles of the location (axial `q = x − ⌊y / 2⌋`, `r = y`). */
+function hex(a, b2) {
+  const dq = (a.x - Math.floor(a.y / 2)) - (b2.x - Math.floor(b2.y / 2));
+  const dr = a.y - b2.y;
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+const CHUNK = [];
+for (let y = 0; y < 15; y++) for (let x = 0; x < 15; x++) CHUNK.push({ x, y });
+
+/** The pack of seed `seed`: its tile at least 3 from the entry, its goblins on distinct tiles within
+ * 2 of it, each asleep or watching. */
+function goblinWords(seed, rankAtLevel) {
+  const draw = rng(seed);
+  const tiles = CHUNK.filter((t) => hex(t, ENTRY) >= 3);
+  const centre = tiles[draw(tiles.length)];
+  const near = CHUNK.filter((t) => hex(t, centre) <= 2 && hex(t, centre) > 0 && hex(t, ENTRY) >= 3);
+  const spots = [centre];
+  while (spots.length < 5) {
+    const t = near.splice(draw(near.length), 1)[0];
+    spots.push(t);
+  }
   const row = PACKS.get(gatePack);
   const castes = [];
   for (let i = 0; i < 5; i++) {
@@ -176,11 +227,11 @@ function goblinWords() {
   return castes.slice(0, ONLY).map((caste, k) => {
     const sheet = CASTES.get(caste);
     const health = Math.floor(((80 + 20 * gateLevel) * sheet[3]) / 100);
-    const [x, y] = SPOTS[k];
+    const { x, y } = spots[k];
     return {
       entity: 8 + k, // chunk 0's pack 0, goblin k (`8 + 16 chunk + k`)
-      awake: true,
-      state: LIVE + b(x) + (b(y) << 8n) + (b(ENGAGED) << 24n) + (b(health) << 32n)
+      awake: false,
+      state: LIVE + b(x) + (b(y) << 8n) + (b(draw(2)) << 24n) + (b(health) << 32n)
         + (b(sheet[20] * 3) << 48n) + (b(caste) << 64n) + (b(gateLevel) << 80n),
       timers: LIVE + 255n,
     };
@@ -191,35 +242,44 @@ function goblinWords() {
 
 const TILES = (1n << 225n) - 1n;
 const AREA = { width: 1, height: 1, known: 1n, revealed: 1n, chunks: [[0, TILES]], changed: [], ran: false };
+/** (a): the caste sheets with every rank at the gate pack's level's, 0 at level 1. */
+const AT_LEVEL = { ...CONTENT, castes: CONTENT.castes.map((c) => ({ ...c, rank: 0 })) };
 
 /** One action through `runSegment`; `undefined` when it is refused or plays nothing. */
-function play(words, ground, action) {
+function play(content, words, ground, action) {
   const segment = {
-    words, content: CONTENT, area: AREA, level: gateLevel, ground, owed: 0, weight: 255, actions: [action],
+    words, content, area: AREA, level: gateLevel, ground, owed: 0, weight: 255, actions: [action],
   };
   const ran = runSegment(segment, CLASSES);
   if (ran.done.illegal !== undefined || ran.done.played === 0) return undefined;
   return ran;
 }
 
-const skill = (slot, value, tile = false) => ({ kind: "skill", slot, target: { tile, value } });
+const skill = (slot, value) => ({ kind: "skill", slot, target: { tile: false, value } });
+const AXIAL = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]];
+
+/** The six moves, nearest to `to` first (location tiles, the axial approximation of `hex`). */
+function steps(at, to) {
+  const q = at.x - Math.floor(at.y / 2);
+  return AXIAL.map(([dq, dr], direction) => {
+    const y = at.y + dr;
+    return { direction, d: hex({ x: q + dq + Math.floor(y / 2), y }, to) };
+  }).sort((l, r) => l.d - r.d).map((m) => ({ kind: "move", direction: m.direction }));
+}
 
 /**
- * The autopilot's priority list for `profession`, given the world: the first legal one is played.
- * Slots are the kit's order (`KIT` row): Vanguard Cleave, Rending Cut, Skullring, Second Wind,
- * Brace, Warcry; Warden Aimed Shot, Hamstring Shot, Venom Coat, Snare, Field Dressing, Sidestep;
- * Arcanist Ember Bolt, Cinder Ring, Rime Shard, Stone Skin, Static Lash, Deep Draw.
+ * The autopilot's priority list for `profession`: the first legal one is played. Slots are the
+ * kit's order (`KIT` row): Vanguard Cleave, Gash, Haft Blow, Second Wind, Brace, Warcry; Warden
+ * Aimed Shot, Hamstring Shot, Venom Coat, Snare, Field Dressing, Sidestep; Arcanist Ember Bolt,
+ * Cinder Ring, Rime Shard, Stone Skin, Static Lash, Deep Draw. Snare (a tile) is not used.
  */
-function choices(profession, world, target, adjacent, step) {
-  const me = world.members[0];
+function choices(profession, me, foe, adjacent, far) {
   const low = me.health * 2 < MAX_HEALTH;
-  const foe = target.entity;
   const list = [];
   if (profession === 1) {
     if (low) list.push(skill(3, 0));
-    list.push(skill(5, 0), skill(2, foe), skill(0, foe), skill(1, foe));
     if (adjacent >= 2) list.push(skill(4, 0));
-    list.push({ kind: "attack", entity: foe });
+    list.push(skill(5, 0), skill(2, foe), skill(0, foe), skill(1, foe), { kind: "attack", entity: foe });
   } else if (profession === 2) {
     if (low) list.push(skill(4, 0));
     if (adjacent >= 1) list.push(skill(5, 0));
@@ -228,67 +288,67 @@ function choices(profession, world, target, adjacent, step) {
     if (adjacent >= 2) list.push(skill(1, 0));
     list.push(skill(3, 0), skill(5, 0), skill(2, foe), skill(4, foe), skill(0, foe));
   }
-  if (step !== undefined) list.push({ kind: "move", direction: step });
-  list.push({ kind: "wait" });
-  return list;
+  return [...list, ...far, { kind: "wait" }];
 }
 
-function fight(profession) {
-  let words = { clock: 0, members: [memberWords(profession)], goblins: goblinWords(), killed: [], defeated: false };
+function fight(profession, seed, weapons, ranks) {
+  const content = ranks === "today" ? CONTENT : AT_LEVEL;
+  const sheets = indexSheets(content);
+  const primary = ranks === "a+b" ? 1 : 0;
+  let words = {
+    clock: 0,
+    members: [memberWords(profession, weapons, primary)],
+    goblins: goblinWords(seed, ranks !== "today"),
+    killed: [],
+    defeated: false,
+  };
   let ground = [];
-  const counts = new Map();
-  for (let turn = 0; turn < 2000; turn++) {
-    const world = loadWorld(words, SHEETS);
+  for (let turn = 0; turn < 600; turn++) {
+    const world = loadWorld(words, sheets);
     const me = world.members[0];
     const alive = world.goblins.filter((g) => g.ai !== DEAD);
     if (words.defeated || me.health === 0 || alive.length === 0) break;
     const at = memberPlace(me);
-    const origin = board(at.x, at.y);
-    const from = position(origin, at.x, at.y);
-    const placed = alive.map((g) => {
-      const p = goblinPlace(g);
-      return { goblin: g, to: position(origin, p.x, p.y) };
-    });
-    placed.sort((l, r) => distance(from, l.to) - distance(from, r.to));
-    const nearest = placed[0];
-    const adjacent = placed.filter((p) => distance(from, p.to) === 1).length;
-    const step = distance(from, nearest.to) > 1 ? facing(from, nearest.to, 0) : undefined;
+    const near = alive.map((g) => ({ goblin: g, d: hex(at, goblinPlace(g)), at: goblinPlace(g) }));
+    near.sort((l, r) => l.d - r.d);
+    const adjacent = near.filter((n) => n.d === 1).length;
+    const far = near[0].d > 1 ? steps(at, near[0].at) : [];
     let ran;
-    for (const action of choices(profession, world, nearest.goblin, adjacent, step)) {
-      ran = play(words, ground, action);
-      if (ran !== undefined) {
-        const name = action.kind === "skill" ? `skill ${action.slot}` : action.kind;
-        counts.set(name, (counts.get(name) ?? 0) + 1);
-        break;
-      }
+    for (const action of choices(profession, me, near[0].goblin.entity, adjacent, far)) {
+      ran = play(content, words, ground, action);
+      if (ran !== undefined) break;
     }
-    if (ran === undefined) throw new Error(`${PROFESSIONS[profession].name}: no legal action at clock ${words.clock}`);
+    if (ran === undefined) throw new Error(`no legal action at clock ${words.clock}`);
     words = ran.words;
     ground = ran.ground;
   }
-  const world = loadWorld(words, SHEETS);
+  const world = loadWorld(words, sheets);
   const me = world.members[0];
   const left = world.goblins.filter((g) => g.ai !== DEAD);
-  return {
-    profession: PROFESSIONS[profession].name,
-    win: left.length === 0 && me.health > 0 && !words.defeated,
-    ticks: words.clock,
-    health: me.health,
-    max_health: MAX_HEALTH,
-    goblins_left: left.length,
-    goblin_health_left: left.reduce((sum, g) => sum + g.health, 0),
-    actions: Object.fromEntries(counts),
-  };
+  return { win: left.length === 0 && me.health > 0 && !words.defeated, ticks: words.clock, health: me.health };
 }
 
-const results = [1, 2, 3].map(fight);
+const mean = (xs) => Math.round((10 * xs.reduce((s, x) => s + x, 0)) / xs.length) / 10;
+const results = [];
 const pack = PACKS.get(gatePack);
-console.log(`gate pack: PACK ${gatePack} (${pack.slice(1, 16)}), level ${gateLevel}, its first ${ONLY} goblins`);
-for (const r of results) {
-  const outcome = r.win ? "WINS" : "LOSES";
-  console.log(
-    `${r.profession.padEnd(9)} ${outcome} in ${r.ticks} ticks, health ${r.health}/${r.max_health}, `
-      + `goblins left ${r.goblins_left} (health ${r.goblin_health_left}); actions ${JSON.stringify(r.actions)}`,
-  );
+console.log(`gate pack: PACK ${gatePack} (${pack.slice(1, 16)}), level ${gateLevel}, its first ${ONLY} goblins, ${SEEDS} seeds`);
+for (const weapons of ["inert", "kit"]) {
+  for (const ranks of ["today", "a", "a+b"]) {
+    for (const profession of [1, 2, 3]) {
+      const runs = [];
+      for (let seed = 1; seed <= SEEDS; seed++) runs.push(fight(profession, seed, weapons, ranks));
+      const r = {
+        weapons, ranks, profession: PROFESSIONS[profession].name,
+        wins: runs.filter((x) => x.win).length, seeds: SEEDS,
+        ticks_mean: mean(runs.map((x) => x.ticks)), ticks_worst: Math.max(...runs.map((x) => x.ticks)),
+        health_mean: mean(runs.map((x) => x.health)), health_worst: Math.min(...runs.map((x) => x.health)),
+      };
+      results.push(r);
+      console.log(
+        `weapons ${weapons.padEnd(5)} ranks ${ranks.padEnd(5)} ${r.profession.padEnd(9)} wins ${r.wins}/${SEEDS}, `
+          + `ticks mean ${r.ticks_mean} worst ${r.ticks_worst}, health mean ${r.health_mean} worst ${r.health_worst}/${MAX_HEALTH}`,
+      );
+    }
+  }
 }
 console.log(JSON.stringify(results));
