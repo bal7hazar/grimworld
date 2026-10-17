@@ -235,6 +235,6 @@ Rending Cut (Blades) and Skullring (Mauls) are trainers' skills (CNT-02). The se
 | Deep Draw | Wellspring | Glyph | 0 / 1 / 25 | Next spell costs 5…15 less energy |
 
 Ember Bolt's rank-0 damage is NUM-01's (D-311): with NUM-01's Runt and Slinger and the bolt at 15,
-a level-1 Arcanist, 50 energy and no weapon, runs out of energy before the gate pack falls (11 of 20
-sim fights won); at 25 a bolt does 18 to a Runt and 11 to a Slinger at level 1, and it wins 20 of 20
+a level-1 Arcanist, 50 energy and no weapon, runs out of energy before the gate pack falls (6 of 20
+sim fights won); at 25 a bolt does 18 to a Runt and 11 to a Slinger at level 1, and it wins 17 of 20
 (`docs/reports/NUM-01-gate-fight.md`). Rank 12 stays at 60.

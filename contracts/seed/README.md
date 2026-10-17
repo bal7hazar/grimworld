@@ -70,7 +70,7 @@ design/04's Engaged row, CBT-05h/CBT-07); loot tables 0 until a `LOOT_TABLE` is 
 
 | Kind | Id | What |
 |---|---|---|
-| `CASTE` | 1 | Runt: tier 1, `swarm`, 25 %, armor 20, an axe (9, slashing, 1 tick, range 1), no energy, no skill, rank 4, flees below 30 %; health and damage NUM-01's (D-311, was 50 % and 17) |
+| `CASTE` | 1 | Runt: tier 1, `swarm`, 25 %, armor 20, an axe (17, slashing, 1 tick, range 1), no energy, no skill, rank 4, flees below 30 %; health NUM-01's (D-311, was 50 %) |
 | `CASTE` | 2 | Slinger: tier 1, `kite`, 20 %, armor 20 (+30 against types 4–7), a bow (11, blunt, 2 ticks, range 6), rank 4; health and damage NUM-01's (was 40 % and 21) |
 | `CASTE` | 3 | Skirmisher: tier 2, `flank`, 50 %, armor 40 (+20 against types 1–3), a sword (18, slashing, 1, 1), energy 20 / 2, Rending Cut (2), rank 6 |
 | `CASTE` | 4 | Shaman: tier 3, `support`, 60 %, armor 30, a staff (16, earth, 2, 6), energy 30 / 4, Mend Kin (20) then Stone Skin (17), rank 9 |

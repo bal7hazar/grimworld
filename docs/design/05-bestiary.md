@@ -59,8 +59,8 @@ Goblin stats use the same formulas as adventurers ([04-combat](04-combat.md)) wi
 multiplier on health and a caste armor value. Goblins above level 20 are how elite content
 stays threatening to capped adventurers.
 
-Until a goblin's weapon damage scales with its level (DS-11), the tier-1 sheets hold level-1
-values: NUM-01 (D-311) set the Runt to 25 % health and 9 damage, the Slinger to 20 % and 11, so
+Until a goblin's weapon damage scales with its level (DS-11), the tier-1 sheets are bent toward
+level 1: NUM-01 (D-311) set the Runt to 25 % health, the Slinger to 20 % health and 11 damage, so
 that each MVP profession at level 1 wins the gate pack (3 Runts, 2 Slingers). The reasons are
 [20-castes](20-castes.md) §2.2's.
 
