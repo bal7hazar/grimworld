@@ -3,7 +3,6 @@
 
 use starknet::{ClassHash, ContractAddress};
 use crate::models::chunk::{Features, Terrain};
-use crate::models::sent_build::Build;
 use crate::models::set_piece::SetPiece;
 use crate::models::snapshot_words::SnapshotWords;
 use crate::models::task::TaskEntry;
@@ -234,20 +233,25 @@ pub trait ITrapLibrary<T> {
 /// through `IFlattenLibraryLibraryDispatcher`, the class hash being its configuration.
 #[starknet::interface]
 pub trait IFlattenLibrary<T> {
-    /// The snapshot's three packed words (`MemberStats`, `MemberBar`, `MemberKit`) of `build`,
+    /// The snapshot's three packed words (`MemberStats`, `MemberBar`, `MemberKit`) of `build` (the
+    /// `Build` word as stored, `models::sent_build`),
     /// once `Hub` has checked what precedes its `Registry.bundle` call: the bar's skills, the
     /// belt's `potions` distinct items and the distinct modifier `ids` of the items `worn` have
     /// their `parts`, in that order (`models::sent_build::BuildTrait::words`, WPN-01); `known` is
-    /// one a bar skill. Refuses what those checks and the flattening refuse.
+    /// one a bar skill, `weapon` the one worn, packed (`WeaponTrait::pack`), at its `requirement`
+    /// (`ItemBase`'s, 0 for none).
+    /// Refuses what those checks and the flattening refuse.
     fn words(
         self: @T,
-        build: Build,
+        build: felt252,
         known: Span<bool>,
         parts: Span<felt252>,
         level: u8,
         primary: u8,
         secondary: u8,
         potions: u32,
+        weapon: u128,
+        requirement: u8,
         personalised: bool,
         belt: [u32; 4],
         counts: [u8; 4],

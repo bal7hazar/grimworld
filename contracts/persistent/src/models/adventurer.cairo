@@ -77,6 +77,15 @@ pub impl AdventurerImpl of AdventurerTrait {
             },
         )
     }
+
+    /// Whether the one item of its pack's equipment (`page` holds it alone, `base` its base) is
+    /// its creation kit's weapon, forfeited with the kit at deletion (D-310): an item of the kit's
+    /// `BASE` (`weapon`, not 0), worn in the weapon slot (`equipped` holding it alone has the
+    /// page's word) or not worn, nothing else worn. Any item of that base counts, as any gold up
+    /// to the purse does: the chain does not tell the kit's from another.
+    fn forfeits(weapon: u16, base: u16, page: @StoredLanes, equipped: @StoredLanes) -> bool {
+        weapon != 0 && base == weapon && (equipped.is_empty() || *equipped.word == *page.word)
+    }
 }
 
 /// The belt word (`Lanes32`): the potion item of each slot in lanes 0-3, the count to carry in

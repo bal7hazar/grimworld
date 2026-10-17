@@ -3,13 +3,14 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::helpers::packing::{
-    LimbTrait, P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, PackingAssert,
-    PackingTrait,
+    LIVE, LimbTrait, P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88,
+    PackingAssert, PackingTrait, TWO_POW_128,
 };
-use grimworld_logic::models::base::Base;
+use grimworld_logic::models::base::{Base, BasePartTrait, BaseTrait, Weapon, WeaponTrait};
 use grimworld_logic::models::worn::Worn;
 use grimworld_logic::types::content::MODIFIER;
 use super::account::PACK;
+use super::lanes::{StoredLanes, StoredLanesTrait};
 
 /// `ItemBase.hands` sits at bit 124.
 const P124: u128 = 0x10000000000000000000000000000000;
@@ -24,9 +25,14 @@ pub const COMPONENT: u8 = 8;
 /// `ItemBase.rarity` of a common item: no modifier, so nothing to identify (design/15, *Rarity*).
 pub const COMMON: u8 = 0;
 
+/// Pages of a pack's equipment list (ENG-01 §3.3: 20 slots + 5 per bag, at most 4 pages of 7).
+pub const PACK_PAGES: u8 = 4;
+
 pub mod errors {
     /// Not in the adventurer's pack (another owner, the vault, escrow, or no such entity).
     pub const NOT_IN_PACK: felt252 = 'item: not in the pack';
+    /// Every lane of the pack's equipment list is taken (`PACK_PAGES` pages).
+    pub const PACK_FULL: felt252 = 'item: pack full';
     /// A modifier lifted off an item: a component, not equipment.
     pub const A_COMPONENT: felt252 = 'item: a component';
     /// Fine or above and not identified: identifying is "needed to equip it" (design/15).
@@ -35,9 +41,10 @@ pub mod errors {
 
 #[generate_trait]
 pub impl ItemBaseImpl of ItemBaseTrait {
-    /// An item as its creator writes it (loot, a craft, a shop, a quest, a collector: design/15):
-    /// the slot and the hands of its `BASE` record are copied into it, so that `set_build` reads
-    /// no registry record (D-158). Every writer of a new entity calls this.
+    /// An item as its creator writes it (loot, a craft, a shop, a quest, a collector, a creation
+    /// kit: design/15, D-309): the slot, the hands and the weapon of its `BASE` record, the damage
+    /// taken at the item's requirement (`BaseTrait::at`), are copied into it, so that `set_build`
+    /// reads no registry record (D-158, WPN-01). Every writer of a new entity calls this.
     fn new(
         base: u16,
         record: @Base,
@@ -62,6 +69,7 @@ pub impl ItemBaseImpl of ItemBaseTrait {
             owner,
             slot: *record.slot,
             hands: *record.hands,
+            weapon: record.at(requirement).pack(),
         }
     }
 
@@ -69,6 +77,99 @@ pub impl ItemBaseImpl of ItemBaseTrait {
     #[inline(always)]
     fn is_two_handed(self: @ItemBase) -> bool {
         *self.hands == 2
+    }
+
+    /// Its weapon, decoded (all 0 for an item that is not a weapon).
+    #[inline(always)]
+    fn weapon(self: @ItemBase) -> Weapon {
+        WeaponTrait::unpack(*self.weapon)
+    }
+
+    /// The item held by nobody, its record kept (an entity id is never reused): a creation kit's
+    /// weapon forfeited when its adventurer is deleted (D-310).
+    #[inline(always)]
+    fn forfeited(self: ItemBase) -> ItemBase {
+        ItemBase { owner_kind: 0, owner: 0, ..self }
+    }
+}
+
+/// `ItemBase` as stored: its word, `LIVE` set, built and changed by arithmetic on the two paths
+/// that need no other field, the creation of an item from its `BASE` record's part 0 and the
+/// forfeit of a kit's weapon (WPN-01, D-310), where the packer would decode and encode every
+/// field. `ItemBase` and its packer stay the layout and the oracle: each method is pinned against
+/// them in the tests. Only the store reads and writes it (`HubStoreTrait::create_item`).
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub struct StoredItemBase {
+    pub word: felt252,
+}
+
+#[generate_trait]
+pub impl StoredItemBaseImpl of StoredItemBaseTrait {
+    /// `ItemBaseTrait::new`'s word for an item at level 0 with no flag, look or set, its slot,
+    /// hands and weapon read from its `BASE` record's `part` 0 (`BasePartTrait::copied`); the
+    /// registry checked the record (slot at most 7, hands at most 2), so every field fits.
+    fn new(
+        base: u16, part: felt252, requirement: u8, rarity: u8, owner_kind: u8, owner: u32,
+    ) -> StoredItemBase {
+        let (slot, hands, weapon) = BasePartTrait::copied(part, requirement);
+        let low: felt252 = base.into()
+            + requirement.into() * P16.into()
+            + rarity.into() * P24.into()
+            + owner_kind.into() * P80.into()
+            + owner.into() * P88.into()
+            + slot.into() * P120.into()
+            + hands.into() * P124.into();
+        StoredItemBase { word: low + weapon.into() * TWO_POW_128 + LIVE }
+    }
+
+    /// Its base, bits 0-15.
+    #[inline(always)]
+    fn base(self: @StoredItemBase) -> u16 {
+        let (low, _) = PackingTrait::limbs(*self.word);
+        LimbTrait::low_field(low, P16.try_into().unwrap()).try_into().unwrap()
+    }
+
+    /// `ItemBaseTrait::forfeited`'s word for an item in `adventurer_id`'s pack: owner kind
+    /// (`PACK`) and owner (bits 80-119) cleared. The caller knows the pack holds it.
+    #[inline(always)]
+    fn forfeited(self: StoredItemBase, adventurer_id: u32) -> StoredItemBase {
+        let holder: felt252 = PACK.into() * P80.into() + adventurer_id.into() * P88.into();
+        StoredItemBase { word: self.word - holder }
+    }
+}
+
+/// A pack's equipment list (`packs[(adventurer, page)]`, ENG-01 §3.3): a compact list of entity
+/// ids, seven a page, so its first empty lane is its end.
+#[generate_trait]
+pub impl PackListImpl of PackListTrait {
+    /// The first empty lane of a page, if it has one (a page never written has lane 0).
+    fn free_lane(page: @StoredLanes) -> Option<u8> {
+        let lanes = page.decoded().lanes.span();
+        for lane in 0..7_u8 {
+            if *lanes[lane.into()] == 0 {
+                return Option::Some(lane);
+            }
+        }
+        Option::None
+    }
+
+    /// The entity a page holds alone, in lane 0 (a compact list's only entry), if it does: its
+    /// word is `LIVE` plus the id. `equipped` holding only a weapon has the same word.
+    fn alone(page: @StoredLanes) -> Option<u32> {
+        let (low, high) = PackingTrait::split(*page.word);
+        if high != 0 || low == 0 || low >= P32 {
+            return Option::None;
+        }
+        Option::Some(low.try_into().unwrap())
+    }
+}
+
+#[generate_trait]
+pub impl PackListAssert of PackListAssertTrait {
+    /// An append reaches a page of the list (`PACK_PAGES`).
+    #[inline(always)]
+    fn assert_room(page: u8) {
+        assert(page < PACK_PAGES, errors::PACK_FULL);
     }
 }
 
@@ -112,6 +213,11 @@ pub struct ItemBase {
     pub slot: u8,
     /// bits 124-127: its base's hands, copied likewise: 1 or 2 on a weapon, 0 elsewhere
     pub hands: u8,
+    /// bits 128-175: its base's weapon at its requirement, copied likewise (WPN-01), as
+    /// `WeaponTrait::pack` lays it out (class, damage, ticks, range, damage type, attribute, 8
+    /// bits each; 0 elsewhere). Kept packed: `Hub` only hands it to the flattening, which decodes
+    /// it (`ItemBaseTrait::weapon` reads it)
+    pub weapon: u128,
 }
 
 pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase, felt252> {
@@ -130,11 +236,11 @@ pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase
                 + value.owner.into() * P88
                 + value.slot.into() * P120
                 + value.hands.into() * P124,
-            0,
+            value.weapon,
         )
     }
     fn unpack(value: felt252) -> ItemBase {
-        let (low, _) = PackingTrait::split(value);
+        let (low, high) = PackingTrait::split(value);
         ItemBase {
             base: LimbTrait::low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
             requirement: LimbTrait::byte_at(low, P16),
@@ -147,6 +253,7 @@ pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase
             owner: LimbTrait::u32_at(low, P88),
             slot: LimbTrait::field(low, P120, P4).try_into().unwrap(),
             hands: LimbTrait::field(low, P124, P4).try_into().unwrap(),
+            weapon: high,
         }
     }
 }
@@ -219,15 +326,17 @@ pub struct Item {
 
 /// The items an adventurer wears, as `set_build` checks them and the flattening reads them: each
 /// one's lane and `ItemBase`, for the equipment's checks; each as the flattening reads it (`Worn`,
-/// with its `ItemMods`); the distinct modifier ids they hold, in the order met; whether the weapon
-/// is personalised (`ItemBase.flags`). Filled one item at a time as the store reads them
-/// (`HubStoreTrait::get_equipment`), so that no item is copied. Bound: 7 lanes, 5 modifiers an
-/// item.
+/// with its `ItemMods`); the distinct modifier ids they hold, in the order met; the weapon worn,
+/// its requirement and whether it is personalised (`ItemBase`'s; all 0 with no weapon, WPN-01).
+/// Filled one item at a time as the store reads them (`HubStoreTrait::get_equipment`), so that no
+/// item is copied. Bound: 7 lanes, 5 modifiers an item.
 #[derive(Drop)]
 pub struct Equipment {
     pub bases: Array<(u32, ItemBase)>,
     pub worn: Array<Worn>,
     pub modifiers: Array<u16>,
+    pub weapon: u128,
+    pub requirement: u8,
     pub personalised: bool,
 }
 
@@ -235,7 +344,14 @@ pub struct Equipment {
 pub impl EquipmentImpl of EquipmentTrait {
     #[inline(always)]
     fn new() -> Equipment {
-        Equipment { bases: array![], worn: array![], modifiers: array![], personalised: false }
+        Equipment {
+            bases: array![],
+            worn: array![],
+            modifiers: array![],
+            weapon: 0,
+            requirement: 0,
+            personalised: false,
+        }
     }
 
     /// The item worn in `lane`, the lanes added in their order.
@@ -258,6 +374,8 @@ pub impl EquipmentImpl of EquipmentTrait {
             }
         }
         if lane == 0 {
+            self.weapon = item.base.weapon;
+            self.requirement = item.base.requirement;
             self.personalised = item.base.flags & PERSONALISED != 0;
         }
         self.bases.append((lane, item.base));
@@ -415,14 +533,19 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
 #[cfg(test)]
 mod tests {
     use grimworld_logic::helpers::packing::LIVE;
-    use grimworld_logic::models::base::{BaseTrait, slot};
-    use grimworld_logic::types::content::MODIFIER;
+    use grimworld_logic::models::base::{BaseRecord, BaseTrait, Weapon, WeaponTrait, slot};
+    use grimworld_logic::types::combat::{damage, weapon};
+    use grimworld_logic::types::content::{MODIFIER, Record};
     use starknet::storage_access::StorePacking;
     use super::super::account::PACK;
+    use super::super::lanes::{StoredLanes, StoredLanesTrait};
     use super::{
         Equipment, EquipmentTrait, Gold, GoldTrait, Grimoire, GrimoireState, IDENTIFIED, Item,
-        ItemBase, ItemBaseTrait, ItemMods, Modifier, PERSONALISED, Pairs, RiftBoard,
+        ItemBase, ItemBaseTrait, ItemMods, Modifier, PERSONALISED, PackListTrait, Pairs, RiftBoard,
+        StoredItemBase, StoredItemBaseTrait,
     };
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
     #[test]
     #[available_gas(l2_gas: 355415)] // ceil(1.05 × 338490 measured)
@@ -439,6 +562,7 @@ mod tests {
             owner: 0xFFFFFFFF,
             slot: 15,
             hands: 15,
+            weapon: 0xFFFFFFFFFFFF,
         };
         let word = StorePacking::<ItemBase, felt252>::pack(base);
         assert(StorePacking::<ItemBase, felt252>::unpack(word) == base, 'base trip');
@@ -519,6 +643,7 @@ mod tests {
             owner: 5,
             slot: slot::WEAPON,
             hands: 2,
+            weapon: maul.at(9).pack(),
         };
         assert(item == expected, 'copied from the base');
         assert(item.is_two_handed(), 'two hands');
@@ -526,6 +651,74 @@ mod tests {
         assert(feet.slot == slot::FEET && feet.hands == 0 && !feet.is_two_handed(), 'feet');
         let word = StorePacking::<ItemBase, felt252>::pack(item);
         assert(StorePacking::<ItemBase, felt252>::unpack(word) == item, 'round trip');
+    }
+
+    // WPN-01: `ItemBase.weapon` at bits 128-175, its base's weapon at the item's requirement
+    // (design/15's axe: 9 at requirement 0, 17 at 9; 12 at 4), 8 bits a field from bit 128.
+    #[test]
+    fn test_item_weapon() {
+        let axe = BaseTrait::weapon(1, weapon::AXE, 9, 17, 1, 1, damage::SLASHING, 3);
+        let at_0 = ItemBaseTrait::new(1, @axe, 0, 0, 0, 0, 0, 0, PACK, 5);
+        let expected = Weapon {
+            class: weapon::AXE,
+            damage: 9,
+            ticks: 1,
+            range: 1,
+            damage_type: damage::SLASHING,
+            attribute: 3,
+        };
+        assert(at_0.weapon() == expected, 'axe at 0');
+        let at_4 = ItemBaseTrait::new(1, @axe, 4, 0, 0, 0, 0, 0, PACK, 5);
+        assert(at_4.weapon() == Weapon { damage: 12, ..expected }, 'axe at 4');
+        let only = ItemBase { weapon: expected.pack(), ..Default::default() };
+        let high: felt252 = 2 + 9 * 0x100 + 0x10000 + 0x1000000 + 0x100000000 + 3 * 0x10000000000;
+        assert(
+            StorePacking::<ItemBase, felt252>::pack(only) == high * TWO_128 + LIVE,
+            'weapon at bit 128',
+        );
+        let word = StorePacking::<ItemBase, felt252>::pack(at_4);
+        assert(StorePacking::<ItemBase, felt252>::unpack(word) == at_4, 'round trip');
+        // The stored word's two paths, against the packer.
+        let part = *BaseRecord::pack(@axe)[0];
+        let stored = StoredItemBaseTrait::new(1, part, 4, 0, PACK, 5);
+        assert(StorePacking::<ItemBase, felt252>::unpack(stored.word) == at_4, 'stored: new');
+        assert(stored.base() == 1, 'stored: base');
+        let held = ItemBase { owner_kind: PACK, owner: 0xFFFFFFFF, ..at_4 };
+        let word = StorePacking::<ItemBase, felt252>::pack(held);
+        let forfeited = StoredItemBase { word }.forfeited(0xFFFFFFFF);
+        assert(
+            StorePacking::<ItemBase, felt252>::unpack(forfeited.word) == held.forfeited(),
+            'stored: forfeited',
+        );
+        let chest = BaseTrait::new(slot::CHEST, 0);
+        let plain = StoredItemBaseTrait::new(0xFFFF, *BaseRecord::pack(@chest)[0], 9, 3, PACK, 7);
+        assert(
+            StorePacking::<
+                ItemBase, felt252,
+            >::unpack(plain.word) == ItemBaseTrait::new(0xFFFF, @chest, 9, 3, 0, 0, 0, 0, PACK, 7),
+            'stored: armor',
+        );
+    }
+
+    // The pack's list: its first free lane, the entity it holds alone.
+    #[test]
+    fn test_pack_list() {
+        let none = StoredLanes { word: 0 };
+        assert(PackListTrait::free_lane(@none) == Option::Some(0), 'never written');
+        let one = StoredLanesTrait::new().added(0, 41);
+        assert(PackListTrait::free_lane(@one) == Option::Some(1), 'after one');
+        assert(PackListTrait::alone(@one) == Option::Some(41), 'alone');
+        let two = one.added(1, 42);
+        assert(PackListTrait::alone(@two) == Option::None, 'two');
+        let mut full = StoredLanesTrait::new();
+        for lane in 0..7_u8 {
+            full = full.added(lane, 0xFFFFFFFF);
+        }
+        assert(PackListTrait::free_lane(@full) == Option::None, 'full');
+        assert(PackListTrait::alone(@none) == Option::None, 'empty');
+        assert(PackListTrait::alone(@StoredLanesTrait::new()) == Option::None, 'live alone');
+        let high = StoredLanesTrait::new().added(4, 41);
+        assert(PackListTrait::alone(@high) == Option::None, 'lane 4');
     }
 
     #[test]
@@ -549,7 +742,13 @@ mod tests {
     fn test_equipment() {
         let none = Modifier { id: 0, value: 0 };
         let weapon = Item {
-            base: ItemBase { slot: 1, flags: PERSONALISED, ..Default::default() },
+            base: ItemBase {
+                slot: 1,
+                flags: PERSONALISED,
+                requirement: 3,
+                weapon: Weapon { class: weapon::AXE, damage: 11, ..Default::default() }.pack(),
+                ..Default::default(),
+            },
             mods: ItemMods {
                 mods: [
                     Modifier { id: 4, value: 1 }, Modifier { id: 9, value: 2 }, none, none, none,
@@ -567,7 +766,10 @@ mod tests {
         let mut equipment = EquipmentTrait::new();
         equipment.add(0, weapon);
         equipment.add(6, feet);
-        let Equipment { bases, worn, modifiers, personalised } = equipment;
+        let Equipment {
+            bases, worn, modifiers, weapon: held, requirement, personalised,
+        } = equipment;
+        assert(held == 2 + 11 * 0x100 && requirement == 3, 'weapon');
         assert(bases == array![(0, weapon.base), (6, feet.base)], 'bases');
         assert(worn.len() == 2 && *worn[1].lane == 6 && *worn[1].slot == 7, 'worn');
         assert(*worn[1].values.span()[0] == 3, 'values');

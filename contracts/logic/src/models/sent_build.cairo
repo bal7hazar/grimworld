@@ -8,11 +8,13 @@
 use crate::helpers::packing::{
     LimbTrait, P112, P16, P32, P40, P48, P64, P80, P96, PackingAssert, PackingTrait,
 };
+use crate::models::base::{Weapon, WeaponTrait};
 use crate::models::build::SnapshotBuildTrait;
 use crate::models::item::{ItemTrait, class as item_class};
 use crate::models::loadout::Loadout;
 use crate::models::skill::SkillTrait;
 use crate::models::worn::Worn;
+use crate::types::combat::skill_kind;
 use crate::types::content::SKILL;
 use crate::types::profession::ProfessionTrait;
 
@@ -108,16 +110,43 @@ pub impl BuildImpl of BuildTrait {
         }
     }
 
+    /// The attribute of each bar skill and the slots holding an attack skill (design/19 §3.4's
+    /// kind 1, slot `i` at bit `i`), from the registry's parts, two a skill in the bar's order
+    /// (`BuildTrait::request`): `Loadout.bar_attributes` and `bar_attacks` (WPN-01). An empty slot
+    /// has attribute 0 and no attack. Bound: 8 slots.
+    fn bar_kinds(self: @Build, parts: Span<felt252>) -> ([u8; 8], u8) {
+        let mut attributes: Array<u8> = array![];
+        let mut attacks: u32 = 0;
+        let mut bit: u32 = 1;
+        let mut at: u32 = 0;
+        for skill in self.bar.span() {
+            if *skill == 0 {
+                attributes.append(0);
+            } else {
+                let (attribute, kind) = SkillTrait::attribute_kind(*parts[at]);
+                attributes.append(attribute);
+                if kind == skill_kind::ATTACK {
+                    attacks += bit;
+                }
+                at += 2;
+            }
+            bit *= 2;
+        }
+        let a = attributes.span();
+        ([*a[0], *a[1], *a[2], *a[3], *a[4], *a[5], *a[6], *a[7]], attacks.try_into().unwrap())
+    }
+
     /// What the snapshot's flattening reads besides the passives (`SnapshotBuildTrait::build`,
     /// D-160; `set_build` hands it to `FlattenLibrary`, D-168): the level, the primary profession,
-    /// the bar and its elite slot, the belt, whether the weapon is personalised. What no model
-    /// holds yet keeps the value the snapshot had before the flattening (`SnapshotTrait::new`;
-    /// escalated in CBT-02b's report):
-    /// - no attribute rank: `Build.attributes` holds build-local indices, and the global attribute
-    ///   ids that runes, quick-cast pairs and skills name are not numbered (D-157 A); so no bar
-    ///   attribute and no attack slot either, and the attribute mappings (CBT-05f) are 0;
-    /// - no weapon statistics and a strength cap of 0: `BASE` lays out only the slot and the hands
-    ///   (D-158), and the cap's curve is BAL-01's (DS-9);
+    /// the bar, its skills' attributes and attack slots (`bar_kinds`), its elite slot, the belt,
+    /// the weapon worn (`ItemBase`'s, at its requirement, D-158; all 0 with none) and whether it
+    /// is personalised. What no model holds yet keeps the value the snapshot had before the
+    /// flattening (`SnapshotTrait::new`; escalated in CBT-02b's report):
+    /// - no attribute points: `Build.attributes` holds build-local indices, and the flattening
+    ///   reads points by the global attribute ids that runes, quick-cast pairs and skills name,
+    ///   which no map joins yet (D-157 A); so every attribute's rank is its runes' alone, and the
+    ///   weapon's requirement counts as met only at 0 (design/15: rank ≥ requirement);
+    /// - a strength cap of 0: the cap's curve is BAL-01's (DS-9);
     /// - the class's armor as the rating (design/03, D-148: the class's value until ratings are
     ///   laid out);
     /// - no set bonus: how the pieces of a set are counted is not written.
@@ -125,25 +154,34 @@ pub impl BuildImpl of BuildTrait {
         self: @Build,
         level: u8,
         profession: u8,
+        kinds: ([u8; 8], u8),
+        weapon: Weapon,
+        requirement: u8,
         personalised: bool,
         belt: [u32; 4],
         counts: [u8; 4],
     ) -> Loadout {
+        let (bar_attributes, bar_attacks) = kinds;
+        let requirement_met = if weapon.class != 0 && requirement == 0 {
+            1
+        } else {
+            0
+        };
         Loadout {
             level,
             profession,
             points: array![].span(),
-            bar_attributes: [0; 8],
-            bar_attacks: 0,
+            bar_attributes,
+            bar_attacks,
             skills: *self.bar,
             elite_slot: *self.elite_slot,
-            weapon: 0,
-            weapon_damage: 0,
-            weapon_ticks: 0,
-            weapon_range: 0,
-            damage_type: 0,
-            weapon_attribute: 0,
-            requirement_met: 0,
+            weapon: weapon.class,
+            weapon_damage: weapon.damage,
+            weapon_ticks: weapon.ticks,
+            weapon_range: weapon.range,
+            damage_type: weapon.damage_type,
+            weapon_attribute: weapon.attribute,
+            requirement_met,
             personalised,
             strength_cap: 0,
             rating: ProfessionTrait::armor(profession).into(),
@@ -156,9 +194,11 @@ pub impl BuildImpl of BuildTrait {
     /// What `Hub.set_build` asks `FlattenLibrary` once its `Registry.bundle` call has answered
     /// (D-168): the bar against its parts (`BuildAssert::assert_bar`), the belt's `potions`
     /// distinct items after them (`BeltAssert::assert_potions`), then the snapshot's three words
-    /// of the loadout and the items `worn`, whose distinct modifier `ids` take the parts left
-    /// (`SnapshotBuildTrait::words`). `known` is one a bar skill, `primary` the profession the
-    /// loadout is flattened for. Refuses what those refuse, in that order.
+    /// of the loadout, with the `weapon` worn (packed, `WeaponTrait::pack`) at its `requirement`
+    /// and the bar's kinds read from
+    /// the same parts (WPN-01), and of the items `worn`, whose distinct modifier `ids` take the
+    /// parts left (`SnapshotBuildTrait::words`). `known` is one a bar skill, `primary` the
+    /// profession the loadout is flattened for. Refuses what those refuse, in that order.
     fn words(
         self: @Build,
         known: Span<bool>,
@@ -167,6 +207,8 @@ pub impl BuildImpl of BuildTrait {
         primary: u8,
         secondary: u8,
         potions: u32,
+        weapon: u128,
+        requirement: u8,
         personalised: bool,
         belt: [u32; 4],
         counts: [u8; 4],
@@ -175,7 +217,10 @@ pub impl BuildImpl of BuildTrait {
     ) -> (felt252, felt252, felt252) {
         let at = self.assert_bar(parts, known, primary, secondary);
         let modifier_parts = BeltAssert::assert_potions(parts, at, potions);
-        let loadout = self.loadout(level, primary, personalised, belt, counts);
+        let kinds = self.bar_kinds(parts);
+        let weapon = WeaponTrait::unpack(weapon);
+        let loadout = self
+            .loadout(level, primary, kinds, weapon, requirement, personalised, belt, counts);
         SnapshotBuildTrait::words(@loadout, worn, ids, modifier_parts)
     }
 }

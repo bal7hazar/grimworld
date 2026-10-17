@@ -86,10 +86,13 @@ use starknet::storage_access::{
 };
 use starknet::syscalls::{storage_read_syscall, storage_write_syscall};
 use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
-use crate::models::account::{AdventurerListAssert, AdventurerListTrait};
+use crate::models::account::{AdventurerListAssert, AdventurerListTrait, PACK};
 use crate::models::adventurer::{KnownSkillsTrait, WORDS};
 use crate::models::balance::BalanceTrait;
-use crate::models::item::{Equipment, EquipmentTrait, Gold};
+use crate::models::item::{
+    Equipment, EquipmentTrait, Gold, PackListAssert, PackListTrait, StoredItemBase,
+    StoredItemBaseTrait,
+};
 use crate::models::lanes::{LanesTrait, StoredLanes, StoredLanesTrait};
 use crate::models::rules_epoch::RulesEpoch;
 use crate::models::snapshot::StoredSnapshot;
@@ -398,6 +401,13 @@ pub impl HubStoreImpl of HubStoreTrait {
         StoredLanes { word: self.adventurer_word(adventurer_id, EQUIPPED) }
     }
 
+    /// What it wears, one write: the deletion of an adventurer that wears its creation kit's
+    /// weapon (D-310).
+    #[inline(always)]
+    fn set_equipped(ref self: HubState, adventurer_id: u32, equipped: StoredLanes) {
+        self.set_adventurer_word(adventurer_id, EQUIPPED, equipped.word)
+    }
+
     /// The build in design/03's sense, `set_build`'s three slots: the bar and the attributes, the
     /// belt, the equipment, the words as sent with `LIVE`.
     fn set_adventurer_build(ref self: HubState, adventurer_id: u32, build: StoredBuild) {
@@ -495,6 +505,60 @@ pub impl HubStoreImpl of HubStoreTrait {
     #[inline(always)]
     fn get_pack_page(self: @HubState, adventurer_id: u32, page: u8) -> StoredLanes {
         self.packs.entry((adventurer_id, page)).read()
+    }
+
+    #[inline(always)]
+    fn set_pack_page(ref self: HubState, adventurer_id: u32, page: u8, lanes: StoredLanes) {
+        self.packs.entry((adventurer_id, page)).write(lanes)
+    }
+
+    /// An item's `ItemBase` word as stored (`StoredItemBase`), one read.
+    #[inline(always)]
+    fn get_stored_item_base(self: @HubState, entity: u32) -> StoredItemBase {
+        StoredItemBase {
+            word: self.items.entry(entity).as_ptr().__storage_pointer_address__.word(0),
+        }
+    }
+
+    #[inline(always)]
+    fn set_stored_item_base(ref self: HubState, entity: u32, base: StoredItemBase) {
+        self.items.entry(entity).as_ptr().__storage_pointer_address__.set_word(0, base.word)
+    }
+
+    /// A new equipment entity in the adventurer's pack, the one helper every creator of an item
+    /// calls (WPN-01; a creation kit's weapon first, D-309): its id from `next_item`, its
+    /// `ItemBase` as `ItemBaseTrait::new` makes it from its `BASE` record, read from the record's
+    /// `part` 0 (`StoredItemBaseTrait::new`: of `rarity`, at `requirement`, level 0, no flag,
+    /// look or set), and the id appended to the
+    /// pack's compact list, on the first free lane of its pages read in order. Its `ItemMods`
+    /// slot is not written: one never written reads as no modifier. Writes: `next_item`
+    /// overwritten, `items[id].base` new, the list's page (new on its first lane). Refused when
+    /// the list is full (`PACK_PAGES`). Bound: 4 pages read.
+    fn create_item(
+        ref self: HubState,
+        adventurer_id: u32,
+        base: u16,
+        part: felt252,
+        requirement: u8,
+        rarity: u8,
+    ) -> u32 {
+        let next = self.next_item.read().value;
+        self.next_item.write(Counter { value: next + 1 });
+        let entity: u32 = next.try_into().unwrap();
+        let item = StoredItemBaseTrait::new(base, part, requirement, rarity, PACK, adventurer_id);
+        self.set_stored_item_base(entity, item);
+        let mut page: u8 = 0;
+        loop {
+            PackListAssert::assert_room(page);
+            let entry = self.packs.entry((adventurer_id, page));
+            let stored = entry.read();
+            if let Option::Some(lane) = PackListTrait::free_lane(@stored) {
+                entry.write(stored.added(lane, entity));
+                break;
+            }
+            page += 1;
+        }
+        entity
     }
 
     /// The items worn, `entities` being `equipped`'s lanes: each non-empty lane's item read (two

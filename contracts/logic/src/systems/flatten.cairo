@@ -10,6 +10,7 @@
 
 #[starknet::contract]
 pub mod FlattenLibrary {
+    use starknet::storage_access::StorePacking;
     use crate::interface::IFlattenLibrary;
     use crate::models::sent_build::{Build, BuildTrait};
     use crate::models::worn::Worn;
@@ -21,19 +22,22 @@ pub mod FlattenLibrary {
     impl FlattenLibraryImpl of IFlattenLibrary<ContractState> {
         fn words(
             self: @ContractState,
-            build: Build,
+            build: felt252,
             known: Span<bool>,
             parts: Span<felt252>,
             level: u8,
             primary: u8,
             secondary: u8,
             potions: u32,
+            weapon: u128,
+            requirement: u8,
             personalised: bool,
             belt: [u32; 4],
             counts: [u8; 4],
             worn: Span<Worn>,
             ids: Span<u16>,
         ) -> (felt252, felt252, felt252) {
+            let build: Build = StorePacking::unpack(build);
             build
                 .words(
                     known,
@@ -42,6 +46,8 @@ pub mod FlattenLibrary {
                     primary,
                     secondary,
                     potions,
+                    weapon,
+                    requirement,
                     personalised,
                     belt,
                     counts,

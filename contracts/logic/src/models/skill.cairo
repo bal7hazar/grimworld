@@ -62,6 +62,17 @@ pub impl SkillImpl of SkillTrait {
         (profession.try_into().unwrap(), elite != 0)
     }
 
+    /// `(attribute, kind)` of a record's part 0, header bits 8–15 and 16–23: what the loadout
+    /// reads of each bar skill (WPN-01: `Loadout.bar_attributes`, `bar_attacks`).
+    fn attribute_kind(part: felt252) -> (u8, u8) {
+        let (header, _) = PackingTrait::split(part);
+        let s8: NonZero<u128> = P8.try_into().unwrap();
+        let (header, _) = DivRem::div_rem(header, s8);
+        let (header, attribute) = DivRem::div_rem(header, s8);
+        let (_, kind) = DivRem::div_rem(header, s8);
+        (attribute.try_into().unwrap(), kind.try_into().unwrap())
+    }
+
     /// Its entry count: the index of the last non-empty entry, 0 to 3 (design/19 §2.1).
     fn count(self: @Skill) -> u8 {
         let [a, b, c] = *self.entries;
@@ -566,8 +577,16 @@ mod tests {
                 let parts = skill.pack();
                 let full: Skill = Record::unpack(parts);
                 assert(SkillTrait::profile(*parts[0]) == (full.profession, full.elite), 'profile');
+                assert(
+                    SkillTrait::attribute_kind(*parts[0]) == (full.attribute, full.kind),
+                    'attribute and kind',
+                );
             }
         }
+        let axes_attack = SkillTrait::new(
+            1, 3, 1, 0, 4, 0, 0, 1, 1, false, [Default::default(); 3],
+        );
+        assert(SkillTrait::attribute_kind(*axes_attack.pack()[0]) == (3, 1), 'attribute 3, kind 1');
         for class in array![item_class::INGREDIENT, item_class::POTION, item_class::FAILED_BREW] {
             let item = ItemTrait::new(
                 class, 0xFFFF, 0xFF, 0xFFFFFFFF, 0xFF, Default::default(), 0, 0,
