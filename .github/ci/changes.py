@@ -104,7 +104,8 @@ CLIENT_NODE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/setup-to
 DEVNET_SMOKE_PREFIXES = ("contracts/", "deployments/")
 DEVNET_SMOKE_FILES = (".tool-versions", "scripts/with-node.sh", "scripts/setup-toolchain.sh", "scripts/devnet_*",
                       "scripts/tests/devnet_deploy_smoke.py", "scripts/sepolia_deploy.py",
-                      "scripts/tests/sepolia_deploy_smoke.py")
+                      "scripts/tests/sepolia_deploy_smoke.py", "scripts/sepolia_play.py",
+                      "scripts/tests/sepolia_play_smoke.py")
 # prettier checks client/ and indexer/ whatever the file type, markdown included (decided by the
 # orchestrator, 2026-10-03; reversed by a later lot that adds a .prettierignore for *.md).
 PRETTIER_PREFIXES = ("client/", "indexer/")

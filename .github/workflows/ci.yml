@@ -860,6 +860,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: scripts/with-node.sh python3 scripts/tests/sepolia_deploy_smoke.py
 
+      # GATE-1a (D-308): scripts/sepolia_play.py --devnet plays the Phase 1 path (create an adventurer, enter
+      # the zone, cross rooms, reach the hub) on a deployment of devnet_deploy.py on this runner's devnet,
+      # end to end; nothing is sent anywhere else. It needs the classes built above.
+      - name: sepolia_play_smoke
+        run: scripts/with-node.sh python3 -I scripts/tests/sepolia_play_smoke.py
+
   # The art pipeline's tests (`python -m unittest discover -s tools/art/tests`), only when a path under
   # tools/art/ changed (`art` of .github/ci/changes.py). The `assets` submodule is private and never
   # checked out (D-73), and no test reads it: they build from synthetic images (D-73). The
