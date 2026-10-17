@@ -127,7 +127,28 @@ item id of the seed, with a short English name and what it is:
 
 | Kind | Id | Name | What |
 |---|---|---|---|
-| `SKILL` | 1 to 22 | the table above | Its name is the table's (design/03, design/20 §3.2) |
+| `SKILL` | 1 | Cleave | The skills' table above |
+| `SKILL` | 2 | Rending Cut | The skills' table above |
+| `SKILL` | 3 | Haft Blow | The skills' table above |
+| `SKILL` | 4 | Second Wind | The skills' table above |
+| `SKILL` | 5 | Rockfall | The skills' table above |
+| `SKILL` | 6 | Brace | The skills' table above |
+| `SKILL` | 7 | Warcry | The skills' table above |
+| `SKILL` | 8 | Aimed Shot | The skills' table above |
+| `SKILL` | 9 | Hamstring Shot | The skills' table above |
+| `SKILL` | 10 | Venom Coat | The skills' table above |
+| `SKILL` | 11 | Snare | The skills' table above |
+| `SKILL` | 12 | Field Dressing | The skills' table above |
+| `SKILL` | 13 | Sidestep | The skills' table above |
+| `SKILL` | 14 | Ember Bolt | The skills' table above |
+| `SKILL` | 15 | Cinder Ring | The skills' table above |
+| `SKILL` | 16 | Rime Shard | The skills' table above |
+| `SKILL` | 17 | Stone Skin | The skills' table above |
+| `SKILL` | 18 | Static Lash | The skills' table above |
+| `SKILL` | 19 | Deep Draw | The skills' table above |
+| `SKILL` | 20 | Mend Kin | The skills' table above |
+| `SKILL` | 21 | Overhead Smash | The skills' table above |
+| `SKILL` | 22 | Gash | The skills' table above |
 | `ITEM` | 1, 8, 15, 22 | Healing Potion | Potion; entry `HEAL` 20 on its holder (`SELF`, `SINGLE`, filter ALLIES), at every rank |
 | `ITEM` | 23 | Regeneration Potion | Potion; entry `REGENERATION` 3 pips for 40 ticks on its holder (`SELF`, `SINGLE`, filter ALLIES) |
 | `ITEM` | 2 to 7, 9 to 14, 16 to 21 | Ingredient (2 to 7, 9 to 14, 16 to 21) | Ingredient (18 items, no entry); named "Ingredient <id>" until the content pass names them |
