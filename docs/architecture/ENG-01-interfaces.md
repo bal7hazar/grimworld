@@ -837,6 +837,7 @@ rules 1–2). Pillar 6 and S-6: a zone or a quest is data.
 | `CONTRACT_POOL` | 23 | 1 | a hub's daily contracts (design/14) |
 | `SET_PIECE` | 24 | 2 | an authored chunk: terrain, placements (ADR-0006) |
 | `COUNTER` | 25 | 1 | what sets the bits of a title's "distinct" counter |
+| `KIT` | 29 | 1 | id = a profession's (1–6, composite): its starter weapon's `BASE` (0 none) and its starter skills, which price the purse `create_adventurer` credits (D-309, CNT-01) |
 
 Reads: `record(kind, id)`, `records(kind, ids)`, and **`bundle(requests) -> (version: u32,
 inputs: u32, records)`**: every record an invocation needs in **one call** (C ≈ 0.12–0.14 M),
@@ -924,6 +925,7 @@ value; no field straddles bit 128; `LIVE` in part 0.
 | `ITEM` | 0 | class 0–7 (1 ingredient, 2 material, 3 potion, 4 trophy, 5 stillstone, 6 heartstone, 7 quest, 8 failed brew) · region 8–23 · rarity 24–31 · value 32–63 · book index 64–71 · the potion's **entry** 128–224 · range 225–232 · bomb strength 233–240 (FX-18, FX-28) |
 | `BASE` | 0 | **slot 0–7** (1 weapon … 7 feet, as `ItemBase.slot`) · **hands 8–15** (1 or 2 on a weapon, 0 elsewhere); the rest of part 0 and part 1 (class, profession, damage by requirement, rating, look) are laid out by a later lot, appended after bit 15 (CBT-08a; `grimworld_logic::models::base`, which covers this prefix only) |
 | `BASE` | 1 | `LIVE` only, until then |
+| `KIT` | 0 | **weapon 0–15** (a `BASE` of the weapon slot, 0 none) · **skills 16–111** (six `SKILL` ids of the kit's profession, `u16` each, packed from the first, distinct; `grimworld_logic::models::kit`); `create_adventurer` reads it with `REGION` 1 in one `bundle` |
 | `MODIFIER` | 0 | slot type 0–7 (1 prefix, 2 suffix, 3 inscription, 4 insignia, 5 rune: `ItemMods`' order) · **benefit** 128–180 · **cost** 181–233 (a passive each; the cost fixed, id 0 for none) |
 | `ARMOR_SET` | 0 | 5 piece bases `u16` at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · the 3-piece bonus 128–180 · the 5-piece bonus 181–233 (a passive each) |
 | `CASTE` | 0 | tier 0–7 · AI profile 8–15 · health multiplier (percent) 16–31 · health regeneration + 10 32–39 · armor 40–47 · weapon 48–79 (class 48–51 · damage 52–67 · damage type 68–71 · ticks 72–75 · range 76–79) · energy (≤ 85) 80–87 · energy regeneration 88–95 · flee threshold 96–103 · rank of its skills 104–107 · boss 108 · armor per damage type 128–181 (type `t` at `128 + 6 (t − 1)`, ≤ 63) · loot table 182–197 |
