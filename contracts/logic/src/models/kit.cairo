@@ -108,7 +108,7 @@ mod tests {
         let bits: u256 = (*parts[0] - LIVE).into();
         assert(bits.low % 0x10000 == 0xabcd, 'weapon at 0');
         assert((bits.low / 0x10000) % 0x10000 == 1, 'skill 1 at 16');
-        assert(bits.low / 0x10000000000000000000000000000 == 0xffff, 'skill 6 at 96');
+        assert(bits.low / 0x1000000000000000000000000 == 0xffff, 'skill 6 at 96');
         assert(KitRecord::unpack(parts) == kit, 'round trip');
         assert(kit.count() == 6, 'six');
         assert(KitTrait::new(0, [7, 8, 0, 0, 0, 0]).count() == 2, 'two');
