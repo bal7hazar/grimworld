@@ -17,7 +17,7 @@ or a decision changes.
 |---|---|---|
 | **−1 Ideation** | Documents agreed | Owner has ruled on decisions D-xx and questions needed by Phase 0 |
 | **0 Foundations** | Stack validated, repo ready | ADR-0001, 0002, 0003 and 0007 confirmed on measurements; CI green on empty contracts |
-| **1 Walking skeleton** | Walk through a generated instance, on-chain, with optimistic client | Create adventurer → enter zone → cross rooms → reach a hub, on Sepolia |
+| **1 Walking skeleton** | Walk through a generated instance, on-chain, with optimistic client | Create adventurer → enter zone → cross rooms → reach a hub, on Sepolia — **met** 2026-10-17 on Sepolia ([docs/reports/GATE-1-sepolia.md](docs/reports/GATE-1-sepolia.md)) |
 | **2 Combat** | Fight goblins with a build | Clear a room of 5 goblins with each MVP profession; parity suite at 0 divergence |
 | **3 Career** | Quests, XP, ranks, trials | Wood → Tin through quests and a trial. **Fun gate**: playtest S-1, S-4 |
 | **4 Rewards** | Loot, alchemy, merchants | Full expedition loop with loot, brewing and belt |

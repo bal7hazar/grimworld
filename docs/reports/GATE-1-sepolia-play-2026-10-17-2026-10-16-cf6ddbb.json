@@ -1,0 +1,739 @@
+{
+  "gate": "GATE-1 (D-308)",
+  "network": "Starknet Sepolia",
+  "devnet": false,
+  "chain_id": "SN_SEPOLIA",
+  "deployment": {
+    "name": "2026-10-16-cf6ddbb",
+    "commit": "cf6ddbb8c78831de5d5b490579c6dc792972daea",
+    "contracts": {
+      "registry": "0x00a0494e32587c44950e7d0e6220274f4079c53f995c146a71267caee605a9f1",
+      "hub": "0x076c5bd9fea636e06d06de7690bba7987aabeacbc2adf800c9859197a755b384",
+      "instances": "0x07e1f9c353ce5f92769781ecfbbb3bd2ff7a691008e7c98a59a668dea6971f85"
+    }
+  },
+  "script_commit": "44373774e7ff8ae19f80584565f86c794709d38b",
+  "tools": {
+    "sncast": "sncast 0.64.0"
+  },
+  "completed": false,
+  "stopped": "back to the gate's anchor (0, 7): goblins blocked the way from (15, 12) for 8 batches of Waits in instance 4294967297; the script does not fight its way through",
+  "adventurer_id": 1,
+  "instance_id": 4294967297,
+  "gates": {
+    "in": {
+      "id": 1,
+      "source": 1,
+      "destination": 2,
+      "anchor": [
+        0,
+        0
+      ],
+      "arrival": [
+        0,
+        105
+      ],
+      "kind": 1
+    },
+    "out": {
+      "id": 2,
+      "source": 2,
+      "destination": 1,
+      "anchor": [
+        0,
+        105
+      ],
+      "arrival": [
+        0,
+        0
+      ],
+      "kind": 1
+    }
+  },
+  "chunks_crossed": [
+    {
+      "chunk": 15,
+      "tile": [
+        13,
+        15
+      ]
+    },
+    {
+      "chunk": 16,
+      "tile": [
+        15,
+        22
+      ]
+    },
+    {
+      "chunk": 15,
+      "tile": [
+        14,
+        22
+      ]
+    },
+    {
+      "chunk": 16,
+      "tile": [
+        15,
+        17
+      ]
+    },
+    {
+      "chunk": 1,
+      "tile": [
+        21,
+        14
+      ]
+    }
+  ],
+  "final_location": {
+    "kind": "instance",
+    "instance": 4294967297
+  },
+  "hits": [
+    {
+      "tile": [
+        13,
+        16
+      ],
+      "health": [
+        100,
+        98
+      ],
+      "goblins": [
+        {
+          "tile": [
+            12,
+            17
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            11,
+            10
+          ],
+          "distance": 6
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 6
+        }
+      ]
+    },
+    {
+      "tile": [
+        21,
+        15
+      ],
+      "health": [
+        98,
+        97
+      ],
+      "goblins": [
+        {
+          "tile": [
+            20,
+            17
+          ],
+          "distance": 2
+        },
+        {
+          "tile": [
+            23,
+            13
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            24,
+            12
+          ],
+          "distance": 4
+        },
+        {
+          "tile": [
+            24,
+            13
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        19,
+        12
+      ],
+      "health": [
+        97,
+        96
+      ],
+      "goblins": [
+        {
+          "tile": [
+            21,
+            12
+          ],
+          "distance": 2
+        },
+        {
+          "tile": [
+            21,
+            11
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            22,
+            11
+          ],
+          "distance": 4
+        },
+        {
+          "tile": [
+            22,
+            13
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        16,
+        12
+      ],
+      "health": [
+        96,
+        95
+      ],
+      "goblins": [
+        {
+          "tile": [
+            17,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 2
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 4
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 5
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        95,
+        94
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        94,
+        92
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        92,
+        91
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        91,
+        90
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        90,
+        89
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        89,
+        88
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        88,
+        87
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "tile": [
+        15,
+        12
+      ],
+      "health": [
+        87,
+        85
+      ],
+      "goblins": [
+        {
+          "tile": [
+            14,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            16,
+            12
+          ],
+          "distance": 1
+        },
+        {
+          "tile": [
+            13,
+            15
+          ],
+          "distance": 3
+        },
+        {
+          "tile": [
+            12,
+            10
+          ],
+          "distance": 4
+        }
+      ]
+    }
+  ],
+  "transactions": [
+    {
+      "what": "register",
+      "hash": "0x01424e335d377c5eed201e6b0f4016aa14e2ad325bae2a2219e98c9169e46a2a",
+      "sender": "account",
+      "fee": "34972917402909505",
+      "unit": "FRI"
+    },
+    {
+      "what": "create_adventurer",
+      "hash": "0x01392dfff9e6da7af5e4ab9c05e447f32120e3ac72fd157a9994b05206f29d72",
+      "sender": "account",
+      "fee": "63843226294027245",
+      "unit": "FRI"
+    },
+    {
+      "what": "set_build",
+      "hash": "0x002fc6947276fbc71066a35e84f0aef75c2364fcc0ce08362c497b27c02c8d62",
+      "sender": "account",
+      "fee": "55836955116449716",
+      "unit": "FRI"
+    },
+    {
+      "what": "enter (gate 1)",
+      "hash": "0x05b6f82b4b53b8c296f0e0a494d81a67eba51df781e664ed6d85f7acc21a5e0b",
+      "sender": "account",
+      "fee": "197385665374076666",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 1, 6 Moves)",
+      "hash": "0x03ff6e9661ed870a20cdede289281de71e32ec6f4f73aed87871d0567488533c",
+      "sender": "account",
+      "fee": "597655072241566281",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 2, 10 Moves)",
+      "hash": "0x00a0ef014b5373e27750f2b042ce2be2652f9710d4a501e5ae069636a0f5f7ad",
+      "sender": "account",
+      "fee": "1097426097099603175",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 3, 6 Moves)",
+      "hash": "0x00b98bf6b2597b14c33825acc4a161399e6da176d4bb41a198869134e9ab0ea0",
+      "sender": "account",
+      "fee": "2476057127176115796",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 4, 8 Moves)",
+      "hash": "0x079de9aeb22626e7ea4ad2309ed5bb05273323fdf7511f150ce314e3f0e4a9f2",
+      "sender": "account",
+      "fee": "2443833991080587081",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 5, 10 Moves)",
+      "hash": "0x0535df4ec9935ec324936d8ec98455e65050312d503b67e7e3e065e9a8366f73",
+      "sender": "account",
+      "fee": "2294457203407659912",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 6, 10 Moves)",
+      "hash": "0x049dc4433e14d861d59d89c511d767a4cf720ad7fdfdf870445e752d45e90eb2",
+      "sender": "account",
+      "fee": "3815590801215160266",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 7, 10 Moves)",
+      "hash": "0x07110a91c28efd67f00c7e314865673d54b9a4abe0ec0faa20c29a6fdd8ab72a",
+      "sender": "account",
+      "fee": "2898457613034971091",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 8, 10 Moves)",
+      "hash": "0x06a74acfd828bce3d7247d5ab514f300cd93f76ca4b8d39b27b364677c9029d6",
+      "sender": "account",
+      "fee": "2840848890495323215",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 9, 1 Moves)",
+      "hash": "0x01906ef15a45b768262121d2ebdc7354f51d0fa780a73e3d62fd0407a574c6de",
+      "sender": "account",
+      "fee": "908831356516654771",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 10, 1 Moves)",
+      "hash": "0x015700c36165531a655846e0fa0172a90743370c736e30975cd126025a636de6",
+      "sender": "account",
+      "fee": "866888171567673345",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 11, 2 Waits)",
+      "hash": "0x049b51bde5cb2c1a0a09e201cf243adcb87bf33076ede8f022755d0e5425154f",
+      "sender": "account",
+      "fee": "1402391604020021652",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 12, 2 Waits)",
+      "hash": "0x040502915caaa81daa7bf202698273bffbb7faf9adc0551a232e1e71aa6c8cd6",
+      "sender": "account",
+      "fee": "1371337582470370576",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 13, 2 Waits)",
+      "hash": "0x02e45c8dd237f7f524ac420603b8618a769098967c6c871a23d966a43e8b6a0a",
+      "sender": "account",
+      "fee": "1363968890819298573",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 14, 2 Waits)",
+      "hash": "0x0587fc956d8c333a56075609b1a90197c718be9be3414c6811f441a4823bfa3f",
+      "sender": "account",
+      "fee": "1322580603628697399",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 15, 2 Waits)",
+      "hash": "0x0362f77d76c7e358adaea6050401124b69e402d2430346e59aa5f487fa97c270",
+      "sender": "account",
+      "fee": "1368681433373168976",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 16, 2 Waits)",
+      "hash": "0x05a95f7ed65490982ef9760031de86ba84525e05c962ade1aa754408159ffe35",
+      "sender": "account",
+      "fee": "1363968890819298573",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 17, 2 Waits)",
+      "hash": "0x053e8fed82cea1b2a81447317b87b733ce5c1916f71a1a0351eaa69674c3e494",
+      "sender": "account",
+      "fee": "1322580603628697399",
+      "unit": "FRI"
+    },
+    {
+      "what": "play (batch 18, 2 Waits)",
+      "hash": "0x064cc792af52cc090c861e6b12d9ce21243416c12e30277435beb45d8b1d0716",
+      "sender": "account",
+      "fee": "1368681433373168976",
+      "unit": "FRI"
+    }
+  ],
+  "total_fee": {
+    "amount": "31476276130155500189",
+    "unit": "FRI"
+  },
+  "started": "2026-10-17T11:26:33+00:00",
+  "finished": "2026-10-17T11:32:00+00:00",
+  "seconds": 327
+}
