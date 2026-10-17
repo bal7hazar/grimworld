@@ -1406,10 +1406,10 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_registry::test_set_record_unknown_kind_refused` | 1224990 | 1286240 | 2026-10-16 | 69b986a |
 | grimworld_persistent | `test_registry::test_upgrade_stub` | 825190 | 866450 | 2026-10-02 | f55176c |
 | grimworld_persistent | `test_registry::test_version_rises_per_changed_record` | 15131128 | 15876660 | 2026-10-17 | c49d2df |
-| grimworld_persistent | `test_seed::test_gas_seed_baseline` | 23875740 | 24686834 | 2026-10-17 | c49d2df |
-| grimworld_persistent | `test_seed::test_gas_seed_write` | 123570630 | 127623122 | 2026-10-17 | c49d2df |
-| grimworld_persistent | `test_seed::test_seed_rewritten_unchanged` | 187836500 | 194059310 | 2026-10-17 | c49d2df |
-| grimworld_persistent | `test_seed::test_seed_written_and_read_back` | 161132230 | 164066511 | 2026-10-17 | c49d2df |
+| grimworld_persistent | `test_seed::test_gas_seed_baseline` | 23954670 | 25152404 | 2026-10-17 | 4437377 |
+| grimworld_persistent | `test_seed::test_gas_seed_write` | 125330346 | 131596864 | 2026-10-17 | 4437377 |
+| grimworld_persistent | `test_seed::test_seed_rewritten_unchanged` | 190674662 | 200208396 | 2026-10-17 | 4437377 |
+| grimworld_persistent | `test_seed::test_seed_written_and_read_back` | 165961806 | 174259897 | 2026-10-17 | 4437377 |
 | grimworld_persistent | `test_zone::test_authored_reveal_threaded` | 74580513 | 75420653 | 2026-10-17 | c49d2df |
 | grimworld_persistent | `test_zone::test_authored_reveal_through_hosts_library` | 106964892 | 109382461 | 2026-10-17 | c49d2df |
 | grimworld_persistent | `test_zone::test_chunk_set_cannot_precede_the_class` | 11316138 | 11876464 | 2026-10-17 | c49d2df |
